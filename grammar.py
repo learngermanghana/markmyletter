@@ -48,8 +48,7 @@ def load_grammar_data():
     Each entry: level, topic, keywords, explanation, example.
     """
     return [
-        # A1 Topics
-        {"level":"A1","topic":"Word Classes (Wortarten)","keywords":["word classes","wortarten"],"explanation":"German Wortarten categorize words by function (e.g., nouns, verbs, adjectives, adverbs, pronouns, articles, prepositions, conjunctions, numerals, interjections).","example":"Das schnelle Auto fährt laut."},
+              {"level":"A1","topic":"Word Classes (Wortarten)","keywords":["word classes","wortarten"],"explanation":"German Wortarten categorize words by function (e.g., nouns, verbs, adjectives, adverbs, pronouns, articles, prepositions, conjunctions, numerals, interjections).","example":"Das schnelle Auto fährt laut."},
         {"level":"A1","topic":"Personal Pronouns","keywords":["ich","du","er","sie","es","wir","ihr","Sie"],"explanation":"Pronouns replace nouns: ich (I), du (you). Must match case, number, and gender.","example":"Ich bin Felix."},
         {"level":"A1","topic":"Nouns & Genders","keywords":["nouns","genders","genus"],"explanation":"All German nouns are capitalized and have three genders: der (masc), die (fem), das (neut).","example":"Der Tisch, die Lampe, das Auto."},
         {"level":"A1","topic":"Verb Conjugation","keywords":["verb","conjugation","regular","irregular"],"explanation":"Regular verbs follow predictable endings (ich mache); irregular verbs change stems (ich gehe).","example":"Ich mache Hausaufgaben. Du gehst zur Schule."},
@@ -67,6 +66,24 @@ def load_grammar_data():
         {"level":"A1","topic":"Time & Date Expressions","keywords":["time","date","um","am","im"],"explanation":"Express times and dates: um 8 Uhr (time), am Montag (day), im Januar (month).","example":"Der Unterricht beginnt um 8 Uhr am Montag im Januar."},
         {"level":"A1","topic":"Common Connectors","keywords":["und","oder","aber","denn"],"explanation":"Basic coordinating conjunctions join clauses without changing word order: und (and), oder (or), aber (but), denn (because).","example":"Ich bin müde, aber glücklich."},
         {"level":"A1","topic":"Numbers & Dates","keywords":["numbers","dates"],"explanation":"Numbers and dates use cardinal and ordinal forms: eins, zwei; der 1. Januar.","example":"Heute ist der 1. Januar."},
+{"level":"A1","topic":"Word Classes (Wortarten)","keywords":["wortarten","nouns","verbs","adjectives","adverbs","pronouns","articles","prepositions","conjunctions","numerals","interjections"],"explanation":"German Wortarten categorize words by function (e.g., nouns, verbs, adjectives, adverbs, pronouns, articles, prepositions, conjunctions, numerals, interjections).","example":"Das schnelle Auto fährt sehr laut."},
+        {"level":"A1","topic":"Personal Pronouns","keywords":["ich","du","er","sie","es","wir","ihr","Sie"],"explanation":"Pronouns replace nouns: ich (I), du (you). Must match case, number, and gender.","example":"Ich bin Felix."},
+        {"level":"A1","topic":"Nouns & Genders","keywords":["nouns","genders","genus"],"explanation":"All German nouns are capitalized and have three genders: der (masc), die (fem), das (neut).","example":"Der Tisch, die Lampe, das Auto."},
+        {"level":"A1","topic":"Definite & Indefinite Articles Declension","keywords":["der","die","das","ein","eine"],"explanation":"Declines articles by case and number: Nom: der Mann/ein Mann; Acc: den Mann/einen Mann; Dat: dem Mann/einem Mann; Gen: des Mannes/eines Mannes.","example":"Nominativ: der Hund; Akkusativ: den Hund; Dativ: dem Hund; Genitiv: des Hundes."},
+        {"level":"A1","topic":"Present Tense (Präsens)","keywords":["präsens","present"],"explanation":"Describes current or habitual actions; verb agrees with subject.","example":"Ich lerne Deutsch. Er spielt Fußball."},
+        {"level":"A1","topic":"Modal Verbs Present Conjugation","keywords":["können","müssen","dürfen","wollen","sollen","mögen","möchten"],"explanation":"Present forms for modals: ich kann/muss/darf/will/soll/mag/möchte; du kannst/musst/darfst/willst/sollst/magst/möchtest.","example":"ich kann, du kannst; ich möchte, du möchtest."},
+        {"level":"A1","topic":"Main Verbs Present Conjugation","keywords":["machen","gehen","haben","sein","sprechen"],"explanation":"Present forms for main verbs: ich mache/gehe/habe/bin/spreche; du machst/gehst/hast/bist/sprichst.","example":"ich mache, du machst; ich gehe, du gehst."},
+        {"level":"A1","topic":"Modal Verbs Präteritum Conjugation","keywords":["dürfen","können","müssen","sollen","wollen","mögen","möchten"],"explanation":"Simple past for modals: ich durfte/konnte/musste/sollte/wollte/mochte/möchte;","example":"ich durfte, du durftest; ich mochte, du mochtest."},
+        {"level":"A1","topic":"Statement Structure Rule","keywords":["statement rule","satzbau","svo"],"explanation":"In declarative sentences the finite verb is in the second position (SVO): Subject-Verb-Object.","example":"Ich kaufe einen Apfel."},
+        {"level":"A1","topic":"Yes/No Questions","keywords":["yes or no questions","ja nein fragen","inversion"],"explanation":"Form yes/no questions by inverting subject and verb, without a question word.","example":"Kommst du morgen?"},
+        {"level":"A1","topic":"W-Questions (W-Fragen)","keywords":["wer","was","wo","wann","warum","wie"],"explanation":"Use W-question words at the beginning; verb remains in second position.","example":"Wo wohnst du?"},
+        {"level":"A1","topic":"Modal Verb Rule","keywords":["modal verb rule","modalverben"],"explanation":"Modal verbs occupy second position; the main infinitive goes to the end of the clause.","example":"Ich kann heute nicht kommen."},
+        {"level":"A1","topic":"'Weil' Subordinate Clause Rule","keywords":["weil","subordinate clause","verb end"],"explanation":"In subordinate clauses with weil, the verb moves to the end of the clause.","example":"Ich bleibe zu Hause, weil ich krank bin."},
+        {"level":"A1","topic":"Main Verbs Präteritum Conjugation","keywords":["machen","gehen","haben","sein","sprechen"],"explanation":"Simple past for main verbs: ich machte/ging/hatte/war/sprach;","example":"ich machte, du machtest; ich ging, du gingst."},
+        # A2 Topics
+        {"level":"A2","topic":"Accusative Prepositions","keywords":["bis","durch","für","gegen","ohne","um","entlang"],"explanation":"Always accusative: bis, durch, für, gegen, ohne, um, entlang.","example":"Ich gehe durch den Park."},
+        {"level":"A2","topic":"Dative Prepositions","keywords":["aus","außer","bei","mit","nach","seit","von","zu","gegenüber"],"explanation":"Always dative: aus, außer, bei, mit, nach, seit, von, zu, gegenüber.","example":"Ich fahre mit dem Bus."},
+        {"level":"A2","topic":"Two-way Prepositions (Full)","keywords":["an","auf","hinter","in","neben","über","unter","vor","zwischen"],"explanation":"Accusative for movement, dative for location for these preps.","example":"Ich lege das Buch auf den Tisch. Das Buch liegt auf dem Tisch."},
         # A2 Topics
         {"level":"A2","topic":"Dative Case Expanded","keywords":["dativ","wem"],"explanation":"The dative case marks indirect objects and answers 'Wem?'; verbs like helfen, danken, gehören require dative.","example":"Ich helfe meinem Freund."},
         {"level":"A2","topic":"Two-way Prepositions","keywords":["wechselpräpositionen","in","an","auf","über","unter","zwischen"],"explanation":"Use accusative for movement (Ich lege das Buch auf den Tisch) and dative for location (Das Buch liegt auf dem Tisch).","example":"Ich lege das Buch auf den Tisch."},
@@ -84,7 +101,7 @@ def load_grammar_data():
         {"level":"A2","topic":"Passive Voice (Present)","keywords":["passiv","werden","partizip"],"explanation":"Form passive sentence with werden + Partizip II to focus on the receiver of the action.","example":"Die Pizza wird geliefert."},
         {"level":"A2","topic":"Adverbs of Frequency & Degree","keywords":["oft","manchmal","sehr","kaum"],"explanation":"Use adverbs like oft, manchmal for frequency and sehr, kaum for degree to modify verbs.","example":"Ich bin meistens pünktlich."},
         {"level":"A2","topic":"TMP Rule","keywords":["time","manner","place"],"explanation":"Adverbs and adverbial phrases follow the order: Time - Manner - Place.","example":"Ich lerne heute gerne hier."},
-        {"level":"A2","topic":"Common Connectors (Konjunktionen)","keywords":["deshalb","außerdem","zwar aber"],"explanation":"Link ideas logically with connectors like deshalb, außerdem, zwar … aber.","example":"Ich lerne viel, deshalb verstehe ich besser."},
+        {"level":"A2","topic":"Common Connectors","keywords":["deshalb","außerdem","zwar aber"],"explanation":"Link ideas logically with connectors like deshalb, außerdem, zwar … aber.","example":"Ich lerne viel, deshalb verstehe ich besser."},
         # B1 Topics
         {"level":"B1","topic":"Simple Past (Präteritum)","keywords":["präteritum","past"],"explanation":"Primarily a written tense; regular verbs add -te, irregular verbs have stem changes.","example":"Ich ging gestern ins Kino."},
         {"level":"B1","topic":"Pluperfect (Plusquamperfekt)","keywords":["plusquamperfekt"],"explanation":"Describes an action completed before another past action: hatte/war + Partizip II.","example":"Ich hatte gegessen, bevor er kam."},
@@ -95,8 +112,9 @@ def load_grammar_data():
         {"level":"B2","topic":"Passive Voice in All Tenses","keywords":["passiv","werden","partizip"],"explanation":"Form passive across tenses: Präsens (wird gemacht), Präteritum (wurde gemacht), Perfekt (ist gemacht worden).","example":"Das Buch wird gelesen. Das Buch ist gelesen worden."},
         {"level":"B2","topic":"Indirect Speech","keywords":["konjunktiv I","indirekte rede"],"explanation":"Report speech using Konjunktiv I for neutrality in reported statements.","example":"Er sagt, er habe Zeit."},
         {"level":"B2","topic":"Nominal Style","keywords":["nominalstil","nominalisierung"],"explanation":"Convert complex ideas into noun phrases for formal style (Nominalisierung).","example":"Sein Zuspätkommen war ein Problem."},
-        {"level":"B2","topic":"Adverbial Participles","keywords":["partizipialkonstruktion","adverbial"],"explanation":"Use participle phrases to shorten subordinate clauses: Vom Regen überrascht, ging er nach Hause.","example":"Vom Regen überrascht, ging er nach Hause."},
+        {"level":"B2","topic":"Adverbial Participles","keywords":["partizipialkonstruktion","adverbial"],"explanation":"Use participle phrases to shorten subordinate clauses: Vom Regen überrascht, ging er nach Hause.","example":"Vom Regen überrascht, ging er nach Hause."}
     ]
+
 # ---------- Step 3: Search Helper ----------
 def search_grammar_topics(query, grammar_data, level_filter):
     query_keywords = [w.strip("?.!").lower() for w in query.split() if len(w) > 2]
