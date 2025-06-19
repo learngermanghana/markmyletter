@@ -530,7 +530,7 @@ if st.session_state["step"] == 5:
         f"Today's practice: {st.session_state['daily_usage'][usage_key]}/{DAILY_LIMIT}"
     )
 
-    # --- Reset session data for A1 exam if changed ---
+    # Reset session data if A1 exam mode part or level changed
     if "last_exam_key" not in st.session_state or st.session_state.get("last_exam_key") != (
         st.session_state.get("selected_exam_level"), st.session_state.get("selected_teil")
     ):
@@ -544,7 +544,6 @@ if st.session_state["step"] == 5:
         st.session_state["a1_teil3_round"] = 0
         st.session_state["a1_teil3_used"] = []
 
-    # --- Mode branching ---
     is_custom_chat = st.session_state.get("selected_mode") == "Eigenes Thema/Frage (Custom Topic Chat)"
     is_exam_mode = st.session_state.get("selected_mode", "").startswith("Geführte")
     is_b1_teil3 = (
@@ -553,7 +552,7 @@ if st.session_state["step"] == 5:
         and st.session_state.get("selected_teil", "").startswith("Teil 3")
     )
 
-    # --- Custom Chat: Select Level if not chosen yet ---
+    # --- Custom Chat: Select Level ---
     if is_custom_chat and not st.session_state.get("custom_chat_level"):
         level = st.radio(
             "Wähle dein Sprachniveau / Select your level:",
@@ -583,7 +582,7 @@ if st.session_state["step"] == 5:
                 }]
         st.stop()
 
-    # --- Custom Chat: First greeting if just started (not yet messages) ---
+    # --- Custom Chat: Initial greeting if not yet messages ---
     if is_custom_chat and st.session_state.get("custom_chat_level") and not st.session_state['messages']:
         st.session_state['messages'].append({
             'role': 'assistant',
@@ -628,12 +627,12 @@ if st.session_state["step"] == 5:
             prompt = st.session_state.get('initial_prompt', '')
             st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
 
-    # --------------- Text Input Only ---------------
+    # ------- Text Input Only (no file upload for simplicity) -------
     user_input = st.chat_input("💬 Oder tippe deine Antwort hier...", key="stage5_typed_input")
     session_ended = st.session_state.get('turn_count', 0) >= max_turns
     used_today = st.session_state['daily_usage'][usage_key]
 
-    # ----------- MAIN LOGIC FOR A1 EXAM AND CUSTOM CHAT -----------
+    # ----------- MAIN LOGIC FOR EXAM & CUSTOM CHAT -----------
     if user_input and not session_ended:
         if used_today >= DAILY_LIMIT:
             st.warning(
@@ -645,72 +644,47 @@ if st.session_state["step"] == 5:
             st.session_state['turn_count'] += 1
             st.session_state['daily_usage'][usage_key] += 1
 
-            # --------- A1 EXAM MODE STRUCTURED LOGIC ---------
             level = st.session_state.get("selected_exam_level", "")
             teil = st.session_state.get("selected_teil", "")
 
-            # ---- A1 Official Exam Mode Only ----
+            # ----- A1 EXAM MODE: Use OpenAI for every Teil -----
             if is_exam_mode and level == "A1":
                 if teil.startswith("Teil 1"):
-                    if not st.session_state["a1_teil1_done"]:
-                        st.session_state["a1_teil1_questions"] = random.sample([
-                            "Wie alt bist du?", "Wo wohnst du?", "Was ist dein Hobby?", "Was machst du beruflich?",
-                            "Welche Sprachen sprichst du?", "Woher kommst du?", "Wie heißt du?"
-                        ], 3)
-                        ai_feedback = (
-                            "Sehr gut! 👍 Jetzt stelle ich dir 3 Fragen zu deiner Person. "
-                            "Bitte beantworte jede Frage einzeln."
-                        )
-                        st.session_state['messages'].append({'role': 'assistant', 'content': ai_feedback})
-                        st.session_state["a1_teil1_done"] = True
-                    elif st.session_state["a1_teil1_questions"]:
-                        followup = st.session_state["a1_teil1_questions"].pop(0)
-                        st.session_state['messages'].append({'role': 'assistant', 'content': followup})
-                        if not st.session_state["a1_teil1_questions"]:
-                            st.session_state["a1_teil1_done"] = False
-                            st.session_state["step"] = 6
+                    ai_system_prompt = (
+                        "You are Herr Felix, an A1 German examiner. "
+                        "Check the student's self-introduction (name, age, etc), correct errors, and give a grammar tip in English. "
+                        "If the answer is perfect, praise them. Then, if ready, ask the next follow-up question from your internal list."
+                    )
                 elif teil.startswith("Teil 2"):
-                    if st.session_state["a1_teil2_round"] < 3:
-                        unused = [p for p in A1_TEIL2 if p not in st.session_state["a1_teil2_used"]]
-                        if not unused:
-                            unused = A1_TEIL2.copy()
-                        thema, stichwort = random.choice(unused)
-                        st.session_state["a1_teil2_used"].append((thema, stichwort))
-                        st.session_state["a1_teil2_round"] += 1
-                        prompt = (
-                            f"**A1 Teil 2:** Thema: **{thema}**, Schlüsselwort: **{stichwort}**. "
-                            "Bitte stelle eine passende Frage und beantworte sie selbst."
-                        )
-                        st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
-                    else:
-                        st.session_state["a1_teil2_round"] = 0
-                        st.session_state["a1_teil2_used"] = []
-                        st.session_state["step"] = 6
+                    ai_system_prompt = (
+                        "You are Herr Felix, an A1 German examiner. "
+                        "Check the student's question and answer for the topic and keyword, correct errors, and give a grammar tip in English. "
+                        "If the answer is perfect, praise them. Then introduce the next Thema and keyword as the next prompt."
+                    )
                 elif teil.startswith("Teil 3"):
-                    if st.session_state["a1_teil3_round"] < 3:
-                        unused = [t for t in A1_TEIL3 if t not in st.session_state["a1_teil3_used"]]
-                        if not unused:
-                            unused = A1_TEIL3.copy()
-                        aufgabe = random.choice(unused)
-                        st.session_state["a1_teil3_used"].append(aufgabe)
-                        st.session_state["a1_teil3_round"] += 1
-                        prompt = (
-                            f"**A1 Teil 3:** Bitten & Planen: **{aufgabe}**. "
-                            "Formuliere eine höfliche Bitte."
-                        )
-                        st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
-                    else:
-                        st.session_state["a1_teil3_round"] = 0
-                        st.session_state["a1_teil3_used"] = []
-                        st.session_state["step"] = 6
+                    ai_system_prompt = (
+                        "You are Herr Felix, an A1 German examiner. "
+                        "Check the student's polite request, correct errors, and give a grammar tip in English. "
+                        "If the answer is perfect, praise them. Then give the next polite request prompt."
+                    )
+                conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["messages"]
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    try:
+                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                        resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = "Sorry, there was a problem generating a response."
+                        st.error(str(e))
+                st.session_state["messages"].append({"role": "assistant", "content": ai_reply})
+
+            # --- CUSTOM CHAT AND ALL OTHER MODES ---
             else:
-                # ------------- CUSTOM CHAT: PROMPT LOGIC ---------------
-                # Always set fallback for ai_system_prompt
+                # Fallback prompt, then customize per level/mode
                 ai_system_prompt = (
                     "You are Herr Felix, a supportive and creative German examiner. "
                     "Continue the conversation, give simple corrections, and ask the next question."
                 )
-                # ---- B1 Teil 3 Custom Prompt ----
                 if is_b1_teil3:
                     b1_topic = st.session_state['current_b1_teil3_topic']
                     ai_system_prompt = (
@@ -726,15 +700,13 @@ if st.session_state["step"] == 5:
                     )
                 elif is_custom_chat:
                     lvl = st.session_state.get('custom_chat_level', 'A2')
-                    # --------- YOUR STRICT CUSTOM CHAT PROMPTS HERE ---------
                     if lvl == 'A2':
                         ai_system_prompt = (
                             "You are Herr Felix, a friendly but creative A2 German teacher and exam trainer. "
                             "Greet and give students ideas and examples about how to talk about the topic in English and ask only question. No correction or answer in the statement but only tip and possible phrases to use. This stage only when the student input their first question and not anyother input. "
                             "The first input from the student is their topic and not their reply or sentence or answer. It is always their presentation topic. Only the second and further repliers it their response to your question "
-                            "Use simple English and German to correct the student's last answer. Tip and necessay suggestions should be explained in English with German supporting for student to udnerstand. They are A2 beginners student. " 
-                            "You can also suggest keywords when needed."
-                            "Ask one question only. Format your reply with answer, correction explanation in english, tip in english, and next question in German."
+                            "Use simple English and German to correct the student's last answer. Tip and necessary suggestions should be explained in English with German supporting for student to understand. They are A2 beginners student. "
+                            "You can also suggest keywords when needed. Ask one question only. Format your reply with answer, correction explanation in english, tip in english, and next question in German."
                         )
                     elif lvl == 'B1':
                         if not st.session_state['custom_topic_intro_done']:
@@ -766,27 +738,19 @@ if st.session_state["step"] == 5:
                             "Always correct the student's answer in both English and German. "
                             "Encourage deeper reasoning, advanced grammar, and real-world vocabulary in your feedback and questions."
                         )
-                # --- Mark intro done for B1/B2/C1 custom chat after first user reply ---
+                # --- Mark intro done for B1/B2/C1 after first user reply ---
                 if is_custom_chat and lvl in ['B1', 'B2', 'C1'] and not st.session_state["custom_topic_intro_done"]:
                     st.session_state["custom_topic_intro_done"] = True
-                # --- OpenAI AI Response Call ---
-                conversation = (
-                    [{"role": "system", "content": ai_system_prompt}]
-                    + st.session_state["messages"]
-                )
+                conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["messages"]
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     try:
                         client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        resp = client.chat.completions.create(
-                            model="gpt-4o", messages=conversation
-                        )
+                        resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
                         ai_reply = resp.choices[0].message.content
                     except Exception as e:
                         ai_reply = "Sorry, there was a problem generating a response."
                         st.error(str(e))
-                st.session_state["messages"].append(
-                    {"role": "assistant", "content": ai_reply}
-                )
+                st.session_state["messages"].append({"role": "assistant", "content": ai_reply})
 
     # ------ Display chat history ------
     for msg in st.session_state["messages"]:
