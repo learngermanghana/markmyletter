@@ -238,7 +238,7 @@ if st.session_state["logged_in"]:
 if st.session_state.get("logged_in") and tab == "Falowen Chat":
     st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
-    # Ensure stage variable is present
+    # --- Stage variable setup ---
     if "falowen_stage" not in st.session_state:
         st.session_state["falowen_stage"] = 1
     if "falowen_mode" not in st.session_state:
@@ -261,7 +261,6 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
         if st.button("Next ➡️", key="falowen_next_mode"):
             st.session_state["falowen_mode"] = mode
             st.session_state["falowen_stage"] = 2
-            # Clear next step states on mode change
             st.session_state["falowen_level"] = None
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
@@ -281,7 +280,6 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
                 st.session_state["falowen_stage"] = 3
             else:
                 st.session_state["falowen_stage"] = 4
-            # Clear messages when level changes
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
@@ -325,20 +323,47 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
         if st.button("Start Practice", key="falowen_start_practice"):
             st.session_state["falowen_teil"] = teil
             st.session_state["falowen_stage"] = 4
-            # Reset chat for new session
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-# ------------- User Input -------------
-user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
-session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
+    # ------------- Step 4: Main Chat + User Input -------------
+    if st.session_state["falowen_stage"] == 4:
+        # Usage Key & Limit
+        FALOWEN_DAILY_LIMIT = 25
+        falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
+        if "falowen_usage" not in st.session_state:
+            st.session_state["falowen_usage"] = {}
+        st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
 
-# ============= Main Chat Logic =============
-if user_input and not session_ended:
-    st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-    st.session_state["falowen_turn_count"] += 1
-    st.session_state["falowen_usage"][falowen_usage_key] += 1
+        st.info(
+            f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
+        )
+
+        # Show messages
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        unsafe_allow_html=True
+                    )
+                    st.markdown(msg["content"])
+            else:
+                with st.chat_message("user"):
+                    st.markdown(f"🗣️ {msg['content']}")
+
+        # User Input
+        user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
+        session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
+
+        # Main Chat Logic
+        if user_input and not session_ended:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            if "falowen_turn_count" not in st.session_state:
+                st.session_state["falowen_turn_count"] = 0
+            st.session_state["falowen_turn_count"] += 1
+            st.session_state["falowen_usage"][falowen_usage_key] += 1
 
         # --------------- PROMPT SELECTION ---------------
         ai_system_prompt = (
