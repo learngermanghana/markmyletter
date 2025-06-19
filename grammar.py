@@ -274,7 +274,6 @@ if st.session_state["logged_in"]:
         if "custom_chat_level" not in st.session_state:
             st.session_state["custom_chat_level"] = None
 
-
         # --------- Step 1: Practice Mode ---------
         if st.session_state["falowen_stage"] == 1:
             st.subheader("Step 1: Choose Practice Mode")
@@ -361,8 +360,44 @@ if st.session_state["logged_in"]:
 
         # --------- Step 4: Main Chat + User Input ---------
         if st.session_state["falowen_stage"] == 4:
-            # Insert your Falowen Chat logic here
-            st.write("Falowen Chat Main Area – put your chat code here!")
+            # --- Usage Key & Limit ---
+            FALOWEN_DAILY_LIMIT = 25
+            falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
+            if "falowen_usage" not in st.session_state:
+                st.session_state["falowen_usage"] = {}
+            st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
+
+            # --- Display usage info ---
+            st.info(
+                f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
+            )
+
+            # --- Display message history ---
+            for msg in st.session_state["falowen_messages"]:
+                if msg["role"] == "assistant":
+                    with st.chat_message("assistant", avatar="🧑‍🏫"):
+                        st.markdown(
+                            "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                            unsafe_allow_html=True
+                        )
+                        st.markdown(msg["content"])
+                else:
+                    with st.chat_message("user"):
+                        st.markdown(f"🗣️ {msg['content']}")
+
+            # --- User Input ---
+            user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
+            session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
+
+            # --- Main Chat Logic (collect, count, store user messages) ---
+            if user_input and not session_ended:
+                st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+                if "falowen_turn_count" not in st.session_state:
+                    st.session_state["falowen_turn_count"] = 0
+                st.session_state["falowen_turn_count"] += 1
+                st.session_state["falowen_usage"][falowen_usage_key] += 1
+                # (Add your OpenAI call to generate and append assistant reply here!)
+
 
         # --------------- PROMPT SELECTION ---------------
         ai_system_prompt = (
