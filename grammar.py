@@ -43,6 +43,152 @@ VOCAB_LISTS = {
     "C1": ["Ausdruck", "Beziehung", "Erkenntnis", "Verfügbarkeit", "Bereich"]
 }
 
+# Exam topic lists
+# --- A1 Exam Topic Lists (Teil 1, 2, 3) ---
+
+A1_TEIL1 = [
+    "Name", "Alter", "Wohnort", "Land", "Sprache", "Familie", "Beruf", "Hobby"
+]
+
+A1_TEIL2 = [
+    ("Geschäft", "schließen"),
+    ("Uhr", "Uhrzeit"),
+    ("Arbeit", "Kollege"),
+    ("Hausaufgabe", "machen"),
+    ("Küche", "kochen"),
+    ("Freizeit", "lesen"),
+    ("Telefon", "anrufen"),
+    ("Reise", "Hotel"),
+    ("Auto", "fahren"),
+    ("Einkaufen", "Obst"),
+    ("Schule", "Lehrer"),
+    ("Geburtstag", "Geschenk"),
+    ("Essen", "Frühstück"),
+    ("Arzt", "Termin"),
+    ("Zug", "Abfahrt"),
+    ("Wetter", "Regen"),
+    ("Buch", "lesen"),
+    ("Computer", "E-Mail"),
+    ("Kind", "spielen"),
+    ("Wochenende", "Plan"),
+    ("Bank", "Geld"),
+    ("Sport", "laufen"),
+    ("Abend", "Fernsehen"),
+    ("Freunde", "Besuch"),
+    ("Bahn", "Fahrkarte"),
+    ("Straße", "Stau"),
+    ("Essen gehen", "Restaurant"),
+    ("Hund", "Futter"),
+    ("Familie", "Kinder"),
+    ("Post", "Brief"),
+    ("Nachbarn", "laut"),
+    ("Kleid", "kaufen"),
+    ("Büro", "Chef"),
+    ("Urlaub", "Strand"),
+    ("Kino", "Film"),
+    ("Internet", "Seite"),
+    ("Bus", "Abfahrt"),
+    ("Arztpraxis", "Wartezeit"),
+    ("Kuchen", "backen"),
+    ("Park", "spazieren"),
+    ("Bäckerei", "Brötchen"),
+    ("Geldautomat", "Karte"),
+    ("Buchladen", "Roman"),
+    ("Fernseher", "Programm"),
+    ("Tasche", "vergessen"),
+    ("Stadtplan", "finden"),
+    ("Ticket", "bezahlen"),
+    ("Zahnarzt", "Schmerzen"),
+    ("Museum", "Öffnungszeiten"),
+    ("Handy", "Akku leer"),
+]
+
+A1_TEIL3 = [
+    "Radio anmachen",
+    "Fenster zumachen",
+    "Licht anschalten",
+    "Tür aufmachen",
+    "Tisch sauber machen",
+    "Hausaufgaben schicken",
+    "Buch bringen",
+    "Handy ausmachen",
+    "Stuhl nehmen",
+    "Wasser holen",
+    "Fenster öffnen",
+    "Musik leiser machen",
+    "Tafel sauber wischen",
+    "Kaffee kochen",
+    "Deutsch üben",
+    "Auto waschen",
+    "Kind abholen",
+    "Tisch decken",
+    "Termin machen",
+    "Nachricht schreiben",
+]
+
+A2_TEIL1 = [
+    "Wohnort", "Tagesablauf", "Freizeit", "Sprachen", "Essen & Trinken", "Haustiere",
+    "Lieblingsmonat", "Jahreszeit", "Sport", "Kleidung (Sommer)", "Familie", "Beruf",
+    "Hobbys", "Feiertage", "Reisen", "Lieblingsessen", "Schule", "Wetter", "Auto oder Fahrrad", "Perfekter Tag"
+]
+A2_TEIL2 = [
+    "Was machen Sie mit Ihrem Geld?",
+    "Was machen Sie am Wochenende?",
+    "Wie verbringen Sie Ihren Urlaub?",
+    "Wie oft gehen Sie einkaufen und was kaufen Sie?",
+    "Was für Musik hören Sie gern?",
+    "Wie feiern Sie Ihren Geburtstag?",
+    "Welche Verkehrsmittel nutzen Sie?",
+    "Wie bleiben Sie gesund?",
+    "Was machen Sie gern mit Ihrer Familie?",
+    "Wie sieht Ihr Traumhaus aus?",
+    "Welche Filme oder Serien mögen Sie?",
+    "Wie oft gehen Sie ins Restaurant?",
+    "Was ist Ihr Lieblingsfeiertag?",
+    "Was machen Sie morgens als Erstes?",
+    "Wie lange schlafen Sie normalerweise?",
+    "Welche Hobbys hatten Sie als Kind?",
+    "Machen Sie lieber Urlaub am Meer oder in den Bergen?",
+    "Wie sieht Ihr Lieblingszimmer aus?",
+    "Was ist Ihr Lieblingsgeschäft?",
+    "Wie sieht ein perfekter Tag für Sie aus?"
+]
+A2_TEIL3 = [
+    "Zusammen ins Kino gehen", "Ein Café besuchen", "Gemeinsam einkaufen gehen",
+    "Ein Picknick im Park organisieren", "Eine Fahrradtour planen",
+    "Zusammen in die Stadt gehen", "Einen Ausflug ins Schwimmbad machen",
+    "Eine Party organisieren", "Zusammen Abendessen gehen",
+    "Gemeinsam einen Freund/eine Freundin besuchen", "Zusammen ins Museum gehen",
+    "Einen Spaziergang im Park machen", "Ein Konzert besuchen",
+    "Zusammen eine Ausstellung besuchen", "Einen Wochenendausflug planen",
+    "Ein Theaterstück ansehen", "Ein neues Restaurant ausprobieren",
+    "Einen Kochabend organisieren", "Einen Sportevent besuchen", "Eine Wanderung machen"
+]
+
+B1_TEIL1 = [
+    "Mithilfe beim Sommerfest", "Eine Reise nach Köln planen",
+    "Überraschungsparty organisieren", "Kulturelles Ereignis (Konzert, Ausstellung) planen",
+    "Museumsbesuch organisieren"
+]
+B1_TEIL2 = [
+    "Ausbildung", "Auslandsaufenthalt", "Behinderten-Sport", "Berufstätige Eltern",
+    "Berufswahl", "Bio-Essen", "Chatten", "Computer für jeden Kursraum", "Das Internet",
+    "Einkaufen in Einkaufszentren", "Einkaufen im Internet", "Extremsport", "Facebook",
+    "Fertigessen", "Freiwillige Arbeit", "Freundschaft", "Gebrauchte Kleidung",
+    "Getrennter Unterricht für Jungen und Mädchen", "Haushalt", "Haustiere", "Heiraten",
+    "Hotel Mama", "Ich bin reich genug", "Informationen im Internet", "Kinder und Fernsehen",
+    "Kinder und Handys", "Kinos sterben", "Kreditkarten", "Leben auf dem Land oder in der Stadt",
+    "Makeup für Kinder", "Marken-Kleidung", "Mode", "Musikinstrument lernen",
+    "Musik im Zeitalter des Internets", "Rauchen", "Reisen", "Schokolade macht glücklich",
+    "Sport treiben", "Sprachenlernen", "Sprachenlernen mit dem Internet",
+    "Stadtzentrum ohne Autos", "Studenten und Arbeit in den Ferien", "Studium", "Tattoos",
+    "Teilzeitarbeit", "Unsere Idole", "Umweltschutz", "Vegetarische Ernährung", "Zeitungslesen"
+]
+B1_TEIL3 = [
+    "Fragen stellen zu einer Präsentation", "Positives Feedback geben",
+    "Etwas überraschend finden oder planen", "Weitere Details erfragen"
+]
+
 # ====================================
 # 2. STUDENT LOGIN AND TAB SELECTION
 # ====================================
