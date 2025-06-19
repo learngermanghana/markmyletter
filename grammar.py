@@ -518,8 +518,7 @@ def show_formatted_ai_reply(ai_reply):
         st.markdown(f"<div style='color:#388e3c'><b>➡️ Next question:</b>  \n{followup.strip()}</div>", unsafe_allow_html=True)
 
 
-
- if st.session_state["step"] == 5:
+if st.session_state["step"] == 5:
     today_str = str(date.today())
     student_code = st.session_state["student_code"]
     usage_key = f"{student_code}_{today_str}"
