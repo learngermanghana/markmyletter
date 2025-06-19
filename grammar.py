@@ -574,7 +574,11 @@ if st.session_state["logged_in"]:
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-if st.session_state.get("logged_in") and tab == "Vocab Trainer":
+# =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
+
+elif tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
     # -------- Daily Limit (separate from others) --------
@@ -584,7 +588,9 @@ if st.session_state.get("logged_in") and tab == "Vocab Trainer":
         st.session_state["vocab_usage"] = {}
     st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
 
-    st.info(f"Today's Vocab checks: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}")
+    st.info(
+        f"Today's Vocab checks: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
+    )
 
     # -------- Level selection and vocab pool --------
     vocab_level = st.selectbox(
