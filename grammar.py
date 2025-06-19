@@ -517,7 +517,9 @@ def show_formatted_ai_reply(ai_reply):
     if followup.strip():
         st.markdown(f"<div style='color:#388e3c'><b>➡️ Next question:</b>  \n{followup.strip()}</div>", unsafe_allow_html=True)
 
-if st.session_state["step"] == 5:
+
+
+ if st.session_state["step"] == 5:
     today_str = str(date.today())
     student_code = st.session_state["student_code"]
     usage_key = f"{student_code}_{today_str}"
@@ -530,7 +532,20 @@ if st.session_state["step"] == 5:
         f"Today's practice: {st.session_state['daily_usage'][usage_key]}/{DAILY_LIMIT}"
     )
 
-    # Detect if it's B1 Teil 3 (Feedback & Questions)
+    # Reset A1 session data if part or level changed (prevents stale session)
+    if "last_exam_key" not in st.session_state or st.session_state.get("last_exam_key") != (
+        st.session_state.get("selected_exam_level"), st.session_state.get("selected_teil")
+    ):
+        st.session_state["last_exam_key"] = (
+            st.session_state.get("selected_exam_level"), st.session_state.get("selected_teil")
+        )
+        st.session_state["a1_teil1_done"] = False
+        st.session_state["a1_teil1_questions"] = []
+        st.session_state["a1_teil2_round"] = 0
+        st.session_state["a1_teil2_used"] = []
+        st.session_state["a1_teil3_round"] = 0
+        st.session_state["a1_teil3_used"] = []
+
     is_b1_teil3 = (
         st.session_state.get("selected_mode", "").startswith("Geführte") and
         st.session_state.get("selected_exam_level") == "B1" and
@@ -550,7 +565,6 @@ if st.session_state["step"] == 5:
         )
         if st.button("Start Custom Chat"):
             st.session_state["custom_chat_level"] = level
-            # B2 and C1 get a different intro message for advanced support
             if level in ["B2", "C1"]:
                 st.session_state["messages"] = [{
                     "role": "assistant",
@@ -598,100 +612,33 @@ if st.session_state["step"] == 5:
         st.session_state.get("selected_mode", "").startswith("Geführte")
         and not st.session_state['messages']
     ):
-        prompt = ""
         level = st.session_state["selected_exam_level"]
         teil = st.session_state["selected_teil"]
 
         if level == "A1":
-            # ----------- STRUCTURED A1 LOGIC FOR EXAM SIMULATION ------------
-
-            # ========== Teil 1: Self-Introduction and 3 Follow-up Questions ==========
+            # ---- Teil 1: Self-Introduction & 3 random follow-ups ----
             if teil.startswith("Teil 1"):
-                # Initialize counters for this session if not present
-                if "a1_teil1_done" not in st.session_state:
-                    st.session_state["a1_teil1_done"] = False
-                    st.session_state["a1_teil1_questions"] = []
-                # Self-intro prompt (first time)
-                if not st.session_state["a1_teil1_done"]:
-                    prompt = (
-                        "**A1 Teil 1:** Stell dich bitte vor. Introduce yourself with these keyw! "
-                        "Nenne deinen **Namen**, **Alter**, **Land**, **Wohnort**, **Sprachen**, **Beruf**, **Hobby** usw. "
-                        "Dies ist die Selbsteinführung wie in der Prüfung."
-                    )
-                    st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
-                    st.session_state["a1_teil1_done"] = True
-                    st.stop()
-                else:
-                    # After self-intro, AI asks 3 follow-ups (simulate; you can improve with parsing!)
-                    if len(st.session_state.get("a1_teil1_questions", [])) < 3:
-                        sample_followups = [
-                            "Wie alt bist du?",
-                            "Woher kommst du?",
-                            "Was ist dein Hobby?",
-                            "Was machst du beruflich?",
-                            "Welche Sprachen sprichst du?"
-                        ]
-                        used = st.session_state["a1_teil1_questions"]
-                        next_q = [q for q in sample_followups if q not in used]
-                        if next_q:
-                            followup = random.choice(next_q)
-                            st.session_state['messages'].append({'role': 'assistant', 'content': followup})
-                            st.session_state["a1_teil1_questions"].append(followup)
-                            st.stop()
-                    else:
-                        # Reset for next session
-                        st.session_state["a1_teil1_done"] = False
-                        st.session_state["a1_teil1_questions"] = []
-                        st.session_state["step"] = 6  # move to summary
-                        st.stop()
-
-            # ========== Teil 2: Question & Answer - 3 random topics ==========
+                prompt = (
+                    "**A1 Teil 1:** Stell dich bitte vor. Introduce yourself with these keywords: "
+                    "**Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby** usw. "
+                    "Dies ist die Selbsteinführung wie in der Prüfung."
+                )
+                st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
+                st.session_state["a1_teil1_done"] = False
+                st.session_state["a1_teil1_questions"] = []
+            # ---- Teil 2: Question & Answer (3 rounds) ----
             elif teil.startswith("Teil 2"):
-                if "a1_teil2_round" not in st.session_state:
-                    st.session_state["a1_teil2_round"] = 0
-                    st.session_state["a1_teil2_used"] = []
-                # Pick unused (Thema, Stichwort) pairs
-                unused_pairs = [p for p in A1_TEIL2 if p not in st.session_state["a1_teil2_used"]]
-                if unused_pairs and st.session_state["a1_teil2_round"] < 3:
-                    thema, stichwort = random.choice(unused_pairs)
-                    st.session_state["a1_teil2_used"].append((thema, stichwort))
-                    st.session_state["a1_teil2_round"] += 1
-                    prompt = (
-                        f"**A1 Teil 2:** Thema: **{thema}** | Schlüsselwort: **{stichwort}**. "
-                        "Stelle eine passende Frage und beantworte sie selbst. "
-                        "Beispiel: 'Wann schließt das Geschäft? – Das Geschäft schließt um 18 Uhr.'"
-                    )
-                    st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
-                    st.stop()
-                else:
-                    st.session_state["a1_teil2_round"] = 0
-                    st.session_state["a1_teil2_used"] = []
-                    st.session_state["step"] = 6
-                    st.stop()
-
-            # ========== Teil 3: Making a Request - 3 random polite tasks ==========
+                st.session_state["a1_teil2_round"] = 0
+                st.session_state["a1_teil2_used"] = []
+                prompt = "Du übst jetzt 3 verschiedene Themen. Los geht's!"
+                st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
+            # ---- Teil 3: Polite Requests (3 rounds) ----
             elif teil.startswith("Teil 3"):
-                if "a1_teil3_round" not in st.session_state:
-                    st.session_state["a1_teil3_round"] = 0
-                    st.session_state["a1_teil3_used"] = []
-                unused_tasks = [t for t in A1_TEIL3 if t not in st.session_state["a1_teil3_used"]]
-                if unused_tasks and st.session_state["a1_teil3_round"] < 3:
-                    aufgabe = random.choice(unused_tasks)
-                    st.session_state["a1_teil3_used"].append(aufgabe)
-                    st.session_state["a1_teil3_round"] += 1
-                    prompt = (
-                        f"**A1 Teil 3:** Bitten & Planen: **{aufgabe}**. "
-                        "Formuliere eine höfliche Bitte. Beispiel: 'Können Sie bitte das Fenster öffnen?'"
-                    )
-                    st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
-                    st.stop()
-                else:
-                    st.session_state["a1_teil3_round"] = 0
-                    st.session_state["a1_teil3_used"] = []
-                    st.session_state["step"] = 6
-                    st.stop()
+                st.session_state["a1_teil3_round"] = 0
+                st.session_state["a1_teil3_used"] = []
+                prompt = "Du übst jetzt 3 höfliche Bitten. Los geht's!"
+                st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
         else:
-            # For A2, B1, etc., use the prompt already stored from step 4
             prompt = st.session_state.get('initial_prompt', '')
             st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
 
@@ -725,10 +672,10 @@ if st.session_state["step"] == 5:
     elif typed:
         user_input = typed
 
-    # -------- Practice/session usage and limits --------
     session_ended = st.session_state.get('turn_count', 0) >= max_turns
     used_today = st.session_state['daily_usage'][usage_key]
 
+    # --------------- A1 EXAM LOGIC ---------------
     if user_input and not session_ended:
         if used_today >= DAILY_LIMIT:
             st.warning(
@@ -739,6 +686,78 @@ if st.session_state["step"] == 5:
             st.session_state['messages'].append({'role': 'user', 'content': user_input})
             st.session_state['turn_count'] += 1
             st.session_state['daily_usage'][usage_key] += 1
+
+            level = st.session_state.get("selected_exam_level", "")
+            teil = st.session_state.get("selected_teil", "")
+
+            # ----------- A1 Structured Response Logic -----------
+            if level == "A1":
+                # ---- TEIL 1: Self-Intro, then 3 random follow-ups ----
+                if teil.startswith("Teil 1"):
+                    if not st.session_state["a1_teil1_done"]:
+                        # Student just introduced themself, now ask 3 random questions
+                        st.session_state["a1_teil1_questions"] = random.sample([
+                            "Wie alt bist du?", "Wo wohnst du?", "Was ist dein Hobby?", "Was machst du beruflich?",
+                            "Welche Sprachen sprichst du?", "Woher kommst du?", "Wie heißt du?"
+                        ], 3)
+                        ai_feedback = (
+                            "Sehr gut! 👍 Jetzt stelle ich dir 3 Fragen zu deiner Person. "
+                            "Bitte beantworte jede Frage einzeln."
+                        )
+                        st.session_state['messages'].append({'role': 'assistant', 'content': ai_feedback})
+                        st.session_state["a1_teil1_done"] = True
+                    elif st.session_state["a1_teil1_questions"]:
+                        # Ask the next follow-up question
+                        followup = st.session_state["a1_teil1_questions"].pop(0)
+                        st.session_state['messages'].append({'role': 'assistant', 'content': followup})
+                        # If last question just asked, after next user reply, finish
+                        if not st.session_state["a1_teil1_questions"]:
+                            st.session_state["a1_teil1_done"] = False
+                            st.session_state["step"] = 6  # go to summary
+                # ---- TEIL 2: Q&A, 3 cycles ----
+                elif teil.startswith("Teil 2"):
+                    if st.session_state["a1_teil2_round"] < 3:
+                        unused = [p for p in A1_TEIL2 if p not in st.session_state["a1_teil2_used"]]
+                        if not unused:
+                            unused = A1_TEIL2.copy()
+                        thema, stichwort = random.choice(unused)
+                        st.session_state["a1_teil2_used"].append((thema, stichwort))
+                        st.session_state["a1_teil2_round"] += 1
+                        prompt = (
+                            f"**A1 Teil 2:** Thema: **{thema}**, Schlüsselwort: **{stichwort}**. "
+                            "Bitte stelle eine passende Frage und beantworte sie selbst."
+                        )
+                        st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
+                    else:
+                        st.session_state["a1_teil2_round"] = 0
+                        st.session_state["a1_teil2_used"] = []
+                        st.session_state["step"] = 6
+                # ---- TEIL 3: Polite Requests, 3 cycles ----
+                elif teil.startswith("Teil 3"):
+                    if st.session_state["a1_teil3_round"] < 3:
+                        unused = [t for t in A1_TEIL3 if t not in st.session_state["a1_teil3_used"]]
+                        if not unused:
+                            unused = A1_TEIL3.copy()
+                        aufgabe = random.choice(unused)
+                        st.session_state["a1_teil3_used"].append(aufgabe)
+                        st.session_state["a1_teil3_round"] += 1
+                        prompt = (
+                            f"**A1 Teil 3:** Bitten & Planen: **{aufgabe}**. "
+                            "Formuliere eine höfliche Bitte."
+                        )
+                        st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
+                    else:
+                        st.session_state["a1_teil3_round"] = 0
+                        st.session_state["a1_teil3_used"] = []
+                        st.session_state["step"] = 6
+                else:
+                    # fallback (A2, B1, etc.)
+                    ai_system_prompt = st.session_state.get('initial_prompt', '')
+                    conversation = (
+                        [{"role": "system", "content": ai_system_prompt}]
+                        + st.session_state["messages"]
+                    )
+            else:
 
             # ---- AI PROMPT SELECTION for conversation ----
             ai_system_prompt = (
