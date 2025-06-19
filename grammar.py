@@ -568,10 +568,10 @@ if st.session_state["logged_in"]:
             st.success("Summary not implemented yet (placeholder).")
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1, with AI Checking)
+# VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-elif tab == "Vocab Trainer":
+if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
     # ----- Daily usage limit handling -----
@@ -591,7 +591,10 @@ elif tab == "Vocab Trainer":
     if st.session_state["vocab_history"]:
         st.markdown("#### Previous Attempts:")
         for idx, item in enumerate(st.session_state["vocab_history"], 1):
-            st.markdown(f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>", unsafe_allow_html=True)
+            st.markdown(
+                f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>",
+                unsafe_allow_html=True
+            )
 
     # ---- Select vocab level ----
     vocab_level = st.selectbox(
@@ -607,49 +610,31 @@ elif tab == "Vocab Trainer":
     if not session_ended:
         # Pick or update word
         if "current_vocab_word" not in st.session_state or st.button("Next Word"):
-            import random
             st.session_state["current_vocab_word"] = random.choice(vocab_list)
             st.session_state["vocab_feedback"] = ""
 
         st.subheader(f"🔤 Translate this German word to English: **{st.session_state['current_vocab_word']}**")
         vocab_answer = st.text_input("Your English translation", key="vocab_answer")
 
-        # --- AI-based Answer check and feedback ---
+        # --- Answer check and feedback ---
         if st.button("Check Answer"):
-            if not vocab_answer.strip():
-                st.warning("Please enter your translation before checking!")
-            else:
-                ai_message = (
-                    f"You are an A1 German vocabulary examiner. "
-                    f"Check if the English translation of the German word '{st.session_state['current_vocab_word']}' is '{vocab_answer}'. "
-                    "Say if it is correct or not. Then, provide the best translation(s) and a short, simple tip in English if needed. Be supportive and brief."
-                )
-                with st.spinner("🧑‍🏫 Herr Felix is checking..."):
-                    try:
-                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[{"role": "system", "content": ai_message}]
-                        )
-                        ai_feedback = response.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_feedback = f"Error: {str(e)}"
-
-                st.session_state["vocab_history"].append({
-                    "word": st.session_state["current_vocab_word"],
-                    "answer": vocab_answer
-                })
-                st.session_state["vocab_usage"][vocab_usage_key] += 1
-                st.session_state["vocab_feedback"] = ai_feedback
-                st.experimental_rerun()
+            # [!] Replace with real logic to check answer correctness
+            correct = False  # Placeholder for correctness
+            feedback = f"✅ Great! (But feedback logic not yet implemented for '{st.session_state['current_vocab_word']}')"  # placeholder
+            # Store history for the session
+            st.session_state["vocab_history"].append({
+                "word": st.session_state["current_vocab_word"],
+                "answer": vocab_answer
+            })
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            st.session_state["vocab_feedback"] = feedback
+            st.experimental_rerun()  # To clear and fetch next word
 
         # Show feedback after check
         if st.session_state.get("vocab_feedback"):
             st.success(st.session_state["vocab_feedback"])
     else:
         st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
-
-
 
  # =========================================
 # SCHREIBEN TRAINER TAB (A1–C1, Free Input)
