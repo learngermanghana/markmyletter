@@ -568,73 +568,73 @@ if st.session_state["logged_in"]:
             st.success("Summary not implemented yet (placeholder).")
 
     # =========================================
-    # VOCAB TRAINER TAB (A1–C1)
-    # =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
 
-    elif tab == "Vocab Trainer":
-        st.header("🧠 Vocab Trainer")
+if tab == "Vocab Trainer":
+    st.header("🧠 Vocab Trainer")
 
-        # ----- Daily usage limit handling -----
-        vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
-        if "vocab_usage" not in st.session_state:
-            st.session_state["vocab_usage"] = {}
-        st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
+    # ----- Daily usage limit handling -----
+    vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
+    if "vocab_usage" not in st.session_state:
+        st.session_state["vocab_usage"] = {}
+    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
 
-        st.info(
-            f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
-        )
+    st.info(
+        f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
+    )
 
-        # ---- Display previous answers in session ----
-        if "vocab_history" not in st.session_state:
-            st.session_state["vocab_history"] = []
+    # ---- Display previous answers in session ----
+    if "vocab_history" not in st.session_state:
+        st.session_state["vocab_history"] = []
 
-        if st.session_state["vocab_history"]:
-            st.markdown("#### Previous Attempts:")
-            for idx, item in enumerate(st.session_state["vocab_history"], 1):
-                st.markdown(f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>", unsafe_allow_html=True)
+    if st.session_state["vocab_history"]:
+        st.markdown("#### Previous Attempts:")
+        for idx, item in enumerate(st.session_state["vocab_history"], 1):
+            st.markdown(
+                f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>",
+                unsafe_allow_html=True
+            )
 
-        # ---- Select vocab level ----
-        vocab_level = st.selectbox(
-            "Choose your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="vocab_level_select"
-        )
-        vocab_list = VOCAB_LISTS.get(vocab_level, [])
+    # ---- Select vocab level ----
+    vocab_level = st.selectbox(
+        "Choose your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="vocab_level_select"
+    )
+    vocab_list = VOCAB_LISTS.get(vocab_level, [])
 
-        session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
+    session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
 
-        # ---- Main practice block ----
-        if not session_ended:
-            # Pick or update word
-            if "current_vocab_word" not in st.session_state or st.button("Next Word"):
-                import random
-                st.session_state["current_vocab_word"] = random.choice(vocab_list)
-                st.session_state["vocab_feedback"] = ""
+    # ---- Main practice block ----
+    if not session_ended:
+        # Pick or update word
+        if "current_vocab_word" not in st.session_state or st.button("Next Word"):
+            st.session_state["current_vocab_word"] = random.choice(vocab_list)
+            st.session_state["vocab_feedback"] = ""
 
-            st.subheader(f"🔤 Translate this German word to English: **{st.session_state['current_vocab_word']}**")
-            vocab_answer = st.text_input("Your English translation", key="vocab_answer")
+        st.subheader(f"🔤 Translate this German word to English: **{st.session_state['current_vocab_word']}**")
+        vocab_answer = st.text_input("Your English translation", key="vocab_answer")
 
-            # --- Answer check and feedback ---
-            if st.button("Check Answer"):
-                # Simple check logic (customize if needed)
-                # For now, we'll just display the correct answer. In a real app, compare with a correct list!
-                correct = False  # Implement your own logic!
-                feedback = f"✅ Great! (But feedback logic not yet implemented for '{st.session_state['current_vocab_word']}')"  # placeholder
-                # Store history for the session
-                st.session_state["vocab_history"].append({
-                    "word": st.session_state["current_vocab_word"],
-                    "answer": vocab_answer
-                })
-                st.session_state["vocab_usage"][vocab_usage_key] += 1
-                st.session_state["vocab_feedback"] = feedback
-                st.experimental_rerun()  # To clear and fetch next word
+        # --- Answer check and feedback ---
+        if st.button("Check Answer"):
+            # [!] Replace with real logic to check answer correctness
+            correct = False  # Placeholder for correctness
+            feedback = f"✅ Great! (But feedback logic not yet implemented for '{st.session_state['current_vocab_word']}')"  # placeholder
+            # Store history for the session
+            st.session_state["vocab_history"].append({
+                "word": st.session_state["current_vocab_word"],
+                "answer": vocab_answer
+            })
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            st.session_state["vocab_feedback"] = feedback
+            st.experimental_rerun()  # To clear and fetch next word
 
-            # Show feedback after check
-            if st.session_state.get("vocab_feedback"):
-                st.success(st.session_state["vocab_feedback"])
-        else:
-            st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
-
+        # Show feedback after check
+        if st.session_state.get("vocab_feedback"):
+            st.success(st.session_state["vocab_feedback"])
+    else:
+        st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
 
 
     # =========================================
