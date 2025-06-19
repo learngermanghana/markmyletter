@@ -222,11 +222,12 @@ if not st.session_state["logged_in"]:
             st.session_state["student_code"] = code_clean
             st.session_state["logged_in"] = True
             st.success("Welcome! Login successful.")
-            st.experimental_rerun()
+            st.experimental_rerun()    # Immediately stops and reruns script (no need for st.stop here)
         else:
             st.error("This code is not recognized. Please check with your tutor.")
-            st.stop()
-    st.stop()  # Ensures nothing else runs if not logged in
+            st.stop()                  # stops right after error
+    st.stop()  # If they haven't logged in or pressed button, stop here!
+
 
 # --- Step 2: Choose Practice Mode (CENTERED, NO SIDEBAR) ---
 if st.session_state["logged_in"]:
@@ -547,6 +548,7 @@ if st.session_state["logged_in"]:
             with st.chat_message("user"):
                 st.markdown(f"🗣️ {msg['content']}")
 
+# =========================================   
     # ------------- Navigation Buttons --------------
     col1, col2, col3 = st.columns(3)
     with col1:
