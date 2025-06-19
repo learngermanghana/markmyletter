@@ -756,7 +756,7 @@ if st.session_state["step"] == 5:
                         [{"role": "system", "content": ai_system_prompt}]
                         + st.session_state["messages"]
                     )
-            else:
+        else:
 
             # ---- AI PROMPT SELECTION for conversation ----
             ai_system_prompt = (
