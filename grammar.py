@@ -258,7 +258,7 @@ if st.session_state["logged_in"]:
 
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
-        # --- Stage variable setup ---
+        # --- Stage/session state variable setup ---
         if "falowen_stage" not in st.session_state:
             st.session_state["falowen_stage"] = 1
         if "falowen_mode" not in st.session_state:
@@ -271,6 +271,9 @@ if st.session_state["logged_in"]:
             st.session_state["falowen_messages"] = []
         if "custom_topic_intro_done" not in st.session_state:
             st.session_state["custom_topic_intro_done"] = False
+        if "custom_chat_level" not in st.session_state:
+            st.session_state["custom_chat_level"] = None
+
 
         # --------- Step 1: Practice Mode ---------
         if st.session_state["falowen_stage"] == 1:
