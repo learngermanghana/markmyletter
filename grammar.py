@@ -206,13 +206,12 @@ def load_codes():
         df = pd.DataFrame(columns=["code"])
     return df
 
-# --- Session state for navigation and student info ---
+# --- Step 1: Student Login (only shows login form) ---
 if "student_code" not in st.session_state:
     st.session_state["student_code"] = ""
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# --- Step 1: Student Login ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     code = st.text_input("Enter your student code to begin:")
@@ -223,16 +222,28 @@ if not st.session_state["logged_in"]:
             st.session_state["student_code"] = code_clean
             st.session_state["logged_in"] = True
             st.success("Welcome! Login successful.")
+            st.experimental_rerun()   # To show the practice mode selection right away
         else:
             st.error("This code is not recognized. Please check with your tutor.")
 
-# --- Step 2: Show Tabs After Login ---
+# --- Step 2: Choose Practice Mode (CENTERED, NO SIDEBAR) ---
 if st.session_state["logged_in"]:
-    tab = st.sidebar.radio(
-        "Choose Practice Mode:",
+    st.header("Choose Practice Mode")
+    tab = st.radio(
+        "How do you want to practice?",
         ["Falowen Chat", "Vocab Trainer", "Schreiben Trainer"],
         key="main_tab_select"
     )
+    # Then use if/elif/else for your content...
+    if tab == "Falowen Chat":
+        # Falowen Chat code here
+        pass
+    elif tab == "Vocab Trainer":
+        # Vocab Trainer code here
+        pass
+    elif tab == "Schreiben Trainer":
+        # Schreiben Trainer code here
+        pass
 
 # ====================================
 # 5. FALOWEN CHAT TAB (Multi-Step, All Center)
