@@ -334,11 +334,11 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
 user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
 session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
 
-    # ============= Main Chat Logic =============
-    if user_input and not session_ended:
-        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        st.session_state["falowen_turn_count"] += 1
-        st.session_state["falowen_usage"][falowen_usage_key] += 1
+# ============= Main Chat Logic =============
+if user_input and not session_ended:
+    st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+    st.session_state["falowen_turn_count"] += 1
+    st.session_state["falowen_usage"][falowen_usage_key] += 1
 
         # --------------- PROMPT SELECTION ---------------
         ai_system_prompt = (
