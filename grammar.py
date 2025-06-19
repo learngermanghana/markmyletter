@@ -574,10 +574,6 @@ if st.session_state["logged_in"]:
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-# =========================================
-# VOCAB TRAINER TAB (A1–C1)
-# =========================================
-
 elif tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
@@ -644,11 +640,12 @@ elif tab == "Vocab Trainer":
         if st.session_state.get("vocab_result"):
             st.success(st.session_state["vocab_result"])
 
+
 # =========================================
 # SCHREIBEN TRAINER TAB (A1–C1, Free Input)
 # =========================================
 
-if st.session_state.get("logged_in") and tab == "Schreiben Trainer":
+elif tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer")
 
     # -------- Daily Limit (separate from others) --------
@@ -658,7 +655,9 @@ if st.session_state.get("logged_in") and tab == "Schreiben Trainer":
         st.session_state["schreiben_usage"] = {}
     st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
 
-    st.info(f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}")
+    st.info(
+        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
+    )
 
     schreiben_level = st.selectbox(
         "Select your level:",
@@ -683,7 +682,8 @@ if st.session_state.get("logged_in") and tab == "Schreiben Trainer":
                     "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
                     "2. Write a brief comment in English about what the student did well and what they should improve. "
                     "3. Show the full corrected letter (in bold or highlight the changes if possible). "
-                    "Do NOT give a grade—just corrections and encouragement."
+                    "Give grade out of 25 marks and explain to student why you give them that mark."
+                    "If student score is below 17, tell them to fix errors and even is above 18 then they can submit to their tutor."
                 )
                 ai_message = (
                     f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
