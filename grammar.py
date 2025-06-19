@@ -330,6 +330,10 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
+# ------------- User Input -------------
+user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
+session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
+
     # ============= Main Chat Logic =============
     if user_input and not session_ended:
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
