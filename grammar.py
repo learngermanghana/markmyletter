@@ -637,84 +637,64 @@ if tab == "Vocab Trainer":
         st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
 
 
-    # =========================================
-    # SCHREIBEN TRAINER TAB (A1–C1, Free Input)
-    # =========================================
+ # =========================================
+# SCHREIBEN TRAINER TAB (A1–C1, Free Input)
+# =========================================
 
-    elif tab == "Schreiben Trainer":
-        st.header("✍️ Schreiben Trainer")
+if tab == "Schreiben Trainer":
+    st.header("✍️ Schreiben Trainer")
 
-        # --------- Daily usage limit logic ---------
-        schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
-        if "schreiben_usage" not in st.session_state:
-            st.session_state["schreiben_usage"] = {}
-        st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
+    # -------- Daily usage limit handling --------
+    schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
+    if "schreiben_usage" not in st.session_state:
+        st.session_state["schreiben_usage"] = {}
+    st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
 
-        st.info(
-            f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
-        )
+    st.info(
+        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
+    )
 
-        schreiben_level = st.selectbox(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="schreiben_level_select"
-        )
+    schreiben_level = st.selectbox(
+        "Select your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="schreiben_level_select"
+    )
 
-        # --- Show recent feedback (if any) ---
-        if "schreiben_history" not in st.session_state:
-            st.session_state["schreiben_history"] = []
+    if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
+        st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
+    else:
+        st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
+        schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
 
-        if st.session_state["schreiben_history"]:
-            st.markdown("#### Previous Feedback:")
-            for idx, fb in enumerate(st.session_state["schreiben_history"], 1):
-                st.markdown(f"{idx}. <b>Level:</b> {fb['level']}<br/><b>Your text:</b> {fb['input'][:50]}...", unsafe_allow_html=True)
-                st.markdown(f"<div style='background:#f8f8ff;border-radius:8px;padding:8px 13px;margin-bottom:12px;'>{fb['feedback']}</div>", unsafe_allow_html=True)
+        if st.button("Check My Writing"):
+            if not schreiben_text.strip():
+                st.warning("Please write something before submitting.")
+            else:
+                # AI Prompt (no need for exam question)
+                ai_prompt = (
+                    f"You are Herr Felix, a strict but supportive Goethe examiner. "
+                    f"The student has submitted a {schreiben_level} German letter or essay. "
+                    "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
+                    "2. Write a brief comment in English about what the student did well and what they should improve. "
+                    "3. Show the full corrected letter (in bold or highlight the changes if possible). "
+                    "Do NOT give a grade—just corrections and encouragement."
+                )
+                ai_message = (
+                    f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
+                )
 
-        if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
-            st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
-        else:
-            st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
-            schreiben_text = st.text_area(
-                "Your letter/essay",
-                height=250,
-                key=f"schreiben_text_{schreiben_level}_{st.session_state['schreiben_usage'][schreiben_usage_key]}"
-            )
+                with st.spinner("🧑‍🏫 Herr Felix is marking..."):
+                    try:
+                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": ai_message}]
+                        )
+                        ai_feedback = response.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_feedback = f"Error: {str(e)}"
 
-            if st.button("Check My Writing"):
-                if not schreiben_text.strip():
-                    st.warning("Please write something before submitting.")
-                else:
-                    # AI Prompt
-                    ai_prompt = (
-                        f"You are Herr Felix, a strict but supportive Goethe examiner. "
-                        f"The student has submitted a {schreiben_level} German letter or essay. "
-                        "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
-                        "2. Write a brief comment in English about what the student did well and what they should improve. "
-                        "3. Show the full corrected letter (in bold or highlight the changes if possible). "
-                        "Do NOT give a grade—just corrections and encouragement."
-                    )
-                    ai_message = (
-                        f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
-                    )
+                st.success("📝 **Feedback from Herr Felix:**")
+                st.markdown(ai_feedback)
+                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
 
-                    with st.spinner("🧑‍🏫 Herr Felix is marking..."):
-                        try:
-                            client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                            response = client.chat.completions.create(
-                                model="gpt-4o",
-                                messages=[{"role": "system", "content": ai_message}]
-                            )
-                            ai_feedback = response.choices[0].message.content.strip()
-                        except Exception as e:
-                            ai_feedback = f"Error: {str(e)}"
-
-                    st.success("📝 **Feedback from Herr Felix:**")
-                    st.markdown(ai_feedback)
-                    st.session_state["schreiben_usage"][schreiben_usage_key] += 1
-                    # Save to feedback history
-                    st.session_state["schreiben_history"].append({
-                        "level": schreiben_level,
-                        "input": schreiben_text,
-                        "feedback": ai_feedback
-                    })
-                    st.experimental_rerun()  # Refresh to clear textarea and show new usage count
