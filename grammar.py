@@ -272,12 +272,14 @@ if st.session_state["logged_in"]:
         if "custom_topic_intro_done" not in st.session_state:
             st.session_state["custom_topic_intro_done"] = False
 
-        # ------------- Step 1: Practice Mode -------------
+        # --------- Step 1: Practice Mode ---------
         if st.session_state["falowen_stage"] == 1:
             st.subheader("Step 1: Choose Practice Mode")
-            mode = st.radio("How would you like to practice?",
-                            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
-                            key="falowen_mode_center")
+            mode = st.radio(
+                "How would you like to practice?",
+                ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
+                key="falowen_mode_center"
+            )
             if st.button("Next ➡️", key="falowen_next_mode"):
                 st.session_state["falowen_mode"] = mode
                 st.session_state["falowen_stage"] = 2
@@ -287,10 +289,14 @@ if st.session_state["logged_in"]:
                 st.session_state["custom_topic_intro_done"] = False
             st.stop()
 
-        # ------------- Step 2: Level Selection -------------
+        # --------- Step 2: Level Selection ---------
         if st.session_state["falowen_stage"] == 2:
             st.subheader("Step 2: Choose Your Level")
-            level = st.radio("Select your level:", ["A1", "A2", "B1", "B2", "C1"], key="falowen_level_center")
+            level = st.radio(
+                "Select your level:",
+                ["A1", "A2", "B1", "B2", "C1"],
+                key="falowen_level_center"
+            )
             if st.button("⬅️ Back", key="falowen_back1"):
                 st.session_state["falowen_stage"] = 1
                 st.stop()
@@ -305,7 +311,7 @@ if st.session_state["logged_in"]:
                 st.session_state["custom_topic_intro_done"] = False
             st.stop()
 
-        # ------------- Step 3: Exam Teil (for Exam Mode) -------------
+        # --------- Step 3: Exam Teil (for Exam Mode) ---------
         if st.session_state["falowen_stage"] == 3:
             teil_options = {
                 "A1": [
@@ -335,8 +341,11 @@ if st.session_state["logged_in"]:
                 ]
             }
             st.subheader("Step 3: Choose Exam Part")
-            teil = st.radio("Which exam part?", teil_options[st.session_state["falowen_level"]],
-                            key="falowen_teil_center")
+            teil = st.radio(
+                "Which exam part?",
+                teil_options[st.session_state["falowen_level"]],
+                key="falowen_teil_center"
+            )
             if st.button("⬅️ Back", key="falowen_back2"):
                 st.session_state["falowen_stage"] = 2
                 st.stop()
@@ -347,45 +356,10 @@ if st.session_state["logged_in"]:
                 st.session_state["custom_topic_intro_done"] = False
             st.stop()
 
-        # ------------- Step 4: Main Chat + User Input -------------
+        # --------- Step 4: Main Chat + User Input ---------
         if st.session_state["falowen_stage"] == 4:
-            # Usage Key & Limit
-            FALOWEN_DAILY_LIMIT = 25
-            falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
-            if "falowen_usage" not in st.session_state:
-                st.session_state["falowen_usage"] = {}
-            st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
-
-            st.info(
-                f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
-            )
-
-            # Show messages
-            for msg in st.session_state["falowen_messages"]:
-                if msg["role"] == "assistant":
-                    with st.chat_message("assistant", avatar="🧑‍🏫"):
-                        st.markdown(
-                            "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
-                            unsafe_allow_html=True
-                        )
-                        st.markdown(msg["content"])
-                else:
-                    with st.chat_message("user"):
-                        st.markdown(f"🗣️ {msg['content']}")
-
-            # User Input
-            user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
-            session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
-
-            # Main Chat Logic
-            if user_input and not session_ended:
-                st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-                if "falowen_turn_count" not in st.session_state:
-                    st.session_state["falowen_turn_count"] = 0
-                st.session_state["falowen_turn_count"] += 1
-                st.session_state["falowen_usage"][falowen_usage_key] += 1
-
-      
+            # Insert your Falowen Chat logic here
+            st.write("Falowen Chat Main Area – put your chat code here!")
 
         # --------------- PROMPT SELECTION ---------------
         ai_system_prompt = (
