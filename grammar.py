@@ -31,11 +31,13 @@ st.markdown(
 
 # --- File/database constants ---
 CODES_FILE = "student_codes.csv"
-DAILY_LIMIT = 25
+
+# --- Daily usage limits (centralized for all modules) ---
+FALOWEN_DAILY_LIMIT = 25
+VOCAB_DAILY_LIMIT   = 20
+SCHREIBEN_DAILY_LIMIT = 5
+
 max_turns = 25
-
-
-
         
 # --- Vocab lists for all levels ---
 VOCAB_LISTS = {
