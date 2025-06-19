@@ -223,10 +223,12 @@ if not st.session_state["logged_in"]:
             st.session_state["student_code"] = code_clean
             st.session_state["logged_in"] = True
             st.success("Welcome! Login successful.")
-            st.experimental_rerun()   # Show next step immediately
+            st.experimental_rerun()   # <-- STOP! Don't run more code after this.
         else:
             st.error("This code is not recognized. Please check with your tutor.")
+            st.stop()
     st.stop()
+
 
 # --- Step 2: Main Menu (centered, NO SIDEBAR) ---
 st.header("Choose Practice Mode")
