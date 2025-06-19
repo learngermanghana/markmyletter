@@ -287,13 +287,8 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-    # ---------- Exam Mode: Select Level & Teil ----------
-    if mode == "Geführte Prüfungssimulation (Exam Mode)":
-        exam_level = st.selectbox(
-            "Which level do you want to practice?",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="falowen_exam_level"
-        )
+    # ------------- Step 3: Exam Teil (for Exam Mode) -------------
+    if st.session_state["falowen_stage"] == 3:
         teil_options = {
             "A1": [
                 "Teil 1 – Basic Introduction",
@@ -321,17 +316,19 @@ if st.session_state.get("logged_in") and tab == "Falowen Chat":
                 "Teil 3 – Bewertung"
             ]
         }
-        exam_teil = st.selectbox(
-            "Which exam part?",
-            teil_options[exam_level],
-            key="falowen_exam_teil"
-        )
-        if st.button("Preview All Exam Questions/Prompts"):
-            st.write("**Sample exam question lists for each level go here!** (Edit/add as you wish.)")
-
-    # ------------- User Input -------------
-    user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
-    session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
+        st.subheader("Step 3: Choose Exam Part")
+        teil = st.radio("Which exam part?", teil_options[st.session_state["falowen_level"]],
+                        key="falowen_teil_center")
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.stop()
+        if st.button("Start Practice", key="falowen_start_practice"):
+            st.session_state["falowen_teil"] = teil
+            st.session_state["falowen_stage"] = 4
+            # Reset chat for new session
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+        st.stop()
 
     # ============= Main Chat Logic =============
     if user_input and not session_ended:
