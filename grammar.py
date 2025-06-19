@@ -759,9 +759,9 @@ if st.session_state["step"] == 5:
         else:
 
             # ---- AI PROMPT SELECTION for conversation ----
-            ai_system_prompt = (
-                "You are Herr Felix, a supportive and creative German examiner. "
-                "Continue the conversation, give simple corrections, and ask the next question."
+                ai_system_prompt = (
+                     "You are Herr Felix, a supportive and creative German examiner. "
+                     "Continue the conversation, give simple corrections, and ask the next question."
             )
 
             # --- B1 Teil 3: Special prompt logic ---
