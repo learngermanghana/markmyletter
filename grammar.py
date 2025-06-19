@@ -628,7 +628,7 @@ if tab == "Vocab Trainer":
             })
             st.session_state["vocab_usage"][vocab_usage_key] += 1
             st.session_state["vocab_feedback"] = feedback
-            st.experimental_rerun()  # To clear and fetch next word
+            st.rerun()  # To clear and fetch next word
             st.stop()
 
         # Show feedback after check
