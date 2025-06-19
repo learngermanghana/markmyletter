@@ -517,7 +517,6 @@ def show_formatted_ai_reply(ai_reply):
     if followup.strip():
         st.markdown(f"<div style='color:#388e3c'><b>➡️ Next question:</b>  \n{followup.strip()}</div>", unsafe_allow_html=True)
 
-
 if st.session_state["step"] == 5:
     today_str = str(date.today())
     student_code = st.session_state["student_code"]
@@ -571,7 +570,7 @@ if st.session_state["step"] == 5:
                     "content": (
                         "Hallo! 👋 What would you like to discuss? "
                         "Please enter your **presentation topic** or a challenging question (in German or English). "
-                        "I will support you, correct you, and help you advance your language skills!"
+                        "I will support you, correct you, and help you improve your B2/C1 skills!"
                     )
                 }]
             else:
@@ -600,7 +599,7 @@ if st.session_state["step"] == 5:
                 prompt = (
                     "**A1 Teil 1:** Stell dich bitte vor. Introduce yourself with these keywords: "
                     "**Name, Alter, Land, Wohnort, Sprachen, Beruf, Hobby** usw. "
-                    "Remember this is how is going to be in the exams hall."
+                    "Dies ist die Selbsteinführung wie in der Prüfung."
                 )
                 st.session_state['messages'].append({'role': 'assistant', 'content': prompt})
                 st.session_state["a1_teil1_done"] = False
@@ -655,12 +654,12 @@ if st.session_state["step"] == 5:
                 if teil.startswith("Teil 1"):
                     if not st.session_state["a1_teil1_done"]:
                         st.session_state["a1_teil1_questions"] = random.sample([
-                            "Haben Sie Geschwister?", "Sind Sie verheiratet?", "Wie ist Ihre Telefonnummer?", 
-                            "Wie alt ist deine Mutter?", "Könnten Sie bitte Ihren Beruf buchstabieren?"
+                            "Wie alt bist du?", "Wo wohnst du?", "Was ist dein Hobby?", "Was machst du beruflich?",
+                            "Welche Sprachen sprichst du?", "Woher kommst du?", "Wie heißt du?"
                         ], 3)
                         ai_feedback = (
-                            "Sehr gut! 👍 After you introduce yourself, you will be asked questions from your own response. "
-                            "Type okay in the chat if you are ready for my questions just like in the exams hall."
+                            "Sehr gut! 👍 Jetzt stelle ich dir 3 Fragen zu deiner Person. "
+                            "Bitte beantworte jede Frage einzeln."
                         )
                         st.session_state['messages'].append({'role': 'assistant', 'content': ai_feedback})
                         st.session_state["a1_teil1_done"] = True
@@ -788,6 +787,7 @@ if st.session_state["step"] == 5:
                 st.session_state["messages"].append(
                     {"role": "assistant", "content": ai_reply}
                 )
+
     # ------ Display chat history ------
     for msg in st.session_state["messages"]:
         if msg["role"] == "assistant":
