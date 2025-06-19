@@ -34,6 +34,44 @@ CODES_FILE = "student_codes.csv"
 DAILY_LIMIT = 25
 max_turns = 25
 
+
+if "student_code" not in st.session_state:
+    st.session_state["student_code"] = ""
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+# 1. STUDENT LOGIN STAGE
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    code = st.text_input("Enter your student code to begin:")
+    if st.button("Login"):
+        code_clean = code.strip().lower()
+        # ... load_codes() logic here ...
+        if code_clean in ["your", "codes", "here"]:
+            st.session_state["student_code"] = code_clean
+            st.session_state["logged_in"] = True
+            st.success("Welcome! Login successful.")
+        else:
+            st.error("This code is not recognized. Please check with your tutor.")
+
+# 2. TABS APPEAR ONLY AFTER LOGIN
+if st.session_state["logged_in"]:
+    tab = st.sidebar.radio(
+        "Choose Practice Mode:",
+        ["Falowen Chat", "Vocab Trainer", "Schreiben Trainer"],
+        key="main_tab_select"
+    )
+
+    # Now show each tab’s logic based on value of `tab`
+    if tab == "Falowen Chat":
+        st.header("🗣️ Falowen – Speaking & Exam Trainer")
+        # ... your chat code here ...
+    elif tab == "Vocab Trainer":
+        st.header("📚 Vocab Trainer")
+        # ... your vocab code here ...
+    elif tab == "Schreiben Trainer":
+        st.header("✍️ Schreiben Trainer")
+        
 # --- Vocab lists for all levels ---
 VOCAB_LISTS = {
     "A1": ["Haus", "Auto", "Buch", "Tisch", "Mutter"],
