@@ -226,131 +226,163 @@ if not st.session_state["logged_in"]:
         else:
             st.error("This code is not recognized. Please check with your tutor.")
             st.stop()
-    st.stop()  # <- Ensures nothing else runs if not logged in!
+    st.stop()  # Ensures nothing else runs if not logged in
 
 # --- Step 2: Choose Practice Mode (CENTERED, NO SIDEBAR) ---
 if st.session_state["logged_in"]:
+    student_code = st.session_state.get("student_code", "")
+    if student_code:
+        st.markdown(
+            f"<div style='font-size:1.08rem;margin-bottom:10px;color:#156276;'>"
+            f"👋 <b>Welcome, <code>{student_code}</code>!</b></div>",
+            unsafe_allow_html=True
+        )
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
         ["Falowen Chat", "Vocab Trainer", "Schreiben Trainer"],
         key="main_tab_select"
     )
+    st.markdown(
+        f"<div style='background:#e0f2ff;border-radius:12px;padding:12px 18px;margin-bottom:12px;font-size:1.2rem;'>"
+        f"🔹 <b>Active:</b> {tab}</div>",
+        unsafe_allow_html=True
+    )
+
+    # ---- Main App Tabs ----
     if tab == "Falowen Chat":
-        # --- Falowen Chat code here ---
-        st.write("This is Falowen Chat tab")
-    elif tab == "Vocab Trainer":
-        # --- Vocab Trainer code here ---
-        st.write("This is Vocab Trainer tab")
-    elif tab == "Schreiben Trainer":
-        # --- Schreiben Trainer code here ---
-        st.write("This is Schreiben Trainer tab")
+        # ====================================
+        # 5. FALOWEN CHAT TAB (Multi-Step, All Center)
+        # ====================================
 
+        st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
-# ====================================
-# 5. FALOWEN CHAT TAB (Multi-Step, All Center)
-# ====================================
-
-if st.session_state.get("logged_in") and tab == "Falowen Chat":
-    st.header("🗣️ Falowen – Speaking & Exam Trainer")
-
-    # --- Stage variable setup ---
-    if "falowen_stage" not in st.session_state:
-        st.session_state["falowen_stage"] = 1
-    if "falowen_mode" not in st.session_state:
-        st.session_state["falowen_mode"] = None
-    if "falowen_level" not in st.session_state:
-        st.session_state["falowen_level"] = None
-    if "falowen_teil" not in st.session_state:
-        st.session_state["falowen_teil"] = None
-    if "falowen_messages" not in st.session_state:
-        st.session_state["falowen_messages"] = []
-    if "custom_topic_intro_done" not in st.session_state:
-        st.session_state["custom_topic_intro_done"] = False
-
-    # ------------- Step 1: Practice Mode -------------
-    if st.session_state["falowen_stage"] == 1:
-        st.subheader("Step 1: Choose Practice Mode")
-        mode = st.radio("How would you like to practice?",
-                        ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
-                        key="falowen_mode_center")
-        if st.button("Next ➡️", key="falowen_next_mode"):
-            st.session_state["falowen_mode"] = mode
-            st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_level"] = None
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-        st.stop()
-
-    # ------------- Step 2: Level Selection -------------
-    if st.session_state["falowen_stage"] == 2:
-        st.subheader("Step 2: Choose Your Level")
-        level = st.radio("Select your level:", ["A1", "A2", "B1", "B2", "C1"], key="falowen_level_center")
-        if st.button("⬅️ Back", key="falowen_back1"):
+        # --- Stage variable setup ---
+        if "falowen_stage" not in st.session_state:
             st.session_state["falowen_stage"] = 1
-            st.stop()
-        if st.button("Next ➡️", key="falowen_next_level"):
-            st.session_state["falowen_level"] = level
-            if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-                st.session_state["falowen_stage"] = 3
-            else:
-                st.session_state["falowen_stage"] = 4
+        if "falowen_mode" not in st.session_state:
+            st.session_state["falowen_mode"] = None
+        if "falowen_level" not in st.session_state:
+            st.session_state["falowen_level"] = None
+        if "falowen_teil" not in st.session_state:
             st.session_state["falowen_teil"] = None
+        if "falowen_messages" not in st.session_state:
             st.session_state["falowen_messages"] = []
+        if "custom_topic_intro_done" not in st.session_state:
             st.session_state["custom_topic_intro_done"] = False
-        st.stop()
 
-    # ------------- Step 3: Exam Teil (for Exam Mode) -------------
-    if st.session_state["falowen_stage"] == 3:
-        teil_options = {
-            "A1": [
-                "Teil 1 – Basic Introduction",
-                "Teil 2 – Question and Answer",
-                "Teil 3 – Making A Request"
-            ],
-            "A2": [
-                "Teil 1 – Fragen zu Schlüsselwörtern",
-                "Teil 2 – Bildbeschreibung & Diskussion",
-                "Teil 3 – Gemeinsam planen"
-            ],
-            "B1": [
-                "Teil 1 – Gemeinsam planen (Dialogue)",
-                "Teil 2 – Präsentation (Monologue)",
-                "Teil 3 – Feedback & Fragen stellen"
-            ],
-            "B2": [
-                "Teil 1 – Diskussion",
-                "Teil 2 – Präsentation",
-                "Teil 3 – Argumentation"
-            ],
-            "C1": [
-                "Teil 1 – Vortrag",
-                "Teil 2 – Diskussion",
-                "Teil 3 – Bewertung"
-            ]
-        }
-        st.subheader("Step 3: Choose Exam Part")
-        teil = st.radio("Which exam part?", teil_options[st.session_state["falowen_level"]],
-                        key="falowen_teil_center")
-        if st.button("⬅️ Back", key="falowen_back2"):
-            st.session_state["falowen_stage"] = 2
+        # ------------- Step 1: Practice Mode -------------
+        if st.session_state["falowen_stage"] == 1:
+            st.subheader("Step 1: Choose Practice Mode")
+            mode = st.radio("How would you like to practice?",
+                            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
+                            key="falowen_mode_center")
+            if st.button("Next ➡️", key="falowen_next_mode"):
+                st.session_state["falowen_mode"] = mode
+                st.session_state["falowen_stage"] = 2
+                st.session_state["falowen_level"] = None
+                st.session_state["falowen_teil"] = None
+                st.session_state["falowen_messages"] = []
+                st.session_state["custom_topic_intro_done"] = False
             st.stop()
-        if st.button("Start Practice", key="falowen_start_practice"):
-            st.session_state["falowen_teil"] = teil
-            st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-        st.stop()
 
-    # ------------- Step 4: Main Chat + User Input -------------
-    if st.session_state["falowen_stage"] == 4:
-        # Usage Key & Limit
-        FALOWEN_DAILY_LIMIT = 25
-        falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
-        if "falowen_usage" not in st.session_state:
-            st.session_state["falowen_usage"] = {}
-        st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
+        # ------------- Step 2: Level Selection -------------
+        if st.session_state["falowen_stage"] == 2:
+            st.subheader("Step 2: Choose Your Level")
+            level = st.radio("Select your level:", ["A1", "A2", "B1", "B2", "C1"], key="falowen_level_center")
+            if st.button("⬅️ Back", key="falowen_back1"):
+                st.session_state["falowen_stage"] = 1
+                st.stop()
+            if st.button("Next ➡️", key="falowen_next_level"):
+                st.session_state["falowen_level"] = level
+                if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
+                    st.session_state["falowen_stage"] = 3
+                else:
+                    st.session_state["falowen_stage"] = 4
+                st.session_state["falowen_teil"] = None
+                st.session_state["falowen_messages"] = []
+                st.session_state["custom_topic_intro_done"] = False
+            st.stop()
+
+        # ------------- Step 3: Exam Teil (for Exam Mode) -------------
+        if st.session_state["falowen_stage"] == 3:
+            teil_options = {
+                "A1": [
+                    "Teil 1 – Basic Introduction",
+                    "Teil 2 – Question and Answer",
+                    "Teil 3 – Making A Request"
+                ],
+                "A2": [
+                    "Teil 1 – Fragen zu Schlüsselwörtern",
+                    "Teil 2 – Bildbeschreibung & Diskussion",
+                    "Teil 3 – Gemeinsam planen"
+                ],
+                "B1": [
+                    "Teil 1 – Gemeinsam planen (Dialogue)",
+                    "Teil 2 – Präsentation (Monologue)",
+                    "Teil 3 – Feedback & Fragen stellen"
+                ],
+                "B2": [
+                    "Teil 1 – Diskussion",
+                    "Teil 2 – Präsentation",
+                    "Teil 3 – Argumentation"
+                ],
+                "C1": [
+                    "Teil 1 – Vortrag",
+                    "Teil 2 – Diskussion",
+                    "Teil 3 – Bewertung"
+                ]
+            }
+            st.subheader("Step 3: Choose Exam Part")
+            teil = st.radio("Which exam part?", teil_options[st.session_state["falowen_level"]],
+                            key="falowen_teil_center")
+            if st.button("⬅️ Back", key="falowen_back2"):
+                st.session_state["falowen_stage"] = 2
+                st.stop()
+            if st.button("Start Practice", key="falowen_start_practice"):
+                st.session_state["falowen_teil"] = teil
+                st.session_state["falowen_stage"] = 4
+                st.session_state["falowen_messages"] = []
+                st.session_state["custom_topic_intro_done"] = False
+            st.stop()
+
+        # ------------- Step 4: Main Chat + User Input -------------
+        if st.session_state["falowen_stage"] == 4:
+            # Usage Key & Limit
+            FALOWEN_DAILY_LIMIT = 25
+            falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
+            if "falowen_usage" not in st.session_state:
+                st.session_state["falowen_usage"] = {}
+            st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
+
+            st.info(
+                f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
+            )
+
+            # Show messages
+            for msg in st.session_state["falowen_messages"]:
+                if msg["role"] == "assistant":
+                    with st.chat_message("assistant", avatar="🧑‍🏫"):
+                        st.markdown(
+                            "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                            unsafe_allow_html=True
+                        )
+                        st.markdown(msg["content"])
+                else:
+                    with st.chat_message("user"):
+                        st.markdown(f"🗣️ {msg['content']}")
+
+            # User Input
+            user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
+            session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
+
+            # Main Chat Logic
+            if user_input and not session_ended:
+                st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+                if "falowen_turn_count" not in st.session_state:
+                    st.session_state["falowen_turn_count"] = 0
+                st.session_state["falowen_turn_count"] += 1
+                st.session_state["falowen_usage"][falowen_usage_key] += 1
 
         st.info(
             f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
