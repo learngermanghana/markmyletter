@@ -656,7 +656,7 @@ if st.session_state["step"] == 5:
                     if not st.session_state["a1_teil1_done"]:
                         st.session_state["a1_teil1_questions"] = random.sample([
                             "Haben Sie Geschwister?", "Sind Sie verheiratet?", "Wie ist Ihre Telefonnummer?", 
-                            "Wie alt ist deine Mutter?", "Könnten Sie bitte Ihren Beruf buchstabieren?".
+                            "Wie alt ist deine Mutter?", "Könnten Sie bitte Ihren Beruf buchstabieren?"
                         ], 3)
                         ai_feedback = (
                             "Sehr gut! 👍 After you introduce yourself, you will be asked questions from your own response. "
