@@ -682,8 +682,7 @@ elif tab == "Schreiben Trainer":
                     "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
                     "2. Write a brief comment in English about what the student did well and what they should improve. "
                     "3. Show the full corrected letter (in bold or highlight the changes if possible). "
-                    "Give grade out of 25 marks and explain to student why you give them that mark."
-                    "If student score is below 17, tell them to fix errors and even is above 18 then they can submit to their tutor."
+                    "Do NOT give a grade—just corrections and encouragement."
                 )
                 ai_message = (
                     f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
