@@ -230,6 +230,47 @@ B1_TEIL3 = [
     "Fragen stellen zu einer Präsentation", "Positives Feedback geben",
     "Etwas überraschend finden oder planen", "Weitere Details erfragen"
 ]
+b2_teil1_topics = [
+    "Sollten Smartphones in der Schule erlaubt sein?",
+    "Wie wichtig ist Umweltschutz in unserem Alltag?",
+    "Wie beeinflusst Social Media unser Leben?",
+    "Welche Rolle spielt Sport für die Gesundheit?",
+]
+
+b2_teil2_presentations = [
+    "Die Bedeutung von Ehrenamt",
+    "Vorteile und Nachteile von Homeoffice",
+    "Auswirkungen der Digitalisierung auf die Arbeitswelt",
+    "Mein schönstes Reiseerlebnis",
+]
+
+b2_teil3_arguments = [
+    "Sollte man in der Stadt oder auf dem Land leben?",
+    "Sind E-Autos die Zukunft?",
+    "Brauchen wir mehr Urlaubstage?",
+    "Muss Schule mehr praktische Fächer anbieten?",
+]
+
+c1_teil1_lectures = [
+    "Die Zukunft der künstlichen Intelligenz",
+    "Internationale Migration: Herausforderungen und Chancen",
+    "Wandel der Arbeitswelt im 21. Jahrhundert",
+    "Digitalisierung und Datenschutz",
+]
+
+c1_teil2_discussions = [
+    "Sollten Universitäten Studiengebühren verlangen?",
+    "Welchen Einfluss haben soziale Medien auf die Demokratie?",
+    "Ist lebenslanges Lernen notwendig?",
+    "Die Bedeutung von Nachhaltigkeit in der Wirtschaft",
+]
+
+c1_teil3_evaluations = [
+    "Die wichtigsten Kompetenzen für die Zukunft",
+    "Vor- und Nachteile globaler Zusammenarbeit",
+    "Welchen Einfluss hat Technik auf unser Leben?",
+    "Wie verändert sich die Familie?",
+]
 
 # ====================================
 # 2. STUDENT LOGIN AND MAIN MENU (NO SIDEBAR)
@@ -404,41 +445,37 @@ if st.session_state["logged_in"]:
                 mode  = st.session_state.get("falowen_mode", "")
                 level = st.session_state.get("falowen_level", "A1")
                 teil  = st.session_state.get("falowen_teil", "")
+
                 # --------- EXAM MODE FIRST MESSAGE ---------
                 if mode == "Geführte Prüfungssimulation (Exam Mode)":
                     if level == "A1" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "👋 In the A1 speaking exam (Teil 1), you will introduce yourself using these keywords: "
-                            "Name, Age, Where you live, Languages, Job, Hobby. "
-                            "After your introduction, the examiner will ask you some questions about your answers. "
-                            "Let's practice! Please type your introduction using those keywords."
+                            "👋 For speaking part 1, you'll be asked to introduce yourself using these keywords: Name, Age, Place of Residence, Languages, Job, Hobby. "
+                            "Afterwards, the examiner will pick your response and ask a few random questions. Let's practice: please type your introduction including all the keywords above."
                         )
                     elif level == "A1" and teil.startswith("Teil 2"):
                         ai_first = (
-                            "Now we practice questions and answers! Here is your topic: 'Shop – closing'. "
-                            "Ask me a question in German about this topic."
+                            "Now we practice questions and answers! The topic is: 'Geschäft – schließen' (shop – to close). Please ask me a question about this in German."
                         )
                     elif level == "A1" and teil.startswith("Teil 3"):
                         ai_first = (
-                            "Let's practice making polite requests! Write a polite request, for example: "
-                            "'Können Sie bitte das Fenster zumachen?'"
+                            "Let's practice making polite requests! Please write a polite request, for example: 'Können Sie bitte das Fenster zumachen?'"
                         )
                     elif level == "A2" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "Let's talk about your daily routine! Please tell me: What is the first thing you do in the morning?"
+                            "Let's start with your daily routine! Please tell me: What is the first thing you do in the morning?"
                         )
                     elif level == "A2" and teil.startswith("Teil 2"):
                         ai_first = (
-                            "Describe the picture you see, or answer my question about 'Weather'."
+                            "Describe the picture you see or answer my question about the topic 'Wetter' (weather)."
                         )
                     elif level == "A2" and teil.startswith("Teil 3"):
                         ai_first = (
-                            "Let's plan something together! What do you suggest?"
+                            "Let's make a plan together! What do you suggest?"
                         )
                     elif level == "B1" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "Welcome to the B1 exam – Let's plan something together! "
-                            "Suggest an activity and let's make a plan."
+                            "Welcome to the B1 exam – Planning together! Let's plan an activity together. What do you suggest?"
                         )
                     elif level == "B1" and teil.startswith("Teil 2"):
                         ai_first = (
@@ -446,47 +483,37 @@ if st.session_state["logged_in"]:
                         )
                     elif level == "B1" and teil.startswith("Teil 3"):
                         ai_first = (
-                            "You just finished your presentation. Now I'll ask you questions about it. Are you ready?"
+                            "You have just finished your presentation. Now I will ask you questions about it. Are you ready?"
                         )
                     elif level == "B2" and teil.startswith("Teil 1"):
-                        ai_first = (
-                            "Willkommen zur B2-Diskussion! Was denkst du über das heutige Thema?"
-                        )
+                        topic = random.choice(b2_teil1_topics)
+                        ai_first = f"Willkommen zur B2-Diskussion!\n\n**Thema:** {topic}\n\nWas denkst du dazu?"
                     elif level == "B2" and teil.startswith("Teil 2"):
-                        ai_first = (
-                            "Halte bitte deine Präsentation. Teile deine Meinung und Erfahrungen."
-                        )
+                        presentation = random.choice(b2_teil2_presentations)
+                        ai_first = f"Halte bitte deine Präsentation zum Thema:\n\n**{presentation}**\n\nTeile deine Meinung und Erfahrungen."
                     elif level == "B2" and teil.startswith("Teil 3"):
-                        ai_first = (
-                            "Jetzt führen wir eine Argumentation. Was ist dein Standpunkt?"
-                        )
+                        argument = random.choice(b2_teil3_arguments)
+                        ai_first = f"Jetzt führen wir eine Argumentation.\n\n**Thema:** {argument}\n\nWas ist dein Standpunkt?"
                     elif level == "C1" and teil.startswith("Teil 1"):
-                        ai_first = (
-                            "Willkommen zur C1-Prüfung – Vortrag. Bitte halte einen kurzen Vortrag zum gewählten Thema."
-                        )
+                        lecture = random.choice(c1_teil1_lectures)
+                        ai_first = f"Willkommen zur C1-Prüfung – Vortrag.\n\n**Vortragsthema:** {lecture}\n\nBitte halte einen kurzen Vortrag dazu."
                     elif level == "C1" and teil.startswith("Teil 2"):
-                        ai_first = (
-                            "Diskutiere bitte ausführlich mit mir über das gewählte Thema."
-                        )
+                        discussion = random.choice(c1_teil2_discussions)
+                        ai_first = f"Diskutiere bitte ausführlich mit mir über:\n\n**{discussion}**"
                     elif level == "C1" and teil.startswith("Teil 3"):
-                        ai_first = (
-                            "Jetzt kommt die Bewertung. Was ist deine abschließende Meinung zum Thema?"
-                        )
+                        evaluation = random.choice(c1_teil3_evaluations)
+                        ai_first = f"Jetzt kommt die Bewertung.\n\n**Thema:** {evaluation}\n\nWas ist deine abschließende Meinung?"
                     else:
-                        ai_first = (
-                            "Welcome to the exam! Let's start. Please introduce yourself."
-                        )
+                        ai_first = "Welcome to the exam! Let's begin. Please introduce yourself."
                 # --------- CUSTOM CHAT FIRST MESSAGE ---------
                 elif mode == "Eigenes Thema/Frage (Custom Chat)":
                     ai_first = (
-                        "Hello! 👋 I am Herr Felix, your AI examiner. "
-                        "Please give a topic or ask your first question, and I'll help you practice."
+                        "Hello! 👋 I'm Herr Felix, your AI examiner. Please give a topic or ask your first question, and I'll help you practice."
                     )
                 else:
                     ai_first = "Hello! What would you like to practice today?"
                 st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_first})
 
-            # Show today's usage
             st.info(
                 f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
             )
@@ -504,7 +531,7 @@ if st.session_state["logged_in"]:
                     with st.chat_message("user"):
                         st.markdown(f"🗣️ {msg['content']}")
 
-            # ----------- USER INPUT & USAGE LIMIT ENFORCEMENT -----------
+            # ------------- User input & daily limit enforcement -------------
             session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
 
             if session_ended:
@@ -517,7 +544,7 @@ if st.session_state["logged_in"]:
                         st.session_state["falowen_turn_count"] = 0
                     st.session_state["falowen_turn_count"] += 1
                     st.session_state["falowen_usage"][falowen_usage_key] += 1
-          
+                    # <---- Insert your OpenAI reply logic here! ---->
 
 
 
