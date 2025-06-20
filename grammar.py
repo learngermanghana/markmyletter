@@ -11,6 +11,69 @@ import os
 import sqlite3
 from datetime import date, datetime, timedelta
 
+import pandas as pd
+import streamlit as st
+
+STUDENTS_CSV = "students.csv"
+
+# --- Helper to load student data ---
+def load_student_data():
+    if not os.path.exists(STUDENTS_CSV):
+        st.error("Students file not found!")
+        return pd.DataFrame()
+    df = pd.read_csv(STUDENTS_CSV)
+    for col in ["StudentCode", "Email"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().str.lower()
+    return df
+
+# --- Student login logic ---
+if "student_code" not in st.session_state:
+    st.session_state["student_code"] = ""
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    login_input = st.text_input("Enter your **Student Code** or **Email** to begin:")
+    if st.button("Login"):
+        login_input_clean = login_input.strip().lower()
+        df_students = load_student_data()
+        match = df_students[
+            (df_students["StudentCode"].str.lower() == login_input_clean) | 
+            (df_students["Email"].str.lower() == login_input_clean)
+        ]
+        if not match.empty:
+            st.session_state["student_code"] = match.iloc[0]["StudentCode"].lower()
+            st.session_state["logged_in"] = True
+            st.session_state["student_info"] = match.iloc[0].to_dict()
+            st.success("Welcome! Login successful.")
+            st.rerun()
+        else:
+            st.error("Login failed. Code or Email not recognized.")
+            st.stop()
+    st.stop()
+
+# --- After login, show dashboard at the top ---
+if st.session_state.get("logged_in", False):
+    student_info = st.session_state.get("student_info", {})
+    st.header("🎓 Student Dashboard")
+    if student_info:
+        st.markdown(f"""
+        <div style='background:#e9f7ff;padding:20px 20px 10px 20px;border-radius:18px;margin-bottom:22px;'>
+        <b>Name:</b> {student_info.get('Name','')}<br>
+        <b>Location:</b> {student_info.get('Location','')}<br>
+        <b>Level:</b> {student_info.get('Level','')}<br>
+        <b>Email:</b> {student_info.get('Email','')}<br>
+        <b>Phone:</b> {student_info.get('Phone','')}<br>
+        <b>Emergency Contact:</b> {student_info.get('Emergency Contact (Phone Number)','')}<br>
+        <b>Paid:</b> {student_info.get('Paid','')}<br>
+        <b>Balance:</b> {student_info.get('Balance','')}<br>
+        <b>Contract Start:</b> {student_info.get('ContractStart','')}<br>
+        <b>Contract End:</b> {student_info.get('ContractEnd','')}
+        </div>
+        """, unsafe_allow_html=True)
+
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
