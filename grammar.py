@@ -1156,6 +1156,7 @@ if tab == "Schreiben Trainer":
                 assignment_message = (
                     f"Hallo Herr Felix! Hier ist mein Schreiben für die Korrektur ({schreiben_level}):\n\n"
                     f"{schreiben_text}\n\n---\nFeedback: {ai_feedback[:600]}..."  # Shorten if needed!
+                    unsafe_allow_html=True
                 )
                 whatsapp_url = (
                     "https://api.whatsapp.com/send"
