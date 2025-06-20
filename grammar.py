@@ -746,13 +746,12 @@ if st.session_state["logged_in"]:
                     st.success("Summary not implemented yet (placeholder).")
 
 
- # =========================================
+# ==============================
 # VOCAB TRAINER TAB (A1–C1, with Progress)
-# =========================================
+# ==============================
+import datetime  # Only import ONCE, preferably at the top of your file
 
-import datetime
-
-elif tab == "Vocab Trainer":
+if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
     # -------- Session state for vocab stats --------
@@ -766,6 +765,14 @@ elif tab == "Vocab Trainer":
         st.session_state["vocab_streak"] = 0
     if "vocab_mastered" not in st.session_state:
         st.session_state["vocab_mastered"] = {}  # word: count
+
+    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
+
+    # --- Progress stats (UI) ---
+    st.info(
+        f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT} | "
+        f"Correct answers today: {st.session_state['vocab_correct_today']} | "
+        f"Your streak: {st.session_state['vocab_streak']}"
 
     # ---- Streak logic ----
     if "last_vocab_practice_date" not in st.session_state:
