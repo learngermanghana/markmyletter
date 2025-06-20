@@ -679,7 +679,8 @@ elif tab == "Vocab Trainer":
             })
             st.session_state["vocab_usage"][vocab_usage_key] += 1
             st.session_state["vocab_feedback"] = ai_feedback
-            st.experimental_rerun()
+            st.rerun()
+            st.stop
 
         if st.session_state.get("vocab_feedback"):
             st.success(st.session_state["vocab_feedback"])
