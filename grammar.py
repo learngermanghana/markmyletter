@@ -818,86 +818,138 @@ if st.session_state["logged_in"]:
                     st.success("Summary not implemented yet (placeholder).")
 
 
-# ==============================
+# =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress)
-# ==============================
+# =========================================
 
-elif tab == "Vocab Trainer":
+import difflib
+import random
+
+# --------------- Flexible answer checker ---------------
+def is_close_answer(student, correct):
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    if len(student) < 3 or len(student) < 0.6 * len(correct):
+        return False
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return similarity > 0.80
+
+def is_almost(student, correct):
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return 0.60 < similarity <= 0.80
+
+# --------------- Vocab Trainer UI ---------------
+if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
-    # Usage keys & progress
     vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
     if "vocab_usage" not in st.session_state:
         st.session_state["vocab_usage"] = {}
     st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
 
-    # Select level
-    vocab_level = st.selectbox("Choose your level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
+    vocab_level = st.selectbox(
+        "Choose your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="vocab_level_select"
+    )
     vocab_list = VOCAB_LISTS.get(vocab_level, [])
 
-    # Today's progress
-    progress = load_vocab_progress(st.session_state["student_code"], vocab_level)
-    correct_count = sum(progress.values())
-    total_attempted = len(progress)
+    if not vocab_list:
+        st.error("No vocab list for this level yet. Please add words!")
+        st.stop()
 
-    st.info(f"Today's correct answers: {correct_count}/{VOCAB_DAILY_LIMIT}")
-
+    # Session progress
     session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
+
+    # Save past answers for today
+    if "vocab_today_history" not in st.session_state:
+        st.session_state["vocab_today_history"] = []
+    if "vocab_correct_today" not in st.session_state:
+        st.session_state["vocab_correct_today"] = 0
+
+    # Calculate stats
+    correct_count = st.session_state["vocab_correct_today"]
+    attempted = len(st.session_state["vocab_today_history"])
+
+    st.info(
+        f"Today's correct answers: {correct_count}/{VOCAB_DAILY_LIMIT}"
+    )
+    st.progress(min(1, correct_count / VOCAB_DAILY_LIMIT))
+
+    # Show all attempted today
+    if attempted:
+        st.caption("**Today's attempts:**")
+        for idx, item in enumerate(st.session_state["vocab_today_history"], 1):
+            word, answer, correct, eng = item
+            symbol = "✅" if correct else "❌"
+            st.markdown(f"{idx}. **{word}** → _{answer}_ {symbol} <span style='color:#888'>({eng})</span>", unsafe_allow_html=True)
+
     if session_ended:
-        st.warning("You've reached today's practice limit for Vocab Trainer. Come back tomorrow!")
+        st.success("You've reached your vocab limit for today. Come back tomorrow!")
+        st.stop()
+
+    # Avoid showing the same word twice in session
+    already_asked = [item[0] for item in st.session_state["vocab_today_history"]]
+    pool = [item for item in vocab_list if (item[0] if isinstance(item, tuple) else item) not in already_asked]
+    if not pool:
+        st.success("Super! You've tried all words at this level today.")
+        st.stop()
+
+    # Select next word
+    current_vocab = random.choice(pool)
+    if isinstance(current_vocab, tuple):
+        current_word, correct_eng = current_vocab
     else:
-        # Pick next word (avoid repeats from today)
-        available = [item for item in vocab_list if (item[0] if isinstance(item, tuple) else item) not in progress]
-        if not available:
-            st.success("Great job! You've completed all vocab for today at this level.")
+        current_word = current_vocab
+        correct_eng = ""  # For B1/C1 etc, where you don't need to check
+
+    st.subheader(f"🔤 Translate this German word to English: **{current_word}**")
+    vocab_answer = st.text_input("Your English translation", key=f"vocab_answer_{current_word}")
+
+    # Feedback section
+    if st.button("Check Answer"):
+        # For B1/C1, accept any input as 'attempted'
+        if vocab_level in ["B1", "B2", "C1"] and not correct_eng:
+            st.session_state["vocab_today_history"].append((current_word, vocab_answer, True, "-"))
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            st.session_state["vocab_correct_today"] += 1
+            st.success("Good! B1/B2/C1 vocab is for exposure. Try to learn the meaning.")
         else:
-            import random
-            current_word, english = random.choice(available) if isinstance(available[0], tuple) else (available[0], "")
-            st.subheader(f"🔤 Translate this German word to English: **{current_word}**")
-            vocab_answer = st.text_input("Your English translation", key=f"vocab_answer_{current_word}")
+            is_correct = is_close_answer(vocab_answer, correct_eng)
+            is_nearly = is_almost(vocab_answer, correct_eng) and not is_correct
+            st.session_state["vocab_today_history"].append(
+                (current_word, vocab_answer, is_correct, correct_eng)
+            )
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            if is_correct:
+                st.session_state["vocab_correct_today"] += 1
+                st.success(f"✅ Correct! '{current_word}' means **{correct_eng}**.")
+            elif is_nearly:
+                st.warning(f"🟡 Almost! The correct answer is **{correct_eng}**.")
+            else:
+                st.error(f"❌ Not quite. The correct answer is **{correct_eng}**.")
 
-            # Example phrase (using AI)
-            example = ""
-            if st.button("Check Answer"):
-                # Flexible correctness check
-                is_correct = is_close_answer(vocab_answer, english)
-                is_nearly = is_almost(vocab_answer, english) and not is_correct
+        # Example phrase with AI (optional)
+        if correct_eng:
+            try:
+                client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                sys_prompt = (
+                    f"Give a very short, simple German example sentence using the word '{current_word}'. "
+                    "Use A1/A2-level vocabulary and no translations."
+                )
+                completion = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": sys_prompt}]
+                )
+                example = completion.choices[0].message.content.strip()
+                st.info(f"**Example:** {example}")
+            except Exception:
+                st.info("**Example:** (Could not fetch example sentence)")
 
-                # Save progress to SQLite
-                save_vocab_progress(st.session_state["student_code"], vocab_level, current_word, is_correct)
-                st.session_state["vocab_usage"][vocab_usage_key] += 1
-
-                # Show feedback and example (with OpenAI if you want)
-                feedback = ""
-                if is_correct:
-                    feedback = f"✅ Correct! '{current_word}' means **{english}**."
-                elif is_nearly:
-                    feedback = f"🟡 Almost! You wrote '{vocab_answer}', which is close. The correct answer is **{english}**."
-                else:
-                    feedback = f"❌ Not quite. The correct answer is **{english}**."
-                st.markdown(feedback)
-
-                # Example phrase from OpenAI (optional, comment out if not needed)
-                try:
-                    client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                    sys_prompt = (
-                        f"Give a very short, simple German example sentence using the word '{current_word}'. "
-                        "Use A1/A2-level vocabulary and no translations."
-                    )
-                    completion = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[{"role": "system", "content": sys_prompt}]
-                    )
-                    example = completion.choices[0].message.content.strip()
-                    st.info(f"**Example:** {example}")
-                except Exception:
-                    st.info("**Example:** (Could not fetch example sentence)")
-
-                st.experimental_rerun()
-
-    # Show today's stats and mastered words
-    if total_attempted > 0:
-        st.caption(f"You have attempted {total_attempted} words at this level today.")
-        st.progress(min(1, correct_count / max(1, VOCAB_DAILY_LIMIT)))
-        if correct_count:
-            st.success(f"Mastered words today: {correct_count}")
+        st.experimental_rerun()
