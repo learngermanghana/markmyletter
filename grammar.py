@@ -63,8 +63,6 @@ def load_vocab_progress(student_code, level):
     """, (student_code, today, level))
     return dict(c.fetchall())  # {word: correct, ...}
 
-import difflib
-
 def is_close_answer(student, correct):
     student = student.strip().lower()
     correct = correct.strip().lower()
@@ -461,6 +459,62 @@ if st.session_state["logged_in"]:
         f"🔹 <b>Active:</b> {tab}</div>",
         unsafe_allow_html=True
     )
+
+    # ====================================
+# STUDENT DASHBOARD (SQLite Version)
+# ====================================
+
+def get_student_stats(student_code):
+    # Show vocab stats for today
+    today = str(date.today())
+    c.execute("""
+        SELECT level, COUNT(*), SUM(correct)
+        FROM vocab_progress
+        WHERE student_code=? AND date=?
+        GROUP BY level
+    """, (student_code, today))
+    stats = {row[0]: {"attempted": row[1], "correct": row[2]} for row in c.fetchall()}
+    return stats
+
+def get_vocab_streak(student_code):
+    # Count how many *consecutive days* the student practiced vocab
+    c.execute("""
+        SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC
+    """, (student_code,))
+    dates = [row[0] for row in c.fetchall()]
+    if not dates:
+        return 0
+    from datetime import datetime, timedelta
+    streak = 1
+    prev = datetime.strptime(dates[0], "%Y-%m-%d")
+    for d in dates[1:]:
+        next_day = prev - timedelta(days=1)
+        if datetime.strptime(d, "%Y-%m-%d") == next_day:
+            streak += 1
+            prev = next_day
+        else:
+            break
+    return streak
+
+# --- STUDENT DASHBOARD TAB (add this as a new tab option!) ---
+if "logged_in" in st.session_state and st.session_state["logged_in"]:
+    student_code = st.session_state.get("student_code", "")
+    if student_code:
+        st.sidebar.markdown("## 📊 Student Dashboard")
+        st.sidebar.markdown(f"**Logged in as:** `{student_code}`")
+        # --- Vocab stats ---
+        stats = get_student_stats(student_code)
+        streak = get_vocab_streak(student_code)
+        st.sidebar.info(f"🔥 **Vocab Streak:** {streak} days")
+        if stats:
+            st.sidebar.markdown("**Today's Vocab Progress:**")
+            for lvl, d in stats.items():
+                st.sidebar.markdown(
+                    f"- `{lvl}`: {d['correct'] or 0} / {d['attempted']} correct"
+                )
+        else:
+            st.sidebar.markdown("_No vocab activity today yet!_")
+
 
     # -----------------------------------
     #        FALOWEN CHAT TAB
