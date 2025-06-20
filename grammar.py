@@ -1081,3 +1081,129 @@ if tab == "Vocab Trainer":
             st.info(f"**Example:** {example_sentence}")
         st.stop()
 
+
+# =========================================
+# SCHREIBEN TRAINER TAB (A1–C1, with Progress)
+# =========================================
+
+from fpdf import FPDF
+
+def generate_pdf(feedback, schreiben_text, level, student_code):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, f"Schreiben Feedback – Level {level}", ln=1)
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 10, f"Student Code: {student_code}", ln=1)
+    pdf.ln(4)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, "Your Letter/Essay:", ln=1)
+    pdf.set_font("Arial", '', 12)
+    pdf.multi_cell(0, 8, schreiben_text)
+    pdf.ln(2)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, "Herr Felix's Feedback:", ln=1)
+    pdf.set_font("Arial", '', 12)
+    pdf.multi_cell(0, 8, feedback)
+    return pdf.output(dest='S').encode('latin-1')
+
+if tab == "Schreiben Trainer":
+    st.header("✍️ Schreiben Trainer")
+
+    schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
+    if "schreiben_usage" not in st.session_state:
+        st.session_state["schreiben_usage"] = {}
+    st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
+
+    st.info(
+        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
+    )
+
+    schreiben_level = st.selectbox(
+        "Select your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="schreiben_level_select"
+    )
+
+    if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
+        st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
+    else:
+        st.write("**Paste your letter or essay below. Herr Felix will mark it as a real Goethe examiner and give you feedback.**")
+        schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
+
+        if st.button("Check My Writing"):
+            if not schreiben_text.strip():
+                st.warning("Please write something before submitting.")
+            else:
+                ai_prompt = (
+                    f"You are Herr Felix, a strict but supportive Goethe examiner. "
+                    f"The student has submitted a {schreiben_level} German letter or essay. "
+                    " Always talk as the tutor in English to explain mistakes. "
+                    "Refer to the student as 'you' so it feels like Herr Felix is communicating directly. "
+                    "Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
+                    "Write a brief comment in English about what the student did well and what they should improve. "
+                    "Give steps and suggestions to help them correct the letter, but don't completely rewrite it—highlight changes. "
+                    "Mark the student work and give a score out of 25 marks. Explain your scoring based on grammar, spelling, vocabulary, etc. "
+                    "Show suggested phrases, vocabulary, conjunctions, and check if the letter matches their level. "
+                    "If the score is above 17, tell them they have passed and can submit to their tutor. If below 17, encourage improvement."
+                )
+                ai_message = (
+                    f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
+                )
+
+                with st.spinner("🧑‍🏫 Herr Felix is marking..."):
+                    try:
+                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": ai_message}]
+                        )
+                        ai_feedback = response.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_feedback = f"Error: {str(e)}"
+
+                st.success("📝 **Feedback from Herr Felix:**")
+                st.markdown(ai_feedback)
+                st.session_state["schreiben_feedback"] = ai_feedback
+                st.session_state["schreiben_text"] = schreiben_text
+                st.session_state["schreiben_level"] = schreiben_level
+                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
+
+    # -------- PDF & WhatsApp Share ---------
+    if (
+        "schreiben_feedback" in st.session_state
+        and "schreiben_text" in st.session_state
+        and st.session_state["schreiben_text"].strip()
+    ):
+        st.markdown("---")
+        st.subheader("⬇️ Download or Share Your Feedback")
+
+        pdf_bytes = generate_pdf(
+            st.session_state["schreiben_feedback"],
+            st.session_state["schreiben_text"],
+            st.session_state["schreiben_level"],
+            st.session_state.get("student_code", "")
+        )
+        st.download_button(
+            "📄 Download Feedback as PDF",
+            data=pdf_bytes,
+            file_name=f"Schreiben_Feedback_{st.session_state.get('student_code','')}.pdf",
+            mime="application/pdf"
+        )
+
+        # WhatsApp send
+        base_feedback = st.session_state["schreiben_feedback"].replace('\n', '%0A')
+        base_text = st.session_state["schreiben_text"].replace('\n', '%0A')
+        whatsapp_message = (
+            f"Student: {st.session_state.get('student_code','')}\nLevel: {st.session_state.get('schreiben_level','')}\n"
+            f"--- My Essay/Letter ---\n{st.session_state['schreiben_text']}\n\n"
+            f"--- Herr Felix's Feedback ---\n{st.session_state['schreiben_feedback']}"
+        )
+        whatsapp_message_url = whatsapp_message.replace('\n', '%0A').replace('&', '%26')
+        wa_link = (
+            f"https://api.whatsapp.com/send?phone=233205706589&text={whatsapp_message_url}"
+        )
+        st.markdown(f"""<a href="{wa_link}" target="_blank" style="text-decoration:none;">
+            <button style="background:#25D366;padding:12px 18px;border-radius:6px;color:#fff;font-size:1.1rem;border:none;cursor:pointer;">
+            📲 Send to Tutor on WhatsApp</button></a>""", unsafe_allow_html=True)
+
