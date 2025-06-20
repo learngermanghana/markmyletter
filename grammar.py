@@ -1027,36 +1027,48 @@ if tab == "Vocab Trainer":
 
 
 # =========================================
-# SCHREIBEN TRAINER TAB (A1–C1, with Progress)
+# SCHREIBEN TRAINER TAB (A1–C1, with PDF/WhatsApp & Stats)
 # =========================================
-
-
-def generate_pdf(feedback, schreiben_text, level, student_code):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"Schreiben Feedback – Level {level}", ln=1)
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 10, f"Student Code: {student_code}", ln=1)
-    pdf.ln(4)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "Your Letter/Essay:", ln=1)
-    pdf.set_font("Arial", '', 12)
-    pdf.multi_cell(0, 8, schreiben_text)
-    pdf.ln(2)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "Herr Felix's Feedback:", ln=1)
-    pdf.set_font("Arial", '', 12)
-    pdf.multi_cell(0, 8, feedback)
-    return pdf.output(dest='S').encode('latin-1')
+from fpdf import FPDF
+import io
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer")
 
+    # ----- Usage key and limit -----
     schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
     if "schreiben_usage" not in st.session_state:
         st.session_state["schreiben_usage"] = {}
     st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
+
+    # --------- Student Progress/Stats ---------
+    def get_latest_feedback(student_code):
+        # Example with sqlite, adapt if you store elsewhere!
+        c.execute(
+            "SELECT date, level, score, strengths, weaknesses FROM schreiben_feedback WHERE student_code=? ORDER BY date DESC LIMIT 1",
+            (student_code,))
+        row = c.fetchone()
+        if row:
+            return {
+                "date": row[0], "level": row[1], "score": row[2],
+                "strengths": row[3], "weaknesses": row[4]
+            }
+        else:
+            return None
+
+    # Show stats panel
+    latest = get_latest_feedback(st.session_state['student_code'])
+    with st.expander("📈 Your Writing Progress", expanded=True):
+        if latest:
+            st.markdown(f"""
+                **Last Attempt:** {latest['date']}  
+                **Level:** {latest['level']}  
+                **Score:** {latest['score']} / 25  
+                **Strengths:** {latest['strengths'] or '–'}  
+                **Needs Improvement:** {latest['weaknesses'] or '–'}
+            """)
+        else:
+            st.write("_No submissions yet. Your progress will appear here!_")
 
     st.info(
         f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
@@ -1071,7 +1083,8 @@ if tab == "Schreiben Trainer":
     if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
         st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
     else:
-        st.write("**Paste your letter or essay below. Herr Felix will mark it as a real Goethe examiner and give you feedback.**")
+        st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
+
         schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
 
         if st.button("Check My Writing"):
@@ -1081,18 +1094,15 @@ if tab == "Schreiben Trainer":
                 ai_prompt = (
                     f"You are Herr Felix, a strict but supportive Goethe examiner. "
                     f"The student has submitted a {schreiben_level} German letter or essay. "
-                    " Always talk as the tutor in English to explain mistakes. "
-                    "Refer to the student as 'you' so it feels like Herr Felix is communicating directly. "
+                    "Talk as the tutor in English to explain mistakes. Use 'you' for the student to sound direct. "
                     "Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
                     "Write a brief comment in English about what the student did well and what they should improve. "
-                    "Give steps and suggestions to help them correct the letter, but don't completely rewrite it—highlight changes. "
-                    "Mark the student work and give a score out of 25 marks. Explain your scoring based on grammar, spelling, vocabulary, etc. "
-                    "Show suggested phrases, vocabulary, conjunctions, and check if the letter matches their level. "
-                    "If the score is above 17, tell them they have passed and can submit to their tutor. If below 17, encourage improvement."
+                    "Teach steps; let student use your suggestions to correct the letter (don't give a full corrected letter, but highlight the changes). "
+                    "Give a score out of 25 marks, with reasoning (grammar, spelling, vocab, structure). "
+                    "Show strengths, weaknesses, suggested phrases, vocabulary, conjunctions for next time. Also check if letter matches their level. "
+                    "If score is above 17, say they have passed and can submit to tutor. If below, tell them to improve."
                 )
-                ai_message = (
-                    f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
-                )
+                ai_message = f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
 
                 with st.spinner("🧑‍🏫 Herr Felix is marking..."):
                     try:
@@ -1107,46 +1117,80 @@ if tab == "Schreiben Trainer":
 
                 st.success("📝 **Feedback from Herr Felix:**")
                 st.markdown(ai_feedback)
-                st.session_state["schreiben_feedback"] = ai_feedback
-                st.session_state["schreiben_text"] = schreiben_text
-                st.session_state["schreiben_level"] = schreiben_level
+
+                # --- PDF Generation Function ---
+                def generate_pdf(student, level, original, feedback):
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", size=13)
+                    pdf.cell(0, 12, f"Schreiben Correction – {level}", ln=1)
+                    pdf.ln(2)
+                    pdf.multi_cell(0, 10, f"Dear {student},\n\nYour original text:\n\n{original}\n\nFeedback from Herr Felix:\n\n{feedback}")
+                    pdf_output = pdf.output(dest='S').encode('latin-1')
+                    return pdf_output
+
+                # --- Download PDF Button ---
+                pdf_bytes = generate_pdf(
+                    student=st.session_state.get("student_name", "Student"),
+                    level=schreiben_level,
+                    original=schreiben_text,
+                    feedback=ai_feedback
+                )
+                st.download_button(
+                    label="⬇️ Download Feedback as PDF",
+                    data=pdf_bytes,
+                    file_name=f"Schreiben_Feedback_{schreiben_level}_{date.today()}.pdf",
+                    mime="application/pdf"
+                )
+
+                # --- WhatsApp Send Link (pre-fill assignment text) ---
+                assignment_message = (
+                    f"Hallo Herr Felix! Hier ist mein Schreiben für die Korrektur ({schreiben_level}):\n\n"
+                    f"{schreiben_text}\n\n---\nFeedback: {ai_feedback[:600]}..."  # Shorten if needed!
+                )
+                whatsapp_url = (
+                    "https://api.whatsapp.com/send"
+                    "?phone=233205706589"  # Update to your number
+                    f"&text={assignment_message.replace(' ', '%20').replace('\n', '%0A')}"
+                )
+                st.markdown(
+                    f'<a href="{whatsapp_url}" target="_blank" style="font-size:1.15rem;background:#1ad03f;padding:9px 18px;border-radius:10px;text-decoration:none;color:white;">'
+                    f'📲 Send Assignment via WhatsApp</a>',
+                    unsafe_allow_html=True
+                )
+
+                # --- Save stats to SQLite for later dashboard display ---
+                # (Example: extract score/strengths/weaknesses using basic string split. Adapt to your AI feedback style.)
+                import re
+                score_match = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
+                score = int(score_match.group(1)) if score_match else None
+                strengths = weaknesses = ""
+                if "Strengths:" in ai_feedback:
+                    strengths = ai_feedback.split("Strengths:")[1].split("\n")[0].strip()
+                if "Weaknesses:" in ai_feedback:
+                    weaknesses = ai_feedback.split("Weaknesses:")[1].split("\n")[0].strip()
+                # Now save:
+                if score:
+                    c.execute("""
+                        CREATE TABLE IF NOT EXISTS schreiben_feedback (
+                            student_code TEXT,
+                            date TEXT,
+                            level TEXT,
+                            score INTEGER,
+                            strengths TEXT,
+                            weaknesses TEXT
+                        )
+                    """)
+                    c.execute("""
+                        INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        st.session_state['student_code'], str(date.today()), schreiben_level, score, strengths, weaknesses
+                    ))
+                    conn.commit()
+
+                # Increase usage counter
                 st.session_state["schreiben_usage"][schreiben_usage_key] += 1
 
-    # -------- PDF & WhatsApp Share ---------
-    if (
-        "schreiben_feedback" in st.session_state
-        and "schreiben_text" in st.session_state
-        and st.session_state["schreiben_text"].strip()
-    ):
-        st.markdown("---")
-        st.subheader("⬇️ Download or Share Your Feedback")
 
-        pdf_bytes = generate_pdf(
-            st.session_state["schreiben_feedback"],
-            st.session_state["schreiben_text"],
-            st.session_state["schreiben_level"],
-            st.session_state.get("student_code", "")
-        )
-        st.download_button(
-            "📄 Download Feedback as PDF",
-            data=pdf_bytes,
-            file_name=f"Schreiben_Feedback_{st.session_state.get('student_code','')}.pdf",
-            mime="application/pdf"
-        )
-
-        # WhatsApp send
-        base_feedback = st.session_state["schreiben_feedback"].replace('\n', '%0A')
-        base_text = st.session_state["schreiben_text"].replace('\n', '%0A')
-        whatsapp_message = (
-            f"Student: {st.session_state.get('student_code','')}\nLevel: {st.session_state.get('schreiben_level','')}\n"
-            f"--- My Essay/Letter ---\n{st.session_state['schreiben_text']}\n\n"
-            f"--- Herr Felix's Feedback ---\n{st.session_state['schreiben_feedback']}"
-        )
-        whatsapp_message_url = whatsapp_message.replace('\n', '%0A').replace('&', '%26')
-        wa_link = (
-            f"https://api.whatsapp.com/send?phone=233205706589&text={whatsapp_message_url}"
-        )
-        st.markdown(f"""<a href="{wa_link}" target="_blank" style="text-decoration:none;">
-            <button style="background:#25D366;padding:12px 18px;border-radius:6px;color:#fff;font-size:1.1rem;border:none;cursor:pointer;">
-            📲 Send to Tutor on WhatsApp</button></a>""", unsafe_allow_html=True)
 
