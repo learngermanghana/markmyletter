@@ -261,7 +261,7 @@ if not st.session_state["logged_in"]:
             st.session_state["student_code"] = code_clean
             st.session_state["logged_in"] = True
             st.success("Welcome! Login successful.")
-            st.experimental_rerun()    # Immediately stops and reruns script (no need for st.stop here)
+            st.rerun()    # Immediately stops and reruns script (no need for st.stop here)
         else:
             st.error("This code is not recognized. Please check with your tutor.")
             st.stop()                  # stops right after error
