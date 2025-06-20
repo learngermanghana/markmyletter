@@ -684,6 +684,7 @@ if st.session_state["logged_in"]:
                     ai_prompt = (
                         f"You are Herr Felix, a strict but supportive Goethe examiner. "
                         f"The student has submitted a {schreiben_level} German letter or essay. "
+                        " Always talk as the tutor "
                         "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
                         "2. Write a brief comment in English about what the student did well and what they should improve. "
                         "3. Show the full corrected letter (in bold or highlight the changes if possible). "
