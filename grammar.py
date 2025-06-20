@@ -915,45 +915,43 @@ if tab == "Schreiben Trainer":
         key="schreiben_level_select"
     )
 
+    if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
+        st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
+    else:
+        st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
+        schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
 
-        if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
-            st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
-        else:
-            st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
-            schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
+        if st.button("Check My Writing"):
+            if not schreiben_text.strip():
+                st.warning("Please write something before submitting.")
+            else:
+                ai_prompt = (
+                    f"You are Herr Felix, a strict but supportive Goethe examiner. "
+                    f"The student has submitted a {schreiben_level} German letter or essay. "
+                    " Always talk as the tutor in English to explain mistake. Instead of 'the student', use 'you' so it would feel like Herr Felix communicating. "
+                    " Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
+                    " Write a brief comment in English about what you did well and what you should improve. "
+                    " Teach steps and tell the student to use your suggestion to correct the letter. Let them think a bit to be creative to correct the letter but don't completely show their corrected completed letter. "
+                    " Mark their work and give a score out of 25 marks. Explain why you gave that score based on grammar, spelling, vocabulary and so on, explaining strengths, weaknesses and what to improve."
+                    " Show suggested phrases, vocabulary, conjunctions they could use next time based on the level. Also check if the letter matches the level. No excessive use of AI and translators."
+                    " If score is above 17 then the student has passed and can submit to their tutor. If score is below 17, tell them to improve."
+                )
+                ai_message = (
+                    f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
+                )
 
-            if st.button("Check My Writing"):
-                if not schreiben_text.strip():
-                    st.warning("Please write something before submitting.")
-                else:
-                    ai_prompt = (
-                        f"You are Herr Felix, a strict but supportive Goethe examiner. "
-                        f"The student has submitted a {schreiben_level} German letter or essay. "
-                        " Always talk as the tutor in english to explain mistake. Instead the student, use you so it would feel like Herr Felix communicating "
-                        " Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
-                        " Write a brief comment in English about what the student did well and what they should improve. "
-                        " Teach the student steps and tell the student to use your suggestion to correct the letter. Let student think a bit to be creative to correct the letter but dont completely show their corrected completed letter (in bold or highlight the changes if possible). "
-                        " Mark the student work and give student a score out of 25 marks. Explain to the student why you gave that scores based on grammar,spelling, vocabulary and so on, explaining their strength,weakness and what they have to improve on"
-                        "Show suggested phrases,vocabulary,conjunctions they could use next time based on the level. Also check if letter matches their level. No excesss use of A.I and translators "
-                        " If scores is above 17 then student has passed and can submit to their tutor. If score is below 17,tell them to improve on "
-                        
-                    )
-                    ai_message = (
-                        f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
-                    )
+                with st.spinner("🧑‍🏫 Herr Felix is marking..."):
+                    try:
+                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                        response = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": ai_message}]
+                        )
+                        ai_feedback = response.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_feedback = f"Error: {str(e)}"
 
-                    with st.spinner("🧑‍🏫 Herr Felix is marking..."):
-                        try:
-                            client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                            response = client.chat.completions.create(
-                                model="gpt-4o",
-                                messages=[{"role": "system", "content": ai_message}]
-                            )
-                            ai_feedback = response.choices[0].message.content.strip()
-                        except Exception as e:
-                            ai_feedback = f"Error: {str(e)}"
-
-                    st.success("📝 **Feedback from Herr Felix:**")
-                    st.markdown(ai_feedback)
-                    st.session_state["schreiben_usage"][schreiben_usage_key] += 1
+                st.success("📝 **Feedback from Herr Felix:**")
+                st.markdown(ai_feedback)
+                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
 
