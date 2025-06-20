@@ -983,7 +983,7 @@ if tab == "Falowen Chat":
                         st.error(str(e))
 
                 st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-                st.experimental_rerun()  # To refresh the chat UI after reply
+                st.rerun()  # To refresh the chat UI after reply
 
        
             # ------------- Navigation Buttons --------------
