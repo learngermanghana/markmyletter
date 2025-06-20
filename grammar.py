@@ -289,14 +289,13 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
+    # -----------------------------------
+    #        FALOWEN CHAT TAB
+    # -----------------------------------
     if tab == "Falowen Chat":
-        # ====================================
-        # 5. FALOWEN CHAT TAB (Multi-Step, All Center)
-        # ====================================
-
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
-        # --- Session state variables setup ---
+        # --- Session state variable setup ---
         for key, default in [
             ("falowen_stage", 1),
             ("falowen_mode", None),
@@ -309,7 +308,7 @@ if st.session_state["logged_in"]:
             if key not in st.session_state:
                 st.session_state[key] = default
 
-        # --------- Step 1: Practice Mode ---------
+        # ---- Step 1: Practice Mode ----
         if st.session_state["falowen_stage"] == 1:
             st.subheader("Step 1: Choose Practice Mode")
             mode = st.radio(
@@ -326,7 +325,7 @@ if st.session_state["logged_in"]:
                 st.session_state["custom_topic_intro_done"] = False
             st.stop()
 
-        # --------- Step 2: Level Selection ---------
+        # ---- Step 2: Level Selection ----
         if st.session_state["falowen_stage"] == 2:
             st.subheader("Step 2: Choose Your Level")
             level = st.radio(
@@ -348,7 +347,7 @@ if st.session_state["logged_in"]:
                 st.session_state["custom_topic_intro_done"] = False
             st.stop()
 
-        # --------- Step 3: Exam Teil (for Exam Mode) ---------
+        # ---- Step 3: Exam Teil (for Exam Mode) ----
         if st.session_state["falowen_stage"] == 3:
             teil_options = {
                 "A1": [
@@ -393,7 +392,7 @@ if st.session_state["logged_in"]:
                 st.session_state["custom_topic_intro_done"] = False
             st.stop()
 
-        # --------- Step 4: Main Chat + User Input ---------
+        # ---- Step 4: Main Chat + User Input ----
         if st.session_state["falowen_stage"] == 4:
             falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
             if "falowen_usage" not in st.session_state:
@@ -404,7 +403,7 @@ if st.session_state["logged_in"]:
                 f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
             )
 
-            # --- Show chat history ---
+            # Show chat history
             for msg in st.session_state["falowen_messages"]:
                 if msg["role"] == "assistant":
                     with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -417,11 +416,10 @@ if st.session_state["logged_in"]:
                     with st.chat_message("user"):
                         st.markdown(f"🗣️ {msg['content']}")
 
-            # --- User Input ---
+            # User input
             user_input = st.chat_input("💬 Type your answer here...", key="falowen_input")
             session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
 
-            # --- MAIN CHAT LOGIC: Add user reply, then generate AI reply using prompt structure ---
             if user_input and not session_ended:
                 st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
                 if "falowen_turn_count" not in st.session_state:
