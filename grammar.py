@@ -608,10 +608,9 @@ if st.session_state["logged_in"]:
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-if tab == "Vocab Trainer":
+elif tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
-    # ----- Daily usage limit handling -----
     vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
     if "vocab_usage" not in st.session_state:
         st.session_state["vocab_usage"] = {}
@@ -621,17 +620,14 @@ if tab == "Vocab Trainer":
         f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
     )
 
-    # ---- Display previous answers in session ----
+    # Show previous answers (optional)
     if "vocab_history" not in st.session_state:
         st.session_state["vocab_history"] = []
 
     if st.session_state["vocab_history"]:
         st.markdown("#### Previous Attempts:")
         for idx, item in enumerate(st.session_state["vocab_history"], 1):
-            st.markdown(
-                f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>", unsafe_allow_html=True)
 
     # ---- Select vocab level ----
     vocab_level = st.selectbox(
@@ -643,94 +639,49 @@ if tab == "Vocab Trainer":
 
     session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
 
-    # ---- Main practice block ----
     if not session_ended:
         # Pick or update word
         if "current_vocab_word" not in st.session_state or st.button("Next Word"):
             st.session_state["current_vocab_word"] = random.choice(vocab_list)
             st.session_state["vocab_feedback"] = ""
+            st.session_state["example_phrase"] = ""
 
-        st.subheader(f"🔤 Translate this German word to English: **{st.session_state['current_vocab_word']}**")
+        german_word, correct_translation = st.session_state["current_vocab_word"]
+        st.subheader(f"🔤 Translate this German word to English: **{german_word}**")
         vocab_answer = st.text_input("Your English translation", key="vocab_answer")
 
-        # --- Answer check and feedback ---
         if st.button("Check Answer"):
-            # [!] Replace with real logic to check answer correctness
-            correct = False  # Placeholder for correctness
-            feedback = f"✅ Great! (But feedback logic not yet implemented for '{st.session_state['current_vocab_word']}')"  # placeholder
-            # Store history for the session
+            # --- AI Prompt for flexible checking and example phrase ---
+            prompt = (
+                f"You are a friendly German teacher. "
+                f"The German word is: '{german_word}'. "
+                f"The expected English translation is: '{correct_translation}'. "
+                f"The student wrote: '{vocab_answer}'.\n"
+                f"1. Say if the student's answer is correct, almost correct, or wrong. "
+                f"2. Show the correct translation if the student's answer is wrong. "
+                f"3. Give one simple example sentence in German using '{german_word}'. "
+                f"Keep it short and clear for A1/A2 level."
+            )
+            try:
+                client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": prompt}]
+                )
+                ai_feedback = response.choices[0].message.content.strip()
+            except Exception as e:
+                ai_feedback = f"Error: {str(e)}"
+
+            # Store history
             st.session_state["vocab_history"].append({
-                "word": st.session_state["current_vocab_word"],
+                "word": german_word,
                 "answer": vocab_answer
             })
             st.session_state["vocab_usage"][vocab_usage_key] += 1
-            st.session_state["vocab_feedback"] = feedback
-            st.rerun()  # To clear and fetch next word
+            st.session_state["vocab_feedback"] = ai_feedback
+            st.experimental_rerun()
 
-        # Show feedback after check
         if st.session_state.get("vocab_feedback"):
             st.success(st.session_state["vocab_feedback"])
     else:
         st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
-
- # =========================================
-# SCHREIBEN TRAINER TAB (A1–C1, Free Input)
-# =========================================
-
-if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer")
-
-    # -------- Daily usage limit handling --------
-    schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
-    if "schreiben_usage" not in st.session_state:
-        st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
-
-    st.info(
-        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
-    )
-
-    schreiben_level = st.selectbox(
-        "Select your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="schreiben_level_select"
-    )
-
-    if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
-        st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
-    else:
-        st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
-        schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
-
-        if st.button("Check My Writing"):
-            if not schreiben_text.strip():
-                st.warning("Please write something before submitting.")
-            else:
-                # AI Prompt (no need for exam question)
-                ai_prompt = (
-                    f"You are Herr Felix, a strict but supportive Goethe examiner. "
-                    f"The student has submitted a {schreiben_level} German letter or essay. "
-                    "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
-                    "2. Write a brief comment in English about what the student did well and what they should improve. "
-                    "3. Show the full corrected letter (in bold or highlight the changes if possible). "
-                    "Do NOT give a grade—just corrections and encouragement."
-                )
-                ai_message = (
-                    f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
-                )
-
-                with st.spinner("🧑‍🏫 Herr Felix is marking..."):
-                    try:
-                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[{"role": "system", "content": ai_message}]
-                        )
-                        ai_feedback = response.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_feedback = f"Error: {str(e)}"
-
-                st.success("📝 **Feedback from Herr Felix:**")
-                st.markdown(ai_feedback)
-                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
-
