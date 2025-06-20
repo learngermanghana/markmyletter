@@ -2,15 +2,16 @@
 # 1. IMPORTS, CONSTANTS, AND PAGE SETUP
 # ====================================
 
+import os
+import random
+import difflib
+import sqlite3
+from datetime import date
+
+import pandas as pd
 import streamlit as st
 from openai import OpenAI
-import random
-import pandas as pd
-import difflib
-import os
-import sqlite3
-from fpdf import FPDF
-from datetime import date, datetime, timedelta
+
 
 
 # Load your student list once (only on first run)
