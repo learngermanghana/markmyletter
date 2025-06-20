@@ -588,31 +588,24 @@ if st.session_state["logged_in"]:
         else:
             st.markdown("_No vocab activity today yet!_")
 
-# =========================================
-# FALOWEN CHAT TAB (A1–C1, EXAM + CUSTOM)
-# =========================================
-
-import random
+# ==========================
+# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
+# ==========================
+from datetime import date
 
 if tab == "Falowen Chat":
     st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
-    # --- Session state variables ---
+    # --- Set up session state (first run only) ---
     for key, default in [
-        ("falowen_stage", 1),
-        ("falowen_mode", None),
-        ("falowen_level", None),
-        ("falowen_teil", None),
-        ("falowen_messages", []),
-        ("custom_topic_intro_done", False),
-        ("custom_chat_level", None),
-        ("current_exam_topic", None),
-        ("current_keyword", None)
+        ("falowen_stage", 1), ("falowen_mode", None), ("falowen_level", None),
+        ("falowen_teil", None), ("falowen_messages", []), ("custom_topic_intro_done", False),
+        ("custom_chat_level", None)
     ]:
         if key not in st.session_state:
             st.session_state[key] = default
 
-    # ---------- STEP 1: Choose Practice Mode ----------
+    # Step 1: Mode
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
         mode = st.radio(
@@ -629,7 +622,7 @@ if tab == "Falowen Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-    # ---------- STEP 2: Level Selection ----------
+    # Step 2: Level
     if st.session_state["falowen_stage"] == 2:
         st.subheader("Step 2: Choose Your Level")
         level = st.radio(
@@ -651,33 +644,23 @@ if tab == "Falowen Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-    # ---------- STEP 3: Exam Teil (for Exam Mode) ----------
+    # Step 3: Exam Part
     if st.session_state["falowen_stage"] == 3:
         teil_options = {
             "A1": [
-                "Teil 1 – Basic Introduction",
-                "Teil 2 – Question and Answer",
-                "Teil 3 – Making A Request"
+                "Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"
             ],
             "A2": [
-                "Teil 1 – Fragen zu Schlüsselwörtern",
-                "Teil 2 – Sprechen über ein Thema",
-                "Teil 3 – Gemeinsam planen"
+                "Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"
             ],
             "B1": [
-                "Teil 1 – Gemeinsam planen (Dialogue)",
-                "Teil 2 – Präsentation (Monologue)",
-                "Teil 3 – Feedback & Fragen stellen"
+                "Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"
             ],
             "B2": [
-                "Teil 1 – Diskussion",
-                "Teil 2 – Präsentation",
-                "Teil 3 – Argumentation"
+                "Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"
             ],
             "C1": [
-                "Teil 1 – Vortrag",
-                "Teil 2 – Diskussion",
-                "Teil 3 – Bewertung"
+                "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
             ]
         }
         st.subheader("Step 3: Choose Exam Part")
@@ -694,113 +677,109 @@ if tab == "Falowen Chat":
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-            st.session_state["current_exam_topic"] = None
-            st.session_state["current_keyword"] = None
         st.stop()
 
-    # ---------- STEP 4: MAIN CHAT + USER INPUT ----------
+    # -------------------------
+    # Step 4: Main Chat
+    # -------------------------
     if st.session_state["falowen_stage"] == 4:
         falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
         if "falowen_usage" not in st.session_state:
             st.session_state["falowen_usage"] = {}
         st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
 
-        # --- AI ALWAYS STARTS IF CHAT HISTORY EMPTY ---
+        # ========== AI ALWAYS STARTS IF HISTORY IS EMPTY ==========
         if not st.session_state["falowen_messages"]:
-            mode = st.session_state.get("falowen_mode", "")
+            mode  = st.session_state.get("falowen_mode", "")
             level = st.session_state.get("falowen_level", "A1")
-            teil = st.session_state.get("falowen_teil", "")
-
-            # ------- Exam Mode Prompts (by Teil) -------
+            teil  = st.session_state.get("falowen_teil", "")
+            # --- EXAM MODE START PROMPT ---
             if mode == "Geführte Prüfungssimulation (Exam Mode)":
                 if level == "A1" and teil.startswith("Teil 1"):
                     ai_first = (
-                        "👋 Welcome to A1 Oral Exam – Introduction!\n"
-                        "Please introduce yourself using these keywords: Name, Age, Place of residence, Languages, Job, Hobby.\n"
-                        "After your introduction, I will ask you three questions about you."
+                        "Welcome to A1 Speaking (Teil 1). Introduce yourself using these keywords: Name, Alter, Wohnort, Sprachen, Beruf, Hobby. "
+                        "After your intro, I will ask you three questions about what you wrote. Type your introduction to begin!"
                     )
                 elif level == "A1" and teil.startswith("Teil 2"):
                     ai_first = (
-                        "A1, Part 2 – Questions & Answers!\n"
-                        "I will give you a topic and keyword (e.g. Geschäft – schließen)."
-                        "Please ask me a question about the keyword, and answer my question too."
+                        "Teil 2: I will give you a topic with a keyword (e.g., 'Geschäft – schließen'). "
+                        "Ask me a question about this topic in German. After your question, I will answer and ask you a related question. Let's practice!"
                     )
                 elif level == "A1" and teil.startswith("Teil 3"):
                     ai_first = (
-                        "A1, Part 3 – Making a Request!\n"
-                        "Please make a polite request, for example: 'Können Sie bitte das Fenster zumachen?'"
+                        "Teil 3: Practice making polite requests, e.g., 'Können Sie bitte das Fenster zumachen?' or 'Machen Sie bitte das Licht an.' "
+                        "Write your polite request now."
                     )
                 elif level == "A2" and teil.startswith("Teil 1"):
                     ai_first = (
-                        "A2, Part 1 – Fragen zu Schlüsselwörtern!\n"
-                        "Choose a keyword from this list: Wohnort, Tagesablauf, Freizeit, Sprachen, etc. "
-                        "Type your keyword and ask me a question about it in German."
+                        "Teil 1: Choose a topic from this list and write it as a keyword (e.g., 'Wohnort', 'Tagesablauf'). Then ask a question about this topic in German. "
+                        "Example: 'Wohnort – Wo wohnst du?'"
                     )
                 elif level == "A2" and teil.startswith("Teil 2"):
-                    topic = random.choice(A2_TEIL2)
-                    st.session_state["current_exam_topic"] = topic
                     ai_first = (
-                        f"A2, Part 2 – Sprechen über ein Thema!\n"
-                        f"Here is your topic: **{topic}**\n"
-                        "Please say 2–3 sentences about it in German."
+                        "Teil 2: You will talk about your chosen topic (like 'Essen & Trinken', 'Reisen', etc.). "
+                        "Describe your experience or give information about the topic. Then, I will ask you follow-up questions. Write a few sentences to start."
                     )
                 elif level == "A2" and teil.startswith("Teil 3"):
-                    plan = random.choice(A2_TEIL3)
-                    st.session_state["current_exam_topic"] = plan
                     ai_first = (
-                        f"A2, Part 3 – Gemeinsam planen!\n"
-                        f"Let’s plan together: **{plan}**. Respond in German!"
+                        "Teil 3: Let's plan something together! For example: 'Zusammen ins Kino gehen.' "
+                        "Make a suggestion for an activity and I'll help you plan."
                     )
                 elif level == "B1" and teil.startswith("Teil 1"):
-                    scenario = random.choice(B1_TEIL1)
-                    st.session_state["current_exam_topic"] = scenario
                     ai_first = (
-                        f"B1, Part 1 – Planning Dialogue!\n"
-                        f"Our scenario: **{scenario}**\n"
-                        "Please suggest or respond to this idea in German."
+                        "Teil 1: Let's plan an activity together! Suggest an idea, and I'll discuss details, advantages, or disadvantages with you."
                     )
                 elif level == "B1" and teil.startswith("Teil 2"):
-                    topic = random.choice(B1_TEIL2)
-                    st.session_state["current_exam_topic"] = topic
                     ai_first = (
-                        f"B1, Part 2 – Presentation!\n"
-                        f"Your topic: **{topic}**\n"
-                        "Please give a short presentation (at least 4 sentences) in German."
+                        "Teil 2: Time for your presentation. Type your topic and start with a few sentences. I'll listen and then ask you questions about your presentation."
                     )
                 elif level == "B1" and teil.startswith("Teil 3"):
                     ai_first = (
-                        "B1, Part 3 – Feedback & Questions!\n"
-                        "Imagine you just finished your presentation. I will ask you 1–2 questions about it."
+                        "Teil 3: Imagine you have just finished your presentation. I will ask you questions and give feedback as an examiner."
                     )
-                elif level == "B2":
+                elif level == "B2" and teil.startswith("Teil 1"):
                     ai_first = (
-                        "B2 – Higher Level Exam.\n"
-                        "I will give you a topic for discussion or a presentation. Respond in German. After your answer, I will give feedback and a new topic."
+                        "Teil 1: Join a B2-level discussion. I'll give you a topic (e.g., 'Wie beeinflusst Social Media unser Leben?'). Give your opinion, and I'll debate with you."
                     )
-                elif level == "C1":
+                elif level == "B2" and teil.startswith("Teil 2"):
                     ai_first = (
-                        "C1 – Highest Level Exam.\n"
-                        "I will give you a topic for lecture, discussion, or evaluation. Respond in German. After your answer, I will give feedback and a new topic."
+                        "Teil 2: Prepare and type a short presentation on your chosen topic. I'll listen and give questions/feedback like in a real B2 exam."
+                    )
+                elif level == "B2" and teil.startswith("Teil 3"):
+                    ai_first = (
+                        "Teil 3: It's time for an argument! Take a stand on the topic. I'll challenge your point of view and ask you to justify it."
+                    )
+                elif level == "C1" and teil.startswith("Teil 1"):
+                    ai_first = (
+                        "Teil 1: Give a short lecture (Vortrag) on a complex topic of your choice. I will listen and ask questions afterwards."
+                    )
+                elif level == "C1" and teil.startswith("Teil 2"):
+                    ai_first = (
+                        "Teil 2: Participate in a C1-level discussion. Give your arguments and defend your opinion on a complex subject."
+                    )
+                elif level == "C1" and teil.startswith("Teil 3"):
+                    ai_first = (
+                        "Teil 3: Provide a summary and evaluation of the topic we discussed. Reflect and share your final opinion."
                     )
                 else:
-                    ai_first = "Welcome! Please introduce yourself."
-
-            # ------- Custom Chat Prompt (All Levels) -------
+                    ai_first = (
+                        "Welcome to the exam! Please introduce yourself, and let's begin with your chosen topic."
+                    )
+            # --- CUSTOM CHAT START PROMPT ---
             elif mode == "Eigenes Thema/Frage (Custom Chat)":
                 ai_first = (
-                    "Hallo! 👋 What would you like to talk about? "
-                    "Give me details of what you want so I can understand and help you prepare for your class or presentation."
+                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
                 )
             else:
-                ai_first = "Hallo! What do you want to practice today?"
-
+                ai_first = "Hallo! Womit möchtest du heute üben?"
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_first})
 
         st.info(
             f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
         )
 
-        # Show chat history
+        # ----- Show chat history -----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -813,9 +792,8 @@ if tab == "Falowen Chat":
                 with st.chat_message("user"):
                     st.markdown(f"🗣️ {msg['content']}")
 
-        # --- User Input, Limit Check, Next Button Logic ---
+        # ----- User input & usage limit -----
         session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
-
         if session_ended:
             st.warning("You have reached today's practice limit for Falowen Chat. Come back tomorrow!")
         else:
@@ -826,61 +804,113 @@ if tab == "Falowen Chat":
                     st.session_state["falowen_turn_count"] = 0
                 st.session_state["falowen_turn_count"] += 1
                 st.session_state["falowen_usage"][falowen_usage_key] += 1
-    
 
-                # ======== AI PROMPT/LOGIC FOR EXAM + CUSTOM CHAT ========
-                level = st.session_state.get("falowen_level")
-                teil = st.session_state.get("falowen_teil", "")
+                # --- BUILD AI SYSTEM PROMPT LOGIC ---
                 mode = st.session_state.get("falowen_mode", "")
-                is_exam_mode = mode == "Geführte Prüfungssimulation (Exam Mode)"
-                is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-                is_b1_teil3 = (
-                    is_exam_mode and level == "B1" and teil.startswith("Teil 3") and "current_b1_teil3_topic" in st.session_state
-                )
+                level = st.session_state.get("falowen_level", "A1")
+                teil = st.session_state.get("falowen_teil", "")
+                is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
+                is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
 
-                # ---- A1 Exam Mode Prompts ----
-                if is_exam_mode and level == "A1":
-                    if teil.startswith("Teil 1"):
-                        ai_system_prompt = (
-                            "You are Herr Felix, an A1 supportive and creative German examiner. "
-                            "The first chat from student, check if the student has introduce himself/herself with these keywords Name, Alter, Wohnort, Sprache, Job, Hobby. "
-                            "If student missed one of the keywords or spelling mistake,kindly correct them and tell them not to take anything out next time.  "
-                            "If the answer is perfect, praise them. Then, if ready, ask the next follow-up question from your internal list."
-                        )
-                    elif teil.startswith("Teil 2"):
-                        ai_system_prompt = (
-                            "You are Herr Felix, an A1 German examiner. "
-                            "Check the student's question and answer for the topic and keyword, correct errors, and give a grammar tip in English. "
-                            "If the answer is perfect, praise them. Then introduce the next Thema and keyword as the next prompt."
-                        )
-                    elif teil.startswith("Teil 3"):
-                        ai_system_prompt = (
-                            "You are Herr Felix, an A1 German examiner. "
-                            "Check the student's polite request, correct errors, and give a grammar tip in English. "
-                            "If the answer is perfect, praise them. Then give the next polite request prompt."
-                        )
-                # ---- CUSTOM CHAT AND ALL OTHER MODES ----
-                else:
-                    ai_system_prompt = (
-                        "You are Herr Felix, a supportive and creative German examiner. "
-                        "Continue the conversation, give simple corrections, and ask the next question."
-                    )
-                    if is_b1_teil3:
-                        b1_topic = st.session_state['current_b1_teil3_topic']
-                        ai_system_prompt = (
-                            "You are Herr Felix, the examiner in a German B1 oral exam (Teil 3: Feedback & Questions). "
-                            f"**IMPORTANT: Stay strictly on the topic:** {b1_topic}. "
-                            "After student ask the question and you have given the student compliment, give another topic for the student ask the question. "
-                            "The student is supposed to ask you one valid question about their presentation. "
-                            "1. Read the student's message. "
-                            "2. Praise if it's valid or politely indicate what's missing. "
-                            "3. If valid, answer briefly in simple German. "
-                            "4. End with clear exam tips in English. "
-                            "Stay friendly, creative and exam-like."
-                        )
-                    elif is_custom_chat:
-                        lvl = st.session_state.get('custom_chat_level', level)
-                        if lvl == 'A2':
+                ai_system_prompt = ""
+                # ---- EXAM MODE PROMPT LOGIC ----
+                if is_exam:
+                    # (You can add more logic here to keep track of current keyword/question for each teil)
+                    if level == "A1":
+                        if teil.startswith("Teil 1"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a Goethe A1 examiner. "
+                                "After the student introduction, ask three random personal questions based on their introduction (about name, age, job, etc.). "
+                                "Mark their response, give gentle correction (English), and provide tips for improvement. "
+                                "After three questions, summarize strengths and suggest how to improve further."
+                            )
+                        elif teil.startswith("Teil 2"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, an A1 examiner. For each round, pick the next topic and keyword from the exam list. "
+                                "The student should ask a question using the keyword (e.g., 'Geschäft – schließen'). "
+                                "Check if it's a proper question. If yes, answer briefly, then recommend the next keyword and ask the next question."
+                            )
+                        elif teil.startswith("Teil 3"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, an A1 examiner. The student should write a polite request (using modal verbs or imperative). "
+                                "Check if the sentence is correct and polite, then recommend the next prompt from the official list (e.g., 'Radio anmachen')."
+                            )
+                    elif level == "A2":
+                        if teil.startswith("Teil 1"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a Goethe A2 examiner. "
+                                "Student gives a topic and asks a question. Check if the question is correct and relates to the topic. "
+                                "Reply with a short answer, correction in English, and suggest another topic/question from the exam list."
+                            )
+                        elif teil.startswith("Teil 2"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, an A2 examiner. Student talks about a topic (e.g., Reisen, Essen). "
+                                "Give correction and English explanation, then ask a new question on the same topic."
+                            )
+                        elif teil.startswith("Teil 3"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, an A2 examiner. Plan something together (e.g., ins Kino gehen). "
+                                "Respond to student suggestion, ask what, when, where, and why, and check their ability to suggest and plan."
+                            )
+                    elif level == "B1":
+                        if teil.startswith("Teil 1"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B1 examiner. Student suggests an activity to plan. "
+                                "Ask about details, advantages, and possible problems. Give gentle correction, tips, and always suggest the next step to plan."
+                            )
+                        elif teil.startswith("Teil 2"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B1 examiner. Student is giving a presentation. "
+                                "After their message, ask for 1-2 details, correct errors, and give exam feedback."
+                            )
+                        elif teil.startswith("Teil 3"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B1 examiner. Student has finished a presentation. "
+                                "Ask questions about their talk, give positive and constructive feedback (in English), and suggest one exam tip."
+                            )
+                    elif level == "B2":
+                        if teil.startswith("Teil 1"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B2 examiner. Student gives their opinion on a topic. "
+                                "Challenge their opinion, ask for reasons/examples, and give advanced corrections."
+                            )
+                        elif teil.startswith("Teil 2"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B2 examiner. Student presents a topic. "
+                                "After each answer, give C1-style questions, correct errors, and encourage deeper arguments."
+                            )
+                        elif teil.startswith("Teil 3"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B2 examiner. Argue with the student about the topic, ask for evidence, and provide feedback on advanced language use."
+                            )
+                    elif level == "C1":
+                        if teil.startswith("Teil 1"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a C1 examiner. Listen to student's lecture. "
+                                "Ask probing questions, correct advanced grammar, and comment on structure and vocabulary."
+                            )
+                        elif teil.startswith("Teil 2"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a C1 examiner. Lead a formal discussion. "
+                                "Challenge student's argument, give critical feedback, and suggest native-like phrases."
+                            )
+                        elif teil.startswith("Teil 3"):
+                            ai_system_prompt = (
+                                "You are Herr Felix, a C1 examiner. Summarize the topic, ask the student to reflect, and give advice for future improvement."
+                            )
+
+                # ---- CUSTOM CHAT PROMPT LOGIC (Your Structure) ----
+                elif is_custom_chat:
+                    lvl = st.session_state.get('custom_chat_level', level)
+                    # FIRST MESSAGE = TOPIC ONLY, GIVE IDEAS/TIPS/QUESTION
+                    if not st.session_state.get("custom_topic_intro_done", False):
+                        st.session_state["custom_topic_intro_done"] = True
+                        if lvl == "A1":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a friendly A1 tutor. "
+                                "Student's first input is their topic or keyword. Greet them and suggest a few A1-level phrases, then ask a simple question about the topic. No correction yet."
+                            )
+                        elif lvl == "A2":
                             ai_system_prompt = (
                                 "You are Herr Felix, a friendly but creative A2 German teacher and exam trainer. "
                                 "Greet and give students ideas and examples about how to talk about the topic in English and ask only question. No correction or answer in the statement but only tip and possible phrases to use. This stage only when the student input their first question and not anyother input. "
@@ -888,57 +918,73 @@ if tab == "Falowen Chat":
                                 "Use simple English and German to correct the student's last answer. Tip and necessary suggestions should be explained in English with German supporting for student to understand. They are A2 beginners student. "
                                 "You can also suggest keywords when needed. Ask one question only. Format your reply with answer, correction explanation in english, tip in english, and next question in German."
                             )
-                        elif lvl == 'B1':
-                            if not st.session_state.get('custom_topic_intro_done', False):
-                                ai_system_prompt = (
-                                    "You are Herr Felix, a supportive and creative B1 German teacher. "
-                                    "The first input from the student is their topic and not their reply or sentence or answer. It is always their presentation topic. Only the second and further repliers it their response to your question "
-                                    "Provide practical ideas/opinions/advantages/disadvantages/situation in their homeland for the topic in German and English, then ask one opinion question. No correction or answer in the statement but only tip and possible phrases to use. This stage only when the student input their first question and not anyother input. "
-                                    "Support ideas and opinions explanation in English and German as these students are new B1 students. "
-                                    "Ask creative question that helps student to learn how to answer opinions,advantages,disadvantages,situation in their country and so on. "
-                                    "Always put the opinion question on a separate line so the student can notice the question from the ideas and examples"
-                                )
-                            else:
-                                ai_system_prompt = (
-                                    "You are Herr Felix, a supportive B1 German teacher. "
-                                    "Reply in German and English, correct last answer, give a tip in English, and ask one question on the same topic."
-                                )
-                        elif lvl == 'A1':
+                        elif lvl == "B1":
                             ai_system_prompt = (
-                                "You are Herr Felix, a supportive and creative A1 German teacher and exam trainer. "
-                                "If the student's first input is an introduction, analyze it and give feedback in English with suggestions for improvement. "
-                                "If the student asks a question with an answer, respond in the correct A1 exam format and ask a new question using the A1 keywords list. "
-                                "For requests, reply as an examiner, give correction, and suggest other requests. "
-                                "Offer to let the student decide how many practices/questions to do today. "
-                                "Always be supportive and explain your feedback clearly in English."
+                                "You are Herr Felix, a supportive and creative B1 German teacher. "
+                                "The first input from the student is their topic and not their reply or sentence or answer. It is always their presentation topic. Only the second and further repliers it their response to your question "
+                                "Provide practical ideas/opinions/advantages/disadvantages/situation in their homeland for the topic in German and English, then ask one opinion question. No correction or answer in the statement but only tip and possible phrases to use. This stage only when the student input their first question and not anyother input. "
+                                "Support ideas and opinions explanation in English and German as these students are new B1 students. "
+                                "Ask creative question that helps student to learn how to answer opinions,advantages,disadvantages,situation in their country and so on. "
+                                "Always put the opinion question on a separate line so the student can notice the question from the ideas and examples"
                             )
-                        elif lvl in ['B2', 'C1']:
+                        elif lvl == "B2":
                             ai_system_prompt = (
-                                "You are Herr Felix, a supportive, creative, but strict B2/C1 German examiner. "
-                                "Always correct the student's answer in both English and German. "
-                                "Encourage deeper reasoning, advanced grammar, and real-world vocabulary in your feedback and questions."
+                                "You are Herr Felix, a creative and demanding B2 exam trainer. "
+                                "For the student's first input (the topic): suggest main points, arguments, and advanced connectors they should use (both in English and German), then ask a thought-provoking question on a new line. No correction yet."
                             )
-                    # Mark intro done for B1/B2/C1 after first student reply
-                    if is_custom_chat and lvl in ['B1', 'B2', 'C1'] and not st.session_state.get("custom_topic_intro_done", False):
-                        st.session_state["custom_topic_intro_done"] = True
+                        elif lvl == "C1":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a C1-level examiner. "
+                                "After student's topic: suggest academic phrases and argumentative structures, show how to deepen analysis, then ask a challenging question. No correction or evaluation on the first input."
+                            )
+                    else:
+                        # SUBSEQUENT MESSAGES: FEEDBACK + CORRECTION + NEXT QUESTION
+                        if lvl == "A1":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a supportive A1 tutor. "
+                                "Correct grammar and vocabulary mistakes in English, give a short tip, and ask another simple question about the same topic."
+                            )
+                        elif lvl == "A2":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a friendly but creative A2 German teacher and exam trainer. "
+                                "For each student answer: correct the answer in English and German, give a tip, and ask a follow-up question related to their topic or previous answer."
+                            )
+                        elif lvl == "B1":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a supportive B1 German teacher. "
+                                "Give constructive feedback in both German and English, highlight strengths and weaknesses, and ask a new opinion or experience question about the student's topic."
+                            )
+                        elif lvl == "B2":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a B2 examiner. "
+                                "For each student reply: correct for advanced grammar, explain in English and German, ask a more difficult, exam-like question about their topic, and suggest academic vocabulary."
+                            )
+                        elif lvl == "C1":
+                            ai_system_prompt = (
+                                "You are Herr Felix, a C1 examiner. "
+                                "Correct for academic style, suggest how to add complexity and depth, and always finish with an open-ended, reflective question about the topic."
+                            )
 
-                conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
+                # --- Compose conversation for OpenAI API ---
+                conversation = [{"role": "system", "content": ai_system_prompt}]
+                for m in st.session_state["falowen_messages"]:
+                    if m["role"] == "user":
+                        conversation.append({"role": "user", "content": m["content"]})
+                    else:
+                        conversation.append({"role": "assistant", "content": m["content"]})
+
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     try:
                         client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
                         resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
                         ai_reply = resp.choices[0].message.content
                     except Exception as e:
-                        ai_reply = "Sorry, there was a problem generating a response."
+                        ai_reply = f"Sorry, there was a problem: {str(e)}"
                         st.error(str(e))
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-            # --- Show if session ended ---
-            if session_ended:
-                st.warning("You have reached today's practice limit for Falowen Chat. Come back tomorrow!")
-            else:
-                # main chat logic
-                ...
+                st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+                st.experimental_rerun()  # To refresh the chat UI after reply
+
        
             # ------------- Navigation Buttons --------------
             col1, col2, col3 = st.columns(3)
