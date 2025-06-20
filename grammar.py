@@ -688,6 +688,9 @@ if st.session_state["logged_in"]:
                         "2. Write a brief comment in English about what the student did well and what they should improve. "
                         "3. Show the full corrected letter (in bold or highlight the changes if possible). "
                         "4. Mark the student work and give student a score out of 25 marks. Explain to the student why you gave that scores based on grammar,spelling, vocabulary and so on, explaining their strength,weakness and what they have to improve on"
+                        "5. Show suggested phrases,vocabulary,conjunctions they could use next time. Also check if letter matches their level. No excesss use of A.I and translators "
+                        "6. If scores is above 17 then student has passed and can submit to their tutor. If score is below 17,tell them to improve on "
+                        
                     )
                     ai_message = (
                         f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
