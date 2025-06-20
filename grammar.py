@@ -9,7 +9,7 @@ import pandas as pd
 import difflib
 import os
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -31,7 +31,10 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-# --- SQLite Setup (at the very top of your script, only once) ---
+# ====================================
+# 2. SQLITE SETUP & HELPER FUNCTIONS
+# ====================================
+
 conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""
@@ -46,7 +49,6 @@ c.execute("""
 """)
 conn.commit()
 
-# --- Helper functions ---
 def save_vocab_progress(student_code, level, word, correct):
     today = str(date.today())
     c.execute("""
@@ -61,7 +63,41 @@ def load_vocab_progress(student_code, level):
         SELECT word, correct FROM vocab_progress
         WHERE student_code=? AND date=? AND level=?
     """, (student_code, today, level))
-    return dict(c.fetchall())  # {word: correct, ...}
+    return dict(c.fetchall())
+
+# --- Student Dashboard Helpers ---
+def get_student_stats(student_code):
+    today = str(date.today())
+    c.execute("""
+        SELECT level, COUNT(*), SUM(correct)
+        FROM vocab_progress
+        WHERE student_code=? AND date=?
+        GROUP BY level
+    """, (student_code, today))
+    stats = {row[0]: {"attempted": row[1], "correct": row[2]} for row in c.fetchall()}
+    return stats
+
+def get_vocab_streak(student_code):
+    c.execute("""
+        SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC
+    """, (student_code,))
+    dates = [row[0] for row in c.fetchall()]
+    if not dates:
+        return 0
+    streak = 1
+    prev = datetime.strptime(dates[0], "%Y-%m-%d")
+    for d in dates[1:]:
+        next_day = prev - timedelta(days=1)
+        if datetime.strptime(d, "%Y-%m-%d") == next_day:
+            streak += 1
+            prev = next_day
+        else:
+            break
+    return streak
+
+# ====================================
+# 3. FLEXIBLE ANSWER CHECKERS
+# ====================================
 
 def is_close_answer(student, correct):
     student = student.strip().lower()
@@ -81,16 +117,16 @@ def is_almost(student, correct):
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
     return 0.60 < similarity <= 0.80
 
-# --- File/database constants ---
+# ====================================
+# 4. CONSTANTS & VOCAB LISTS
+# ====================================
+
 CODES_FILE = "student_codes.csv"
-
-# --- Daily usage limits (centralized for all modules) ---
 FALOWEN_DAILY_LIMIT = 25
-VOCAB_DAILY_LIMIT   = 20
+VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
-
 max_turns = 25
-        
+
 # --- Vocab lists for all levels ---
 
 a1_vocab = [
@@ -196,25 +232,6 @@ VOCAB_LISTS = {
     "C1": c1_vocab
 }
 
-# --- Flexible answer checker ---
-def is_close_answer(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    if len(student) < 3 or len(student) < 0.6 * len(correct):
-        return False
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return similarity > 0.80
-
-def is_almost(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return 0.60 < similarity <= 0.80
-    
 # Exam topic lists
 # --- A1 Exam Topic Lists (Teil 1, 2, 3) ---
 
@@ -402,8 +419,9 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
+
 # ====================================
-# 2. STUDENT LOGIN AND MAIN MENU (NO SIDEBAR)
+# 5. STUDENT LOGIN AND MAIN MENU
 # ====================================
 
 def load_codes():
@@ -416,7 +434,6 @@ def load_codes():
         df = pd.DataFrame(columns=["code"])
     return df
 
-# --- Step 1: Student Login (only shows login form) ---
 if "student_code" not in st.session_state:
     st.session_state["student_code"] = ""
 if "logged_in" not in st.session_state:
@@ -432,26 +449,22 @@ if not st.session_state["logged_in"]:
             st.session_state["student_code"] = code_clean
             st.session_state["logged_in"] = True
             st.success("Welcome! Login successful.")
-            st.rerun()    # Immediately stops and reruns script (no need for st.stop here)
+            st.rerun()
         else:
             st.error("This code is not recognized. Please check with your tutor.")
-            st.stop()                  # stops right after error
-    st.stop()  # If they haven't logged in or pressed button, stop here!
+            st.stop()
+    st.stop()
 
+# ====================================
+# 6. MAIN TAB SELECTOR (with Dashboard)
+# ====================================
 
-# --- Step 2: Choose Practice Mode (CENTERED, NO SIDEBAR) ---
 if st.session_state["logged_in"]:
     student_code = st.session_state.get("student_code", "")
-    if student_code:
-        st.markdown(
-            f"<div style='font-size:1.08rem;margin-bottom:10px;color:#156276;'>"
-            f"👋 <b>Welcome, <code>{student_code}</code>!</b></div>",
-            unsafe_allow_html=True
-        )
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Falowen Chat", "Vocab Trainer", "Schreiben Trainer"],
+        ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer"],
         key="main_tab_select"
     )
     st.markdown(
@@ -460,60 +473,20 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-    # ====================================
-# STUDENT DASHBOARD (SQLite Version)
-# ====================================
-
-def get_student_stats(student_code):
-    # Show vocab stats for today
-    today = str(date.today())
-    c.execute("""
-        SELECT level, COUNT(*), SUM(correct)
-        FROM vocab_progress
-        WHERE student_code=? AND date=?
-        GROUP BY level
-    """, (student_code, today))
-    stats = {row[0]: {"attempted": row[1], "correct": row[2]} for row in c.fetchall()}
-    return stats
-
-def get_vocab_streak(student_code):
-    # Count how many *consecutive days* the student practiced vocab
-    c.execute("""
-        SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC
-    """, (student_code,))
-    dates = [row[0] for row in c.fetchall()]
-    if not dates:
-        return 0
-    from datetime import datetime, timedelta
-    streak = 1
-    prev = datetime.strptime(dates[0], "%Y-%m-%d")
-    for d in dates[1:]:
-        next_day = prev - timedelta(days=1)
-        if datetime.strptime(d, "%Y-%m-%d") == next_day:
-            streak += 1
-            prev = next_day
-        else:
-            break
-    return streak
-
-# --- STUDENT DASHBOARD TAB (add this as a new tab option!) ---
-if "logged_in" in st.session_state and st.session_state["logged_in"]:
-    student_code = st.session_state.get("student_code", "")
-    if student_code:
-        st.sidebar.markdown("## 📊 Student Dashboard")
-        st.sidebar.markdown(f"**Logged in as:** `{student_code}`")
-        # --- Vocab stats ---
+    if tab == "Dashboard":
+        st.header("📊 Student Dashboard")
+        # --- Show main stats ---
         stats = get_student_stats(student_code)
         streak = get_vocab_streak(student_code)
-        st.sidebar.info(f"🔥 **Vocab Streak:** {streak} days")
+        st.info(f"🔥 **Vocab Streak:** {streak} days")
         if stats:
-            st.sidebar.markdown("**Today's Vocab Progress:**")
+            st.markdown("**Today's Vocab Progress:**")
             for lvl, d in stats.items():
-                st.sidebar.markdown(
+                st.markdown(
                     f"- `{lvl}`: {d['correct'] or 0} / {d['attempted']} correct"
                 )
         else:
-            st.sidebar.markdown("_No vocab activity today yet!_")
+            st.markdown("_No vocab activity today yet!_")
 
 
     # -----------------------------------
