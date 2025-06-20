@@ -66,7 +66,7 @@ a1_vocab = [
     ("einsteigen","to get in / board"), ("umsteigen","to change (trains)"), ("aussteigen","to get out / exit"),
     ("anschalten","to switch on"), ("ausschalten","to switch off"), ("Anreisen","to arrive"), ("Ankommen","to arrive"),
     ("Abreisen","to depart"), ("Absagen","to cancel"), ("Zusagen","to agree"), ("günstig","cheap"),
-    ("billig","inexpensive")
+    ("billig","inexpensive"),
     "B2": ["Umwelt", "Entwicklung", "Auswirkung", ...],
     "C1": ["Ausdruck", "Beziehung", "Erkenntnis", ...]
 ]
