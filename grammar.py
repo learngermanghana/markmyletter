@@ -557,7 +557,7 @@ if st.session_state["logged_in"]:
                         "custom_chat_level": None,
                         "custom_topic_intro_done": False
                     })
-                    st.experimental_rerun()
+                    st.rerun()
             with col3:
                 if st.button("Next ➡️ (Summary)", key="falowen_summary"):
                     st.success("Summary not implemented yet (placeholder).")
@@ -687,7 +687,7 @@ if st.session_state["logged_in"]:
                         "1. Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
                         "2. Write a brief comment in English about what the student did well and what they should improve. "
                         "3. Show the full corrected letter (in bold or highlight the changes if possible). "
-                        "Do NOT give a grade—just corrections and encouragement."
+                        "Grade and give student a score out of 25 marks. Explain to the student why you gave that scores based on grammar,spelling, vocabulary and so on, explaining their strength,weakness and what they have to improve on"
                     )
                     ai_message = (
                         f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
