@@ -825,7 +825,6 @@ if st.session_state["logged_in"]:
 import difflib
 import random
 
-# --------------- Flexible answer checker ---------------
 def is_close_answer(student, correct):
     student = student.strip().lower()
     correct = correct.strip().lower()
@@ -844,7 +843,6 @@ def is_almost(student, correct):
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
     return 0.60 < similarity <= 0.80
 
-# --------------- Vocab Trainer UI ---------------
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
@@ -853,6 +851,12 @@ if tab == "Vocab Trainer":
         st.session_state["vocab_usage"] = {}
     st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
 
+    # --- Stats/progress session vars ---
+    if "vocab_today_history" not in st.session_state:
+        st.session_state["vocab_today_history"] = []
+    if "vocab_correct_today" not in st.session_state:
+        st.session_state["vocab_correct_today"] = 0
+
     vocab_level = st.selectbox(
         "Choose your level:",
         ["A1", "A2", "B1", "B2", "C1"],
@@ -860,26 +864,10 @@ if tab == "Vocab Trainer":
     )
     vocab_list = VOCAB_LISTS.get(vocab_level, [])
 
-    if not vocab_list:
-        st.error("No vocab list for this level yet. Please add words!")
-        st.stop()
-
-    # Session progress
-    session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
-
-    # Save past answers for today
-    if "vocab_today_history" not in st.session_state:
-        st.session_state["vocab_today_history"] = []
-    if "vocab_correct_today" not in st.session_state:
-        st.session_state["vocab_correct_today"] = 0
-
-    # Calculate stats
+    # --- STATS & PROGRESS ALWAYS ON TOP ---
     correct_count = st.session_state["vocab_correct_today"]
     attempted = len(st.session_state["vocab_today_history"])
-
-    st.info(
-        f"Today's correct answers: {correct_count}/{VOCAB_DAILY_LIMIT}"
-    )
+    st.info(f"Today's correct answers: {correct_count}/{VOCAB_DAILY_LIMIT}")
     st.progress(min(1, correct_count / VOCAB_DAILY_LIMIT))
 
     # Show all attempted today
@@ -890,36 +878,42 @@ if tab == "Vocab Trainer":
             symbol = "✅" if correct else "❌"
             st.markdown(f"{idx}. **{word}** → _{answer}_ {symbol} <span style='color:#888'>({eng})</span>", unsafe_allow_html=True)
 
+    # --- SESSION END CHECK ---
+    session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
     if session_ended:
         st.success("You've reached your vocab limit for today. Come back tomorrow!")
         st.stop()
 
-    # Avoid showing the same word twice in session
+    # --- Avoid repeating words already attempted today ---
     already_asked = [item[0] for item in st.session_state["vocab_today_history"]]
     pool = [item for item in vocab_list if (item[0] if isinstance(item, tuple) else item) not in already_asked]
     if not pool:
         st.success("Super! You've tried all words at this level today.")
         st.stop()
 
-    # Select next word
+    # --- Pick the next word (repeatable after check) ---
     current_vocab = random.choice(pool)
     if isinstance(current_vocab, tuple):
         current_word, correct_eng = current_vocab
     else:
         current_word = current_vocab
-        correct_eng = ""  # For B1/C1 etc, where you don't need to check
+        correct_eng = ""  # For B1/C1
 
     st.subheader(f"🔤 Translate this German word to English: **{current_word}**")
     vocab_answer = st.text_input("Your English translation", key=f"vocab_answer_{current_word}")
 
-    # Feedback section
-    if st.button("Check Answer"):
-        # For B1/C1, accept any input as 'attempted'
+    # --- "Check Answer" Button ---
+    check_clicked = st.button("Check Answer")
+    show_feedback = False
+    feedback_msg = ""
+    example_sentence = ""
+
+    if check_clicked:
         if vocab_level in ["B1", "B2", "C1"] and not correct_eng:
             st.session_state["vocab_today_history"].append((current_word, vocab_answer, True, "-"))
             st.session_state["vocab_usage"][vocab_usage_key] += 1
             st.session_state["vocab_correct_today"] += 1
-            st.success("Good! B1/B2/C1 vocab is for exposure. Try to learn the meaning.")
+            feedback_msg = "Good! B1/B2/C1 vocab is for exposure. Try to learn the meaning."
         else:
             is_correct = is_close_answer(vocab_answer, correct_eng)
             is_nearly = is_almost(vocab_answer, correct_eng) and not is_correct
@@ -929,13 +923,13 @@ if tab == "Vocab Trainer":
             st.session_state["vocab_usage"][vocab_usage_key] += 1
             if is_correct:
                 st.session_state["vocab_correct_today"] += 1
-                st.success(f"✅ Correct! '{current_word}' means **{correct_eng}**.")
+                feedback_msg = f"✅ Correct! '{current_word}' means **{correct_eng}**."
             elif is_nearly:
-                st.warning(f"🟡 Almost! The correct answer is **{correct_eng}**.")
+                feedback_msg = f"🟡 Almost! The correct answer is **{correct_eng}**."
             else:
-                st.error(f"❌ Not quite. The correct answer is **{correct_eng}**.")
+                feedback_msg = f"❌ Not quite. The correct answer is **{correct_eng}**."
 
-        # Example phrase with AI (optional)
+        # Try to get an example phrase from AI (only if correct_eng exists)
         if correct_eng:
             try:
                 client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
@@ -947,9 +941,16 @@ if tab == "Vocab Trainer":
                     model="gpt-4o",
                     messages=[{"role": "system", "content": sys_prompt}]
                 )
-                example = completion.choices[0].message.content.strip()
-                st.info(f"**Example:** {example}")
+                example_sentence = completion.choices[0].message.content.strip()
             except Exception:
-                st.info("**Example:** (Could not fetch example sentence)")
+                example_sentence = ""
 
-        st.experimental_rerun()
+        show_feedback = True
+
+    # Show feedback after "Check Answer" (not on rerun)
+    if show_feedback or check_clicked:
+        st.markdown(f"**Feedback:** {feedback_msg}")
+        if example_sentence:
+            st.info(f"**Example:** {example_sentence}")
+        st.stop()
+
