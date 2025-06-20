@@ -1164,8 +1164,9 @@ if tab == "Schreiben Trainer":
                     f"&text={assignment_message.replace(' ', '%20').replace('\n', '%0A')}"
                 )
                 st.markdown(
+                    f'<a href="{whatsapp_url}" target="_blank" '
                     'style="font-size:1.15rem;background:#1ad03f;padding:9px 18px;border-radius:10px;text-decoration:none;color:white;">'
-                    f'📲 Send Assignment via WhatsApp</a>',
+                    '📲 Send Assignment via WhatsApp</a>',
                     unsafe_allow_html=True
                 )
 
