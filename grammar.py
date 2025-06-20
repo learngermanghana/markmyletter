@@ -442,7 +442,7 @@ if st.session_state["logged_in"]:
                         ai_reply = "Sorry, there was a problem generating a response."
                         st.error(str(e))
                 st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-                st.experimental_rerun()
+                st.rerun()
 
             elif session_ended:
                 st.warning("You have reached today's practice limit for Falowen Chat. Come back tomorrow!")
