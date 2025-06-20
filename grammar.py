@@ -904,15 +904,17 @@ if tab == "Schreiben Trainer":
     if "schreiben_usage" not in st.session_state:
         st.session_state["schreiben_usage"] = {}
     st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
-        st.info(
-            f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
-        )
 
-        schreiben_level = st.selectbox(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="schreiben_level_select"
-        )
+    st.info(
+        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
+    )
+
+    schreiben_level = st.selectbox(
+        "Select your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="schreiben_level_select"
+    )
+
 
         if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
             st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
