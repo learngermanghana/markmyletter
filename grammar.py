@@ -546,7 +546,8 @@ if st.session_state["logged_in"]:
                         "custom_chat_level": None,
                         "custom_topic_intro_done": False
                     })
-                    st.experimental_rerun()
+                    st.rerun()
+                    st.stop
             with col2:
                 if st.button("🔄 Restart Chat", key="falowen_restart"):
                     st.session_state.update({
