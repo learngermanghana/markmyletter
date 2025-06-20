@@ -8,6 +8,7 @@ import random
 import pandas as pd
 import difflib
 import os
+import sqlite3
 from datetime import date
 
 # --- Streamlit page config ---
@@ -29,6 +30,58 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
+
+# --- SQLite Setup (at the very top of your script, only once) ---
+conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+c = conn.cursor()
+c.execute("""
+    CREATE TABLE IF NOT EXISTS vocab_progress (
+        student_code TEXT,
+        date TEXT,
+        level TEXT,
+        word TEXT,
+        correct INTEGER,
+        PRIMARY KEY (student_code, date, level, word)
+    )
+""")
+conn.commit()
+
+# --- Helper functions ---
+def save_vocab_progress(student_code, level, word, correct):
+    today = str(date.today())
+    c.execute("""
+        INSERT OR REPLACE INTO vocab_progress (student_code, date, level, word, correct)
+        VALUES (?, ?, ?, ?, ?)
+    """, (student_code, today, level, word, int(correct)))
+    conn.commit()
+
+def load_vocab_progress(student_code, level):
+    today = str(date.today())
+    c.execute("""
+        SELECT word, correct FROM vocab_progress
+        WHERE student_code=? AND date=? AND level=?
+    """, (student_code, today, level))
+    return dict(c.fetchall())  # {word: correct, ...}
+
+import difflib
+
+def is_close_answer(student, correct):
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    if len(student) < 3 or len(student) < 0.6 * len(correct):
+        return False
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return similarity > 0.80
+
+def is_almost(student, correct):
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return 0.60 < similarity <= 0.80
 
 # --- File/database constants ---
 CODES_FILE = "student_codes.csv"
@@ -769,59 +822,6 @@ if st.session_state["logged_in"]:
 # VOCAB TRAINER TAB (A1–C1, with Progress)
 # ==============================
 
-# --- SQLite Setup (at the very top of your script, only once) ---
-conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-c = conn.cursor()
-c.execute("""
-    CREATE TABLE IF NOT EXISTS vocab_progress (
-        student_code TEXT,
-        date TEXT,
-        level TEXT,
-        word TEXT,
-        correct INTEGER,
-        PRIMARY KEY (student_code, date, level, word)
-    )
-""")
-conn.commit()
-
-# --- Helper functions ---
-def save_vocab_progress(student_code, level, word, correct):
-    today = str(date.today())
-    c.execute("""
-        INSERT OR REPLACE INTO vocab_progress (student_code, date, level, word, correct)
-        VALUES (?, ?, ?, ?, ?)
-    """, (student_code, today, level, word, int(correct)))
-    conn.commit()
-
-def load_vocab_progress(student_code, level):
-    today = str(date.today())
-    c.execute("""
-        SELECT word, correct FROM vocab_progress
-        WHERE student_code=? AND date=? AND level=?
-    """, (student_code, today, level))
-    return dict(c.fetchall())  # {word: correct, ...}
-
-import difflib
-
-def is_close_answer(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    if len(student) < 3 or len(student) < 0.6 * len(correct):
-        return False
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return similarity > 0.80
-
-def is_almost(student, correct):
-    student = student.strip().lower()
-    correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return 0.60 < similarity <= 0.80
-
-# --- Vocab Trainer Tab ---
 elif tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
