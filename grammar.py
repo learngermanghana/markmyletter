@@ -563,85 +563,88 @@ if st.session_state["logged_in"]:
                     st.success("Summary not implemented yet (placeholder).")
 
 
-# =========================================
-# VOCAB TRAINER TAB (A1–C1)
-# =========================================
+    # =========================================
+    # VOCAB TRAINER TAB (A1–C1)
+    # =========================================
+    elif tab == "Vocab Trainer":
+        st.header("🧠 Vocab Trainer")
 
-elif tab == "Vocab Trainer":
-    st.header("🧠 Vocab Trainer")
+        # ----- Usage key and limit -----
+        vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
+        if "vocab_usage" not in st.session_state:
+            st.session_state["vocab_usage"] = {}
+        st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
 
-    vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
-    if "vocab_usage" not in st.session_state:
-        st.session_state["vocab_usage"] = {}
-    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
+        st.info(
+            f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
+        )
 
-    st.info(
-        f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
-    )
+        # ---- Display previous answers ----
+        if "vocab_history" not in st.session_state:
+            st.session_state["vocab_history"] = []
 
-    # Show previous answers (optional)
-    if "vocab_history" not in st.session_state:
-        st.session_state["vocab_history"] = []
+        if st.session_state["vocab_history"]:
+            st.markdown("#### Previous Attempts:")
+            for idx, item in enumerate(st.session_state["vocab_history"], 1):
+                st.markdown(f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>", unsafe_allow_html=True)
 
-    if st.session_state["vocab_history"]:
-        st.markdown("#### Previous Attempts:")
-        for idx, item in enumerate(st.session_state["vocab_history"], 1):
-            st.markdown(f"{idx}. <b>{item['word']}</b> – Your answer: <i>{item['answer']}</i>", unsafe_allow_html=True)
+        # ---- Select vocab level ----
+        vocab_level = st.selectbox(
+            "Choose your level:",
+            ["A1", "A2"],
+            key="vocab_level_select"
+        )
+        vocab_list = VOCAB_LISTS.get(vocab_level, [])
 
-    # ---- Select vocab level ----
-    vocab_level = st.selectbox(
-        "Choose your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="vocab_level_select"
-    )
-    vocab_list = VOCAB_LISTS.get(vocab_level, [])
+        session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
 
-    session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
+        if not vocab_list:
+            st.warning("No vocabulary found for this level.")
+            st.stop()
 
-    if not session_ended:
-        # Pick or update word
-        if "current_vocab_word" not in st.session_state or st.button("Next Word"):
-            st.session_state["current_vocab_word"] = random.choice(vocab_list)
-            st.session_state["vocab_feedback"] = ""
-            st.session_state["example_phrase"] = ""
+        # ---- Main practice block ----
+        if not session_ended:
+            # Pick or update word
+            if "current_vocab_word" not in st.session_state or st.button("Next Word"):
+                st.session_state["current_vocab_word"] = random.choice(vocab_list)
+                st.session_state["vocab_feedback"] = ""
 
-        german_word, correct_translation = st.session_state["current_vocab_word"]
-        st.subheader(f"🔤 Translate this German word to English: **{german_word}**")
-        vocab_answer = st.text_input("Your English translation", key="vocab_answer")
+            german_word, correct_english = st.session_state["current_vocab_word"]
+            st.subheader(f"🔤 Translate this German word to English: **{german_word}**")
+            vocab_answer = st.text_input("Your English translation", key="vocab_answer")
 
-        if st.button("Check Answer"):
-            # --- AI Prompt for flexible checking and example phrase ---
-            prompt = (
-                f"You are a friendly German teacher. "
-                f"The German word is: '{german_word}'. "
-                f"The expected English translation is: '{correct_translation}'. "
-                f"The student wrote: '{vocab_answer}'.\n"
-                f"1. Say if the student's answer is correct, almost correct, or wrong. "
-                f"2. Show the correct translation if the student's answer is wrong. "
-                f"3. Give one simple example sentence in German using '{german_word}'. "
-                f"Keep it short and clear for A1/A2 level."
-            )
-            try:
-                client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                response = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": prompt}]
+            if st.button("Check Answer"):
+                # --- Use OpenAI to check flexible matching and suggest a phrase ---
+                prompt = (
+                    f"The student is learning German vocab. Here is the vocab word: '{german_word}' (correct translation: '{correct_english}').\n"
+                    f"Student's answer: '{vocab_answer}'\n"
+                    "1. Decide if the student's answer is correct or close (accept synonyms, ignore typos).\n"
+                    "2. If the answer is close, say '✅ Correct or very close!'. If not, say '❌ Not quite.'\n"
+                    "3. Show the correct answer (English) and a simple example phrase with the German word.\n"
+                    "Example format:\n"
+                    "Feedback: ...\n"
+                    "Correct answer: ...\n"
+                    "Example: ..."
                 )
-                ai_feedback = response.choices[0].message.content.strip()
-            except Exception as e:
-                ai_feedback = f"Error: {str(e)}"
+                try:
+                    client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": prompt}]
+                    )
+                    feedback = response.choices[0].message.content.strip()
+                except Exception as e:
+                    feedback = f"Error: {str(e)}"
 
-            # Store history
-            st.session_state["vocab_history"].append({
-                "word": german_word,
-                "answer": vocab_answer
-            })
-            st.session_state["vocab_usage"][vocab_usage_key] += 1
-            st.session_state["vocab_feedback"] = ai_feedback
-            st.rerun()
-            st.stop
+                st.session_state["vocab_history"].append({
+                    "word": german_word,
+                    "answer": vocab_answer
+                })
+                st.session_state["vocab_usage"][vocab_usage_key] += 1
+                st.session_state["vocab_feedback"] = feedback
+                st.experimental_rerun()
 
-        if st.session_state.get("vocab_feedback"):
-            st.success(st.session_state["vocab_feedback"])
-    else:
-        st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
+            if st.session_state.get("vocab_feedback"):
+                st.success(st.session_state["vocab_feedback"])
+        else:
+            st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
