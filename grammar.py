@@ -709,7 +709,7 @@ if st.session_state["logged_in"]:
                 if mode == "Geführte Prüfungssimulation (Exam Mode)":
                     if level == "A1" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "👋 For speaking part 1, you'll be asked to introduce yourself using these keywords: Name, Age, Place of Residence, Languages, Job, Hobby. "
+                            "👋 For speaking part 1, you'll be asked to introduce yourself using these keywords: Name, Alter, Wohnort, Sprache, Job, Hobby. "
                             "Afterwards, the examiner will pick your response and ask a few random questions. Let's practice: please type your introduction including all the keywords above."
                         )
                     elif level == "A1" and teil.startswith("Teil 2"):
@@ -821,8 +821,9 @@ if st.session_state["logged_in"]:
                 if is_exam_mode and level == "A1":
                     if teil.startswith("Teil 1"):
                         ai_system_prompt = (
-                            "You are Herr Felix, an A1 German examiner. "
-                            "Check the student's self-introduction (name, age, etc), correct errors, and give a grammar tip in English. "
+                            "You are Herr Felix, an A1 supportive and creative German examiner. "
+                            "The first chat from student, check if the student has introduce himself/herself with these keywords Name, Alter, Wohnort, Sprache, Job, Hobby. "
+                            "If student missed one of the keywords or spelling mistake,kindly correct them and tell them not to take anything out next time.  "
                             "If the answer is perfect, praise them. Then, if ready, ask the next follow-up question from your internal list."
                         )
                     elif teil.startswith("Teil 2"):
