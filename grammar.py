@@ -892,18 +892,18 @@ if tab == "Vocab Trainer":
 
 
 
-    # =========================================
-    # SCHREIBEN TRAINER TAB (A1–C1, Free Input)
-    # =========================================
-    elif tab == "Schreiben Trainer":
-        st.header("✍️ Schreiben Trainer")
+# =========================================
+# SCHREIBEN TRAINER TAB (A1–C1, Free Input)
+# =========================================
 
-        # ----- Usage key and limit -----
-        schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
-        if "schreiben_usage" not in st.session_state:
-            st.session_state["schreiben_usage"] = {}
-        st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
+if tab == "Schreiben Trainer":
+    st.header("✍️ Schreiben Trainer")
 
+    # ----- Usage key and limit -----
+    schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
+    if "schreiben_usage" not in st.session_state:
+        st.session_state["schreiben_usage"] = {}
+    st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
         st.info(
             f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
         )
