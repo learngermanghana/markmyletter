@@ -899,7 +899,7 @@ if tab == "Falowen Chat":
                                 "You are Herr Felix, a C1 examiner. Summarize the topic, ask the student to reflect, and give advice for future improvement."
                             )
 
-    vv vv     vv  # ---- CUSTOM CHAT PROMPT LOGIC (Your Structure) ----
+               # ---- CUSTOM CHAT PROMPT LOGIC (Your Structure) ----
                 elif is_custom_chat:
                     lvl = st.session_state.get('custom_chat_level', level)
                     # FIRST MESSAGE = TOPIC ONLY, GIVE IDEAS/TIPS/QUESTION
