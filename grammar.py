@@ -1032,23 +1032,24 @@ if tab == "Vocab Trainer":
 # =========================================
 from fpdf import FPDF
 import io
-import re
+
+def safe_pdf(text):
+    # Replace any un-encodable characters with '?'
+    return str(text).encode("latin-1", "replace").decode("latin-1")
+
+def generate_pdf(student, level, original, feedback):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=13)
+    pdf.cell(0, 12, safe_pdf(f"Schreiben Correction – {level}"), ln=1)
+    pdf.ln(2)
+    pdf.multi_cell(0, 10, safe_pdf(
+        f"Dear {student},\n\nYour original text:\n\n{original}\n\nFeedback from Herr Felix:\n\n{feedback}"
+    ))
+    return pdf.output(dest='S').encode('latin-1')
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer")
-
-    # --- DB Table (create once) ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_feedback (
-            student_code TEXT,
-            date TEXT,
-            level TEXT,
-            score INTEGER,
-            strengths TEXT,
-            weaknesses TEXT
-        )
-    """)
-    conn.commit()
 
     # ----- Usage key and limit -----
     schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
@@ -1056,10 +1057,12 @@ if tab == "Schreiben Trainer":
         st.session_state["schreiben_usage"] = {}
     st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
 
-    SCHREIBEN_DAILY_LIMIT = 5
-
     # --------- Student Progress/Stats ---------
     def get_latest_feedback(student_code):
+        # Example with sqlite, adapt if you store elsewhere!
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS schreiben_feedback (student_code TEXT, date TEXT, level TEXT, score INTEGER, strengths TEXT, weaknesses TEXT)"
+        )
         c.execute(
             "SELECT date, level, score, strengths, weaknesses FROM schreiben_feedback WHERE student_code=? ORDER BY date DESC LIMIT 1",
             (student_code,))
@@ -1096,13 +1099,11 @@ if tab == "Schreiben Trainer":
         key="schreiben_level_select"
     )
 
-    # Student name for PDF
-    student_name = st.session_state.get("student_name", "Student")
-
     if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
         st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
     else:
         st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
+
         schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
 
         if st.button("Check My Writing"):
@@ -1136,36 +1137,8 @@ if tab == "Schreiben Trainer":
                 st.success("📝 **Feedback from Herr Felix:**")
                 st.markdown(ai_feedback)
 
-                # --- Save feedback to DB ---
-                # Extract stats
-                score_match = re.search(r"([Ss]core|[Mm]ark)[^\d]*(\d{1,2})", ai_feedback)
-                score = int(score_match.group(2)) if score_match else None
-                strengths = weaknesses = ""
-                if "Strengths:" in ai_feedback:
-                    strengths = ai_feedback.split("Strengths:")[1].split("\n")[0].strip()
-                if "Weaknesses:" in ai_feedback:
-                    weaknesses = ai_feedback.split("Weaknesses:")[1].split("\n")[0].strip()
-                if score:
-                    c.execute("""
-                        INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (
-                        st.session_state['student_code'], str(date.today()), schreiben_level, score, strengths, weaknesses
-                    ))
-                    conn.commit()
-
-                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
-
-                # --- PDF Download ---
-                def generate_pdf(student, level, original, feedback):
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=13)
-                    pdf.cell(0, 12, f"Schreiben Correction – {level}", ln=1)
-                    pdf.ln(2)
-                    pdf.multi_cell(0, 10, f"Dear {student},\n\nYour original text:\n\n{original}\n\nFeedback from Herr Felix:\n\n{feedback}")
-                    return pdf.output(dest='S').encode('latin-1')
-
+                # --- PDF Generation Function ---
+                student_name = st.session_state.get("student_name", "Student")
                 pdf_bytes = generate_pdf(
                     student=student_name,
                     level=schreiben_level,
@@ -1186,7 +1159,7 @@ if tab == "Schreiben Trainer":
                 )
                 whatsapp_url = (
                     "https://api.whatsapp.com/send"
-                    "?phone=233205706589"
+                    "?phone=233205706589"  # Update to your number
                     f"&text={assignment_message.replace(' ', '%20').replace('\n', '%0A')}"
                 )
                 st.markdown(
@@ -1194,3 +1167,35 @@ if tab == "Schreiben Trainer":
                     f'📲 Send Assignment via WhatsApp</a>',
                     unsafe_allow_html=True
                 )
+
+                # --- Save stats to SQLite for later dashboard display ---
+                import re
+                score_match = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
+                score = int(score_match.group(1)) if score_match else None
+                strengths = weaknesses = ""
+                if "Strengths:" in ai_feedback:
+                    strengths = ai_feedback.split("Strengths:")[1].split("\n")[0].strip()
+                if "Weaknesses:" in ai_feedback:
+                    weaknesses = ai_feedback.split("Weaknesses:")[1].split("\n")[0].strip()
+                # Now save:
+                if score:
+                    c.execute("""
+                        CREATE TABLE IF NOT EXISTS schreiben_feedback (
+                            student_code TEXT,
+                            date TEXT,
+                            level TEXT,
+                            score INTEGER,
+                            strengths TEXT,
+                            weaknesses TEXT
+                        )
+                    """)
+                    c.execute("""
+                        INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        st.session_state['student_code'], str(date.today()), schreiben_level, score, strengths, weaknesses
+                    ))
+                    conn.commit()
+
+                # Increase usage counter
+                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
