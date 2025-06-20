@@ -11,10 +11,40 @@ import os
 import sqlite3
 from datetime import date, datetime, timedelta
 
-import pandas as pd
 import streamlit as st
+import pandas as pd
 
-STUDENTS_CSV = "students.csv"
+# Load your student list once (only on first run)
+@st.cache_data
+def load_student_data():
+    df = pd.read_csv("students.csv.csv")  # Use correct path
+    df.columns = [c.strip() for c in df.columns]  # Remove any header whitespace
+    return df
+
+df_students = load_student_data()
+
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = None
+
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
+    if st.button("Login"):
+        found = df_students[
+            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
+            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
+        ]
+        if not found.empty:
+            st.session_state["logged_in"] = True
+            st.session_state["student_row"] = found.iloc[0].to_dict()
+            st.success(f"Welcome, {st.session_state['student_row']['Name']}! Login successful.")
+            st.experimental_rerun()
+        else:
+            st.error("Login failed. Please check your Student Code or Email and try again.")
+    st.stop()
+
 
 # --- Helper to load student data ---
 def load_student_data():
@@ -54,25 +84,32 @@ if not st.session_state["logged_in"]:
             st.stop()
     st.stop()
 
+
+
 # --- After login, show dashboard at the top ---
-if st.session_state.get("logged_in", False):
-    student_info = st.session_state.get("student_info", {})
+if st.session_state["logged_in"]:
     st.header("🎓 Student Dashboard")
-    if student_info:
-        st.markdown(f"""
-        <div style='background:#e9f7ff;padding:20px 20px 10px 20px;border-radius:18px;margin-bottom:22px;'>
-        <b>Name:</b> {student_info.get('Name','')}<br>
-        <b>Location:</b> {student_info.get('Location','')}<br>
-        <b>Level:</b> {student_info.get('Level','')}<br>
-        <b>Email:</b> {student_info.get('Email','')}<br>
-        <b>Phone:</b> {student_info.get('Phone','')}<br>
-        <b>Emergency Contact:</b> {student_info.get('Emergency Contact (Phone Number)','')}<br>
-        <b>Paid:</b> {student_info.get('Paid','')}<br>
-        <b>Balance:</b> {student_info.get('Balance','')}<br>
-        <b>Contract Start:</b> {student_info.get('ContractStart','')}<br>
-        <b>Contract End:</b> {student_info.get('ContractEnd','')}
-        </div>
-        """, unsafe_allow_html=True)
+    student = st.session_state["student_row"]
+    st.markdown(f"""
+    <div style='background:#f9f9ff;padding:18px 24px;border-radius:15px;margin-bottom:18px;box-shadow:0 2px 10px #eef;'>
+        <h3 style='margin:0;color:#17617a;'>{student['Name']}</h3>
+        <ul style='list-style:none;padding:0;font-size:1.08rem;'>
+            <li><b>Level:</b> {student['Level']}</li>
+            <li><b>Student Code:</b> {student['StudentCode']}</li>
+            <li><b>Email:</b> {student['Email']}</li>
+            <li><b>Phone:</b> {student['Phone']}</li>
+            <li><b>Location:</b> {student['Location']}</li>
+            <li><b>Paid:</b> {student['Paid']}</li>
+            <li><b>Balance:</b> {student['Balance']}</li>
+            <li><b>Contract Start:</b> {student['ContractStart']}</li>
+            <li><b>Contract End:</b> {student['ContractEnd']}</li>
+            <li><b>Status:</b> {student.get('Status', '')}</li>
+            <li><b>Enroll Date:</b> {student.get('EnrollDate', '')}</li>
+            <li><b>Emergency Contact:</b> {student.get('Emergency Contact (Phone Number)', '')}</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # --- Streamlit page config ---
 st.set_page_config(
