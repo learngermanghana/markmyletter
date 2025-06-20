@@ -6,6 +6,7 @@ import streamlit as st
 from openai import OpenAI
 import random
 import pandas as pd
+import difflib
 import os
 from datetime import date
 
@@ -144,7 +145,25 @@ VOCAB_LISTS = {
     "C1": c1_vocab
 }
 
+# --- Flexible answer checker ---
+def is_close_answer(student, correct):
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    if len(student) < 3 or len(student) < 0.6 * len(correct):
+        return False
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return similarity > 0.80
 
+def is_almost(student, correct):
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return 0.60 < similarity <= 0.80
+    
 # Exam topic lists
 # --- A1 Exam Topic Lists (Teil 1, 2, 3) ---
 
@@ -749,209 +768,86 @@ if st.session_state["logged_in"]:
 # ==============================
 # VOCAB TRAINER TAB (A1–C1, with Progress)
 # ==============================
-import datetime  # Only import ONCE, preferably at the top of your file
 
-if tab == "Vocab Trainer":
+def vocab_trainer_tab():
     st.header("🧠 Vocab Trainer")
 
-    # -------- Session state for vocab stats --------
+    # Usage/session keys
+    VOCAB_DAILY_LIMIT = 20
     vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
-
     if "vocab_usage" not in st.session_state:
         st.session_state["vocab_usage"] = {}
-    if "vocab_correct_today" not in st.session_state:
-        st.session_state["vocab_correct_today"] = 0
-    if "vocab_streak" not in st.session_state:
-        st.session_state["vocab_streak"] = 0
-    if "vocab_mastered" not in st.session_state:
-        st.session_state["vocab_mastered"] = {}  # word: count
-
     st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
 
-    # --- Progress stats (UI) ---
+    if "vocab_stats" not in st.session_state:
+        st.session_state["vocab_stats"] = {"correct": 0, "attempted": 0, "streak": 0}
+
+    # --- Progress bar and stats
     st.info(
         f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT} | "
-        f"Correct answers today: {st.session_state['vocab_correct_today']} | "
-        f"Your streak: {st.session_state['vocab_streak']}"
+        f"✅ Correct: {st.session_state['vocab_stats']['correct']} | 🔄 Streak: {st.session_state['vocab_stats']['streak']}"
     )
+    st.progress(st.session_state['vocab_usage'][vocab_usage_key] / VOCAB_DAILY_LIMIT)
 
-    # ---- Streak logic ----
-    if "last_vocab_practice_date" not in st.session_state:
-        st.session_state["last_vocab_practice_date"] = ""
-    today_str = str(date.today())
-    if st.session_state["last_vocab_practice_date"] != today_str:
-        yesterday = (date.today() - datetime.timedelta(days=1)).isoformat()
-        if st.session_state["last_vocab_practice_date"] == yesterday:
-            st.session_state["vocab_streak"] += 1
-        else:
-            st.session_state["vocab_streak"] = 1
-        st.session_state["last_vocab_practice_date"] = today_str
-        st.session_state["vocab_correct_today"] = 0  # Reset daily correct count
+    # Level selection
+    vocab_level = st.selectbox("Choose your level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
+    vocab_list = VOCAB_LISTS[vocab_level]
 
-    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
-
-    # ---- Display stats panel ----
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Today's attempts", f"{st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}")
-    with col2:
-        st.metric("Streak", f"{st.session_state['vocab_streak']} days")
-    with col3:
-        mastered_count = sum(1 for x in st.session_state["vocab_mastered"].values() if x >= 3)
-        st.metric("Mastered words", mastered_count)
-
-    st.progress(st.session_state["vocab_usage"][vocab_usage_key] / VOCAB_DAILY_LIMIT)
-
-    # ---- Level select and word list ----
-    vocab_level = st.selectbox(
-        "Choose your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="vocab_level_select"
-    )
-    vocab_list = VOCAB_LISTS.get(vocab_level, [])
     session_ended = st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT
 
-    # ---- Show last few results ----
-    if "vocab_history" not in st.session_state:
-        st.session_state["vocab_history"] = []
+    # Pick a word (randomized, can expand with history/“repeat wrongs” later)
+    if "current_vocab" not in st.session_state or st.button("Next Word"):
+        st.session_state["current_vocab"] = random.choice(vocab_list)
+        st.session_state["vocab_feedback"] = ""
+        st.session_state["example_phrase"] = ""
 
-    if st.session_state["vocab_history"]:
-        st.markdown("#### Recent Results")
-        for item in st.session_state["vocab_history"][-5:][::-1]:
-            color = "#43a047" if item["correct"] else "#e53935"
-            st.markdown(
-                f"<span style='color:{color};font-weight:bold'>{item['word']}</span> → "
-                f"<i>{item['answer']}</i>"
-                f"{' ✅' if item['correct'] else ' ❌'}",
-                unsafe_allow_html=True
-            )
+    word, correct_answer = st.session_state["current_vocab"]
 
-    # ---- Main practice block ----
-    if not session_ended:
-        # Pick or update word (randomly)
-        if "current_vocab_word" not in st.session_state or st.button("Next Word"):
-            st.session_state["current_vocab_word"], st.session_state["current_vocab_solution"] = random.choice(
-                vocab_list if vocab_list and isinstance(vocab_list[0], tuple) else [(w, "") for w in vocab_list]
-            )
-            st.session_state["vocab_feedback"] = ""
-            st.session_state["show_example"] = False
+    # Show the German word
+    st.subheader(f"🔤 What is the English for: **{word}**")
 
-        word = st.session_state["current_vocab_word"]
-        correct_answer = st.session_state.get("current_vocab_solution", "")
-
-        st.subheader(f"🔤 What is the English meaning of: **{word}** ?")
-        vocab_answer = st.text_input("Your English translation", key="vocab_answer")
-
-        # --- Check answer and update stats ---
+    # User input and daily limit check
+    if session_ended:
+        st.warning("You have reached today's vocab practice limit. Come back tomorrow!")
+        st.stop()
+    else:
+        user_input = st.text_input("Your English translation:", key="vocab_answer")
         if st.button("Check Answer"):
-            # Flexible string check: lowercase, strip, and partial match allowed
-            answer = vocab_answer.strip().lower()
-            solutions = [x.strip().lower() for x in correct_answer.split("/")] if correct_answer else []
-            correct = any(sol in answer or answer in sol for sol in solutions) if solutions else False
-
-            # For B1/B2/C1, no solution provided, just let any answer pass as "practiced"
-            if vocab_level in ["B1", "B2", "C1"] and not solutions:
-                correct = True
-
-            if correct:
-                st.session_state["vocab_feedback"] = "✅ Correct! Great job!"
-                st.session_state["vocab_correct_today"] += 1
-                # Track mastered words
-                st.session_state["vocab_mastered"][word] = st.session_state["vocab_mastered"].get(word, 0) + 1
+            st.session_state['vocab_stats']['attempted'] += 1
+            if is_close_answer(user_input, correct_answer):
+                st.session_state['vocab_stats']['correct'] += 1
+                st.session_state['vocab_stats']['streak'] += 1
+                st.session_state["vocab_feedback"] = f"✅ Correct! {word} → {correct_answer}"
+            elif is_almost(user_input, correct_answer):
+                st.session_state['vocab_stats']['streak'] = 0
+                st.session_state["vocab_feedback"] = f"🟡 Almost correct, check your spelling! {word} → {correct_answer}"
             else:
-                st.session_state["vocab_feedback"] = f"❌ Not quite! The correct answer is: **{correct_answer}**"
-                st.session_state["vocab_mastered"][word] = 0  # Reset if got wrong
+                st.session_state['vocab_stats']['streak'] = 0
+                st.session_state["vocab_feedback"] = f"❌ Incorrect. {word} → {correct_answer}"
 
-            # Save in history
-            st.session_state["vocab_history"].append({
-                "word": word,
-                "answer": vocab_answer,
-                "correct": correct
-            })
             st.session_state["vocab_usage"][vocab_usage_key] += 1
-            st.session_state["show_example"] = True
 
-        # ---- Show feedback & example ----
-        if st.session_state.get("vocab_feedback"):
-            color = "#43a047" if "Correct" in st.session_state["vocab_feedback"] else "#e53935"
-            st.markdown(
-                f"<span style='color:{color};font-size:1.1em;'>{st.session_state['vocab_feedback']}</span>",
-                unsafe_allow_html=True
-            )
-            # Suggest example phrase (AI or placeholder)
-            if st.session_state.get("show_example"):
-                # --- Suggest an example phrase for the word (placeholder or AI call) ---
-                if vocab_level in ["A1", "A2"]:
-                    example_phrase = f"Zum Beispiel: **Das ist mein {word}**."  # Simple placeholder
-                else:
-                    example_phrase = "Try to use this word in a sentence!"
-                st.info(example_phrase)
-
-    else:
-        st.warning("You have reached today's practice limit for Vocab Trainer. Come back tomorrow!")
-
-
-
-# =========================================
-# SCHREIBEN TRAINER TAB (A1–C1, Free Input)
-# =========================================
-
-if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer")
-
-    # ----- Usage key and limit -----
-    schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
-    if "schreiben_usage" not in st.session_state:
-        st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
-
-    st.info(
-        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
-    )
-
-    schreiben_level = st.selectbox(
-        "Select your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="schreiben_level_select"
-    )
-
-    if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
-        st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
-    else:
-        st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
-        schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
-
-        if st.button("Check My Writing"):
-            if not schreiben_text.strip():
-                st.warning("Please write something before submitting.")
-            else:
-                ai_prompt = (
-                    f"You are Herr Felix, a strict but supportive Goethe examiner. "
-                    f"The student has submitted a {schreiben_level} German letter or essay. "
-                    " Always talk as the tutor in English to explain mistake. Instead of 'the student', use 'you' so it would feel like Herr Felix communicating. "
-                    " Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
-                    " Write a brief comment in English about what you did well and what you should improve. "
-                    " Teach steps and tell the student to use your suggestion to correct the letter. Let them think a bit to be creative to correct the letter but don't completely show their corrected completed letter. "
-                    " Mark their work and give a score out of 25 marks. Explain why you gave that score based on grammar, spelling, vocabulary and so on, explaining strengths, weaknesses and what to improve."
-                    " Show suggested phrases, vocabulary, conjunctions they could use next time based on the level. Also check if the letter matches the level. No excessive use of AI and translators."
-                    " If score is above 17 then the student has passed and can submit to their tutor. If score is below 17, tell them to improve."
+            # Example phrase with OpenAI (optional, skips if API key not set)
+            try:
+                client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                prompt = (
+                    f"Give a simple A2-level German sentence using the word '{word}'. "
+                    "Then translate to English. Keep both short."
                 )
-                ai_message = (
-                    f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": prompt}]
                 )
+                st.session_state["example_phrase"] = resp.choices[0].message.content.strip()
+            except Exception:
+                st.session_state["example_phrase"] = ""
 
-                with st.spinner("🧑‍🏫 Herr Felix is marking..."):
-                    try:
-                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[{"role": "system", "content": ai_message}]
-                        )
-                        ai_feedback = response.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_feedback = f"Error: {str(e)}"
+            st.experimental_rerun()
 
-                st.success("📝 **Feedback from Herr Felix:**")
-                st.markdown(ai_feedback)
-                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
+    # Show feedback
+    if st.session_state.get("vocab_feedback"):
+        st.markdown(f"<div style='font-size:1.18rem'>{st.session_state['vocab_feedback']}</div>", unsafe_allow_html=True)
+        if st.session_state.get("example_phrase"):
+            st.markdown(f"<span style='color:#33691e'><b>Example:</b></span> {st.session_state['example_phrase']}", unsafe_allow_html=True)
+        st.stop()
 
