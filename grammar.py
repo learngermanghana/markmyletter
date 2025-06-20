@@ -289,7 +289,6 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-    # ---- Main App Tabs ----
     if tab == "Falowen Chat":
         # ====================================
         # 5. FALOWEN CHAT TAB (Multi-Step, All Center)
@@ -297,7 +296,7 @@ if st.session_state["logged_in"]:
 
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
-        # --- Session state variables setup (ensures clean state for each session) ---
+        # --- Session state variables setup ---
         for key, default in [
             ("falowen_stage", 1),
             ("falowen_mode", None),
@@ -396,7 +395,6 @@ if st.session_state["logged_in"]:
 
         # --------- Step 4: Main Chat + User Input ---------
         if st.session_state["falowen_stage"] == 4:
-            # --- DAILY LIMIT / USAGE HANDLING ---
             falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
             if "falowen_usage" not in st.session_state:
                 st.session_state["falowen_usage"] = {}
@@ -406,7 +404,7 @@ if st.session_state["logged_in"]:
                 f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
             )
 
-            # --- Show chat history (user and AI) ---
+            # --- Show chat history ---
             for msg in st.session_state["falowen_messages"]:
                 if msg["role"] == "assistant":
                     with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -461,17 +459,6 @@ if st.session_state["logged_in"]:
                             "Check the student's polite request, correct errors, and give a grammar tip in English. "
                             "If the answer is perfect, praise them. Then give the next polite request prompt."
                         )
-                    conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
-                    with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                        try:
-                            client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                            resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
-                            ai_reply = resp.choices[0].message.content
-                        except Exception as e:
-                            ai_reply = "Sorry, there was a problem generating a response."
-                            st.error(str(e))
-                    st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-
                 # ---- CUSTOM CHAT AND ALL OTHER MODES ----
                 else:
                     ai_system_prompt = (
@@ -535,74 +522,46 @@ if st.session_state["logged_in"]:
                     if is_custom_chat and lvl in ['B1', 'B2', 'C1'] and not st.session_state.get("custom_topic_intro_done", False):
                         st.session_state["custom_topic_intro_done"] = True
 
-                    conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
-                    with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                        try:
-                            client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                            resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
-                            ai_reply = resp.choices[0].message.content
-                        except Exception as e:
-                            ai_reply = "Sorry, there was a problem generating a response."
-                            st.error(str(e))
-                    st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+                conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    try:
+                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                        resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = "Sorry, there was a problem generating a response."
+                        st.error(str(e))
+                st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
             # --- Show if session ended ---
             elif session_ended:
                 st.warning("You have reached today's practice limit for Falowen Chat. Come back tomorrow!")
 
+            # ------------- Navigation Buttons --------------
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("⬅️ Back", key="falowen_back"):
+                    st.session_state.update({
+                        "falowen_stage": 1,
+                        "falowen_messages": [],
+                        "falowen_turn_count": 0,
+                        "custom_chat_level": None,
+                        "custom_topic_intro_done": False
+                    })
+                    st.experimental_rerun()
+            with col2:
+                if st.button("🔄 Restart Chat", key="falowen_restart"):
+                    st.session_state.update({
+                        "falowen_messages": [],
+                        "falowen_turn_count": 0,
+                        "custom_chat_level": None,
+                        "custom_topic_intro_done": False
+                    })
+                    st.experimental_rerun()
+            with col3:
+                if st.button("Next ➡️ (Summary)", key="falowen_summary"):
+                    st.success("Summary not implemented yet (placeholder).")
 
-        # -------------- OpenAI Response Call --------------
-        conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            try:
-                client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                resp = client.chat.completions.create(
-                    model="gpt-4o", messages=conversation
-                )
-                ai_reply = resp.choices[0].message.content
-            except Exception as e:
-                ai_reply = "Sorry, there was a problem generating a response."
-                st.error(str(e))
-        st.session_state["falowen_messages"].append(
-            {"role": "assistant", "content": ai_reply}
-        )
-
-    # ------------- Display Chat History --------------
-    for msg in st.session_state["falowen_messages"]:
-        if msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
-                st.markdown(
-                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
-                    unsafe_allow_html=True
-                )
-                st.markdown(msg["content"])
-        else:
-            with st.chat_message("user"):
-                st.markdown(f"🗣️ {msg['content']}")
-
-# =========================================   
-    # ------------- Navigation Buttons --------------
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("⬅️ Back", key="falowen_back"):
-            st.session_state.update({
-                "falowen_messages": [],
-                "falowen_turn_count": 0,
-                "custom_chat_level": None,
-                "custom_topic_intro_done": False
-            })
-    with col2:
-        if st.button("🔄 Restart Chat", key="falowen_restart"):
-            st.session_state.update({
-                "falowen_messages": [],
-                "falowen_turn_count": 0,
-                "custom_chat_level": None,
-                "custom_topic_intro_done": False
-            })
-            st.experimental_rerun()
-    with col3:
-        if st.button("Next ➡️ (Summary)", key="falowen_summary"):
-            st.success("Summary not implemented yet (placeholder).")
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1)
