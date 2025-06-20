@@ -773,6 +773,7 @@ if tab == "Vocab Trainer":
         f"Today's practice: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT} | "
         f"Correct answers today: {st.session_state['vocab_correct_today']} | "
         f"Your streak: {st.session_state['vocab_streak']}"
+    )
 
     # ---- Streak logic ----
     if "last_vocab_practice_date" not in st.session_state:
