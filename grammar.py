@@ -399,52 +399,54 @@ if st.session_state["logged_in"]:
                 st.session_state["falowen_usage"] = {}
             st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
 
-            # --------------- AI ALWAYS STARTS THE CHAT IF EMPTY ---------------
+            # ---------- --AI ALWAYS STARTS THE CHAT IF EMPTY--- ---------------
             if not st.session_state["falowen_messages"]:
                 mode  = st.session_state.get("falowen_mode", "")
                 level = st.session_state.get("falowen_level", "A1")
                 teil  = st.session_state.get("falowen_teil", "")
-
-                # ----------- EXAM MODE FIRST MESSAGE -----------
+                # --------- EXAM MODE FIRST MESSAGE ---------
                 if mode == "Geführte Prüfungssimulation (Exam Mode)":
                     if level == "A1" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "👋 At the sprechen Teil 1, you will be asked to introduce yourself with these keywords "
-                            "(Name, Alter, Wohnort, Sprachen, Beruf, Hobby). After that, I will pick your response "
-                            "and ask a few random questions from it. Now let's practice: Type and tell me your name and all the keywords you see, and I will mark for you."
+                            "👋 In the A1 speaking exam (Teil 1), you will introduce yourself using these keywords: "
+                            "Name, Age, Where you live, Languages, Job, Hobby. "
+                            "After your introduction, the examiner will ask you some questions about your answers. "
+                            "Let's practice! Please type your introduction using those keywords."
                         )
                     elif level == "A1" and teil.startswith("Teil 2"):
                         ai_first = (
-                            "Super, jetzt kommen Fragen & Antworten! Hier ist das Thema: 'Geschäft – schließen'. "
-                            "Stell mir dazu eine Frage auf Deutsch."
+                            "Now we practice questions and answers! Here is your topic: 'Shop – closing'. "
+                            "Ask me a question in German about this topic."
                         )
                     elif level == "A1" and teil.startswith("Teil 3"):
                         ai_first = (
-                            "Jetzt üben wir Bitten! Formuliere eine höfliche Bitte wie: 'Können Sie bitte das Fenster zumachen?'."
+                            "Let's practice making polite requests! Write a polite request, for example: "
+                            "'Können Sie bitte das Fenster zumachen?'"
                         )
                     elif level == "A2" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "Wir beginnen mit deinem Alltag! Erzähle mir bitte: Was machst du morgens als Erstes?"
+                            "Let's talk about your daily routine! Please tell me: What is the first thing you do in the morning?"
                         )
                     elif level == "A2" and teil.startswith("Teil 2"):
                         ai_first = (
-                            "Beschreibe das Bild, das du siehst, oder antworte auf meine Frage zum Thema 'Wetter'."
+                            "Describe the picture you see, or answer my question about 'Weather'."
                         )
                     elif level == "A2" and teil.startswith("Teil 3"):
                         ai_first = (
-                            "Lass uns gemeinsam einen Plan machen! Was schlägst du vor?"
+                            "Let's plan something together! What do you suggest?"
                         )
                     elif level == "B1" and teil.startswith("Teil 1"):
                         ai_first = (
-                            "Willkommen zur B1-Prüfung – Gemeinsam planen! Lass uns gemeinsam eine Aktivität planen. Was schlägst du vor?"
+                            "Welcome to the B1 exam – Let's plan something together! "
+                            "Suggest an activity and let's make a plan."
                         )
                     elif level == "B1" and teil.startswith("Teil 2"):
                         ai_first = (
-                            "Jetzt kommt die Präsentation! Stell bitte dein Thema vor. Worüber möchtest du sprechen?"
+                            "Now it's time for your presentation! Please introduce your topic. What would you like to talk about?"
                         )
                     elif level == "B1" and teil.startswith("Teil 3"):
                         ai_first = (
-                            "Du hast gerade deine Präsentation beendet. Jetzt stelle ich dir Fragen dazu. Bist du bereit?"
+                            "You just finished your presentation. Now I'll ask you questions about it. Are you ready?"
                         )
                     elif level == "B2" and teil.startswith("Teil 1"):
                         ai_first = (
@@ -472,18 +474,19 @@ if st.session_state["logged_in"]:
                         )
                     else:
                         ai_first = (
-                            "Willkommen zur Prüfung! Lass uns beginnen. Stell dich bitte kurz vor."
+                            "Welcome to the exam! Let's start. Please introduce yourself."
                         )
                 # --------- CUSTOM CHAT FIRST MESSAGE ---------
                 elif mode == "Eigenes Thema/Frage (Custom Chat)":
                     ai_first = (
-                        "Hallo! 👋 Ich bin Herr Felix, dein KI-Prüfer. "
-                        "Bitte gib ein Thema oder stelle deine erste Frage, und ich helfe dir beim Üben."
+                        "Hello! 👋 I am Herr Felix, your AI examiner. "
+                        "Please give a topic or ask your first question, and I'll help you practice."
                     )
                 else:
-                    ai_first = "Hallo! Womit möchtest du heute üben?"
+                    ai_first = "Hello! What would you like to practice today?"
                 st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_first})
 
+            # Show today's usage
             st.info(
                 f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT}"
             )
@@ -501,7 +504,7 @@ if st.session_state["logged_in"]:
                     with st.chat_message("user"):
                         st.markdown(f"🗣️ {msg['content']}")
 
-            # --------------- USER INPUT & DAILY LIMIT CHECK ---------------
+            # ----------- USER INPUT & USAGE LIMIT ENFORCEMENT -----------
             session_ended = st.session_state["falowen_usage"][falowen_usage_key] >= FALOWEN_DAILY_LIMIT
 
             if session_ended:
@@ -514,28 +517,8 @@ if st.session_state["logged_in"]:
                         st.session_state["falowen_turn_count"] = 0
                     st.session_state["falowen_turn_count"] += 1
                     st.session_state["falowen_usage"][falowen_usage_key] += 1
-                    # <---- Insert your OpenAI reply logic here! ---->
+          
 
-
-                # ------------- AI logic placeholder (add your OpenAI API call here) -------------
-                ai_system_prompt = (
-                    "You are Herr Felix, a supportive German examiner. "
-                    "Correct mistakes, give feedback in English, and ask a new question."
-                )
-                conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    try:
-                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
-                        ai_reply = resp.choices[0].message.content
-                    except Exception as e:
-                        ai_reply = "Sorry, there was a problem generating a response."
-                        st.error(str(e))
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-                st.rerun()
-
-            elif session_ended:
-                st.warning("You have reached today's practice limit for Falowen Chat. Come back tomorrow!")
 
 
                 # ======== AI PROMPT/LOGIC FOR EXAM + CUSTOM CHAT ========
