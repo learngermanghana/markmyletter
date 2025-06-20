@@ -917,7 +917,7 @@ if tab == "Falowen Chat":
                                 "The first input from the student is their topic and not their reply or sentence or answer. It is always their presentation topic. Only the second and further repliers it their response to your question "
                                 "Use simple English and German to correct the student's last answer. Tip and necessary suggestions should be explained in English with German supporting for student to understand. They are A2 beginners student. "
                                 "You can also suggest keywords when needed. "
-                                Ask one question only. Format your reply with answer, correction explanation in english, tip in english, and next question in German."
+                                "Ask one question only. Format your reply with answer, correction explanation in english, tip in english, and next question in German."
                             )
                         elif lvl == "B1":
                             ai_system_prompt = (
