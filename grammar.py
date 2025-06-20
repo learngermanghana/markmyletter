@@ -427,6 +427,27 @@ if st.session_state["logged_in"]:
                 st.session_state["falowen_turn_count"] += 1
                 st.session_state["falowen_usage"][falowen_usage_key] += 1
 
+                # ------------- AI logic placeholder (add your OpenAI API call here) -------------
+                ai_system_prompt = (
+                    "You are Herr Felix, a supportive German examiner. "
+                    "Correct mistakes, give feedback in English, and ask a new question."
+                )
+                conversation = [{"role": "system", "content": ai_system_prompt}] + st.session_state["falowen_messages"]
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    try:
+                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
+                        resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = "Sorry, there was a problem generating a response."
+                        st.error(str(e))
+                st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+                st.experimental_rerun()
+
+            elif session_ended:
+                st.warning("You have reached today's practice limit for Falowen Chat. Come back tomorrow!")
+
+
                 # ======== AI PROMPT/LOGIC FOR EXAM + CUSTOM CHAT ========
                 level = st.session_state.get("falowen_level")
                 teil = st.session_state.get("falowen_teil", "")
