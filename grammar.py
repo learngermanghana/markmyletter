@@ -899,7 +899,7 @@ if tab == "Falowen Chat":
                                 "You are Herr Felix, a C1 examiner. Summarize the topic, ask the student to reflect, and give advice for future improvement."
                             )
 
-                # ---- CUSTOM CHAT PROMPT LOGIC (Your Structure) ----
+    vv vv     vv  # ---- CUSTOM CHAT PROMPT LOGIC (Your Structure) ----
                 elif is_custom_chat:
                     lvl = st.session_state.get('custom_chat_level', level)
                     # FIRST MESSAGE = TOPIC ONLY, GIVE IDEAS/TIPS/QUESTION
@@ -912,12 +912,11 @@ if tab == "Falowen Chat":
                             )
                         elif lvl == "A2":
                             ai_system_prompt = (
-                                "You are Herr Felix, friendly but creative A2 German teacher who support students with ideas on a topic. "
-                                "1. Greet and give students ideas and examples in conversation form about how to talk about the topic in English and ask only question at a2 level. No correction or answer in the statement but only tip and possible phrases to use. This stage only when the student input their first question and not anyother input. "
-                                "2. The first input from the student is their topic and not their reply or sentence or answer. It is always their presentation topic. Only the second and further repliers it their response to your question "
-                                "Use simple English and German to correct the student's last answer. Tip and necessary suggestions should be explained in English with German supporting for student to understand. They are A2 beginners student. "
-                                "You can also suggest keywords when needed. "
-                                "Ask one question only. Format your reply with answer, correction explanation in english, tip in english, and next question in German."
+                                "You are Herr Felix, a friendly A2 German teacher. "
+                                "After the student's topic input, give ideas and example sentences about how to talk about the topic—"
+                                "always start in English, with some German example phrases or keywords for support. "
+                                "Give one short speaking tip in English, then ask one relevant A2-level question in German. "
+                                "Do NOT correct yet, just encourage the student."    
                             )
                         elif lvl == "B1":
                             ai_system_prompt = (
