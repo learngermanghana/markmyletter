@@ -549,6 +549,7 @@ if tab == "Falowen Chat":
     # Step 4: Main Chat
     # -------------------------
     if st.session_state["falowen_stage"] == 4:
+
         falowen_usage_key = f"{st.session_state['student_code']}_falowen_{str(date.today())}"
         if "falowen_usage" not in st.session_state:
             st.session_state["falowen_usage"] = {}
@@ -556,9 +557,11 @@ if tab == "Falowen Chat":
 
         # ========== AI ALWAYS STARTS IF HISTORY IS EMPTY ==========
         if not st.session_state["falowen_messages"]:
+            st.session_state["falowen_turn_count"] = 0  # Reset the chat turn counter
             mode  = st.session_state.get("falowen_mode", "")
             level = st.session_state.get("falowen_level", "A1")
             teil  = st.session_state.get("falowen_teil", "")
+            
             # --- EXAM MODE START PROMPT ---
             if mode == "Geführte Prüfungssimulation (Exam Mode)":
                 if level == "A1" and teil.startswith("Teil 1"):
