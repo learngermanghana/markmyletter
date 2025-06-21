@@ -11,8 +11,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
-import urllib.parse   # Added for URL encoding, e.g., WhatsApp message links
-
+import urllib.parse  # For WhatsApp assignment message encoding
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -33,7 +32,6 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
-
 
 # ====================================
 # 2. STUDENT DATA LOADING
@@ -58,7 +56,7 @@ def load_student_data():
 df_students = load_student_data()
 
 # ====================================
-# 3. STUDENT LOGIN LOGIC
+# 3. STUDENT LOGIN LOGIC (single, clean block!)
 # ====================================
 
 if "logged_in" not in st.session_state:
@@ -83,38 +81,15 @@ if not st.session_state["logged_in"]:
             st.session_state["logged_in"] = True
             st.session_state["student_row"] = found.iloc[0].to_dict()
             st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-            st.session_state["student_name"] = found.iloc[0]["Name"]   # Store for later use
+            st.session_state["student_name"] = found.iloc[0]["Name"]
             st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
             st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
 
-
-# --- Alternative Login Logic: Accepts '**Student Code** or **Email**' field ---
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input("Enter your **Student Code** or **Email** to begin:")
-    if st.button("Login"):
-        login_input_clean = login_input.strip().lower()
-        df_students = load_student_data()
-        match = df_students[
-            (df_students["StudentCode"].str.lower() == login_input_clean) |
-            (df_students["Email"].str.lower() == login_input_clean)
-        ]
-        if not match.empty:
-            st.session_state["student_code"] = match.iloc[0]["StudentCode"].lower()
-            st.session_state["logged_in"] = True
-            st.session_state["student_info"] = match.iloc[0].to_dict()
-            st.success("Welcome! Login successful.")
-            st.rerun()
-        else:
-            st.error("Login failed. Code or Email not recognized.")
-            st.stop()
-    st.stop()
-
 # ====================================
-# 3. FLEXIBLE ANSWER CHECKERS
+# 4. FLEXIBLE ANSWER CHECKERS
 # ====================================
 
 def is_close_answer(student, correct):
@@ -136,15 +111,14 @@ def is_almost(student, correct):
     return 0.60 < similarity <= 0.80
 
 # ====================================
-# 4. CONSTANTS & VOCAB LISTS
+# 5. CONSTANTS & VOCAB LISTS
 # ====================================
 
-CODES_FILE = "student_codes.csv"
-STUDENTS_CSV = "students.csv"
 FALOWEN_DAILY_LIMIT = 25
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
+
 
 # --- Vocab lists for all levels ---
 
@@ -438,41 +412,6 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-
-# ====================================
-# 5. STUDENT LOGIN AND MAIN MENU
-# ====================================
-
-def load_codes():
-    if os.path.exists(CODES_FILE):
-        df = pd.read_csv(CODES_FILE)
-        if "code" not in df.columns:
-            df = pd.DataFrame(columns=["code"])
-        df["code"] = df["code"].astype(str).str.strip().str.lower()
-    else:
-        df = pd.DataFrame(columns=["code"])
-    return df
-
-if "student_code" not in st.session_state:
-    st.session_state["student_code"] = ""
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    code = st.text_input("Enter your student code to begin:")
-    if st.button("Login"):
-        code_clean = code.strip().lower()
-        df_codes = load_codes()
-        if code_clean in df_codes["code"].dropna().tolist():
-            st.session_state["student_code"] = code_clean
-            st.session_state["logged_in"] = True
-            st.success("Welcome! Login successful.")
-            st.rerun()
-        else:
-            st.error("This code is not recognized. Please check with your tutor.")
-            st.stop()
-    st.stop()
 
 # ====================================
 # 6. MAIN TAB SELECTOR (with Dashboard)
