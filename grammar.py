@@ -604,10 +604,6 @@ if st.session_state["logged_in"]:
         student_row = st.session_state.get("student_row") or {}
         streak = get_vocab_streak(student_code)
         total_attempted, total_passed, accuracy = get_writing_stats(student_code)
-        daily_so_far = st.session_state.get("schreiben_usage", {}).get(
-            f"{student_code}_schreiben_{str(date.today())}", 0
-        )
-        SCHREIBEN_DAILY_LIMIT = 5
 
         # Student name and essentials
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
