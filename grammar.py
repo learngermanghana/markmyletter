@@ -1113,8 +1113,6 @@ import urllib.parse
 from fpdf import FPDF
 from datetime import date
 
-SCHREIBEN_DAILY_LIMIT = 5  # Or your preferred daily max
-
 def get_writing_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
