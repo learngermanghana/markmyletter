@@ -532,10 +532,10 @@ if st.session_state["logged_in"]:
         </div>
         """, unsafe_allow_html=True)
 
-        # --- Show main stats ---
+        # --- Show Main Vocab & Writing Stats ---
         stats = get_student_stats(student_code)
         streak = get_vocab_streak(student_code)
-        st.info(f"🔥 **Vocab Streak:** {streak} days")
+        st.info(f"🔥 <b>Vocab Streak:</b> {streak} days", unsafe_allow_html=True)
         if stats:
             st.markdown("**Today's Vocab Progress:**")
             for lvl, d in stats.items():
@@ -544,6 +544,56 @@ if st.session_state["logged_in"]:
                 )
         else:
             st.markdown("_No vocab activity today yet!_")
+
+        # --- Schreiben (Writing) Stats from DB (Weekly + Total) ---
+        from datetime import datetime, timedelta
+        conn = get_connection()
+        c = conn.cursor()
+        WEEKLY_GOAL = 3
+        today = datetime.now()
+        start_of_week = today - timedelta(days=today.weekday())
+        total_letters = c.execute(
+            "SELECT COUNT(*) FROM schreiben_progress WHERE student_code=?",
+            (student_code,)
+        ).fetchone()[0]
+        weekly_letters = c.execute(
+            "SELECT COUNT(*) FROM schreiben_progress WHERE student_code=? AND date >= ?",
+            (student_code, start_of_week.strftime("%Y-%m-%d"))
+        ).fetchone()[0]
+        passed_letters = c.execute(
+            "SELECT COUNT(*) FROM schreiben_progress WHERE student_code=? AND score >= 17",
+            (student_code,)
+        ).fetchone()[0]
+
+        # Show writing stats card
+        st.markdown(f"""
+        <div style='background:#e3fcec;border-radius:12px;padding:14px 20px;margin-bottom:16px;'>
+            <h4 style='margin-bottom:0.5em;'>📝 <b>Your Writing Progress</b></h4>
+            <span style='font-size:1.08rem;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{total_letters}</span></span>
+            <br>
+            <span style='font-size:1.08rem;'><b>Passed (Score ≥ 17):</b> <span style='color:#27ae60;'>{passed_letters}</span></span>
+            <br>
+            <span style='font-size:1.08rem;'><b>This Week:</b> <span style='color:#8e44ad;'>{weekly_letters} / {WEEKLY_GOAL} letters</span></span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # --- Goal Tracker (Write 3 letters per week) ---
+        if weekly_letters >= WEEKLY_GOAL:
+            st.success("🎉 Goal achieved! You've completed your writing goal for this week. Amazing!")
+        else:
+            st.info(
+                f"📝 <b>Goal Tracker</b>: Your next goal – Write <span style='color:#e67e22;'>{WEEKLY_GOAL - weekly_letters}</span> more letter(s) this week!",
+                unsafe_allow_html=True
+            )
+
+        # --- Motivational / Next Steps Card ---
+        st.markdown("""
+        <div style='background:#fdf6e4;border-radius:12px;padding:14px 20px;margin-top:12px;'>
+            <b>Tip:</b> Try to write a letter or complete a vocab challenge every day. The more you practice, the better you get! 🚀<br>
+            <b>Need help?</b> Use the Schreiben Trainer or ask Herr Felix for extra feedback!
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
