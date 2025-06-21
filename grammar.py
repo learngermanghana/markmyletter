@@ -20,6 +20,16 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
+def get_student_stats(student_code):
+    # Placeholder/example structure—replace with your real logic!
+    return {
+        "A1": {"correct": 7, "attempted": 10},
+        "A2": {"correct": 5, "attempted": 10}
+    }
+
+def get_vocab_streak(student_code):
+    # Placeholder: return a fake streak for now
+    return 3
 
 # --- Streamlit page config ---
 st.set_page_config(
