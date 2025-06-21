@@ -89,47 +89,41 @@ if not st.session_state["logged_in"]:
 # --- After login, show dashboard at the top ---
 if st.session_state["logged_in"]:
     st.header("🎓 Student Dashboard")
-    student = st.session_state["student_row"]
+    student = st.session_state.get("student_row", {}) or {}
+    student_name = student.get('Name', 'Student')
+    student_level = student.get('Level', '-')
+    student_code = student.get('StudentCode', '-')
+    student_email = student.get('Email', '-')
+    student_phone = student.get('Phone', '-')
+    student_location = student.get('Location', '-')
+    student_paid = student.get('Paid', '-')
+    student_balance = student.get('Balance', '-')
+    student_contract_start = student.get('ContractStart', '-')
+    student_contract_end = student.get('ContractEnd', '-')
+    student_status = student.get('Status', '-')
+    student_enrolldate = student.get('EnrollDate', '-')
+    student_emergency = student.get('Emergency Contact (Phone Number)', '-')
+
     st.markdown(f"""
     <div style='background:#f9f9ff;padding:18px 24px;border-radius:15px;margin-bottom:18px;box-shadow:0 2px 10px #eef;'>
-        <h3 style='margin:0;color:#17617a;'>{student['Name']}</h3>
+        <h3 style='margin:0;color:#17617a;'>{student_name}</h3>
         <ul style='list-style:none;padding:0;font-size:1.08rem;'>
-            <li><b>Level:</b> {student['Level']}</li>
-            <li><b>Student Code:</b> {student['StudentCode']}</li>
-            <li><b>Email:</b> {student['Email']}</li>
-            <li><b>Phone:</b> {student['Phone']}</li>
-            <li><b>Location:</b> {student['Location']}</li>
-            <li><b>Paid:</b> {student['Paid']}</li>
-            <li><b>Balance:</b> {student['Balance']}</li>
-            <li><b>Contract Start:</b> {student['ContractStart']}</li>
-            <li><b>Contract End:</b> {student['ContractEnd']}</li>
-            <li><b>Status:</b> {student.get('Status', '')}</li>
-            <li><b>Enroll Date:</b> {student.get('EnrollDate', '')}</li>
-            <li><b>Emergency Contact:</b> {student.get('Emergency Contact (Phone Number)', '')}</li>
+            <li><b>Level:</b> {student_level}</li>
+            <li><b>Student Code:</b> {student_code}</li>
+            <li><b>Email:</b> {student_email}</li>
+            <li><b>Phone:</b> {student_phone}</li>
+            <li><b>Location:</b> {student_location}</li>
+            <li><b>Paid:</b> {student_paid}</li>
+            <li><b>Balance:</b> {student_balance}</li>
+            <li><b>Contract Start:</b> {student_contract_start}</li>
+            <li><b>Contract End:</b> {student_contract_end}</li>
+            <li><b>Status:</b> {student_status}</li>
+            <li><b>Enroll Date:</b> {student_enrolldate}</li>
+            <li><b>Emergency Contact:</b> {student_emergency}</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
 
-
-# --- Streamlit page config ---
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/6815/6815043.png' width='54' style='border-radius:50%;border:2.5px solid #51a8d2;box-shadow:0 2px 8px #cbe7fb;'/>
-        <div>
-            <span style='font-size:2.1rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen</span><br>
-            <span style='font-size:1.08rem;color:#268049;'>Your personal German speaking coach (Herr Felix)</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True
-)
 
 # ====================================
 # 2. SQLITE SETUP & HELPER FUNCTIONS
