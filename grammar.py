@@ -552,7 +552,6 @@ if not st.session_state["logged_in"]:
 # ====================================
 # 6. MAIN TAB SELECTOR (with Dashboard)
 # ====================================
-
 if st.session_state["logged_in"]:
     student_code = st.session_state.get("student_code", "")
     st.header("Choose Practice Mode")
@@ -568,19 +567,17 @@ if st.session_state["logged_in"]:
     )
 
     if tab == "Dashboard":
-        st.header("📊 Student Dashboard")
-        # --- Show main stats ---
-        stats = get_student_stats(student_code)
-        streak = get_vocab_streak(student_code)
-        st.info(f"🔥 **Vocab Streak:** {streak} days")
-        if stats:
-            st.markdown("**Today's Vocab Progress:**")
-            for lvl, d in stats.items():
-                st.markdown(
-                    f"- `{lvl}`: {d['correct'] or 0} / {d['attempted']} correct"
-                )
-        else:
-            st.markdown("_No vocab activity today yet!_")
+        # ... Dashboard logic ...
+
+    elif tab == "Falowen Chat":
+        # ... Falowen logic ...
+
+    elif tab == "Vocab Trainer":
+        # ... Vocab logic ...
+
+    elif tab == "Schreiben Trainer":
+        schreiben_trainer_tab()   # <<--- THIS MAKES THE INTERFACE APPEAR
+
 
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
