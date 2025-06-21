@@ -3,3 +3,4 @@ openai==1.30.3
 pandas==2.2.2
 fpdf==1.7.2
 streamlit-extras==0.2.5
+streamlit-cookies-manager
