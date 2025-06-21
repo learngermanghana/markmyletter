@@ -4,6 +4,7 @@ import random
 import difflib
 import sqlite3
 import atexit
+import io
 from datetime import date
 import pandas as pd
 import streamlit as st
@@ -497,7 +498,7 @@ if st.session_state["logged_in"]:
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer"],
+        ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer", "Admin" ],
         key="main_tab_select"
     )
     st.markdown(
@@ -1158,3 +1159,74 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
+
+# =============================
+# TEACHER SETTINGS TAB
+# =============================
+
+TEACHER_PASSWORD = "Felix029"  # Set your admin password here
+
+if tab == "Admin":
+    st.header("🔑 Teacher/Admin Settings")
+    password = st.text_input("Enter teacher password", type="password")
+    if password == TEACHER_PASSWORD:
+        st.success("Access granted!")
+
+        # --- Download: Schreiben Progress ---
+        st.subheader("Download: Schreiben Submissions")
+        if os.path.exists("vocab_progress.db"):
+            with open("vocab_progress.db", "rb") as dbfile:
+                st.download_button(
+                    label="⬇️ Download Full Database (vocab_progress.db)",
+                    data=dbfile,
+                    file_name="vocab_progress.db"
+                )
+        # Optionally: Download as CSV
+        conn = get_connection()
+        c = conn.cursor()
+        schreiben_rows = c.execute("SELECT * FROM schreiben_progress").fetchall()
+        vocab_rows = c.execute("SELECT * FROM vocab_progress").fetchall()
+        import pandas as pd
+        schreiben_df = pd.DataFrame(schreiben_rows, columns=[desc[0] for desc in c.description])
+        st.download_button(
+            "⬇️ Download Schreiben Data as CSV",
+            schreiben_df.to_csv(index=False).encode("utf-8"),
+            file_name="schreiben_progress.csv",
+            mime="text/csv"
+        )
+        # Download Vocab as CSV
+        vocab_df = pd.DataFrame(vocab_rows, columns=[desc[0] for desc in c.description])
+        st.download_button(
+            "⬇️ Download Vocab Data as CSV",
+            vocab_df.to_csv(index=False).encode("utf-8"),
+            file_name="vocab_progress.csv",
+            mime="text/csv"
+        )
+
+        # --- Upload new DB or CSV data (advanced option) ---
+        st.subheader("Upload Updated Data (Advanced)")
+        uploaded_file = st.file_uploader("Upload a .db or .csv to update", type=["db", "csv"])
+        if uploaded_file:
+            if uploaded_file.name.endswith(".db"):
+                # Save and replace current DB (careful: will overwrite existing!)
+                with open("vocab_progress.db", "wb") as out:
+                    out.write(uploaded_file.getbuffer())
+                st.success("Database uploaded and replaced.")
+            elif uploaded_file.name.endswith(".csv"):
+                # Optionally handle CSV updates (e.g., merge with existing data)
+                df = pd.read_csv(uploaded_file)
+                st.write("CSV Data Uploaded:", df.head())
+                # Add merge/insert/update logic here if desired
+                st.info("CSV uploaded (no merge logic applied yet).")
+
+        # --- Optionally: show summary tables
+        st.subheader("Quick View: Last 5 Schreiben Submissions")
+        st.dataframe(schreiben_df.tail(5))
+
+        st.subheader("Quick View: Last 5 Vocab Submissions")
+        st.dataframe(vocab_df.tail(5))
+
+    else:
+        st.warning("Enter the correct password to access admin features.")
+        st.stop()
+
