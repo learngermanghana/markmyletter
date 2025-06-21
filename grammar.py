@@ -504,15 +504,7 @@ c1_teil3_evaluations = [
 # ====================================
 
 if st.session_state["logged_in"]:
-    # Always fetch from session_state and define as a local variable
     student_code = st.session_state.get("student_code", "")
-    student_row = st.session_state.get("student_row") or {}
-    streak = get_vocab_streak(student_code)
-    total_attempted, total_passed, accuracy = get_writing_stats(student_code)
-    daily_so_far = st.session_state.get("schreiben_usage", {}).get(
-        f"{student_code}_schreiben_{str(date.today())}", 0
-    )
-    SCHREIBEN_DAILY_LIMIT = 5
 
     st.header("Choose Practice Mode")
     tab = st.radio(
@@ -526,95 +518,74 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
+    # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
-        # --- Student Info Card (Responsive) ---
+        student_row = st.session_state.get("student_row") or {}
+        streak = get_vocab_streak(student_code)
+        total_attempted, total_passed, accuracy = get_writing_stats(student_code)
+        daily_so_far = st.session_state.get("schreiben_usage", {}).get(
+            f"{student_code}_schreiben_{str(date.today())}", 0
+        )
+        SCHREIBEN_DAILY_LIMIT = 5
+
+        # Student name and essentials
+        st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
-            f"""
-            <div style='background:#f9f9ff;padding:15px 12px 14px 12px;
-                        border-radius:14px;max-width:420px;margin-bottom:14px;
-                        box-shadow:0 1.5px 7px #eef;'>
-                <div style='font-weight:bold;font-size:1.18rem;color:#17617a;margin-bottom:8px;'>{student_row.get('Name', '')}</div>
-                <div style='margin-bottom:6px;'><b>Level:</b> {student_row.get('Level', '')}</div>
-                <div style='margin-bottom:6px;'><b>Student Code:</b> {student_row.get('StudentCode', '')}</div>
-                <div style='margin-bottom:6px;'><b>Email:</b> {student_row.get('Email', '')}</div>
-                <div style='margin-bottom:6px;'><b>Phone:</b> {student_row.get('Phone', '')}</div>
-                <div style='margin-bottom:6px;'><b>Location:</b> {student_row.get('Location', '')}</div>
-                <div style='margin-bottom:6px;'><b>Paid:</b> {student_row.get('Paid', '')}</div>
-                <div style='margin-bottom:6px;'><b>Balance:</b> <span style='color:#d35400;font-weight:bold;'>₵{student_row.get('Balance', '0.0')}</span> &nbsp; <span style='color:#636e72;font-size:0.98em;'>(Keep your balance updated.)</span></div>
-                <div style='margin-bottom:6px;'><b>Contract Start:</b> {student_row.get('ContractStart', '')}</div>
-                <div style='margin-bottom:6px;'><b>Contract End:</b> {student_row.get('ContractEnd', '')}</div>
-                <div style='margin-bottom:6px;'><b>Status:</b> {student_row.get('Status', '')}</div>
-                <div style='margin-bottom:6px;'><b>Enroll Date:</b> {student_row.get('EnrollDate', '')}</div>
-                <div style='margin-bottom:4px;'><b>Emergency Contact:</b> {student_row.get('Emergency Contact (Phone Number)', '')}</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+            f"**Level:** {student_row.get('Level', '')}\n\n"
+            f"**Code:** `{student_row.get('StudentCode', '')}`\n\n"
+            f"**Email:** {student_row.get('Email', '')}\n\n"
+            f"**Phone:** {student_row.get('Phone', '')}\n\n"
+            f"**Location:** {student_row.get('Location', '')}\n\n"
+            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}\n\n"
+            f"**Enroll Date:** {student_row.get('EnrollDate', '')}\n\n"
+            f"**Status:** {student_row.get('Status', '')}"
         )
 
-        # --- Always show gentle payment/balance reminder if balance > 0 ---
+        # --- Payment info, clear message ---
+        balance = student_row.get('Balance', '0.0')
         try:
-            balance_float = float(student_row.get('Balance', '0.0'))
+            balance_float = float(balance)
         except Exception:
             balance_float = 0.0
         if balance_float > 0:
             st.warning(
-                f"💸 <b>Balance:</b> <span style='color:#d35400;'>₵{balance_float:.2f}</span> &mdash; Kindly pay your outstanding balance to stay active.",
-                icon="💸",
-                unsafe_allow_html=True
+                f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)"
             )
 
-        # --- Contract End Reminder (show if less than 30 days left) ---
-        from datetime import datetime, timedelta
+        # --- Contract End reminder ---
+        from datetime import datetime
         contract_end = student_row.get('ContractEnd')
         if contract_end:
             try:
                 contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
                 days_left = (contract_end_date - datetime.now()).days
                 if 0 < days_left <= 30:
-                    st.info(f"📅 <b>Your contract ends in <span style='color:#d35400;'>{days_left} days</span>. Please renew to continue.</b>", unsafe_allow_html=True)
+                    st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
                 elif days_left < 0:
-                    st.warning("⏰ <b>Your contract has expired. Contact the school to renew.</b>", unsafe_allow_html=True)
+                    st.error("⏰ Contract expired. Contact the office to renew.")
             except Exception:
                 pass
 
-        # --- Vocab Streak Block ---
-        st.markdown(
-            f"""
-            <div style='background:#f8faf6;padding:12px 10px 14px 10px;border-radius:13px;max-width:420px;margin-bottom:13px;box-shadow:0 1.5px 7px #def;'>
-                <span style='font-size:1.07rem;font-weight:bold;color:#17617a;'>🔥 Vocab Streak:</span>
-                <span style='font-size:1.05rem;color:#27ae60;font-weight:bold;'> {streak} day{'s' if streak != 1 else ''}</span>
-                <span style='color:#5e6b7c;font-size:0.96rem;'> &nbsp; (Keep practicing daily to keep your streak!)</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        # --- Vocab streak ---
+        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
 
-        # --- Quick Goal Tracker ---
+        # --- Writing goal tracker ---
         goal_remain = max(0, 2 - (total_attempted or 0))
         if goal_remain > 0:
-            st.success(f"🎯 <b>Your next goal:</b> Write <b>{goal_remain}</b> more letter(s) this week!", icon="🎯")
+            st.success(f"🎯 Your next goal: Write {goal_remain} more letter(s) this week!")
         else:
-            st.success("🎉 <b>Goal reached! Keep writing for more improvement!</b>", icon="🏆")
+            st.success("🎉 Weekly goal reached! Keep practicing!")
 
-        # --- Writing Performance Card (Mobile-Friendly) ---
+        # --- Writing stats, big and clear ---
         st.markdown(
-            f"""
-            <div style='background:#f7fcff;padding:14px 12px 16px 12px;
-                        border-radius:14px;max-width:420px;margin-bottom:16px;
-                        box-shadow:0 1.5px 7px #e3f3fa;'>
-                <div style='font-weight:bold;font-size:1.13rem;color:#17617a;margin-bottom:10px;'>
-                    📝 Your Overall Writing Performance
-                </div>
-                <div style='margin-bottom:8px;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{total_attempted}</span></div>
-                <div style='margin-bottom:8px;'><b>Passed (≥17):</b> <span style='color:#27ae60;'>{total_passed}</span></div>
-                <div style='margin-bottom:8px;'><b>Pass Rate:</b> <span style='color:#e67e22;'>{accuracy}%</span></div>
-                <div><b>Today:</b> <span style='color:#8e44ad;'>{daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used</span></div>
-            </div>
-            """,
-            unsafe_allow_html=True
+            f"**📝 Letters submitted:** {total_attempted}\n\n"
+            f"**✅ Passed (score ≥17):** {total_passed}\n\n"
+            f"**🏅 Pass rate:** {accuracy}%\n\n"
+            f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
+
 
 
 # ==========================
