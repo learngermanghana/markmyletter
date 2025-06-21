@@ -583,16 +583,6 @@ if st.session_state["logged_in"]:
             st.markdown("_No vocab activity today yet!_")
 
     elif tab == "Falowen Chat":
-        # ---- Your full Falowen Chat logic block here ----
-        pass  # (Replace this with your Falowen Chat code)
-
-    elif tab == "Vocab Trainer":
-        # ---- Your full Vocab Trainer logic block here ----
-        pass  # (Replace this with your Vocab Trainer code)
-
-    elif tab == "Schreiben Trainer":
-        schreiben_trainer_tab()   
-
 
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
@@ -991,6 +981,8 @@ if tab == "Falowen Chat":
                 st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
                 st.rerun()  # To refresh the chat UI after reply
 
+    elif tab == "Vocab Trainer":
+
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress)
 # =========================================
@@ -1071,6 +1063,8 @@ if tab == "Vocab Trainer":
                 st.session_state["vocab_feedback"] = ""
                 st.session_state["show_next_button"] = False
 
+    elif tab == "Schreiben Trainer":
+        schreiben_trainer_tab()   
 
 # =========================================
 # SCHREIBEN TRAINER TAB (A1–C1, with PDF/WhatsApp & Stats)
@@ -1249,7 +1243,6 @@ def schreiben_trainer_tab():
 
         # --- Increment usage ---
         st.session_state.schreiben_usage[usage_key] += 1
-
 
 
 
