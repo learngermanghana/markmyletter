@@ -980,7 +980,7 @@ if tab == "Schreiben Trainer":
                     "2. After each quoted mistake, **explain in simple English what the mistake is and how to fix it** (e.g., wrong verb ending, missing article, wrong word order, etc).\n"
                     "3. Always show at least 2-5 examples of phrases to improve, even if the text is short.\n"
                     "4. For each, **give a suggestion or a better version** (but do NOT rewrite the whole letter).\n"
-                    "5. Give a **score out of 25**.  If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "'\n"
+                    "5. Give a **score out of 25**.  If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
                     "6. **Explain your score** (what is good, what is missing, grammar, vocab, structure, etc).\n"
                     "7. In your feedback, **be direct, use 'you'**, and always point out what the student did well.\n"
                     "8. Check if the text fits the claimed level. If it looks like AI-generated, tell the student to use their own words.\n"
