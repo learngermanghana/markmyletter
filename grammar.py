@@ -10,6 +10,7 @@ import streamlit as st
 from openai import OpenAI
 from streamlit_extras.cookie_manager import CookieManager   # <--- For persistent login
 
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])   
 
 # ---- Paste the DB connection helper here ----
