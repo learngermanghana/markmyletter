@@ -252,7 +252,14 @@ c1_teil3_evaluations = [
 # 2. DATA LOADERS, DB HELPERS, UTILITIES
 # ====================================
 
-st.write(f"Trying to read CSV at: {path}")
+import os
+import pandas as pd
+import sqlite3
+from datetime import date, datetime, timedelta
+
+# --- DEBUG: Show working directory and files ---
+st.write("Current working directory:", os.getcwd())
+st.write("Files present:", os.listdir())
 
 # ---- CONFIG ----
 STUDENTS_CSV = "students.csv"
@@ -262,6 +269,7 @@ VOCAB_DB = "vocab_progress.db"
 @st.cache_data
 def load_student_data(path: str = STUDENTS_CSV) -> pd.DataFrame:
     """Load student CSV or show error and stop if missing."""
+    st.write(f"Trying to read CSV at: {path}")  # DEBUG LINE
     if not os.path.exists(path):
         st.error(f"Students file not found at `{path}`.")
         st.stop()
