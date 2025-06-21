@@ -26,7 +26,6 @@ st.set_page_config(
 STUDENTS_CSV = "students.csv"
 CODES_FILE = "student_codes.csv"
 
-# --- Unified Loader: Use correct path, fallback to global config ---
 @st.cache_data
 def load_student_data():
     path = globals().get("STUDENTS_CSV", "students.csv")
@@ -34,7 +33,7 @@ def load_student_data():
         st.error("Students file not found!")
         return pd.DataFrame()
     df = pd.read_csv(path)
-    df.columns = [c.strip() for c in df.columns]  # Remove header whitespace
+    df.columns = [c.strip() for c in df.columns]
     for col in ["StudentCode", "Email"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.lower()
@@ -52,8 +51,9 @@ if "student_row" not in st.session_state:
     st.session_state["student_row"] = None
 if "student_code" not in st.session_state:
     st.session_state["student_code"] = ""
+if "student_name" not in st.session_state:
+    st.session_state["student_name"] = ""
 
-# -- MAIN LOGIN (first time) --
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
@@ -67,11 +67,13 @@ if not st.session_state["logged_in"]:
             st.session_state["logged_in"] = True
             st.session_state["student_row"] = found.iloc[0].to_dict()
             st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-            st.success(f"Welcome, {st.session_state['student_row']['Name']}! Login successful.")
+            st.session_state["student_name"] = found.iloc[0]["Name"]   # Store for later use
+            st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
             st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
+
 
 # --- Alternative Login Logic: Accepts '**Student Code** or **Email**' field ---
 if not st.session_state["logged_in"]:
