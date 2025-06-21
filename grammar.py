@@ -8,15 +8,17 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
-from streamlit_cookies_manager import EncryptedCookieManager   # <--- For persistent login
+from streamlit_cookies_manager import EncryptedCookieManager   # Only import ONCE
+
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET environment variable not set")
 
 cookie_manager = EncryptedCookieManager(
     prefix="falowen_",
-    password="a-very-secret-key"   # You can set your own key here!
+    password=COOKIE_SECRET
 )
 cookie_manager.ready()
-
-
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])   
 
