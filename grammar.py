@@ -969,11 +969,7 @@ if tab == "Vocab Trainer":
                 st.session_state["vocab_feedback"] = ""
                 st.session_state["show_next_button"] = False
 
-
-# =========================================
-# SCHREIBEN TRAINER TAB (A1–C1, with PDF/WhatsApp & Stats)
-# =========================================
-
+# --- Schreiben Trainer Tab ---
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer")
 
