@@ -980,8 +980,10 @@ if tab == "Schreiben Trainer":
                     " Give scores by analyzing grammar, structure, vocabulary and so on. Explain to the students why you gave them that score "
                     "List and show them the phrases to improve on with tips and what they should do. Let student use your suggestions to correct the letter but not the full corrected letter. "
                     "Highlight the phrases with errors so they see it. Dont just say errors and not letting them know where the exact mistake is. "
-                    "1. Give a score out of 25 marks, and explain why you gave the student that score.  If score is above 17, say they have passed and can submit to tutor. If below, tell them to improve before submitting to tutor."
-                   
+                    "1. Give a score out of 25 marks.
+                    "2. Always explain why you gave the student that score based on grammar,spellings, vocabulary,coherance and so on.  
+                    "If score is above 17, say they have passed and can submit to tutor. If below, tell them to improve before submitting to tutor."
+                    "Also check A.I usage or if students wrote with their effort . "
                     
                 )
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
