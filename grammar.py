@@ -1000,17 +1000,18 @@ if tab == "Falowen Chat":
                     else:
                         conversation.append({"role": "assistant", "content": m["content"]})
 
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    try:
-                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
-                        ai_reply = resp.choices[0].message.content
-                    except Exception as e:
-                        ai_reply = f"Sorry, there was a problem: {str(e)}"
-                        st.error(str(e))
+              with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                  try:
+                      client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+                      resp = client.chat.completions.create(model="gpt-4o", messages=conversation)
+                      ai_reply = resp.choices[0].message.content
+                  except Exception as e:
+                      ai_reply = f"Sorry, there was a problem: {str(e)}"
+                      st.error(str(e))
 
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-                st.rerun()  # To refresh the chat UI after reply
+              st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+              st.rerun()  # To refresh the chat UI after reply
+
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
