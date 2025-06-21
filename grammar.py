@@ -1066,6 +1066,8 @@ if tab == "Vocab Trainer":
 
 from fpdf import FPDF
 import io
+import re
+import urllib.parse
 
 def generate_pdf(student, level, original, feedback):
     pdf = FPDF()
@@ -1087,9 +1089,21 @@ def generate_pdf(student, level, original, feedback):
     pdf_bytes = pdf.output(dest='S').encode('latin1')
     return pdf_bytes
 
+def extract_strengths_weaknesses(text):
+    # Tries to extract "Strengths: ..." and "Weaknesses: ..." from the AI feedback
+    strengths, weaknesses = "", ""
+    strengths_match = re.search(r"[Ss]trengths?:\s*(.*)", text)
+    if strengths_match:
+        strengths = strengths_match.group(1).split('\n')[0].strip()
+    weaknesses_match = re.search(r"(Weaknesses?|Needs Improvement):\s*(.*)", text)
+    if weaknesses_match:
+        weaknesses = weaknesses_match.group(2).split('\n')[0].strip()
+    return strengths, weaknesses
+
 def schreiben_trainer_tab():
     st.header("✍️ Schreiben Trainer")
 
+    # Safe retrieval from session state (always set these after login)
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "Student")
     today_str = str(date.today())
@@ -1097,7 +1111,6 @@ def schreiben_trainer_tab():
     if "schreiben_usage" not in st.session_state:
         st.session_state["schreiben_usage"] = {}
     st.session_state["schreiben_usage"].setdefault(usage_key, 0)
-
     SCHREIBEN_DAILY_LIMIT = 5
 
     st.info(f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][usage_key]}/{SCHREIBEN_DAILY_LIMIT}")
@@ -1148,9 +1161,18 @@ def schreiben_trainer_tab():
                 st.error(f"Error: {e}")
                 return
 
+        # Show feedback
         st.success("📝 **Feedback from Herr Felix:**")
         st.markdown(ai_feedback)
 
+        # Extract strengths/weaknesses from feedback
+        strengths, weaknesses = extract_strengths_weaknesses(ai_feedback)
+        st.info(
+            f"**Strengths:** {strengths or '–'}\n\n"
+            f"**Needs Improvement:** {weaknesses or '–'}"
+        )
+
+        # PDF download
         pdf_bytes = generate_pdf(
             student=student_name,
             level=schreiben_level,
@@ -1164,7 +1186,7 @@ def schreiben_trainer_tab():
             mime="application/pdf"
         )
 
-        import urllib.parse
+        # WhatsApp link
         assignment_msg = (
             f"Hallo Herr Felix! Hier ist mein Schreiben für die Korrektur ({schreiben_level}):\n\n"
             f"{schreiben_text}\n\n---\nFeedback: {ai_feedback[:600]}..."
@@ -1181,5 +1203,36 @@ def schreiben_trainer_tab():
             unsafe_allow_html=True
         )
 
+        # Optionally: Save to DB (comment out if you don't want this part)
+        # import sqlite3
+        # conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        # c = conn.cursor()
+        # c.execute("""
+        #     CREATE TABLE IF NOT EXISTS schreiben_feedback (
+        #         student_code TEXT,
+        #         date TEXT,
+        #         level TEXT,
+        #         score INTEGER,
+        #         strengths TEXT,
+        #         weaknesses TEXT
+        #     )
+        # """)
+        # # Extract score (best-effort)
+        # score = None
+        # m = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
+        # if m:
+        #     score = int(m.group(1))
+        # if score is not None:
+        #     c.execute(
+        #         "INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses) VALUES (?,?,?,?,?,?)",
+        #         (student_code, today_str, schreiben_level, score, strengths, weaknesses)
+        #     )
+        #     conn.commit()
+
         st.session_state["schreiben_usage"][usage_key] += 1
+
+# --- Place this after your tab selector ---
+# if tab == "Schreiben Trainer":
+#     schreiben_trainer_tab()
+
 
