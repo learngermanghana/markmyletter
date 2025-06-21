@@ -137,7 +137,6 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
-
 # ====================================
 # 2. STUDENT DATA LOADING
 # ====================================
@@ -159,16 +158,19 @@ def load_student_data():
     return df
 
 df_students = load_student_data()
-# ====================================
+
 # ====================================
 # 3. STUDENT LOGIN LOGIC (single, clean block!)
 # ====================================
 
-from streamlit_cookies_manager import EncryptedCookieManager
+# Use a secret from env or .streamlit/secrets.toml (RECOMMENDED, DO NOT HARD-CODE)
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET environment variable not set")
 
 cookie_manager = EncryptedCookieManager(
     prefix="falowen_",
-    password="falowen-very-secret-key"   # (Change this to your own secret!)
+    password=COOKIE_SECRET
 )
 cookie_manager.ready()
 
