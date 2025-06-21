@@ -252,10 +252,7 @@ c1_teil3_evaluations = [
 # 2. DATA LOADERS, DB HELPERS, UTILITIES
 # ====================================
 
-import os
-import pandas as pd
-import sqlite3
-from datetime import date, datetime, timedelta
+st.write(f"Trying to read CSV at: {path}")
 
 # ---- CONFIG ----
 STUDENTS_CSV = "students.csv"
