@@ -252,6 +252,11 @@ c1_teil3_evaluations = [
 # 2. DATA LOADERS, DB HELPERS, UTILITIES
 # ====================================
 
+import os
+import pandas as pd
+import sqlite3
+from datetime import date, datetime, timedelta
+
 # ---- CONFIG ----
 STUDENTS_CSV = "students.csv"
 VOCAB_DB = "vocab_progress.db"
@@ -332,41 +337,6 @@ def generate_pdf(student: str, level: str, original: str, feedback: str) -> byte
     pdf.multi_cell(0, 10, f"Dear {student},\n\nYour original text:\n{original}\n\nFeedback:\n{feedback}")
     return pdf.output(dest='S').encode('latin-1')
 
-# ====================================
-# 3. LOGIN SCREEN & DASHBOARD
-# ====================================
-
-def login_screen() -> bool:
-    """Displays login; halts app on failure, returns True if logged in."""
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-    if not st.session_state.logged_in:
-        st.title("🔑 Student Login")
-        inp = st.text_input("Student Code or Email:").strip().lower()
-        if st.button("Login"):
-            df = load_student_data()
-            match = df[(df.StudentCode == inp) | (df.Email == inp)]
-            if not match.empty:
-                info = match.iloc[0].to_dict()
-                st.session_state.logged_in = True
-                st.session_state.student_info = info
-                st.session_state.student_name = info.get('Name', 'Student')
-                st.session_state.student_code = info.get('StudentCode', '').lower()
-                st.experimental_rerun()
-            else:
-                st.error("Login failed — code or email not recognized.")
-        st.stop()
-    return True
-
-def show_dashboard(c):
-    info = st.session_state.student_info
-    code = st.session_state.student_code
-    st.header(f"🎓 Welcome, {info.get('Name','')}!")
-    streak = get_vocab_streak(c, code)
-    st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-    # You can add more stats here!
-
-# Usage in main() to follow in next stage
 
 # ====================================
 # 4. MAIN TABS & APP LOGIC
