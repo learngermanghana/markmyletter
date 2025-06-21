@@ -11,6 +11,8 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
+import urllib.parse   # Added for URL encoding, e.g., WhatsApp message links
+
 
 # ---- Set up Streamlit page config early (before any markup/render) ----
 st.set_page_config(
