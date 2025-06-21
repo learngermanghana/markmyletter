@@ -8,7 +8,9 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
-from streamlit_cookies_manager import EncryptedCookieManager   # <--- For persistent login
+from fpdf import FPDF
+from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
+
 
 # ---- Cookie Manager Setup ----
 cookie_manager = EncryptedCookieManager(
