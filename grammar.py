@@ -67,6 +67,25 @@ def init_db():
 
 init_db()
 
+def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
+    )
+    conn.commit()
+
+def save_schreiben_submission(student_code, name, level, essay, score, feedback):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, essay, score, feedback, str(date.today()))
+    )
+    conn.commit()
+
+
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -869,84 +888,104 @@ if tab == "Falowen Chat":
                 st.rerun()  # To refresh the chat UI after reply
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1, with Progress)
+# VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
 # =========================================
+
+import random
+from datetime import date
+
+VOCAB_DAILY_LIMIT = 10  # Set your daily vocab goal here!
 
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
-    vocab_usage_key = f"{st.session_state['student_code']}_vocab_{str(date.today())}"
+    student_code = st.session_state.get("student_code", "demo")
+    student_name = st.session_state.get("student_name", "Demo")
+    today_str = str(date.today())
+
+    # --- Daily Streak (fetch from your helper/db, or fake if not available) ---
+    streak = get_vocab_streak(student_code)
+    if streak >= 1:
+        st.success(f"🔥 {streak}-day streak! Keep it up!")
+    else:
+        st.warning("You lost your streak. Start practicing today to get it back!")
+
+    # --- Daily usage tracking ---
+    vocab_usage_key = f"{student_code}_vocab_{today_str}"
     if "vocab_usage" not in st.session_state:
         st.session_state["vocab_usage"] = {}
     st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
+    used_today = st.session_state["vocab_usage"][vocab_usage_key]
+
+    # --- Level selection ---
     if "vocab_level" not in st.session_state:
         st.session_state["vocab_level"] = "A1"
-    if "vocab_idx" not in st.session_state:
-        st.session_state["vocab_idx"] = 0
-    if "vocab_feedback" not in st.session_state:
-        st.session_state["vocab_feedback"] = ""
-    if "show_next_button" not in st.session_state:
-        st.session_state["show_next_button"] = False
-
-    # --- Level select ---
     vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
     if vocab_level != st.session_state["vocab_level"]:
         st.session_state["vocab_level"] = vocab_level
-        st.session_state["vocab_idx"] = 0
         st.session_state["vocab_feedback"] = ""
         st.session_state["show_next_button"] = False
+        st.session_state["vocab_completed"] = set()
 
-    vocab_list = VOCAB_LISTS.get(st.session_state["vocab_level"], [])
-    # If list is (word, english) tuples
+    # --- Track completed words (fetch from DB if you want to persist) ---
+    if "vocab_completed" not in st.session_state:
+        st.session_state["vocab_completed"] = set()
+    completed_words = st.session_state["vocab_completed"]
+
+    vocab_list = VOCAB_LISTS.get(vocab_level, [])
     is_tuple = isinstance(vocab_list[0], tuple) if vocab_list else False
 
-    st.info(
-        f"Today's vocab attempts: {st.session_state['vocab_usage'][vocab_usage_key]}/{VOCAB_DAILY_LIMIT}"
-    )
+    # --- List of words not yet completed ---
+    new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
+    random.shuffle(new_words)
 
-    if st.session_state["vocab_usage"][vocab_usage_key] >= VOCAB_DAILY_LIMIT:
-        st.warning("You've reached your daily vocab limit. Come back tomorrow!")
-    elif vocab_list:
-        idx = st.session_state["vocab_idx"] % len(vocab_list)
+    # --- Visual progress bar for today's goal ---
+    st.progress(min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT, text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today")
+
+    # --- Badge if daily goal reached ---
+    if used_today >= VOCAB_DAILY_LIMIT:
+        st.balloons()
+        st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
+        st.stop()
+
+    # --- Main vocab practice ---
+    if new_words:
+        idx = new_words[0]
         word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
         correct_answer = vocab_list[idx][1] if is_tuple else None
 
         st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
 
-        if not st.session_state["show_next_button"]:
-            user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
-            if st.button("Check", key=f"vocab_check_{idx}"):
-                if is_tuple:
-                    if is_close_answer(user_answer, correct_answer):
-                        st.session_state["vocab_feedback"] = f"✅ Correct!"
-                    elif is_almost(user_answer, correct_answer):
-                        st.session_state["vocab_feedback"] = f"🟡 Almost! The correct answer is: <b>{correct_answer}</b>"
-                    else:
-                        st.session_state["vocab_feedback"] = f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>"
-                    # Optional: show example
-                    example = ""
-                    if word == "der Fahrplan":
-                        example = "Example: Der Fahrplan zeigt die Abfahrtszeiten."
-                    if example:
-                        st.session_state["vocab_feedback"] += "<br><i>" + example + "</i>"
-                else:
-                    # B1/B2/C1 just check word exists (could show explanation if you want)
-                    if user_answer.strip():
-                        st.session_state["vocab_feedback"] = "✅ Good, next!"
-                    else:
-                        st.session_state["vocab_feedback"] = "❌ Try to type something."
+        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
 
-                st.session_state["vocab_usage"][vocab_usage_key] += 1
-                st.session_state["show_next_button"] = True
+        if st.button("Check", key=f"vocab_check_{idx}"):
+            is_correct = is_close_answer(user_answer, correct_answer) if is_tuple else bool(user_answer.strip())
+            # Show feedback
+            if is_correct:
+                st.success("✅ Correct!")
+                completed_words.add(idx)
+            else:
+                st.error(f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>", icon="❗️")
 
-        if st.session_state["vocab_feedback"]:
-            st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
+            # Save to DB
+            save_vocab_submission(
+                student_code=student_code,
+                name=student_name,
+                level=vocab_level,
+                word=word,
+                student_answer=user_answer,
+                is_correct=is_correct,
+            )
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            st.rerun()
+    else:
+        st.success("🎉 You've finished all new words for this level today!")
 
-        if st.session_state["show_next_button"]:
-            if st.button("Next ➡️"):
-                st.session_state["vocab_idx"] += 1
-                st.session_state["vocab_feedback"] = ""
-                st.session_state["show_next_button"] = False
+    # --- Optionally: show summary of all words completed so far for this level ---
+    if completed_words:
+        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
+
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit)
