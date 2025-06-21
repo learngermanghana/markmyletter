@@ -426,7 +426,9 @@ c1_teil3_evaluations = [
 # ====================================
 
 if st.session_state["logged_in"]:
+    # Always fetch from session_state and define as a local variable
     student_code = st.session_state.get("student_code", "")
+
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
@@ -438,6 +440,7 @@ if st.session_state["logged_in"]:
         f"🔹 <b>Active:</b> {tab}</div>",
         unsafe_allow_html=True
     )
+
 
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
