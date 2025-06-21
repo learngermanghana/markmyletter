@@ -1062,19 +1062,18 @@ if tab == "Vocab Trainer":
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with Level, Stats, and AI Feedback)
+# SCHREIBEN TRAINER TAB (with accurate stats and mobile clarity)
 # ====================================
-
 import urllib.parse
 from fpdf import FPDF
 from datetime import date
 
-SCHREIBEN_DAILY_LIMIT = 5  # Or your preferred daily max
+SCHREIBEN_DAILY_LIMIT = 5  # Adjust as needed
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # 1. Choose Level (remember previous)
+    # 1. Level selection (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -1094,39 +1093,26 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # 3. Show overall writing performance (tracked in session or DB)
-    if "writing_stats" not in st.session_state:
-        st.session_state["writing_stats"] = {"attempted": 0, "correct": 0}
-    total_attempted = st.session_state["writing_stats"]["attempted"]
-    total_correct = st.session_state["writing_stats"]["correct"]
-    accuracy = round(100 * total_correct / total_attempted) if total_attempted > 0 else 0
-
+    # 3. Show overall writing performance (from DB, accurate)
+    attempted, passed, accuracy = get_writing_stats(student_code)
     st.markdown(f"""
-    <div style='background:#f9fafd;border-radius:12px;padding:14px 20px;margin-bottom:16px;'>
-        <h4 style='margin-bottom:0.5em;'>📊 <b>Your Overall Writing Performance</b></h4>
-        <span style='font-size:1.1rem;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{total_attempted}</span></span>  
-        <br>
-        <span style='font-size:1.1rem;'><b>Passed (≥17):</b> <span style='color:#27ae60;'>{total_correct}</span></span>
-        <br>
-        <span style='font-size:1.1rem;'><b>Pass Rate:</b> <span style='color:#e67e22;'>{accuracy}%</span></span>
-        <br>
-        <span style='font-size:1.1rem;'><b>Today:</b> <span style='color:#8e44ad;'>{daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used</span></span>
+    <div style='background:#f8fafd;border-radius:8px;padding:10px 16px;margin-bottom:14px;'>
+        <b>📈 Writing Performance Overview</b><br>
+        <span style='font-size:1.07rem;'>Total Submitted: <b style='color:#1750a1'>{attempted}</b> &nbsp;|&nbsp;
+        Passed: <b style='color:#1aa052'>{passed}</b> &nbsp;|&nbsp;
+        Pass Rate: <b style='color:#e67e22'>{accuracy}%</b><br>
+        <span style='color:#8e44ad;'>Today: {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used</span>
+        </span>
     </div>
     """, unsafe_allow_html=True)
 
-    # 4. Level-Specific Stats (Optional: You can connect to DB or use your stats function here)
-    stats = get_student_stats(student_code) if "student_code" in locals() else None
-    lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats:
+    # 4. Level-Specific Stats (from DB, only if user has activity at this level)
+    stats = get_student_stats(student_code)
+    lvl_stats = stats.get(schreiben_level, {})
+    if lvl_stats and lvl_stats["attempted"] > 0:
         correct = lvl_stats.get("correct", 0)
-        attempted = lvl_stats.get("attempted", 0)
-        weak = lvl_stats.get("weaknesses", [])
-        strong = lvl_stats.get("strengths", [])
-        st.success(f"Level `{schreiben_level}`: {correct} / {attempted} correct")
-        if strong:
-            st.markdown(f"**Your strengths:** {', '.join(strong)}")
-        if weak:
-            st.markdown(f"**Areas to improve:** {', '.join(weak)}")
+        attempted_level = lvl_stats.get("attempted", 0)
+        st.success(f"Level `{schreiben_level}`: {correct} / {attempted_level} passed")
     else:
         st.markdown("_No previous writing activity for this level yet._")
 
@@ -1186,22 +1172,12 @@ if tab == "Schreiben Trainer":
                 score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 score = int(score_match.group(1)) if score_match else 0
 
-                # === Update writing stats ===
-                st.session_state["writing_stats"]["attempted"] += 1
-                if score >= 17:
-                    st.session_state["writing_stats"]["correct"] += 1
-                st.session_state["schreiben_usage"][limit_key] += 1
+                # === Save to DB! ===
+                student_name = st.session_state.get("student_name", student_code)
+                save_schreiben_submission(student_code, student_name, schreiben_level, user_letter, score, feedback)
 
-                # === Save submission to DB ===
-                student_name = st.session_state.get("student_name", "")
-                save_schreiben_submission(
-                    student_code,
-                    student_name,
-                    schreiben_level,
-                    user_letter,
-                    score,
-                    feedback
-                )
+                # === Update usage ===
+                st.session_state["schreiben_usage"][limit_key] += 1
 
                 # --- Show Feedback ---
                 st.markdown("---")
@@ -1234,6 +1210,7 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
+
 
 # =============================
 # TEACHER SETTINGS TAB
