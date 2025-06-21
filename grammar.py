@@ -86,6 +86,18 @@ def save_schreiben_submission(student_code, name, level, essay, score, feedback)
     )
     conn.commit()
 
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
+
 
 # --- Streamlit page config ---
 st.set_page_config(
