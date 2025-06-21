@@ -100,7 +100,7 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # ====================================
-# 4. FLEXIBLE ANSWER CHECKERS
+# 3. FLEXIBLE ANSWER CHECKERS
 # ====================================
 
 def is_close_answer(student, correct):
@@ -122,15 +122,16 @@ def is_almost(student, correct):
     return 0.60 < similarity <= 0.80
 
 # ====================================
-# 5. LIMIT CONSTANTS
+# 4. CONSTANTS & VOCAB LISTS
 # ====================================
 
+CODES_FILE = "student_codes.csv"
+STUDENTS_CSV = "students.csv"
 FALOWEN_DAILY_LIMIT = 25
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
-
-
 max_turns = 25
+
 # --- Vocab lists for all levels ---
 
 a1_vocab = [
