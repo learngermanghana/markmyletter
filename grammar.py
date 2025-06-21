@@ -11,13 +11,6 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
 
-# ---- Cookie Manager Setup ----
-cookie_manager = EncryptedCookieManager(
-    prefix="falowen_",
-    password="a-very-secret-key"   # Set your own key here!
-)
-cookie_manager.ready()
-
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
