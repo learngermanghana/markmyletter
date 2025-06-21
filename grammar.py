@@ -3,13 +3,14 @@ import random
 import difflib
 import sqlite3
 import atexit
-import io
-from datetime import date, datetime
+from datetime import date  # Only once!
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
 from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
+from streamlit_cookies_manager import EncryptedCookieManager
+import urllib.parse
+
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
@@ -1102,11 +1103,6 @@ if tab == "Vocab Trainer":
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
-import urllib.parse
-from fpdf import FPDF
-from datetime import date
-
-# DO NOT REDEFINE get_writing_stats or SCHREIBEN_DAILY_LIMIT here
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
