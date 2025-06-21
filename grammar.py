@@ -989,6 +989,7 @@ if tab == "Schreiben Trainer":
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT)
+        height=220
     )
 
     # 6. Submit & AI Feedback
