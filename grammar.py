@@ -252,6 +252,11 @@ c1_teil3_evaluations = [
 # 2. DATA LOADERS, DB HELPERS, UTILITIES
 # ====================================
 
+# ---- CONFIG ----
+STUDENTS_CSV = "students.csv"
+VOCAB_DB = "vocab_progress.db"
+
+# ---- DATA LOADER ----
 @st.cache_data
 def load_student_data(path: str = STUDENTS_CSV) -> pd.DataFrame:
     """Load student CSV or show error and stop if missing."""
@@ -304,18 +309,21 @@ def get_vocab_streak(c, student_code: str) -> int:
     return streak
 
 def is_close_answer(student: str, correct: str) -> bool:
+    import difflib
     student, correct = student.strip().lower(), correct.strip().lower()
     if correct.startswith("to "): correct = correct[3:]
     if len(student) < 3 or len(student) < 0.6 * len(correct): return False
     return difflib.SequenceMatcher(None, student, correct).ratio() > 0.8
 
 def is_almost(student: str, correct: str) -> bool:
+    import difflib
     student, correct = student.strip().lower(), correct.strip().lower()
     if correct.startswith("to "): correct = correct[3:]
     r = difflib.SequenceMatcher(None, student, correct).ratio()
     return 0.6 < r <= 0.8
 
 def generate_pdf(student: str, level: str, original: str, feedback: str) -> bytes:
+    from fpdf import FPDF
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=13)
