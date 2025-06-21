@@ -1,17 +1,25 @@
-# ====================================
 # 1. IMPORTS, CONSTANTS, AND PAGE SETUP
-# ====================================
-
 import os
 import random
 import difflib
 import sqlite3
+import atexit
 from datetime import date
-
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
-import urllib.parse  # For WhatsApp assignment message encoding
+
+# ---- Paste the DB connection helper here ----
+
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+conn = get_connection()
+c = conn.cursor()
+
 
 # --- Streamlit page config ---
 st.set_page_config(
