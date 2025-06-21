@@ -915,40 +915,65 @@ if tab == "Vocab Trainer":
                 st.session_state["show_next_button"] = False
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with Level, Stats, and AI Feedback)
+# SCHREIBEN TRAINER TAB (with Daily Limit)
 # ====================================
-
-from fpdf import FPDF
 import urllib.parse
+from fpdf import FPDF
+from datetime import date
+
+SCHREIBEN_DAILY_LIMIT = 5  # Or your preferred daily max
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # --- Level Selection ---
+    # 1. Choose Level (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
-    prev_schreiben_level = st.session_state.get("schreiben_level", "A1")
-    st.selectbox(
+    prev_level = st.session_state.get("schreiben_level", "A1")
+    schreiben_level = st.selectbox(
         "Choose your writing level:",
         schreiben_levels,
-        index=schreiben_levels.index(prev_schreiben_level) if prev_schreiben_level in schreiben_levels else 0,
-        key="schreiben_level"
+        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+        key="schreiben_level_selector"
     )
-    schreiben_level = st.session_state["schreiben_level"]
+    st.session_state["schreiben_level"] = schreiben_level
 
-    # --- Overall Performance Summary ---
-    stats = get_student_stats(student_code)
-    all_attempted = sum(v.get("attempted", 0) for v in stats.values()) if stats else 0
-    all_correct = sum(v.get("correct", 0) for v in stats.values()) if stats else 0
-    st.subheader("📊 Your Overall Writing Performance")
-    st.markdown(f"**Total Attempts:** {all_attempted} &nbsp; | &nbsp; **Total Correct:** {all_correct}")
+    # 2. Daily limit tracking (by student & date)
+    student_code = st.session_state.get("student_code", "demo")
+    today_str = str(date.today())
+    limit_key = f"{student_code}_schreiben_{today_str}"
+    if "schreiben_usage" not in st.session_state:
+        st.session_state["schreiben_usage"] = {}
+    st.session_state["schreiben_usage"].setdefault(limit_key, 0)
+    daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # --- Level-specific stats: strengths/weaknesses (example) ---
+    # 3. Show overall writing performance (tracked in session or DB)
+    if "writing_stats" not in st.session_state:
+        st.session_state["writing_stats"] = {"attempted": 0, "correct": 0}
+    total_attempted = st.session_state["writing_stats"]["attempted"]
+    total_correct = st.session_state["writing_stats"]["correct"]
+    accuracy = round(100 * total_correct / total_attempted) if total_attempted > 0 else 0
+
+    st.markdown(f"""
+    <div style='background:#f9fafd;border-radius:12px;padding:14px 20px;margin-bottom:16px;'>
+        <h4 style='margin-bottom:0.5em;'>📊 <b>Your Overall Writing Performance</b></h4>
+        <span style='font-size:1.1rem;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{total_attempted}</span></span>  
+        <br>
+        <span style='font-size:1.1rem;'><b>Passed (≥17):</b> <span style='color:#27ae60;'>{total_correct}</span></span>
+        <br>
+        <span style='font-size:1.1rem;'><b>Pass Rate:</b> <span style='color:#e67e22;'>{accuracy}%</span></span>
+        <br>
+        <span style='font-size:1.1rem;'><b>Today:</b> <span style='color:#8e44ad;'>{daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used</span></span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4. Level-Specific Stats (Optional: You can connect to DB or use your stats function here)
+    stats = get_student_stats(student_code) if "student_code" in locals() else None
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
     if lvl_stats:
         correct = lvl_stats.get("correct", 0)
         attempted = lvl_stats.get("attempted", 0)
-        strong = lvl_stats.get("strengths", [])
         weak = lvl_stats.get("weaknesses", [])
+        strong = lvl_stats.get("strengths", [])
         st.success(f"Level `{schreiben_level}`: {correct} / {attempted} correct")
         if strong:
             st.markdown(f"**Your strengths:** {', '.join(strong)}")
@@ -959,81 +984,94 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- AI Schreiben Section ---
-    st.subheader("Submit your letter or essay for feedback:")
-    student_text = st.text_area(
-        "Paste your German letter or essay here...",
-        height=200,
-        key="schreiben_input"
+    # 5. Input Box (disabled if limit reached)
+    user_letter = st.text_area(
+        "Paste or type your German letter/essay here.",
+        key="schreiben_input",
+        disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT)
     )
-    feedback = None
-    if st.button("Get Feedback", key="get_feedback"):
-        if not student_text.strip():
-            st.error("Please paste your German text first!")
-        else:
-            with st.spinner("Herr Felix is marking your letter..."):
-                ai_prompt = (
-                    f"You are Herr Felix, a supportive but strict German letter writing coach for the Goethe exam.\n"
-                    f"The student has submitted a {schreiben_level} German letter or essay below.\n\n"
-                    "Your task:\n"
-                    "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                    "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                    "Don't just say errors—show exactly where the mistakes are. "
-                    "1. Give a score out of 25 marks and always display the score clearly. "
-                    "2. If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. "
-                    "3. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
-                    "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                    "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                    "6. Also check for AI usage or if the student wrote with their own effort. "
-                    "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                    "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."                         
-                )
+
+    # 6. Submit & AI Feedback
+    feedback = ""
+    submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
+    if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
+        st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+
+    if st.button("Get Feedback", type="primary", disabled=submit_disabled):
+        with st.spinner("Analyzing your writing..."):
+            ai_prompt = (
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                f"The student has submitted a {schreiben_level} German letter or essay. "
+                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                "Don't just say errors—show exactly where the mistakes are. "
+                "1. Give a score out of 25 marks and always display the score clearly. "
+                "2. If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. "
+                "3. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
+                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                "6. Also check for AI usage or if the student wrote with their own effort. "
+                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
+            )
+
+            # ---- Call OpenAI for Feedback ----
+            try:
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    temperature=0.6,
+                completion = client.chat.completions.create(
+                    model="gpt-4o",
                     messages=[
                         {"role": "system", "content": ai_prompt},
-                        {"role": "user", "content": student_text},
+                        {"role": "user", "content": user_letter},
                     ],
+                    temperature=0.6,
                 )
-                feedback = response.choices[0].message.content
-                st.session_state["schreiben_feedback"] = feedback
-                st.success("Feedback ready! See below 👇")
+                feedback = completion.choices[0].message.content
+            except Exception as e:
+                st.error("AI feedback failed. Please check your OpenAI setup.")
+                feedback = None
 
-    # --- Show Feedback, PDF Download, WhatsApp Sharing ---
-    if "schreiben_feedback" in st.session_state and st.session_state["schreiben_feedback"]:
-        feedback = st.session_state["schreiben_feedback"]
-        st.markdown("### 📝 Feedback from Herr Felix")
-        st.markdown(feedback)
+            if feedback:
+                # === Extract score and check if passed ===
+                import re
+                score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                score = int(score_match.group(1)) if score_match else 0
 
-        # PDF Download
-        if st.button("Download Feedback as PDF", key="download_pdf"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.multi_cell(0, 10, f"Your Writing\n\n{student_text}\n\n---\n\nFeedback\n\n{feedback}")
-            pdf_path = f"/tmp/{student_code}_schreiben_feedback.pdf"
-            pdf.output(pdf_path)
-            with open(pdf_path, "rb") as f:
-                st.download_button(
-                    label="Download PDF",
-                    data=f,
-                    file_name=f"{student_code}_Schreiben_Feedback.pdf",
-                    mime="application/pdf"
+                # === Update writing stats ===
+                st.session_state["writing_stats"]["attempted"] += 1
+                if score >= 17:
+                    st.session_state["writing_stats"]["correct"] += 1
+                st.session_state["schreiben_usage"][limit_key] += 1
+
+                # --- Show Feedback ---
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
+
+                # === Download as PDF ===
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                pdf.multi_cell(0, 10, f"Your Letter:\n\n{user_letter}\n\nFeedback from Herr Felix:\n\n{feedback}")
+                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+                pdf.output(pdf_output)
+                with open(pdf_output, "rb") as f:
+                    st.download_button(
+                        "⬇️ Download Feedback as PDF",
+                        f,
+                        file_name=pdf_output,
+                        mime="application/pdf"
+                    )
+
+                # === WhatsApp Share ===
+                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+                wa_url = (
+                    "https://api.whatsapp.com/send"
+                    "?phone=233205706589"
+                    f"&text={urllib.parse.quote(wa_message)}"
+                )
+                st.markdown(
+                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                    unsafe_allow_html=True
                 )
 
-        # WhatsApp Share
-        assignment_message = (
-            f"Hi, please find my writing submission and feedback:\n\n"
-            f"Writing:\n{student_text}\n\nFeedback:\n{feedback}"
-        )
-        whatsapp_url = (
-            "https://api.whatsapp.com/send"
-            "?phone=233205706589"
-            f"&text={urllib.parse.quote(assignment_message)}"
-        )
-        st.markdown(
-            f"[Share to WhatsApp]( {whatsapp_url} )",
-            unsafe_allow_html=True
-        )
