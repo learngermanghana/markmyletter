@@ -973,23 +973,6 @@ if tab == "Vocab Trainer":
 # =========================================
 # SCHREIBEN TRAINER TAB (A1–C1, with PDF/WhatsApp & Stats)
 # =========================================
-from fpdf import FPDF
-import io
-
-def safe_pdf(text):
-    # Replace any un-encodable characters with '?'
-    return str(text).encode("latin-1", "replace").decode("latin-1")
-
-def generate_pdf(student, level, original, feedback):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=13)
-    pdf.cell(0, 12, safe_pdf(f"Schreiben Correction – {level}"), ln=1)
-    pdf.ln(2)
-    pdf.multi_cell(0, 10, safe_pdf(
-        f"Dear {student},\n\nYour original text:\n\n{original}\n\nFeedback from Herr Felix:\n\n{feedback}"
-    ))
-    return pdf.output(dest='S').encode('latin-1')
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer")
@@ -1002,7 +985,6 @@ if tab == "Schreiben Trainer":
 
     # --------- Student Progress/Stats ---------
     def get_latest_feedback(student_code):
-        # Example with sqlite, adapt if you store elsewhere!
         c.execute(
             "CREATE TABLE IF NOT EXISTS schreiben_feedback (student_code TEXT, date TEXT, level TEXT, score INTEGER, strengths TEXT, weaknesses TEXT)"
         )
@@ -1081,6 +1063,20 @@ if tab == "Schreiben Trainer":
                 st.markdown(ai_feedback)
 
                 # --- PDF Generation Function ---
+                def safe_pdf(text):
+                    return str(text).encode("latin-1", "replace").decode("latin-1")
+
+                def generate_pdf(student, level, original, feedback):
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", size=13)
+                    pdf.cell(0, 12, safe_pdf(f"Schreiben Correction – {level}"), ln=1)
+                    pdf.ln(2)
+                    pdf.multi_cell(0, 10, safe_pdf(
+                        f"Dear {student},\n\nYour original text:\n\n{original}\n\nFeedback from Herr Felix:\n\n{feedback}"
+                    ))
+                    return pdf.output(dest='S').encode('latin-1')
+
                 student_name = st.session_state.get("student_name", "Student")
                 pdf_bytes = generate_pdf(
                     student=student_name,
@@ -1099,12 +1095,11 @@ if tab == "Schreiben Trainer":
                 assignment_message = (
                     f"Hallo Herr Felix! Hier ist mein Schreiben für die Korrektur ({schreiben_level}):\n\n"
                     f"{schreiben_text}\n\n---\nFeedback: {ai_feedback[:600]}..."  # Shorten if needed!
-                   
                 )
                 whatsapp_url = (
                     "https://api.whatsapp.com/send"
-                    "?phone=233205706589"  # Update to your number
-                    f"&text={assignment_message.replace(' ', '%20').replace('\n', '%0A')}"
+                    "?phone=233205706589"
+                    f"&text={urllib.parse.quote(assignment_message)}"
                 )
                 st.markdown(
                     f'<a href="{whatsapp_url}" target="_blank" '
@@ -1114,7 +1109,6 @@ if tab == "Schreiben Trainer":
                 )
 
                 # --- Save stats to SQLite for later dashboard display ---
-                import re
                 score_match = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
                 score = int(score_match.group(1)) if score_match else None
                 strengths = weaknesses = ""
@@ -1122,7 +1116,6 @@ if tab == "Schreiben Trainer":
                     strengths = ai_feedback.split("Strengths:")[1].split("\n")[0].strip()
                 if "Weaknesses:" in ai_feedback:
                     weaknesses = ai_feedback.split("Weaknesses:")[1].split("\n")[0].strip()
-                # Now save:
                 if score:
                     c.execute("""
                         CREATE TABLE IF NOT EXISTS schreiben_feedback (
@@ -1142,5 +1135,4 @@ if tab == "Schreiben Trainer":
                     ))
                     conn.commit()
 
-                # Increase usage counter
                 st.session_state["schreiben_usage"][schreiben_usage_key] += 1
