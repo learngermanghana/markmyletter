@@ -506,12 +506,18 @@ c1_teil3_evaluations = [
 if st.session_state["logged_in"]:
     # Always fetch from session_state and define as a local variable
     student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
+    student_row = st.session_state.get("student_row") or {}
+    streak = get_vocab_streak(student_code)
+    total_attempted, total_passed, accuracy = get_writing_stats(student_code)
+    daily_so_far = st.session_state.get("schreiben_usage", {}).get(
+        f"{student_code}_schreiben_{str(date.today())}", 0
+    )
+    SCHREIBEN_DAILY_LIMIT = 5
 
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer", "Admin" ],
+        ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
         key="main_tab_select"
     )
     st.markdown(
@@ -523,111 +529,93 @@ if st.session_state["logged_in"]:
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
-        # --- Student Info Card (contract etc) ---
-        student_row = st.session_state.get("student_row") or {}
-        from datetime import datetime, timedelta, date
+        # --- Student Info Card (Responsive) ---
+        st.markdown(
+            f"""
+            <div style='background:#f9f9ff;padding:15px 12px 14px 12px;
+                        border-radius:14px;max-width:420px;margin-bottom:14px;
+                        box-shadow:0 1.5px 7px #eef;'>
+                <div style='font-weight:bold;font-size:1.18rem;color:#17617a;margin-bottom:8px;'>{student_row.get('Name', '')}</div>
+                <div style='margin-bottom:6px;'><b>Level:</b> {student_row.get('Level', '')}</div>
+                <div style='margin-bottom:6px;'><b>Student Code:</b> {student_row.get('StudentCode', '')}</div>
+                <div style='margin-bottom:6px;'><b>Email:</b> {student_row.get('Email', '')}</div>
+                <div style='margin-bottom:6px;'><b>Phone:</b> {student_row.get('Phone', '')}</div>
+                <div style='margin-bottom:6px;'><b>Location:</b> {student_row.get('Location', '')}</div>
+                <div style='margin-bottom:6px;'><b>Paid:</b> {student_row.get('Paid', '')}</div>
+                <div style='margin-bottom:6px;'><b>Balance:</b> <span style='color:#d35400;font-weight:bold;'>₵{student_row.get('Balance', '0.0')}</span> &nbsp; <span style='color:#636e72;font-size:0.98em;'>(Keep your balance updated.)</span></div>
+                <div style='margin-bottom:6px;'><b>Contract Start:</b> {student_row.get('ContractStart', '')}</div>
+                <div style='margin-bottom:6px;'><b>Contract End:</b> {student_row.get('ContractEnd', '')}</div>
+                <div style='margin-bottom:6px;'><b>Status:</b> {student_row.get('Status', '')}</div>
+                <div style='margin-bottom:6px;'><b>Enroll Date:</b> {student_row.get('EnrollDate', '')}</div>
+                <div style='margin-bottom:4px;'><b>Emergency Contact:</b> {student_row.get('Emergency Contact (Phone Number)', '')}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        # Contract and payment due notifications
-        contract_end_str = student_row.get('ContractEnd', '')
-        contract_warning = ""
-        if contract_end_str:
+        # --- Always show gentle payment/balance reminder if balance > 0 ---
+        try:
+            balance_float = float(student_row.get('Balance', '0.0'))
+        except Exception:
+            balance_float = 0.0
+        if balance_float > 0:
+            st.warning(
+                f"💸 <b>Balance:</b> <span style='color:#d35400;'>₵{balance_float:.2f}</span> &mdash; Kindly pay your outstanding balance to stay active.",
+                icon="💸",
+                unsafe_allow_html=True
+            )
+
+        # --- Contract End Reminder (show if less than 30 days left) ---
+        from datetime import datetime, timedelta
+        contract_end = student_row.get('ContractEnd')
+        if contract_end:
             try:
-                contract_end = datetime.strptime(contract_end_str, "%Y-%m-%d")
-                days_left = (contract_end - datetime.now()).days
-                if 0 <= days_left <= 7:
-                    contract_warning = f"⚠️ Your contract ends in {days_left} day(s): {contract_end.strftime('%d %b %Y')}. Please contact administration if you wish to renew."
+                contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
+                days_left = (contract_end_date - datetime.now()).days
+                if 0 < days_left <= 30:
+                    st.info(f"📅 <b>Your contract ends in <span style='color:#d35400;'>{days_left} days</span>. Please renew to continue.</b>", unsafe_allow_html=True)
+                elif days_left < 0:
+                    st.warning("⏰ <b>Your contract has expired. Contact the school to renew.</b>", unsafe_allow_html=True)
             except Exception:
-                contract_warning = ""
-        paid = str(student_row.get('Paid', '')).strip().lower()
-        balance = str(student_row.get('Balance', '')).strip()
-        payment_warning = ""
-        if (paid in ["no", "pending", "0", "not paid", "due", "false"]) or (balance and balance not in ["0", "0.0", "", "none"]):
-            payment_warning = "💸 <b>Payment due:</b> Please settle your balance to avoid interruption."
+                pass
 
-        st.markdown(f"""
-        <div style='background:#f9f9ff;padding:18px 24px;border-radius:15px;margin-bottom:18px;box-shadow:0 2px 10px #eef;'>
-            <h3 style='margin:0;color:#17617a;'>{student_row.get('Name', '')}</h3>
-            <ul style='list-style:none;padding:0;font-size:1.08rem;'>
-                <li><b>Level:</b> {student_row.get('Level', '')}</li>
-                <li><b>Student Code:</b> {student_row.get('StudentCode', '')}</li>
-                <li><b>Email:</b> {student_row.get('Email', '')}</li>
-                <li><b>Phone:</b> {student_row.get('Phone', '')}</li>
-                <li><b>Location:</b> {student_row.get('Location', '')}</li>
-                <li><b>Paid:</b> {student_row.get('Paid', '')}</li>
-                <li><b>Balance:</b> {student_row.get('Balance', '')}</li>
-                <li><b>Contract Start:</b> {student_row.get('ContractStart', '')}</li>
-                <li><b>Contract End:</b> {student_row.get('ContractEnd', '')}</li>
-                <li><b>Status:</b> {student_row.get('Status', '')}</li>
-                <li><b>Enroll Date:</b> {student_row.get('EnrollDate', '')}</li>
-                <li><b>Emergency Contact:</b> {student_row.get('Emergency Contact (Phone Number)', '')}</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        # Show warnings
-        if payment_warning:
-            st.markdown(f"<div style='color:#b80b2e;font-weight:bold;margin-bottom:8px;'>{payment_warning}</div>", unsafe_allow_html=True)
-        if contract_warning:
-            st.markdown(f"<div style='color:#b89207;font-weight:bold;margin-bottom:8px;'>{contract_warning}</div>", unsafe_allow_html=True)
+        # --- Vocab Streak Block ---
+        st.markdown(
+            f"""
+            <div style='background:#f8faf6;padding:12px 10px 14px 10px;border-radius:13px;max-width:420px;margin-bottom:13px;box-shadow:0 1.5px 7px #def;'>
+                <span style='font-size:1.07rem;font-weight:bold;color:#17617a;'>🔥 Vocab Streak:</span>
+                <span style='font-size:1.05rem;color:#27ae60;font-weight:bold;'> {streak} day{'s' if streak != 1 else ''}</span>
+                <span style='color:#5e6b7c;font-size:0.96rem;'> &nbsp; (Keep practicing daily to keep your streak!)</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        # --- Main Vocab Stats ---
-        stats = get_student_stats(student_code)
-        streak = get_vocab_streak(student_code)
-        st.markdown(f"🔥 <b>Vocab Streak:</b> {streak} days", unsafe_allow_html=True)
-        if stats:
-            st.markdown("<b>Today's Vocab Progress:</b>", unsafe_allow_html=True)
-            for lvl, d in stats.items():
-                st.markdown(
-                    f"<span style='color:#17617a'><b>{lvl}</b>:</span> <span style='color:#27ae60'>{d['correct'] or 0}</span> / <span style='color:#268049'>{d['attempted']}</span> correct",
-                    unsafe_allow_html=True
-                )
+        # --- Quick Goal Tracker ---
+        goal_remain = max(0, 2 - (total_attempted or 0))
+        if goal_remain > 0:
+            st.success(f"🎯 <b>Your next goal:</b> Write <b>{goal_remain}</b> more letter(s) this week!", icon="🎯")
         else:
-            st.markdown("<i>No vocab activity today yet!</i>", unsafe_allow_html=True)
+            st.success("🎉 <b>Goal reached! Keep writing for more improvement!</b>", icon="🏆")
 
-        # --- Schreiben (Writing) Overall Stats & Goal Tracker ---
-        def get_writing_stats(student_code):
-            conn = get_connection()
-            c = conn.cursor()
-            c.execute("""
-                SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-            """, (student_code,))
-            result = c.fetchone()
-            attempted = result[0] or 0
-            passed = result[1] or 0
-            accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-            return attempted, passed, accuracy
+        # --- Writing Performance Card (Mobile-Friendly) ---
+        st.markdown(
+            f"""
+            <div style='background:#f7fcff;padding:14px 12px 16px 12px;
+                        border-radius:14px;max-width:420px;margin-bottom:16px;
+                        box-shadow:0 1.5px 7px #e3f3fa;'>
+                <div style='font-weight:bold;font-size:1.13rem;color:#17617a;margin-bottom:10px;'>
+                    📝 Your Overall Writing Performance
+                </div>
+                <div style='margin-bottom:8px;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{total_attempted}</span></div>
+                <div style='margin-bottom:8px;'><b>Passed (≥17):</b> <span style='color:#27ae60;'>{total_passed}</span></div>
+                <div style='margin-bottom:8px;'><b>Pass Rate:</b> <span style='color:#e67e22;'>{accuracy}%</span></div>
+                <div><b>Today:</b> <span style='color:#8e44ad;'>{daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used</span></div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        def get_weekly_schreiben_count(student_code):
-            conn = get_connection()
-            c = conn.cursor()
-            today = date.today()
-            start_of_week = today - timedelta(days=today.weekday())
-            c.execute("""
-                SELECT COUNT(*) FROM schreiben_progress
-                WHERE student_code=? AND date>=?
-            """, (student_code, str(start_of_week)))
-            count = c.fetchone()[0] or 0
-            weekly_goal = 3  # set your weekly goal here
-            return count, weekly_goal
-
-        w_attempted, w_passed, w_accuracy = get_writing_stats(student_code)
-        st.markdown(f"""
-        <div style='background:#f9fafd;border-radius:12px;padding:14px 20px;margin-bottom:16px;'>
-            <h4 style='margin-bottom:0.5em;'>📊 <b>Your Overall Writing Performance</b></h4>
-            <span style='font-size:1.1rem;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{w_attempted}</span></span>  
-            <br>
-            <span style='font-size:1.1rem;'><b>Passed (≥17):</b> <span style='color:#27ae60;'>{w_passed}</span></span>
-            <br>
-            <span style='font-size:1.1rem;'><b>Pass Rate:</b> <span style='color:#e67e22;'>{w_accuracy}%</span></span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # --- Writing Goal Tracker ---
-        sch_this, sch_goal = get_weekly_schreiben_count(student_code)
-        remaining = max(0, sch_goal - sch_this)
-        if remaining > 0:
-            st.markdown(f"<span style='background:#ffeec2;padding:7px 14px;border-radius:8px;'><b>Your next goal:</b> Write <b>{remaining}</b> more letter(s) this week!</span>", unsafe_allow_html=True)
-        else:
-            st.markdown("<span style='background:#d6f7cc;padding:7px 14px;border-radius:8px;'><b>✅ You met your weekly writing goal. Great job!</b></span>", unsafe_allow_html=True)
 
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
