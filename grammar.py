@@ -555,6 +555,12 @@ if tab == "Falowen Chat":
             st.session_state["falowen_usage"] = {}
         st.session_state["falowen_usage"].setdefault(falowen_usage_key, 0)
 
+        # Display usage + turn count
+        turns_so_far = st.session_state.get("falowen_turn_count", 0)
+        st.info(
+            f"Today's practice: {st.session_state['falowen_usage'][falowen_usage_key]}/{FALOWEN_DAILY_LIMIT} | Turns: {turns_so_far}/{max_turns}"
+        )
+
         # ========== AI ALWAYS STARTS IF HISTORY IS EMPTY ==========
         if not st.session_state["falowen_messages"]:
             st.session_state["falowen_turn_count"] = 0  # Reset the chat turn counter
