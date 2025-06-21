@@ -1136,15 +1136,16 @@ if tab == "Vocab Trainer":
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with Level, Stats, and AI Feedback)
+# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
 
-
+import urllib.parse
+from fpdf import FPDF
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # 1. Choose Level (remember previous)
+    # --- 1. Choose Level (remember previous selection)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -1155,7 +1156,7 @@ if tab == "Schreiben Trainer":
     )
     st.session_state["schreiben_level"] = schreiben_level
 
-    # 2. Daily limit tracking (by student & date)
+    # --- 2. Daily limit tracking (by student & date)
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "")
     today_str = str(date.today())
@@ -1165,21 +1166,19 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # 3. Show overall writing performance (DB-driven, mobile-first)
+    # --- 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(
-        f"""**📝 Your Overall Writing Performance**
+    st.markdown(f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
 - ✅ **Passed (≥17):** {passed}
 - 📊 **Pass Rate:** {accuracy}%
 - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
-        """
-    )
+""")
 
-    # 4. Level-Specific Stats (optional)
+    # --- 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats.get("attempted", 0):
+    if lvl_stats and lvl_stats["attempted"]:
         correct = lvl_stats.get("correct", 0)
         attempted_lvl = lvl_stats.get("attempted", 0)
         st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
@@ -1188,7 +1187,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # 5. Input Box (disabled if limit reached)
+    # --- 5. Input Box (disabled if limit reached)
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
@@ -1197,7 +1196,7 @@ if tab == "Schreiben Trainer":
         placeholder="Write your German letter here..."
     )
 
-    # 6. AI prompt (always define before calling the API)
+    # --- 6. AI prompt (always define before calling the API)
     ai_prompt = (
         f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
         f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -1214,7 +1213,7 @@ if tab == "Schreiben Trainer":
         "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
     )
 
-    # 7. Submit & AI Feedback
+    # --- 7. Submit & AI Feedback
     feedback = ""
     submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
     if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
@@ -1239,7 +1238,6 @@ if tab == "Schreiben Trainer":
         if feedback:
             # === Extract score and check if passed ===
             import re
-            # First, try your new, more tolerant regex:
             score_match = re.search(
                 r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
                 feedback,
@@ -1288,3 +1286,4 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
