@@ -1098,10 +1098,6 @@ if tab == "Vocab Trainer":
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
-# ====================================
-# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
-# ====================================
-
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
@@ -1128,12 +1124,14 @@ if tab == "Schreiben Trainer":
 
     # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(f"""**📝 Your Overall Writing Performance**
+    st.markdown(
+        f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
 - ✅ **Passed (≥17):** {passed}
 - 📊 **Pass Rate:** {accuracy}%
 - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
-""")
+        """
+    )
 
     # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
@@ -1155,7 +1153,7 @@ if tab == "Schreiben Trainer":
         height=180,
         placeholder="Write your German letter here..."
     )
-    
+
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
         f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
@@ -1182,7 +1180,6 @@ if tab == "Schreiben Trainer":
     if st.button("Get Feedback", type="primary", disabled=submit_disabled):
         with st.spinner("🧑‍🏫 Herr Felix is typing..."):
             try:
-                client = OpenAI(api_key=OPENAI_API_KEY)
                 completion = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
@@ -1199,8 +1196,17 @@ if tab == "Schreiben Trainer":
         if feedback:
             # === Extract score and check if passed ===
             import re
-            score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-            score = int(score_match.group(1)) if score_match else 0
+            # First, try your new, more tolerant regex:
+            score_match = re.search(
+                r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
+                feedback,
+                re.IGNORECASE,
+            )
+            if score_match:
+                score = int(score_match.group(1))
+            else:
+                st.warning("Could not detect a score in the AI feedback.")
+                score = 0
 
             # === Update usage and save to DB ===
             st.session_state["schreiben_usage"][limit_key] += 1
