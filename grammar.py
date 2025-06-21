@@ -46,10 +46,35 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
-
 def get_vocab_streak(student_code):
-    # Placeholder: return a fake streak for now
-    return 3
+    """Return the number of consecutive days with vocab submissions."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
+        (student_code,),
+    )
+    rows = c.fetchall()
+    if not rows:
+        return 0
+
+    dates = [date.fromisoformat(r[0]) for r in rows]
+
+    # If the most recent submission wasn't today or yesterday, streak is lost
+    if (date.today() - dates[0]).days > 1:
+        return 0
+
+    streak = 1
+    prev = dates[0]
+    for d in dates[1:]:
+        if (prev - d).days == 1:
+            streak += 1
+            prev = d
+        else:
+            break
+
+    return streak
+
 
 # --- Create/verify tables if not exist (run once per app startup) ---
 def init_db():
