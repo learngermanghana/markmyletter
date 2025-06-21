@@ -274,6 +274,25 @@ def is_almost(student, correct):
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
     return 0.60 < similarity <= 0.80
 
+def validate_translation_openai(word, student_answer):
+    """Use OpenAI to verify if the student's answer is a valid translation."""
+    prompt = (
+        f"Is '{student_answer.strip()}' an accurate English translation of the German word '{word}'? "
+        "Reply with 'True' or 'False' only."
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1,
+            temperature=0,
+        )
+        reply = resp.choices[0].message.content.strip().lower()
+        return reply.startswith("true")
+    except Exception:
+        return False
+
+
 # ====================================
 # 5. CONSTANTS & VOCAB LISTS
 # ====================================
@@ -1038,7 +1057,7 @@ if tab == "Vocab Trainer":
     student_name = st.session_state.get("student_name", "Demo")
     today_str = str(date.today())
 
-    # --- Daily Streak ---
+    # --- Daily Streak (fetch from your helper/db) ---
     streak = get_vocab_streak(student_code)
     if streak >= 1:
         st.success(f"🔥 {streak}-day streak! Keep it up!")
@@ -1055,16 +1074,14 @@ if tab == "Vocab Trainer":
     # --- Level selection ---
     if "vocab_level" not in st.session_state:
         st.session_state["vocab_level"] = "A1"
-    vocab_level = st.selectbox(
-        "Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select"
-    )
+    vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
     if vocab_level != st.session_state["vocab_level"]:
         st.session_state["vocab_level"] = vocab_level
         st.session_state["vocab_feedback"] = ""
         st.session_state["show_next_button"] = False
         st.session_state["vocab_completed"] = set()
 
-    # --- Track completed words (in session, optionally save to DB for real app) ---
+    # --- Track completed words (fetch from DB if you want to persist) ---
     if "vocab_completed" not in st.session_state:
         st.session_state["vocab_completed"] = set()
     completed_words = st.session_state["vocab_completed"]
@@ -1095,14 +1112,19 @@ if tab == "Vocab Trainer":
         correct_answer = vocab_list[idx][1] if is_tuple else None
 
         st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
-
         user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
 
         if st.button("Check", key=f"vocab_check_{idx}"):
-            is_correct = is_close_answer(user_answer, correct_answer) if is_tuple else bool(user_answer.strip())
-            almost = is_almost(user_answer, correct_answer) if is_tuple else False
+            # --- New answer logic ---
+            if is_tuple:
+                is_correct = is_close_answer(user_answer, correct_answer)
+                almost = is_almost(user_answer, correct_answer)
+            else:
+                # For single-word vocab (e.g., advanced levels), use OpenAI for validation
+                is_correct = validate_translation_openai(word, user_answer)
+                almost = False
 
-            # Show feedback
+            # --- Show feedback ---
             if is_correct:
                 st.success("✅ Correct!")
                 completed_words.add(idx)
@@ -1113,11 +1135,11 @@ if tab == "Vocab Trainer":
                 )
             else:
                 st.error(
-                    f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>",
+                    f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>" if is_tuple else "❌ Not quite.",
                     icon="❗️",
                 )
 
-            # Save to DB if you wish
+            # --- Save to DB ---
             save_vocab_submission(
                 student_code=student_code,
                 name=student_name,
