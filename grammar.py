@@ -251,12 +251,6 @@ c1_teil3_evaluations = [
 # ====================================
 # 2. DATA LOADERS, DB HELPERS, UTILITIES
 # ====================================
-
-import os
-import pandas as pd
-import sqlite3
-from datetime import date, datetime, timedelta
-
 # --- DEBUG: Show working directory and files ---
 st.write("Current working directory:", os.getcwd())
 st.write("Files present:", os.listdir())
@@ -268,7 +262,6 @@ VOCAB_DB = "vocab_progress.db"
 # ---- DATA LOADER ----
 @st.cache_data
 def load_student_data(path: str = STUDENTS_CSV) -> pd.DataFrame:
-    """Load student CSV or show error and stop if missing."""
     st.write(f"Trying to read CSV at: {path}")  # DEBUG LINE
     if not os.path.exists(path):
         st.error(f"Students file not found at `{path}`.")
@@ -280,7 +273,6 @@ def load_student_data(path: str = STUDENTS_CSV) -> pd.DataFrame:
     return df
 
 def init_vocab_db(path: str = VOCAB_DB):
-    """Initialize vocab progress DB or show error."""
     try:
         conn = sqlite3.connect(path, check_same_thread=False)
         c = conn.cursor()
@@ -300,7 +292,6 @@ def init_vocab_db(path: str = VOCAB_DB):
         st.stop()
 
 def get_vocab_streak(c, student_code: str) -> int:
-    """Get consecutive day streak for vocab practice."""
     try:
         c.execute("SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC", (student_code,))
         dates = [row[0] for row in c.fetchall()]
@@ -342,6 +333,27 @@ def generate_pdf(student: str, level: str, original: str, feedback: str) -> byte
     pdf.multi_cell(0, 10, f"Dear {student},\n\nYour original text:\n{original}\n\nFeedback:\n{feedback}")
     return pdf.output(dest='S').encode('latin-1')
 
+# ---- LOGIN SCREEN ----
+def login_screen():
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+    if not st.session_state["logged_in"]:
+        st.title("🔑 Student Login")
+        inp = st.text_input("Student Code or Email:").strip().lower()
+        if st.button("Login"):
+            df = load_student_data()
+            match = df[(df.StudentCode == inp) | (df.Email == inp)]
+            if not match.empty:
+                info = match.iloc[0].to_dict()
+                st.session_state["logged_in"] = True
+                st.session_state["student_info"] = info
+                st.session_state["student_name"] = info.get('Name', 'Student')
+                st.session_state["student_code"] = info.get('StudentCode', '').lower()
+                st.experimental_rerun()
+            else:
+                st.error("Login failed — code or email not recognized.")
+        st.stop()
+    return True
 
 # ====================================
 # 4. MAIN TABS & APP LOGIC
