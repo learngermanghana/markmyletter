@@ -1063,68 +1063,88 @@ if tab == "Vocab Trainer":
 # =========================================
 # SCHREIBEN TRAINER TAB (A1–C1, with PDF/WhatsApp & Stats)
 # =========================================
-
 from fpdf import FPDF
 import io
-import re
-import urllib.parse
-
-def generate_pdf(student, level, original, feedback):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 15)
-    pdf.cell(0, 12, f"Schreiben Feedback – {level}", ln=1)
-    pdf.set_font("Arial", "", 11)
-    pdf.cell(0, 10, f"Student: {student}", ln=1)
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Original:", ln=1)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 8, original)
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Feedback:", ln=1)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 8, feedback)
-    pdf_bytes = pdf.output(dest='S').encode('latin1')
-    return pdf_bytes
-
-def extract_strengths_weaknesses(text):
-    # Tries to extract "Strengths: ..." and "Weaknesses: ..." from the AI feedback
-    strengths, weaknesses = "", ""
-    strengths_match = re.search(r"[Ss]trengths?:\s*(.*)", text)
-    if strengths_match:
-        strengths = strengths_match.group(1).split('\n')[0].strip()
-    weaknesses_match = re.search(r"(Weaknesses?|Needs Improvement):\s*(.*)", text)
-    if weaknesses_match:
-        weaknesses = weaknesses_match.group(2).split('\n')[0].strip()
-    return strengths, weaknesses
 
 def schreiben_trainer_tab():
     st.header("✍️ Schreiben Trainer")
 
-    # Safe retrieval from session state (always set these after login)
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "Student")
+    # --- Session state and usage ---
+    student_code = st.session_state.student_code
+    student_name = st.session_state.student_name
     today_str = str(date.today())
     usage_key = f"{student_code}_schreiben_{today_str}"
     if "schreiben_usage" not in st.session_state:
-        st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(usage_key, 0)
-    SCHREIBEN_DAILY_LIMIT = 5
+        st.session_state.schreiben_usage = {}
+    st.session_state.schreiben_usage.setdefault(usage_key, 0)
 
-    st.info(f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][usage_key]}/{SCHREIBEN_DAILY_LIMIT}")
+    # --- DB setup for feedback storage ---
+    conn = sqlite3.connect(VOCAB_DB, check_same_thread=False)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_feedback (
+            student_code TEXT,
+            date TEXT,
+            level TEXT,
+            score INTEGER,
+            strengths TEXT,
+            weaknesses TEXT
+        )
+    """)
+    conn.commit()
 
+    # --- Latest feedback summary ---
+    with st.expander("📈 Your Writing Progress (Latest)", expanded=True):
+        c.execute(
+            "SELECT date, level, score, strengths, weaknesses FROM schreiben_feedback WHERE student_code=? ORDER BY date DESC LIMIT 1",
+            (student_code,),
+        )
+        row = c.fetchone()
+        if row:
+            st.markdown(
+                f"**Last Attempt:** {row[0]}  \n"
+                f"**Level:** {row[1]}  \n"
+                f"**Score:** {row[2]} / 25  \n"
+                f"**Strengths:** {row[3] or '–'}  \n"
+                f"**Needs Improvement:** {row[4] or '–'}"
+            )
+        else:
+            st.write("_No submissions yet. Your progress will appear here!_")
+
+    # --- Writing history table + chart ---
+    with st.expander("🗂️ Your Writing Progress (History)", expanded=False):
+        c.execute(
+            "SELECT date, level, score, strengths, weaknesses FROM schreiben_feedback WHERE student_code=? ORDER BY date DESC LIMIT 10",
+            (student_code,),
+        )
+        rows = c.fetchall()
+        if rows:
+            df_history = pd.DataFrame(rows, columns=["Date", "Level", "Score", "Strengths", "Needs Improvement"])
+            st.dataframe(df_history, use_container_width=True)
+            if len(df_history) > 1:
+                df_sorted = df_history.sort_values("Date")
+                st.line_chart(df_sorted["Score"], use_container_width=True)
+            st.caption("Last 10 attempts. Use this table to reflect on your strengths and weaknesses over time.")
+        else:
+            st.write("_No writing history yet. Your progress will appear here!_")
+
+    st.info(
+        f"Today's Schreiben submissions: {st.session_state.schreiben_usage[usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
+    )
+
+    # --- Level selection ---
     schreiben_level = st.selectbox(
         "Select your level:",
         ["A1", "A2", "B1", "B2", "C1"],
         key="schreiben_level_select"
     )
 
-    if st.session_state["schreiben_usage"][usage_key] >= SCHREIBEN_DAILY_LIMIT:
+    # --- Check limit ---
+    if st.session_state.schreiben_usage[usage_key] >= SCHREIBEN_DAILY_LIMIT:
         st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
         return
 
+    # --- Writing area ---
     schreiben_text = st.text_area(
         "**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.",
         height=250,
@@ -1161,18 +1181,11 @@ def schreiben_trainer_tab():
                 st.error(f"Error: {e}")
                 return
 
-        # Show feedback
+        # --- Feedback card ---
         st.success("📝 **Feedback from Herr Felix:**")
         st.markdown(ai_feedback)
 
-        # Extract strengths/weaknesses from feedback
-        strengths, weaknesses = extract_strengths_weaknesses(ai_feedback)
-        st.info(
-            f"**Strengths:** {strengths or '–'}\n\n"
-            f"**Needs Improvement:** {weaknesses or '–'}"
-        )
-
-        # PDF download
+        # --- PDF download ---
         pdf_bytes = generate_pdf(
             student=student_name,
             level=schreiben_level,
@@ -1186,7 +1199,8 @@ def schreiben_trainer_tab():
             mime="application/pdf"
         )
 
-        # WhatsApp link
+        # --- WhatsApp link ---
+        import urllib.parse
         assignment_msg = (
             f"Hallo Herr Felix! Hier ist mein Schreiben für die Korrektur ({schreiben_level}):\n\n"
             f"{schreiben_text}\n\n---\nFeedback: {ai_feedback[:600]}..."
@@ -1203,36 +1217,27 @@ def schreiben_trainer_tab():
             unsafe_allow_html=True
         )
 
-        # Optionally: Save to DB (comment out if you don't want this part)
-        # import sqlite3
-        # conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        # c = conn.cursor()
-        # c.execute("""
-        #     CREATE TABLE IF NOT EXISTS schreiben_feedback (
-        #         student_code TEXT,
-        #         date TEXT,
-        #         level TEXT,
-        #         score INTEGER,
-        #         strengths TEXT,
-        #         weaknesses TEXT
-        #     )
-        # """)
-        # # Extract score (best-effort)
-        # score = None
-        # m = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
-        # if m:
-        #     score = int(m.group(1))
-        # if score is not None:
-        #     c.execute(
-        #         "INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses) VALUES (?,?,?,?,?,?)",
-        #         (student_code, today_str, schreiben_level, score, strengths, weaknesses)
-        #     )
-        #     conn.commit()
+        # --- Save to DB ---
+        import re
+        score = None
+        m = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
+        if m:
+            score = int(m.group(1))
+        strengths = weaknesses = ""
+        if "Strengths:" in ai_feedback:
+            strengths = ai_feedback.split("Strengths:")[1].split("\n")[0].strip()
+        if "Weaknesses:" in ai_feedback:
+            weaknesses = ai_feedback.split("Weaknesses:")[1].split("\n")[0].strip()
+        if score is not None:
+            c.execute(
+                "INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses) VALUES (?,?,?,?,?,?)",
+                (student_code, today_str, schreiben_level, score, strengths, weaknesses)
+            )
+            conn.commit()
 
-        st.session_state["schreiben_usage"][usage_key] += 1
+        # --- Increment usage ---
+        st.session_state.schreiben_usage[usage_key] += 1
 
-# --- Place this after your tab selector ---
-# if tab == "Schreiben Trainer":
-#     schreiben_trainer_tab()
+
 
 
