@@ -451,9 +451,31 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
+
+        # --- Student Info Card (contract etc) ---
+        student_row = st.session_state.get("student_row") or {}
+        st.markdown(f"""
+        <div style='background:#f9f9ff;padding:18px 24px;border-radius:15px;margin-bottom:18px;box-shadow:0 2px 10px #eef;'>
+            <h3 style='margin:0;color:#17617a;'>{student_row.get('Name', '')}</h3>
+            <ul style='list-style:none;padding:0;font-size:1.08rem;'>
+                <li><b>Level:</b> {student_row.get('Level', '')}</li>
+                <li><b>Student Code:</b> {student_row.get('StudentCode', '')}</li>
+                <li><b>Email:</b> {student_row.get('Email', '')}</li>
+                <li><b>Phone:</b> {student_row.get('Phone', '')}</li>
+                <li><b>Location:</b> {student_row.get('Location', '')}</li>
+                <li><b>Paid:</b> {student_row.get('Paid', '')}</li>
+                <li><b>Balance:</b> {student_row.get('Balance', '')}</li>
+                <li><b>Contract Start:</b> {student_row.get('ContractStart', '')}</li>
+                <li><b>Contract End:</b> {student_row.get('ContractEnd', '')}</li>
+                <li><b>Status:</b> {student_row.get('Status', '')}</li>
+                <li><b>Enroll Date:</b> {student_row.get('EnrollDate', '')}</li>
+                <li><b>Emergency Contact:</b> {student_row.get('Emergency Contact (Phone Number)', '')}</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
         # --- Show main stats ---
         stats = get_student_stats(student_code)
         streak = get_vocab_streak(student_code)
