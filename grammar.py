@@ -1106,7 +1106,6 @@ if tab == "Vocab Trainer":
     # --- Optionally: show summary of all words completed so far for this level ---
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
-
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
@@ -1154,17 +1153,20 @@ if tab == "Schreiben Trainer":
 
     # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(f"""**📝 Your Overall Writing Performance**
-- 📨 **Submitted:** {attempted}
-- ✅ **Passed (≥17):** {passed}
-- 📊 **Pass Rate:** {accuracy}%
-- 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
-""")
+    st.markdown(f"""
+    <div style='padding:13px 8px 7px 8px;background:#f9f9ff;border-radius:13px;margin-bottom:12px;'>
+      <b>📝 Writing Performance</b><br>
+      <span style='color:#3498db;'>📨 Submitted:</span> <b>{attempted}</b> &nbsp;|&nbsp;
+      <span style='color:#27ae60;'>✅ Passed:</span> <b>{passed}</b> &nbsp;|&nbsp;
+      <span style='color:#f39c12;'>📊 Pass Rate:</span> <b>{accuracy}%</b><br>
+      <span style='color:#8e44ad;'>📅 Today:</span> <b>{daily_so_far} / {SCHREIBEN_DAILY_LIMIT}</b>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # 4. Level-Specific Stats (optional)
+    # 4. Level-Specific Stats (optional, simplified)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats["attempted"]:
+    if lvl_stats and lvl_stats.get("attempted", 0):
         correct = lvl_stats.get("correct", 0)
         attempted_lvl = lvl_stats.get("attempted", 0)
         st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
