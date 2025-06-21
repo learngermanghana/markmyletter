@@ -535,7 +535,7 @@ if st.session_state["logged_in"]:
         # --- Show Main Vocab & Writing Stats ---
         stats = get_student_stats(student_code)
         streak = get_vocab_streak(student_code)
-        st.info(f"🔥 <b>Vocab Streak:</b> {streak} days", unsafe_allow_html=True)
+        st.markdown(f"🔥 <b>Vocab Streak:</b> {streak} days", unsafe_allow_html=True)
         if stats:
             st.markdown("**Today's Vocab Progress:**")
             for lvl, d in stats.items():
