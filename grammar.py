@@ -977,10 +977,10 @@ if tab == "Schreiben Trainer":
                     f"The student has submitted a {schreiben_level} German letter or essay. "
                     "Write a brief comment in English about what the student did well and what they should improve whiles highlighting their points so they understand. Check if the letter matces their level "
                     " Talk as Herr Felix talking to a student andhHighlight the phrases with errors so they see it. Dont just say errors and not letting them know where the exact mistake is. "
-                    "1. Give a score out of 25 marks and confirm If score is above 17, say they have passed and can submit to tutor.Else If below, tell them to improve before submitting to tutor."
+                    "1. Give a score out of 25 marks and confirm If score is above 17, say they have passed and can submit to tutor.Else If below, tell them to improve before submitting to tutor in a nice way and not discouraging."
                     "2. Always explain why you gave the student that score based on grammar,spellings, vocabulary,coherance and so on. Also check A.I usage or if students wrote with their effort . " 
-                    " Give scores by analyzing grammar, structure, vocabulary and so on. Explain to the students why you gave them that score "
-                    "List and show them the phrases to improve on with tips,suggestions and what they should do. Let student use your suggestions to correct the letter but not the full corrected letter. "                                
+                    "3. List and show them the phrases to improve on with tips,suggestions and what they should do. Let student use your suggestions to correct the letter but not the full corrected letter. "
+                    " Give scores by analyzing grammar, structure, vocabulary and so on. Explain to the students why you gave them that score "                                
                 )
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 response = client.chat.completions.create(
