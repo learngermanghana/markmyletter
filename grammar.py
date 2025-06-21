@@ -4,16 +4,12 @@ import difflib
 import sqlite3
 import atexit
 import io
-from datetime import date
+from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
-import urllib.parse
-import re
-
-
 
 # ---- Cookie Manager Setup ----
 cookie_manager = EncryptedCookieManager(
@@ -27,8 +23,8 @@ OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please set OPENAI_API_KEY in your Streamlit secrets.")
     st.stop()
-client = OpenAI(api_key=OPENAI_API_KEY)
-
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
+client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
 # ---- Paste the DB connection helper here ----
 
