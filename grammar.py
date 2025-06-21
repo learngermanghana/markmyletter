@@ -670,7 +670,6 @@ if st.session_state["logged_in"]:
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
 # ==========================
-from datetime import date
 
 if tab == "Falowen Chat":
     st.header("🗣️ Falowen – Speaking & Exam Trainer")
