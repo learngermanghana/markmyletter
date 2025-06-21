@@ -1,6 +1,4 @@
-Skip to content
-Chat history
-You said:
+
 # ====================================
 # 1. IMPORTS, CONSTANTS, AND PAGE SETUP
 # ====================================
