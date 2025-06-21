@@ -1013,7 +1013,7 @@ if tab == "Vocab Trainer":
     student_name = st.session_state.get("student_name", "Demo")
     today_str = str(date.today())
 
-    # --- Daily Streak (fetch from your helper/db, or fake if not available) ---
+    # --- Daily Streak ---
     streak = get_vocab_streak(student_code)
     if streak >= 1:
         st.success(f"🔥 {streak}-day streak! Keep it up!")
@@ -1030,14 +1030,16 @@ if tab == "Vocab Trainer":
     # --- Level selection ---
     if "vocab_level" not in st.session_state:
         st.session_state["vocab_level"] = "A1"
-    vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
+    vocab_level = st.selectbox(
+        "Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select"
+    )
     if vocab_level != st.session_state["vocab_level"]:
         st.session_state["vocab_level"] = vocab_level
         st.session_state["vocab_feedback"] = ""
         st.session_state["show_next_button"] = False
         st.session_state["vocab_completed"] = set()
 
-    # --- Track completed words (fetch from DB if you want to persist) ---
+    # --- Track completed words (in session, optionally save to DB for real app) ---
     if "vocab_completed" not in st.session_state:
         st.session_state["vocab_completed"] = set()
     completed_words = st.session_state["vocab_completed"]
@@ -1050,7 +1052,10 @@ if tab == "Vocab Trainer":
     random.shuffle(new_words)
 
     # --- Visual progress bar for today's goal ---
-    st.progress(min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT, text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today")
+    st.progress(
+        min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
+        text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
+    )
 
     # --- Badge if daily goal reached ---
     if used_today >= VOCAB_DAILY_LIMIT:
@@ -1070,14 +1075,24 @@ if tab == "Vocab Trainer":
 
         if st.button("Check", key=f"vocab_check_{idx}"):
             is_correct = is_close_answer(user_answer, correct_answer) if is_tuple else bool(user_answer.strip())
+            almost = is_almost(user_answer, correct_answer) if is_tuple else False
+
             # Show feedback
             if is_correct:
                 st.success("✅ Correct!")
                 completed_words.add(idx)
+            elif almost:
+                st.warning(
+                    f"Almost! The correct answer is: <b>{correct_answer}</b>",
+                    icon="⚠️",
+                )
             else:
-                st.error(f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>", icon="❗️")
+                st.error(
+                    f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>",
+                    icon="❗️",
+                )
 
-            # Save to DB
+            # Save to DB if you wish
             save_vocab_submission(
                 student_code=student_code,
                 name=student_name,
@@ -1094,6 +1109,12 @@ if tab == "Vocab Trainer":
     # --- Optionally: show summary of all words completed so far for this level ---
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
+# ====================================
+# SCHREIBEN TRAINER TAB (with Level, Stats, and AI Feedback)
+# ====================================
+
+
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
