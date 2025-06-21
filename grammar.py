@@ -512,11 +512,34 @@ if st.session_state["logged_in"]:
         ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
         key="main_tab_select"
     )
+
+    # --- Mobile-friendly Active Tab Indicator ---
     st.markdown(
-        f"<div style='background:#e0f2ff;border-radius:12px;padding:12px 18px;margin-bottom:12px;font-size:1.2rem;'>"
-        f"🔹 <b>Active:</b> {tab}</div>",
+        f"""
+        <div style='
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            margin-bottom: 10px;
+        '>
+            <span style='
+                background: #3498db;
+                color: #fff;
+                padding: 6px 18px;
+                border-radius: 22px;
+                font-size: 1.1rem;
+                font-weight: 600;
+                letter-spacing: 1px;
+                box-shadow: 0 1px 4px #bbc;
+                white-space: nowrap;
+            '>
+                {tab}
+            </span>
+        </div>
+        """,
         unsafe_allow_html=True
     )
+
 
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
