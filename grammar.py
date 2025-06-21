@@ -1106,17 +1106,7 @@ import urllib.parse
 from fpdf import FPDF
 from datetime import date
 
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
+# DO NOT REDEFINE get_writing_stats or SCHREIBEN_DAILY_LIMIT here
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
@@ -1154,7 +1144,7 @@ if tab == "Schreiben Trainer":
     # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats["attempted"]:
+    if lvl_stats and lvl_stats.get("attempted", 0):
         correct = lvl_stats.get("correct", 0)
         attempted_lvl = lvl_stats.get("attempted", 0)
         st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
@@ -1171,7 +1161,7 @@ if tab == "Schreiben Trainer":
         height=180,
         placeholder="Write your German letter here..."
     )
-
+    
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
         f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
