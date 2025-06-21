@@ -249,118 +249,117 @@ c1_teil3_evaluations = [
 ]
 
 # ====================================
-# 2. DATA LOADERS, DB HELPERS, UTILITIES
+# 2. DATA LOADERS, DB HELPERS, UTILITIES (your style)
 # ====================================
 
-# --- DEBUG: Show working directory and files ---
-st.write("Current working directory:", os.getcwd())
-st.write("Files present:", os.listdir())
+import os
+import pandas as pd
+import sqlite3
+from datetime import date, datetime, timedelta
 
-# ---- CONFIG ----
 STUDENTS_CSV = "students.csv"
 VOCAB_DB = "vocab_progress.db"
 
-# ---- DATA LOADER ----
-@st.cache_data
-def load_student_data(path: str = STUDENTS_CSV) -> pd.DataFrame:
-    st.write(f"Trying to read CSV at: {path}")  # DEBUG LINE
-    if not os.path.exists(path):
-        st.error(f"Students file not found at `{path}`.")
-        st.stop()
-    df = pd.read_csv(path)
+# --- Load student data (only if file exists) ---
+def load_student_data():
+    if not os.path.exists(STUDENTS_CSV):
+        st.error(f"Students file not found at `{STUDENTS_CSV}`!")
+        return pd.DataFrame()
+    df = pd.read_csv(STUDENTS_CSV)
+    # Clean up relevant fields
     for col in ["StudentCode", "Email"]:
         if col in df.columns:
-            df[col] = df[col].astype(str).str.lower().str.strip()
+            df[col] = df[col].astype(str).str.strip().str.lower()
+    df.columns = [c.strip() for c in df.columns]
     return df
 
-# ---- DB INIT ----
-def init_vocab_db(path: str = VOCAB_DB):
-    try:
-        conn = sqlite3.connect(path, check_same_thread=False)
-        c = conn.cursor()
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS vocab_progress (
-                student_code TEXT,
-                date TEXT,
-                level TEXT,
-                word TEXT,
-                correct INTEGER,
-                PRIMARY KEY (student_code, date, level, word)
-            )""")
-        conn.commit()
-        return conn, c
-    except sqlite3.Error as e:
-        st.error(f"Database error: {e}")
-        st.stop()
+# --- Codes Loader (for code login) ---
+def load_codes():
+    if os.path.exists("student_codes.csv"):
+        df = pd.read_csv("student_codes.csv")
+        if "code" not in df.columns:
+            df = pd.DataFrame(columns=["code"])
+        df["code"] = df["code"].astype(str).str.strip().str.lower()
+    else:
+        df = pd.DataFrame(columns=["code"])
+    return df
 
-# ---- UTILS ----
-def get_vocab_streak(c, student_code: str) -> int:
-    try:
-        c.execute("SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC", (student_code,))
-        dates = [row[0] for row in c.fetchall()]
-    except sqlite3.Error:
-        return 0
+# --- SQLite Vocab Progress (init and helpers) ---
+conn = sqlite3.connect(VOCAB_DB, check_same_thread=False)
+c = conn.cursor()
+c.execute("""
+    CREATE TABLE IF NOT EXISTS vocab_progress (
+        student_code TEXT,
+        date TEXT,
+        level TEXT,
+        word TEXT,
+        correct INTEGER,
+        PRIMARY KEY (student_code, date, level, word)
+    )
+""")
+conn.commit()
+
+def save_vocab_progress(student_code, level, word, correct):
+    today = str(date.today())
+    c.execute("""
+        INSERT OR REPLACE INTO vocab_progress (student_code, date, level, word, correct)
+        VALUES (?, ?, ?, ?, ?)
+    """, (student_code, today, level, word, int(correct)))
+    conn.commit()
+
+def load_vocab_progress(student_code, level):
+    today = str(date.today())
+    c.execute("""
+        SELECT word, correct FROM vocab_progress
+        WHERE student_code=? AND date=? AND level=?
+    """, (student_code, today, level))
+    return dict(c.fetchall())
+
+def get_student_stats(student_code):
+    today = str(date.today())
+    c.execute("""
+        SELECT level, COUNT(*), SUM(correct)
+        FROM vocab_progress
+        WHERE student_code=? AND date=?
+        GROUP BY level
+    """, (student_code, today))
+    stats = {row[0]: {"attempted": row[1], "correct": row[2]} for row in c.fetchall()}
+    return stats
+
+def get_vocab_streak(student_code):
+    c.execute("""
+        SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC
+    """, (student_code,))
+    dates = [row[0] for row in c.fetchall()]
     if not dates:
         return 0
     streak = 1
     prev = datetime.strptime(dates[0], "%Y-%m-%d")
     for d in dates[1:]:
-        if datetime.strptime(d, "%Y-%m-%d") == prev - timedelta(days=1):
+        next_day = prev - timedelta(days=1)
+        if datetime.strptime(d, "%Y-%m-%d") == next_day:
             streak += 1
-            prev -= timedelta(days=1)
+            prev = next_day
         else:
             break
     return streak
 
-def is_close_answer(student: str, correct: str) -> bool:
-    import difflib
-    student, correct = student.strip().lower(), correct.strip().lower()
-    if correct.startswith("to "): correct = correct[3:]
-    if len(student) < 3 or len(student) < 0.6 * len(correct): return False
-    return difflib.SequenceMatcher(None, student, correct).ratio() > 0.8
-
-def is_almost(student: str, correct: str) -> bool:
-    import difflib
-    student, correct = student.strip().lower(), correct.strip().lower()
-    if correct.startswith("to "): correct = correct[3:]
-    r = difflib.SequenceMatcher(None, student, correct).ratio()
-    return 0.6 < r <= 0.8
-
-def generate_pdf(student: str, level: str, original: str, feedback: str) -> bytes:
-    from fpdf import FPDF
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=13)
-    pdf.cell(0, 12, f"Schreiben Correction – {level}", ln=1)
-    pdf.ln(2)
-    pdf.multi_cell(0, 10, f"Dear {student},\n\nYour original text:\n{original}\n\nFeedback:\n{feedback}")
-    return pdf.output(dest='S').encode('latin-1')
-
-# ---- LOGIN SCREEN ----
-def login_screen():
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
-    if not st.session_state["logged_in"]:
-        st.title("🔑 Student Login")
-        inp = st.text_input("Student Code or Email:").strip().lower()
-        if st.button("Login"):
-            df = load_student_data()
-            match = df[(df.StudentCode == inp) | (df.Email == inp)]
-            if not match.empty:
-                info = match.iloc[0].to_dict()
-                st.session_state["logged_in"] = True
-                st.session_state["student_info"] = info
-                st.session_state["student_name"] = info.get('Name', 'Student')
-                st.session_state["student_code"] = info.get('StudentCode', '').lower()
-                st.rerun()
-            else:
-                st.error("Login failed — code or email not recognized.")
-        st.stop()
-    return True
-
-# ---- (EXAMPLE) DB INIT AT APP START ----
-# Place this line early in your main() or at the top of your app logic so c is always available:
-conn, c = init_vocab_db()
+# --- Schreiben feedback table setup and retrieval ---
+def get_latest_feedback(student_code):
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS schreiben_feedback (student_code TEXT, date TEXT, level TEXT, score INTEGER, strengths TEXT, weaknesses TEXT)"
+    )
+    c.execute(
+        "SELECT date, level, score, strengths, weaknesses FROM schreiben_feedback WHERE student_code=? ORDER BY date DESC LIMIT 1",
+        (student_code,))
+    row = c.fetchone()
+    if row:
+        return {
+            "date": row[0], "level": row[1], "score": row[2],
+            "strengths": row[3], "weaknesses": row[4]
+        }
+    else:
+        return None
 
 # ====================================
 # 4. MAIN TABS & APP LOGIC
