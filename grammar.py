@@ -591,7 +591,7 @@ if st.session_state["logged_in"]:
         pass  # (Replace this with your Vocab Trainer code)
 
     elif tab == "Schreiben Trainer":
-        schreiben_trainer_tab()   # <<--- THIS MAKES THE INTERFACE APPEAR
+        schreiben_trainer_tab()   
 
 
 # ==========================
