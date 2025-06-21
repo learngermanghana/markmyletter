@@ -158,11 +158,17 @@ def load_student_data():
 
 df_students = load_student_data()
 # ====================================
+# ====================================
 # 3. STUDENT LOGIN LOGIC (single, clean block!)
 # ====================================
 
-from streamlit_extras import CookieManager
-cookie_manager = CookieManager()
+from streamlit_cookies_manager import EncryptedCookieManager
+
+cookie_manager = EncryptedCookieManager(
+    prefix="falowen_",
+    password="falowen-very-secret-key"   # (Change this to your own secret!)
+)
+cookie_manager.ready()
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
