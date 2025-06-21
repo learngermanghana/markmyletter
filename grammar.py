@@ -880,166 +880,118 @@ if tab == "Vocab Trainer":
                 st.session_state["vocab_feedback"] = ""
                 st.session_state["show_next_button"] = False
 
-# --- Schreiben Trainer Tab ---
-if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer")
+# ==========================
+# SCHREIBEN TRAINER TAB (Writing Practice + AI Feedback)
+# ==========================
+import urllib.parse
+from datetime import datetime
 
-    # ----- Usage key and limit -----
-    schreiben_usage_key = f"{st.session_state['student_code']}_schreiben_{str(date.today())}"
+if tab == "Schreiben Trainer":
+    st.header("✍️ Schreiben Trainer – Write & Get Feedback")
+
+    # Get student info
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
+
+    # Create table for writings if not exists
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            student_name TEXT,
+            content TEXT,
+            ai_feedback TEXT,
+            timestamp TEXT
+        )
+    """)
+    conn.commit()
+
+    # --- Usage/limit tracking ---
+    schreiben_key = f"{student_code}_schreiben_{str(date.today())}"
     if "schreiben_usage" not in st.session_state:
         st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(schreiben_usage_key, 0)
+    st.session_state["schreiben_usage"].setdefault(schreiben_key, 0)
+    today_count = st.session_state["schreiben_usage"][schreiben_key]
 
-    # --------- Student Progress/Stats ---------
-    def get_latest_feedback(student_code):
-        c.execute(
-            "CREATE TABLE IF NOT EXISTS schreiben_feedback (student_code TEXT, date TEXT, level TEXT, score INTEGER, strengths TEXT, weaknesses TEXT)"
-        )
-        c.execute(
-            "SELECT date, level, score, strengths, weaknesses FROM schreiben_feedback WHERE student_code=? ORDER BY date DESC LIMIT 1",
-            (student_code,))
-        row = c.fetchone()
-        if row:
-            return {
-                "date": row[0], "level": row[1], "score": row[2],
-                "strengths": row[3], "weaknesses": row[4]
-            }
-        else:
-            return None
+    st.info(f"Today's writing: {today_count} / {SCHREIBEN_DAILY_LIMIT}")
 
-    # Show stats panel
-    latest = get_latest_feedback(st.session_state['student_code'])
-    with st.expander("📈 Your Writing Progress", expanded=True):
-        if latest:
-            st.markdown(f"""
-                **Last Attempt:** {latest['date']}  
-                **Level:** {latest['level']}  
-                **Score:** {latest['score']} / 25  
-                **Strengths:** {latest['strengths'] or '–'}  
-                **Needs Improvement:** {latest['weaknesses'] or '–'}
-            """)
-        else:
-            st.write("_No submissions yet. Your progress will appear here!_")
-
-    st.info(
-        f"Today's Schreiben submissions: {st.session_state['schreiben_usage'][schreiben_usage_key]}/{SCHREIBEN_DAILY_LIMIT}"
-    )
-
-    schreiben_level = st.selectbox(
-        "Select your level:",
-        ["A1", "A2", "B1", "B2", "C1"],
-        key="schreiben_level_select"
-    )
-
-    if st.session_state["schreiben_usage"][schreiben_usage_key] >= SCHREIBEN_DAILY_LIMIT:
-        st.warning("You've reached today's Schreiben submission limit. Please come back tomorrow!")
+    # --- Writing form, enforce daily limit ---
+    if today_count >= SCHREIBEN_DAILY_LIMIT:
+        st.warning("You have reached today's writing limit. Come back tomorrow for more practice!")
     else:
-        st.write("**Paste your letter or essay below.** Herr Felix will mark it as a real Goethe examiner and give you feedback.")
+        prompt = st.text_area(
+            "Write your answer, letter, or essay here. Paste a writing topic or write freely in German:",
+            key="schreiben_input"
+        )
+        if st.button("Submit Writing", key="submit_schreiben"):
+            if prompt.strip():
+                # ============ AI Feedback ============
+                st.info("AI is reviewing your writing, please wait...")
+                openai_client = OpenAI()
+                try:
+                    completion = openai_client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are a friendly, professional German teacher. Read the student's German text and give simple feedback in English (focus on structure, clarity, main mistakes, and how to improve)."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.6,
+                        max_tokens=180
+                    )
+                    ai_feedback = completion.choices[0].message.content.strip()
+                except Exception as e:
+                    ai_feedback = f"AI feedback could not be generated. ({e})"
 
-        schreiben_text = st.text_area("Your letter/essay", height=250, key=f"schreiben_text_{schreiben_level}")
-
-        if st.button("Check My Writing"):
-            if not schreiben_text.strip():
-                st.warning("Please write something before submitting.")
-            else:
-                ai_prompt = (
-                    f"You are Herr Felix, a strict but supportive Goethe examiner. "
-                    f"The student has submitted a {schreiben_level} German letter or essay. "
-                    "Talk as the tutor in English to explain mistakes. Use 'you' for the student to sound direct. "
-                    "Read the full text. Mark and correct grammar/spelling/structure mistakes, and provide a clear correction. "
-                    "Write a brief comment in English about what the student did well and what they should improve. "
-                    "Teach steps; let student use your suggestions to correct the letter (don't give a full corrected letter, but highlight the changes). "
-                    "Give a score out of 25 marks, with reasoning (grammar, spelling, vocab, structure). "
-                    "Show strengths, weaknesses, suggested phrases, vocabulary, conjunctions for next time. Also check if letter matches their level. "
-                    "If score is above 17, say they have passed and can submit to tutor. If below, tell them to improve."
+                # ============ Save to DB ============
+                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                c.execute(
+                    "INSERT INTO schreiben_entries (student_code, student_name, content, ai_feedback, timestamp) VALUES (?, ?, ?, ?, ?)",
+                    (student_code, student_name, prompt, ai_feedback, now)
                 )
-                ai_message = f"{ai_prompt}\n\nStudent's letter/essay:\n{schreiben_text}"
+                conn.commit()
+                st.session_state["schreiben_usage"][schreiben_key] += 1
 
-                with st.spinner("🧑‍🏫 Herr Felix is marking..."):
-                    try:
-                        client = OpenAI(api_key=st.secrets["general"]["OPENAI_API_KEY"])
-                        response = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[{"role": "system", "content": ai_message}]
-                        )
-                        ai_feedback = response.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_feedback = f"Error: {str(e)}"
-
-                st.success("📝 **Feedback from Herr Felix:**")
-                st.markdown(ai_feedback)
-
-                # --- PDF Generation Function ---
-                def safe_pdf(text):
-                    return str(text).encode("latin-1", "replace").decode("latin-1")
-
-                def generate_pdf(student, level, original, feedback):
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=13)
-                    pdf.cell(0, 12, safe_pdf(f"Schreiben Correction – {level}"), ln=1)
-                    pdf.ln(2)
-                    pdf.multi_cell(0, 10, safe_pdf(
-                        f"Dear {student},\n\nYour original text:\n\n{original}\n\nFeedback from Herr Felix:\n\n{feedback}"
-                    ))
-                    return pdf.output(dest='S').encode('latin-1')
-
-                student_name = st.session_state.get("student_name", "Student")
-                pdf_bytes = generate_pdf(
-                    student=student_name,
-                    level=schreiben_level,
-                    original=schreiben_text,
-                    feedback=ai_feedback
-                )
-                st.download_button(
-                    label="⬇️ Download Feedback as PDF",
-                    data=pdf_bytes,
-                    file_name=f"Schreiben_Feedback_{schreiben_level}_{date.today()}.pdf",
-                    mime="application/pdf"
-                )
-
-                # --- WhatsApp Send Link (pre-fill assignment text) ---
+                # ============ WhatsApp Link ============
                 assignment_message = (
-                    f"Hallo Herr Felix! Hier ist mein Schreiben für die Korrektur ({schreiben_level}):\n\n"
-                    f"{schreiben_text}\n\n---\nFeedback: {ai_feedback[:600]}..."  # Shorten if needed!
+                    f"Hallo Herr Felix, hier ist mein Schreiben-Text von {student_name or student_code}:\n\n{prompt}"
                 )
                 whatsapp_url = (
                     "https://api.whatsapp.com/send"
                     "?phone=233205706589"
                     f"&text={urllib.parse.quote(assignment_message)}"
                 )
+
+                st.success("Writing submitted! Here is your AI feedback and WhatsApp link:")
                 st.markdown(
-                    f'<a href="{whatsapp_url}" target="_blank" '
-                    'style="font-size:1.15rem;background:#1ad03f;padding:9px 18px;border-radius:10px;text-decoration:none;color:white;">'
-                    '📲 Send Assignment via WhatsApp</a>',
+                    f"<b>AI Feedback:</b><br><div style='background:#eef;padding:10px 14px;border-radius:10px;margin-bottom:7px;'>{ai_feedback}</div>",
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    f"[📲 Send on WhatsApp]({whatsapp_url})",
                     unsafe_allow_html=True
                 )
 
-                # --- Save stats to SQLite for later dashboard display ---
-                score_match = re.search(r"Score[: ]*([0-9]+)", ai_feedback)
-                score = int(score_match.group(1)) if score_match else None
-                strengths = weaknesses = ""
-                if "Strengths:" in ai_feedback:
-                    strengths = ai_feedback.split("Strengths:")[1].split("\n")[0].strip()
-                if "Weaknesses:" in ai_feedback:
-                    weaknesses = ai_feedback.split("Weaknesses:")[1].split("\n")[0].strip()
-                if score:
-                    c.execute("""
-                        CREATE TABLE IF NOT EXISTS schreiben_feedback (
-                            student_code TEXT,
-                            date TEXT,
-                            level TEXT,
-                            score INTEGER,
-                            strengths TEXT,
-                            weaknesses TEXT
-                        )
-                    """)
-                    c.execute("""
-                        INSERT INTO schreiben_feedback (student_code, date, level, score, strengths, weaknesses)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """, (
-                        st.session_state['student_code'], str(date.today()), schreiben_level, score, strengths, weaknesses
-                    ))
-                    conn.commit()
+                # Optionally clear input
+                st.session_state["schreiben_input"] = ""
 
-                st.session_state["schreiben_usage"][schreiben_usage_key] += 1
+            else:
+                st.error("Please enter some text before submitting.")
+
+    # --- Show latest 5 previous submissions ---
+    c.execute(
+        "SELECT content, ai_feedback, timestamp FROM schreiben_entries WHERE student_code=? ORDER BY id DESC LIMIT 5",
+        (student_code,)
+    )
+    rows = c.fetchall()
+    if rows:
+        st.markdown("### Your Recent Submissions")
+        for idx, (content, feedback, ts) in enumerate(rows, 1):
+            st.markdown(
+                f"<div style='margin-bottom:18px;padding:10px 16px;border:1px solid #e7eafc;border-radius:10px;background:#fcfdff;'>"
+                f"<b>#{idx} – {ts}</b><br>"
+                f"<span style='color:#1a237e;'>Your Text:</span><br>{content}<br>"
+                f"<span style='color:#20734b;'><b>AI Feedback:</b></span> {feedback}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
