@@ -973,7 +973,7 @@ if tab == "Schreiben Trainer":
         else:
             with st.spinner("Herr Felix is marking your letter..."):
                 ai_prompt = (
-                    f"You are Herr Felix, a supportive but strict Goethe examiner. "
+                    f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
                     f"The student has submitted a {schreiben_level} German letter or essay. "
                     "Write a brief comment in English about what the student did well and what they should improve whiles highlighting their points so they understand. Check if the letter matces their level "
                     " Talk as Herr Felix talking to a student andhHighlight the phrases with errors so they see it. Dont just say errors and not letting them know where the exact mistake is. "
