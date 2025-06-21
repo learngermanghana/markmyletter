@@ -6,10 +6,18 @@ import os
 import random
 import difflib
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date
+
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
+
+# ---- Set up Streamlit page config early (before any markup/render) ----
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    layout="centered",
+    initial_sidebar_state="expanded",
+)
 
 # ====================================
 # 2. STUDENT DATA LOADING
