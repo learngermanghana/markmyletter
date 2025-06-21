@@ -1,232 +1,259 @@
 # ====================================
+
 # 1. IMPORTS, CONSTANTS, AND PAGE SETUP
+
 # ====================================
 
+
+
 import os
+
 import random
+
 import difflib
+
 import sqlite3
+
 from datetime import date
 
+
+
 import pandas as pd
+
 import streamlit as st
+
 from openai import OpenAI
 
 
 
+
+
+
+
 # Load your student list once (only on first run)
+
 @st.cache_data
+
 def load_student_data():
+
     df = pd.read_csv("students.csv.csv")  # Use correct path
+
     df.columns = [c.strip() for c in df.columns]  # Remove any header whitespace
+
     return df
+
+
 
 df_students = load_student_data()
 
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = None
-
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
-    if st.button("Login"):
-        found = df_students[
-            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
-            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
-        ]
-        if not found.empty:
-            st.session_state["logged_in"] = True
-            st.session_state["student_row"] = found.iloc[0].to_dict()
-            st.success(f"Welcome, {st.session_state['student_row']['Name']}! Login successful.")
-            st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email and try again.")
-    st.stop()
-
-
-# --- Helper to load student data ---
+# Load your student list once (only on first run)
+@st.cache_data
 def load_student_data():
-    if not os.path.exists(STUDENTS_CSV):
+    path = globals().get("STUDENTS_CSV", "students.csv")
+    if not os.path.exists(path):
         st.error("Students file not found!")
         return pd.DataFrame()
-    df = pd.read_csv(STUDENTS_CSV)
+    df = pd.read_csv(path)
+    df.columns = [c.strip() for c in df.columns]
     for col in ["StudentCode", "Email"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.lower()
     return df
 
-# --- Student login logic ---
-if "student_code" not in st.session_state:
-    st.session_state["student_code"] = ""
+
 if "logged_in" not in st.session_state:
+
     st.session_state["logged_in"] = False
+
+if "student_row" not in st.session_state:
+
+    st.session_state["student_row"] = None
+
+
+
+if not st.session_state["logged_in"]:
+
+    st.title("🔑 Student Login")
+
+    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
+
+    if st.button("Login"):
+
+        found = df_students[
+
+            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
+
+            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
+
+        ]
 
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
-    login_input = st.text_input("Enter your **Student Code** or **Email** to begin:")
+    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
     if st.button("Login"):
-        login_input_clean = login_input.strip().lower()
         df_students = load_student_data()
-        match = df_students[
-            (df_students["StudentCode"].str.lower() == login_input_clean) | 
-            (df_students["Email"].str.lower() == login_input_clean)
+        found = df_students[
+            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
+            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
         ]
-        if not match.empty:
-            st.session_state["student_code"] = match.iloc[0]["StudentCode"].lower()
+        if not found.empty:
+
             st.session_state["logged_in"] = True
-            st.session_state["student_info"] = match.iloc[0].to_dict()
-            st.success("Welcome! Login successful.")
+
+            st.session_state["student_row"] = found.iloc[0].to_dict()
+
+            st.success(f"Welcome, {st.session_state['student_row']['Name']}! Login successful.")
+
             st.rerun()
+
         else:
-            st.error("Login failed. Code or Email not recognized.")
-            st.stop()
+
+            st.error("Login failed. Please check your Student Code or Email and try again.")
+
     st.stop()
 
 
 
-# --- After login, show dashboard at the top ---
-if st.session_state["logged_in"]:
-    st.header("🎓 Student Dashboard")
-    student = st.session_state["student_row"]
-    st.markdown(f"""
-    <div style='background:#f9f9ff;padding:18px 24px;border-radius:15px;margin-bottom:18px;box-shadow:0 2px 10px #eef;'>
-        <h3 style='margin:0;color:#17617a;'>{student['Name']}</h3>
-        <ul style='list-style:none;padding:0;font-size:1.08rem;'>
-            <li><b>Level:</b> {student['Level']}</li>
-            <li><b>Student Code:</b> {student['StudentCode']}</li>
-            <li><b>Email:</b> {student['Email']}</li>
-            <li><b>Phone:</b> {student['Phone']}</li>
-            <li><b>Location:</b> {student['Location']}</li>
-            <li><b>Paid:</b> {student['Paid']}</li>
-            <li><b>Balance:</b> {student['Balance']}</li>
-            <li><b>Contract Start:</b> {student['ContractStart']}</li>
-            <li><b>Contract End:</b> {student['ContractEnd']}</li>
-            <li><b>Status:</b> {student.get('Status', '')}</li>
-            <li><b>Enroll Date:</b> {student.get('EnrollDate', '')}</li>
-            <li><b>Emergency Contact:</b> {student.get('Emergency Contact (Phone Number)', '')}</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
 
 
-# --- Streamlit page config ---
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
+# --- Helper to load student data ---
 
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/6815/6815043.png' width='54' style='border-radius:50%;border:2.5px solid #51a8d2;box-shadow:0 2px 8px #cbe7fb;'/>
-        <div>
-            <span style='font-size:2.1rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen</span><br>
-            <span style='font-size:1.08rem;color:#268049;'>Your personal German speaking coach (Herr Felix)</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True
-)
+def load_student_data():
 
-# ====================================
-# 2. SQLITE SETUP & HELPER FUNCTIONS
-# ====================================
+    if not os.path.exists(STUDENTS_CSV):
 
-conn = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-c = conn.cursor()
-c.execute("""
-    CREATE TABLE IF NOT EXISTS vocab_progress (
-        student_code TEXT,
-        date TEXT,
-        level TEXT,
-        word TEXT,
-        correct INTEGER,
-        PRIMARY KEY (student_code, date, level, word)
-    )
-""")
-conn.commit()
+        st.error("Students file not found!")
 
-def save_vocab_progress(student_code, level, word, correct):
-    today = str(date.today())
-    c.execute("""
-        INSERT OR REPLACE INTO vocab_progress (student_code, date, level, word, correct)
-        VALUES (?, ?, ?, ?, ?)
-    """, (student_code, today, level, word, int(correct)))
-    conn.commit()
+        return pd.DataFrame()
 
-def load_vocab_progress(student_code, level):
-    today = str(date.today())
-    c.execute("""
-        SELECT word, correct FROM vocab_progress
-        WHERE student_code=? AND date=? AND level=?
-    """, (student_code, today, level))
-    return dict(c.fetchall())
+    df = pd.read_csv(STUDENTS_CSV)
 
-# --- Student Dashboard Helpers ---
-def get_student_stats(student_code):
-    today = str(date.today())
-    c.execute("""
-        SELECT level, COUNT(*), SUM(correct)
-        FROM vocab_progress
-        WHERE student_code=? AND date=?
-        GROUP BY level
-    """, (student_code, today))
-    stats = {row[0]: {"attempted": row[1], "correct": row[2]} for row in c.fetchall()}
-    return stats
+    for col in ["StudentCode", "Email"]:
 
-def get_vocab_streak(student_code):
-    c.execute("""
-        SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC
-    """, (student_code,))
-    dates = [row[0] for row in c.fetchall()]
-    if not dates:
-        return 0
-    streak = 1
-    prev = datetime.strptime(dates[0], "%Y-%m-%d")
-    for d in dates[1:]:
-        next_day = prev - timedelta(days=1)
-        if datetime.strptime(d, "%Y-%m-%d") == next_day:
-            streak += 1
-            prev = next_day
+        if col in df.columns:
+
+            df[col] = df[col].astype(str).str.strip().str.lower()
+
+    return df
+
+
+
+# --- Student login logic ---
+
+# --- Student login logic ---
+if "student_code" not in st.session_state:
+
+    st.session_state["student_code"] = ""
+
+if "logged_in" not in st.session_state:
+
+    st.session_state["logged_in"] = False
+
+
+
+if not st.session_state["logged_in"]:
+
+    st.title("🔑 Student Login")
+
+    login_input = st.text_input("Enter your **Student Code** or **Email** to begin:")
+
+    if st.button("Login"):
+
+        login_input_clean = login_input.strip().lower()
+
+        df_students = load_student_data()
+
+        match = df_students[
+
+            (df_students["StudentCode"].str.lower() == login_input_clean) | 
+
+            (df_students["Email"].str.lower() == login_input_clean)
+
+        ]
+
+        if not match.empty:
+
+            st.session_state["student_code"] = match.iloc[0]["StudentCode"].lower()
+
+            st.session_state["logged_in"] = True
+
+            st.session_state["student_info"] = match.iloc[0].to_dict()
+
+            st.success("Welcome! Login successful.")
+
+            st.rerun()
+
         else:
-            break
-    return streak
+
+            st.error("Login failed. Code or Email not recognized.")
+
+            st.stop()
+
+    st.stop()
+
+@@ -198,52 +193,52 @@ def get_vocab_streak(student_code):
+# ====================================
+
+# 3. FLEXIBLE ANSWER CHECKERS
 
 # ====================================
-# 3. FLEXIBLE ANSWER CHECKERS
-# ====================================
+
+
 
 def is_close_answer(student, correct):
+
     student = student.strip().lower()
+
     correct = correct.strip().lower()
+
     if correct.startswith("to "):
+
         correct = correct[3:]
+
     if len(student) < 3 or len(student) < 0.6 * len(correct):
+
         return False
+
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+
     return similarity > 0.80
 
+
+
 def is_almost(student, correct):
+
     student = student.strip().lower()
+
     correct = correct.strip().lower()
+
     if correct.startswith("to "):
+
         correct = correct[3:]
+
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+
     return 0.60 < similarity <= 0.80
 
+
+
 # ====================================
+
 # 4. CONSTANTS & VOCAB LISTS
+
 # ====================================
 
-CODES_FILE = "student_codes.csv"
-FALOWEN_DAILY_LIMIT = 25
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
 
+
+CODES_FILE = "student_codes.csv"␍␊
+STUDENTS_CSV = "students.csv"
+CODES_FILE = "student_codes.csv"␊
+FALOWEN_DAILY_LIMIT = 25
+
+VOCAB_DAILY_LIMIT = 20
+
+SCHREIBEN_DAILY_LIMIT = 5
+
+max_turns = 25
 # --- Vocab lists for all levels ---
 
 a1_vocab = [
