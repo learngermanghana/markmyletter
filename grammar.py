@@ -8,20 +8,17 @@ import pandas as pd
 import streamlit as st
 from openai import OpenAI
 from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
-import urllib.parse
+from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
 
-
-# Check for API key at the start
-if not os.getenv("OPENAI_API_KEY") and not st.secrets.get("OPENAI_API_KEY"):
-    st.error("Missing OpenAI API key. Please set OPENAI_API_KEY in your environment or .streamlit/secrets.toml.")
+# ---- OpenAI Client Setup ----
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error(
+        "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
+    )
     st.stop()
-
-# If you use secrets.toml (on Streamlit Cloud), set the variable programmatically:
-if st.secrets.get("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-
-client = OpenAI()  # Will pick up OPENAI_API_KEY from env
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
+client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
 # ---- Paste the DB connection helper here ----
 
