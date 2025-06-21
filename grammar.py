@@ -494,6 +494,7 @@ c1_teil3_evaluations = [
 if st.session_state["logged_in"]:
     # Always fetch from session_state and define as a local variable
     student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
 
     st.header("Choose Practice Mode")
     tab = st.radio(
@@ -512,6 +513,25 @@ if st.session_state["logged_in"]:
 
         # --- Student Info Card (contract etc) ---
         student_row = st.session_state.get("student_row") or {}
+        from datetime import datetime, timedelta, date
+
+        # Contract and payment due notifications
+        contract_end_str = student_row.get('ContractEnd', '')
+        contract_warning = ""
+        if contract_end_str:
+            try:
+                contract_end = datetime.strptime(contract_end_str, "%Y-%m-%d")
+                days_left = (contract_end - datetime.now()).days
+                if 0 <= days_left <= 7:
+                    contract_warning = f"⚠️ Your contract ends in {days_left} day(s): {contract_end.strftime('%d %b %Y')}. Please contact administration if you wish to renew."
+            except Exception:
+                contract_warning = ""
+        paid = str(student_row.get('Paid', '')).strip().lower()
+        balance = str(student_row.get('Balance', '')).strip()
+        payment_warning = ""
+        if (paid in ["no", "pending", "0", "not paid", "due", "false"]) or (balance and balance not in ["0", "0.0", "", "none"]):
+            payment_warning = "💸 <b>Payment due:</b> Please settle your balance to avoid interruption."
+
         st.markdown(f"""
         <div style='background:#f9f9ff;padding:18px 24px;border-radius:15px;margin-bottom:18px;box-shadow:0 2px 10px #eef;'>
             <h3 style='margin:0;color:#17617a;'>{student_row.get('Name', '')}</h3>
@@ -531,69 +551,71 @@ if st.session_state["logged_in"]:
             </ul>
         </div>
         """, unsafe_allow_html=True)
+        # Show warnings
+        if payment_warning:
+            st.markdown(f"<div style='color:#b80b2e;font-weight:bold;margin-bottom:8px;'>{payment_warning}</div>", unsafe_allow_html=True)
+        if contract_warning:
+            st.markdown(f"<div style='color:#b89207;font-weight:bold;margin-bottom:8px;'>{contract_warning}</div>", unsafe_allow_html=True)
 
-        # --- Show Main Vocab & Writing Stats ---
+        # --- Main Vocab Stats ---
         stats = get_student_stats(student_code)
         streak = get_vocab_streak(student_code)
         st.markdown(f"🔥 <b>Vocab Streak:</b> {streak} days", unsafe_allow_html=True)
         if stats:
-            st.markdown("**Today's Vocab Progress:**")
+            st.markdown("<b>Today's Vocab Progress:</b>", unsafe_allow_html=True)
             for lvl, d in stats.items():
                 st.markdown(
-                    f"- `{lvl}`: {d['correct'] or 0} / {d['attempted']} correct"
+                    f"<span style='color:#17617a'><b>{lvl}</b>:</span> <span style='color:#27ae60'>{d['correct'] or 0}</span> / <span style='color:#268049'>{d['attempted']}</span> correct",
+                    unsafe_allow_html=True
                 )
         else:
-            st.markdown("_No vocab activity today yet!_")
+            st.markdown("<i>No vocab activity today yet!</i>", unsafe_allow_html=True)
 
-        # --- Schreiben (Writing) Stats from DB (Weekly + Total) ---
-        from datetime import datetime, timedelta
-        conn = get_connection()
-        c = conn.cursor()
-        WEEKLY_GOAL = 3
-        today = datetime.now()
-        start_of_week = today - timedelta(days=today.weekday())
-        total_letters = c.execute(
-            "SELECT COUNT(*) FROM schreiben_progress WHERE student_code=?",
-            (student_code,)
-        ).fetchone()[0]
-        weekly_letters = c.execute(
-            "SELECT COUNT(*) FROM schreiben_progress WHERE student_code=? AND date >= ?",
-            (student_code, start_of_week.strftime("%Y-%m-%d"))
-        ).fetchone()[0]
-        passed_letters = c.execute(
-            "SELECT COUNT(*) FROM schreiben_progress WHERE student_code=? AND score >= 17",
-            (student_code,)
-        ).fetchone()[0]
+        # --- Schreiben (Writing) Overall Stats & Goal Tracker ---
+        def get_writing_stats(student_code):
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("""
+                SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+            """, (student_code,))
+            result = c.fetchone()
+            attempted = result[0] or 0
+            passed = result[1] or 0
+            accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+            return attempted, passed, accuracy
 
-        # Show writing stats card
+        def get_weekly_schreiben_count(student_code):
+            conn = get_connection()
+            c = conn.cursor()
+            today = date.today()
+            start_of_week = today - timedelta(days=today.weekday())
+            c.execute("""
+                SELECT COUNT(*) FROM schreiben_progress
+                WHERE student_code=? AND date>=?
+            """, (student_code, str(start_of_week)))
+            count = c.fetchone()[0] or 0
+            weekly_goal = 3  # set your weekly goal here
+            return count, weekly_goal
+
+        w_attempted, w_passed, w_accuracy = get_writing_stats(student_code)
         st.markdown(f"""
-        <div style='background:#e3fcec;border-radius:12px;padding:14px 20px;margin-bottom:16px;'>
-            <h4 style='margin-bottom:0.5em;'>📝 <b>Your Writing Progress</b></h4>
-            <span style='font-size:1.08rem;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{total_letters}</span></span>
+        <div style='background:#f9fafd;border-radius:12px;padding:14px 20px;margin-bottom:16px;'>
+            <h4 style='margin-bottom:0.5em;'>📊 <b>Your Overall Writing Performance</b></h4>
+            <span style='font-size:1.1rem;'><b>Total Letters Submitted:</b> <span style='color:#2574a9;'>{w_attempted}</span></span>  
             <br>
-            <span style='font-size:1.08rem;'><b>Passed (Score ≥ 17):</b> <span style='color:#27ae60;'>{passed_letters}</span></span>
+            <span style='font-size:1.1rem;'><b>Passed (≥17):</b> <span style='color:#27ae60;'>{w_passed}</span></span>
             <br>
-            <span style='font-size:1.08rem;'><b>This Week:</b> <span style='color:#8e44ad;'>{weekly_letters} / {WEEKLY_GOAL} letters</span></span>
+            <span style='font-size:1.1rem;'><b>Pass Rate:</b> <span style='color:#e67e22;'>{w_accuracy}%</span></span>
         </div>
         """, unsafe_allow_html=True)
 
-        # --- Goal Tracker (Write 3 letters per week) ---
-        if weekly_letters >= WEEKLY_GOAL:
-            st.success("🎉 Goal achieved! You've completed your writing goal for this week. Amazing!")
+        # --- Writing Goal Tracker ---
+        sch_this, sch_goal = get_weekly_schreiben_count(student_code)
+        remaining = max(0, sch_goal - sch_this)
+        if remaining > 0:
+            st.markdown(f"<span style='background:#ffeec2;padding:7px 14px;border-radius:8px;'><b>Your next goal:</b> Write <b>{remaining}</b> more letter(s) this week!</span>", unsafe_allow_html=True)
         else:
-            st.info(
-                f"📝 <b>Goal Tracker</b>: Your next goal – Write <span style='color:#e67e22;'>{WEEKLY_GOAL - weekly_letters}</span> more letter(s) this week!",
-                unsafe_allow_html=True
-            )
-
-        # --- Motivational / Next Steps Card ---
-        st.markdown("""
-        <div style='background:#fdf6e4;border-radius:12px;padding:14px 20px;margin-top:12px;'>
-            <b>Tip:</b> Try to write a letter or complete a vocab challenge every day. The more you practice, the better you get! 🚀<br>
-            <b>Need help?</b> Use the Schreiben Trainer or ask Herr Felix for extra feedback!
-        </div>
-        """, unsafe_allow_html=True)
-
+            st.markdown("<span style='background:#d6f7cc;padding:7px 14px;border-radius:8px;'><b>✅ You met your weekly writing goal. Great job!</b></span>", unsafe_allow_html=True)
 
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
