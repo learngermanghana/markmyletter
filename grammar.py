@@ -912,102 +912,92 @@ if tab == "Vocab Trainer":
                 st.session_state["vocab_feedback"] = ""
                 st.session_state["show_next_button"] = False
 
-# ==========================
-# SCHREIBEN TRAINER TAB (Writing Practice + AI Feedback)
-# ==========================
-import urllib.parse
-from datetime import datetime
+# ====================================
+# SCHREIBEN TRAINER TAB (with Level, Stats, and AI Feedback)
+# ====================================
 
 if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer – Write & Get Feedback")
+    st.header("✍️ Schreiben Trainer (Writing Practice)")
+    # Always let student choose level (remember last used)
+    schreiben_levels = ["A1", "A2", "B1", "B2"]
+    prev_schreiben_level = st.session_state.get("schreiben_level", "A1")
+    schreiben_level = st.selectbox(
+        "Choose your writing level:",
+        schreiben_levels,
+        index=schreiben_levels.index(prev_schreiben_level) if prev_schreiben_level in schreiben_levels else 0,
+        key="schreiben_level"
+    )
+    st.session_state["schreiben_level"] = schreiben_level
 
-    # Get student info
+    # Show strengths/weaknesses using stats
     student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
-
-    # Create table for writings if not exists
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            student_name TEXT,
-            content TEXT,
-            ai_feedback TEXT,
-            timestamp TEXT
-        )
-    """)
-    conn.commit()
-
-    # --- Usage/limit tracking ---
-    schreiben_key = f"{student_code}_schreiben_{str(date.today())}"
-    if "schreiben_usage" not in st.session_state:
-        st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(schreiben_key, 0)
-    today_count = st.session_state["schreiben_usage"][schreiben_key]
-
-    st.info(f"Today's writing: {today_count} / {SCHREIBEN_DAILY_LIMIT}")
-
-    # --- Writing form, enforce daily limit ---
-    if today_count >= SCHREIBEN_DAILY_LIMIT:
-        st.warning("You have reached today's writing limit. Come back tomorrow for more practice!")
+    stats = get_student_stats(student_code)
+    lvl_stats = stats.get(schreiben_level, {}) if stats else {}
+    streak = get_vocab_streak(student_code)
+    st.info(f"🔥 **Vocab Streak:** {streak} days")
+    if lvl_stats:
+        correct = lvl_stats.get("correct", 0)
+        attempted = lvl_stats.get("attempted", 0)
+        weak = lvl_stats.get("weaknesses", [])
+        strong = lvl_stats.get("strengths", [])
+        st.success(f"Level `{schreiben_level}`: {correct} / {attempted} correct")
+        if strong:
+            st.markdown(f"**Your strengths:** {', '.join(strong)}")
+        if weak:
+            st.markdown(f"**Areas to improve:** {', '.join(weak)}")
     else:
-        prompt = st.text_area(
-            "Write your answer, letter, or essay here. Paste a writing topic or write freely in German:",
-            key="schreiben_input"
-        )
-        if st.button("Submit Writing", key="submit_schreiben"):
-            if prompt.strip():
-                # ============ AI Feedback ============
-                st.info("AI is reviewing your writing, please wait...")
-                openai_client = OpenAI()
-                try:
-                    completion = openai_client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "You are a friendly, professional German teacher. Read the student's German text and give simple feedback in English (focus on structure, clarity, main mistakes, and how to improve)."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        temperature=0.6,
-                        max_tokens=180
-                    )
-                    ai_feedback = completion.choices[0].message.content.strip()
-                except Exception as e:
-                    ai_feedback = f"AI feedback could not be generated. ({e})"
+        st.markdown("_No previous writing activity for this level yet._")
 
-                # ============ Save to DB ============
-                now = datetime.now().strftime("%Y-%m-%d %H:%M")
-                c.execute(
-                    "INSERT INTO schreiben_entries (student_code, student_name, content, ai_feedback, timestamp) VALUES (?, ?, ?, ?, ?)",
-                    (student_code, student_name, prompt, ai_feedback, now)
-                )
-                conn.commit()
-                st.session_state["schreiben_usage"][schreiben_key] += 1
+    st.divider()
 
-                # ============ WhatsApp Link ============
-                assignment_message = (
-                    f"Hallo Herr Felix, hier ist mein Schreiben-Text von {student_name or student_code}:\n\n{prompt}"
-                )
-                whatsapp_url = (
-                    "https://api.whatsapp.com/send"
-                    "?phone=233205706589"
-                    f"&text={urllib.parse.quote(assignment_message)}"
-                )
+    # Input: Student types writing sample
+    st.subheader("Write your text below and get instant feedback!")
+    default_prompt = "Schreiben Sie einen kurzen Text zu einem Thema Ihrer Wahl..." if schreiben_level == "A1" else ""
+    schreiben_text = st.text_area(
+        f"Write your {schreiben_level} text here:", value=default_prompt, height=180, key="schreiben_input"
+    )
 
-                st.success("Writing submitted! Here is your AI feedback and WhatsApp link:")
-                st.markdown(
-                    f"<b>AI Feedback:</b><br><div style='background:#eef;padding:10px 14px;border-radius:10px;margin-bottom:7px;'>{ai_feedback}</div>",
-                    unsafe_allow_html=True
-                )
-                st.markdown(
-                    f"[📲 Send on WhatsApp]({whatsapp_url})",
-                    unsafe_allow_html=True
-                )
+    # Submit for AI Feedback
+    if st.button("Check & Get Feedback", key="schreiben_check"):
+        if not schreiben_text.strip() or schreiben_text.strip() == default_prompt:
+            st.warning("Please write something first!")
+            st.stop()
+        with st.spinner("Analyzing your writing..."):
+            # Example OpenAI call; adjust as needed for your feedback style
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            f"You are a helpful German teacher. Evaluate this student's {schreiben_level} writing. "
+                            "Give clear feedback on grammar, strengths, and 2-3 things to improve. Use simple English for feedback. "
+                            "Here is the text:\n" + schreiben_text
+                        ),
+                    }
+                ],
+                temperature=0.6,
+                max_tokens=350,
+            )
+            feedback = response.choices[0].message.content
+            st.success("AI Feedback:")
+            st.markdown(feedback)
 
-                # Optionally clear input
-                st.session_state["schreiben_input"] = ""
+            # Optionally store feedback in your DB for stats updates, if you wish
 
-            else:
-                st.error("Please enter some text before submitting.")
+            # WhatsApp Export
+            import urllib.parse
+            assignment_message = f"Mein Schreibtext für {schreiben_level}:\n\n{schreiben_text}\n\nFeedback:\n{feedback}"
+            whatsapp_url = (
+                "https://api.whatsapp.com/send"
+                "?phone=233205706589"
+                f"&text={urllib.parse.quote(assignment_message)}"
+            )
+            st.markdown(
+                f"[📤 Send my writing & feedback to Herr Felix on WhatsApp]({whatsapp_url})",
+                unsafe_allow_html=True
+            )
 
     # --- Show latest 5 previous submissions ---
     c.execute(
