@@ -1062,18 +1062,30 @@ if tab == "Vocab Trainer":
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with accurate stats and mobile clarity)
+# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
 import urllib.parse
 from fpdf import FPDF
 from datetime import date
 
-SCHREIBEN_DAILY_LIMIT = 5  # Adjust as needed
+SCHREIBEN_DAILY_LIMIT = 5  # Or your preferred daily max
+
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
+    return attempted, passed, accuracy
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # 1. Level selection (remember previous)
+    # 1. Choose Level (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -1086,6 +1098,7 @@ if tab == "Schreiben Trainer":
 
     # 2. Daily limit tracking (by student & date)
     student_code = st.session_state.get("student_code", "demo")
+    student_name = st.session_state.get("student_name", "")
     today_str = str(date.today())
     limit_key = f"{student_code}_schreiben_{today_str}"
     if "schreiben_usage" not in st.session_state:
@@ -1093,28 +1106,24 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # 3. Show overall writing performance (from DB, accurate)
+    # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(f"""
-    <div style='background:#f8fafd;border-radius:8px;padding:10px 16px;margin-bottom:14px;'>
-        <b>📈 Writing Performance Overview</b><br>
-        <span style='font-size:1.07rem;'>Total Submitted: <b style='color:#1750a1'>{attempted}</b> &nbsp;|&nbsp;
-        Passed: <b style='color:#1aa052'>{passed}</b> &nbsp;|&nbsp;
-        Pass Rate: <b style='color:#e67e22'>{accuracy}%</b><br>
-        <span style='color:#8e44ad;'>Today: {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used</span>
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""**📝 Your Overall Writing Performance**
+- 📨 **Submitted:** {attempted}
+- ✅ **Passed (≥17):** {passed}
+- 📊 **Pass Rate:** {accuracy}%
+- 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
+""")
 
-    # 4. Level-Specific Stats (from DB, only if user has activity at this level)
+    # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
-    lvl_stats = stats.get(schreiben_level, {})
-    if lvl_stats and lvl_stats["attempted"] > 0:
+    lvl_stats = stats.get(schreiben_level, {}) if stats else {}
+    if lvl_stats and lvl_stats["attempted"]:
         correct = lvl_stats.get("correct", 0)
-        attempted_level = lvl_stats.get("attempted", 0)
-        st.success(f"Level `{schreiben_level}`: {correct} / {attempted_level} passed")
+        attempted_lvl = lvl_stats.get("attempted", 0)
+        st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
     else:
-        st.markdown("_No previous writing activity for this level yet._")
+        st.info("_No previous writing activity for this level yet._")
 
     st.divider()
 
@@ -1123,7 +1132,8 @@ if tab == "Schreiben Trainer":
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
         disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-        height=220
+        height=180,
+        placeholder="Write your German letter here..."
     )
 
     # 6. Submit & AI Feedback
@@ -1172,11 +1182,10 @@ if tab == "Schreiben Trainer":
                 score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 score = int(score_match.group(1)) if score_match else 0
 
-                # === Save to DB! ===
-                student_name = st.session_state.get("student_name", student_code)
+                # === Save submission to DB ===
                 save_schreiben_submission(student_code, student_name, schreiben_level, user_letter, score, feedback)
 
-                # === Update usage ===
+                # === Update stats (immediate session)
                 st.session_state["schreiben_usage"][limit_key] += 1
 
                 # --- Show Feedback ---
@@ -1210,75 +1219,3 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-
-
-# =============================
-# TEACHER SETTINGS TAB
-# =============================
-
-TEACHER_PASSWORD = "Felix029"  # Set your admin password here
-
-if tab == "Admin":
-    st.header("🔑 Teacher/Admin Settings")
-    password = st.text_input("Enter teacher password", type="password")
-    if password == TEACHER_PASSWORD:
-        st.success("Access granted!")
-
-        # --- Download: Schreiben Progress ---
-        st.subheader("Download: Schreiben Submissions")
-        if os.path.exists("vocab_progress.db"):
-            with open("vocab_progress.db", "rb") as dbfile:
-                st.download_button(
-                    label="⬇️ Download Full Database (vocab_progress.db)",
-                    data=dbfile,
-                    file_name="vocab_progress.db"
-                )
-        # Optionally: Download as CSV
-        conn = get_connection()
-        c = conn.cursor()
-        schreiben_rows = c.execute("SELECT * FROM schreiben_progress").fetchall()
-        vocab_rows = c.execute("SELECT * FROM vocab_progress").fetchall()
-        import pandas as pd
-        schreiben_df = pd.DataFrame(schreiben_rows, columns=[desc[0] for desc in c.description])
-        st.download_button(
-            "⬇️ Download Schreiben Data as CSV",
-            schreiben_df.to_csv(index=False).encode("utf-8"),
-            file_name="schreiben_progress.csv",
-            mime="text/csv"
-        )
-        # Download Vocab as CSV
-        vocab_df = pd.DataFrame(vocab_rows, columns=[desc[0] for desc in c.description])
-        st.download_button(
-            "⬇️ Download Vocab Data as CSV",
-            vocab_df.to_csv(index=False).encode("utf-8"),
-            file_name="vocab_progress.csv",
-            mime="text/csv"
-        )
-
-        # --- Upload new DB or CSV data (advanced option) ---
-        st.subheader("Upload Updated Data (Advanced)")
-        uploaded_file = st.file_uploader("Upload a .db or .csv to update", type=["db", "csv"])
-        if uploaded_file:
-            if uploaded_file.name.endswith(".db"):
-                # Save and replace current DB (careful: will overwrite existing!)
-                with open("vocab_progress.db", "wb") as out:
-                    out.write(uploaded_file.getbuffer())
-                st.success("Database uploaded and replaced.")
-            elif uploaded_file.name.endswith(".csv"):
-                # Optionally handle CSV updates (e.g., merge with existing data)
-                df = pd.read_csv(uploaded_file)
-                st.write("CSV Data Uploaded:", df.head())
-                # Add merge/insert/update logic here if desired
-                st.info("CSV uploaded (no merge logic applied yet).")
-
-        # --- Optionally: show summary tables
-        st.subheader("Quick View: Last 5 Schreiben Submissions")
-        st.dataframe(schreiben_df.tail(5))
-
-        st.subheader("Quick View: Last 5 Vocab Submissions")
-        st.dataframe(vocab_df.tail(5))
-
-    else:
-        st.warning("Enter the correct password to access admin features.")
-        st.stop()
-
