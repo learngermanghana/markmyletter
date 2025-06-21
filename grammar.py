@@ -251,6 +251,7 @@ c1_teil3_evaluations = [
 # ====================================
 # 2. DATA LOADERS, DB HELPERS, UTILITIES
 # ====================================
+
 # --- DEBUG: Show working directory and files ---
 st.write("Current working directory:", os.getcwd())
 st.write("Files present:", os.listdir())
@@ -272,6 +273,7 @@ def load_student_data(path: str = STUDENTS_CSV) -> pd.DataFrame:
             df[col] = df[col].astype(str).str.lower().str.strip()
     return df
 
+# ---- DB INIT ----
 def init_vocab_db(path: str = VOCAB_DB):
     try:
         conn = sqlite3.connect(path, check_same_thread=False)
@@ -291,6 +293,7 @@ def init_vocab_db(path: str = VOCAB_DB):
         st.error(f"Database error: {e}")
         st.stop()
 
+# ---- UTILS ----
 def get_vocab_streak(c, student_code: str) -> int:
     try:
         c.execute("SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC", (student_code,))
@@ -354,6 +357,10 @@ def login_screen():
                 st.error("Login failed — code or email not recognized.")
         st.stop()
     return True
+
+# ---- (EXAMPLE) DB INIT AT APP START ----
+# Place this line early in your main() or at the top of your app logic so c is always available:
+conn, c = init_vocab_db()
 
 # ====================================
 # 4. MAIN TABS & APP LOGIC
