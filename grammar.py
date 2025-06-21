@@ -1161,13 +1161,10 @@ if tab == "Vocab Trainer":
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
 
-import urllib.parse
-from fpdf import FPDF
-
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # --- 1. Choose Level (remember previous selection)
+    # 1. Choose Level (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
@@ -1178,7 +1175,7 @@ if tab == "Schreiben Trainer":
     )
     st.session_state["schreiben_level"] = schreiben_level
 
-    # --- 2. Daily limit tracking (by student & date)
+    # 2. Daily limit tracking (by student & date)
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "")
     today_str = str(date.today())
@@ -1188,7 +1185,7 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_usage"].setdefault(limit_key, 0)
     daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-    # --- 3. Show overall writing performance (DB-driven, mobile-first)
+    # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
     st.markdown(f"""**📝 Your Overall Writing Performance**
 - 📨 **Submitted:** {attempted}
@@ -1197,7 +1194,7 @@ if tab == "Schreiben Trainer":
 - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
 """)
 
-    # --- 4. Level-Specific Stats (optional)
+    # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
     if lvl_stats and lvl_stats["attempted"]:
@@ -1209,7 +1206,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- 5. Input Box (disabled if limit reached)
+    # 5. Input Box (disabled if limit reached)
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
@@ -1218,7 +1215,7 @@ if tab == "Schreiben Trainer":
         placeholder="Write your German letter here..."
     )
 
-    # --- 6. AI prompt (always define before calling the API)
+    # 6. AI prompt (always define before calling the API)
     ai_prompt = (
         f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
         f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -1235,7 +1232,7 @@ if tab == "Schreiben Trainer":
         "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
     )
 
-    # --- 7. Submit & AI Feedback
+    # 7. Submit & AI Feedback
     feedback = ""
     submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
     if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
@@ -1260,11 +1257,14 @@ if tab == "Schreiben Trainer":
         if feedback:
             # === Extract score and check if passed ===
             import re
+            # Robust regex for score detection
             score_match = re.search(
                 r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
                 feedback,
                 re.IGNORECASE,
             )
+            if not score_match:
+                score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
             if score_match:
                 score = int(score_match.group(1))
             else:
@@ -1290,12 +1290,15 @@ if tab == "Schreiben Trainer":
             pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
             pdf.output(pdf_output)
             with open(pdf_output, "rb") as f:
-                st.download_button(
-                    "⬇️ Download Feedback as PDF",
-                    f,
-                    file_name=pdf_output,
-                    mime="application/pdf"
-                )
+                pdf_bytes = f.read()
+            st.download_button(
+                "⬇️ Download Feedback as PDF",
+                pdf_bytes,
+                file_name=pdf_output,
+                mime="application/pdf"
+            )
+            import os
+            os.remove(pdf_output)
 
             # === WhatsApp Share ===
             wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
@@ -1308,4 +1311,3 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-
