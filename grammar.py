@@ -973,17 +973,17 @@ if tab == "Schreiben Trainer":
         else:
             with st.spinner("Herr Felix is marking your letter..."):
                 ai_prompt = (
-                    f"You are Herr Felix, a friendly but strict Goethe examiner. "
+                    f"You are Herr Felix, a supportive but strict Goethe examiner. "
                     f"The student has submitted a {schreiben_level} German letter or essay. "
                     "Write a brief comment in English about what the student did well and what they should improve whiles highlighting their points so they understand. Check if the letter matces their level "
                     " Highlight the phrases with errors so they see it. Dont just say errors and not letting them know where the exact mistake is. "
                     " Give scores by analyzing grammar, structure, vocabulary and so on. Explain to the students why you gave them that score "
-                    "List and show them the phrases to improve on with tips and what they should do. Let student use your suggestions to correct the letter but not the full corrected letter. "
+                    "List and show them the phrases to improve on with tips,suggestions and what they should do. Let student use your suggestions to correct the letter but not the full corrected letter. "
                     "Highlight the phrases with errors so they see it. Dont just say errors and not letting them know where the exact mistake is. "
                     "1. Give a score out of 25 marks. "
                     "2. Always explain why you gave the student that score based on grammar,spellings, vocabulary,coherance and so on. " 
-                    "If score is above 17, say they have passed and can submit to tutor. If below, tell them to improve before submitting to tutor."
-                    "Also check A.I usage or if students wrote with their effort . "
+                    "3. If score is above 17, say they have passed and can submit to tutor. If below, tell them to improve before submitting to tutor."
+                    "4. Also check A.I usage or if students wrote with their effort . "
                     
                 )
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
