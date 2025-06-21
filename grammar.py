@@ -10,6 +10,9 @@ import streamlit as st
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
+import urllib.parse
+import re
+
 
 
 # ---- Cookie Manager Setup ----
