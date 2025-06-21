@@ -988,7 +988,7 @@ if tab == "Schreiben Trainer":
     user_letter = st.text_area(
         "Paste or type your German letter/essay here.",
         key="schreiben_input",
-        disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT)
+        disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
         height=220
     )
 
