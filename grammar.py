@@ -1110,6 +1110,7 @@ if tab == "Vocab Trainer":
     # --- Optionally: show summary of all words completed so far for this level ---
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
@@ -1157,20 +1158,17 @@ if tab == "Schreiben Trainer":
 
     # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(f"""
-    <div style='padding:13px 8px 7px 8px;background:#f9f9ff;border-radius:13px;margin-bottom:12px;'>
-      <b>📝 Writing Performance</b><br>
-      <span style='color:#3498db;'>📨 Submitted:</span> <b>{attempted}</b> &nbsp;|&nbsp;
-      <span style='color:#27ae60;'>✅ Passed:</span> <b>{passed}</b> &nbsp;|&nbsp;
-      <span style='color:#f39c12;'>📊 Pass Rate:</span> <b>{accuracy}%</b><br>
-      <span style='color:#8e44ad;'>📅 Today:</span> <b>{daily_so_far} / {SCHREIBEN_DAILY_LIMIT}</b>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""**📝 Your Overall Writing Performance**
+- 📨 **Submitted:** {attempted}
+- ✅ **Passed (≥17):** {passed}
+- 📊 **Pass Rate:** {accuracy}%
+- 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
+""")
 
-    # 4. Level-Specific Stats (optional, simplified)
+    # 4. Level-Specific Stats (optional)
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats.get("attempted", 0):
+    if lvl_stats and lvl_stats["attempted"]:
         correct = lvl_stats.get("correct", 0)
         attempted_lvl = lvl_stats.get("attempted", 0)
         st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
@@ -1188,33 +1186,33 @@ if tab == "Schreiben Trainer":
         placeholder="Write your German letter here..."
     )
 
-    # 6. Submit & AI Feedback
+    # 6. AI prompt (always define before calling the API)
+    ai_prompt = (
+        f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+        f"The student has submitted a {schreiben_level} German letter or essay. "
+        "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+        "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+        "Don't just say errors—show exactly where the mistakes are. "
+        "1. Give a score out of 25 marks and always display the score clearly. "
+        "2. If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. "
+        "3. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
+        "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+        "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+        "6. Also check for AI usage or if the student wrote with their own effort. "
+        "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+        "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
+    )
+
+    # 7. Submit & AI Feedback
     feedback = ""
     submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
     if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
         st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
 
     if st.button("Get Feedback", type="primary", disabled=submit_disabled):
-        with st.spinner("Analyzing your writing..."):
-            ai_prompt = (
-                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                f"The student has submitted a {schreiben_level} German letter or essay. "
-                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                "Don't just say errors—show exactly where the mistakes are. "
-                "1. Give a score out of 25 marks and always display the score clearly. "
-                "2. If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. "
-                "3. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
-                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                "6. Also check for AI usage or if the student wrote with their own effort. "
-                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
-            )
-
-            # ---- Call OpenAI for Feedback ----
+        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
             try:
-                client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+                client = OpenAI(api_key=OPENAI_API_KEY)
                 completion = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
@@ -1228,46 +1226,46 @@ if tab == "Schreiben Trainer":
                 st.error("AI feedback failed. Please check your OpenAI setup.")
                 feedback = None
 
-            if feedback:
-                # === Extract score and check if passed ===
-                import re
-                score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-                score = int(score_match.group(1)) if score_match else 0
+        if feedback:
+            # === Extract score and check if passed ===
+            import re
+            score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+            score = int(score_match.group(1)) if score_match else 0
 
-                # === Save submission to DB ===
-                save_schreiben_submission(student_code, student_name, schreiben_level, user_letter, score, feedback)
+            # === Update usage and save to DB ===
+            st.session_state["schreiben_usage"][limit_key] += 1
+            save_schreiben_submission(
+                student_code, student_name, schreiben_level, user_letter, score, feedback
+            )
 
-                # === Update stats (immediate session)
-                st.session_state["schreiben_usage"][limit_key] += 1
+            # --- Show Feedback ---
+            st.markdown("---")
+            st.markdown("#### 📝 Feedback from Herr Felix")
+            st.markdown(feedback)
 
-                # --- Show Feedback ---
-                st.markdown("---")
-                st.markdown("#### 📝 Feedback from Herr Felix")
-                st.markdown(feedback)
-
-                # === Download as PDF ===
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                pdf.multi_cell(0, 10, f"Your Letter:\n\n{user_letter}\n\nFeedback from Herr Felix:\n\n{feedback}")
-                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-                pdf.output(pdf_output)
-                with open(pdf_output, "rb") as f:
-                    st.download_button(
-                        "⬇️ Download Feedback as PDF",
-                        f,
-                        file_name=pdf_output,
-                        mime="application/pdf"
-                    )
-
-                # === WhatsApp Share ===
-                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-                wa_url = (
-                    "https://api.whatsapp.com/send"
-                    "?phone=233205706589"
-                    f"&text={urllib.parse.quote(wa_message)}"
+            # === Download as PDF ===
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.multi_cell(0, 10, f"Your Letter:\n\n{user_letter}\n\nFeedback from Herr Felix:\n\n{feedback}")
+            pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+            pdf.output(pdf_output)
+            with open(pdf_output, "rb") as f:
+                st.download_button(
+                    "⬇️ Download Feedback as PDF",
+                    f,
+                    file_name=pdf_output,
+                    mime="application/pdf"
                 )
-                st.markdown(
-                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                    unsafe_allow_html=True
-                )
+
+            # === WhatsApp Share ===
+            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+            wa_url = (
+                "https://api.whatsapp.com/send"
+                "?phone=233205706589"
+                f"&text={urllib.parse.quote(wa_message)}"
+            )
+            st.markdown(
+                f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                unsafe_allow_html=True
+            )
