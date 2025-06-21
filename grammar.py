@@ -24,11 +24,20 @@ conn = get_connection()
 c = conn.cursor()
 
 def get_student_stats(student_code):
-    # Placeholder/example structure—replace with your real logic!
-    return {
-        "A1": {"correct": 7, "attempted": 10},
-        "A2": {"correct": 5, "attempted": 10}
-    }
+    conn = get_connection()
+    c = conn.cursor()
+    # Group by level, count correct and attempted for each
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
 
 def get_vocab_streak(student_code):
     # Placeholder: return a fake streak for now
