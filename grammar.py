@@ -10,6 +10,13 @@ import streamlit as st
 from openai import OpenAI
 from streamlit_cookies_manager import EncryptedCookieManager   # <--- For persistent login
 
+cookie_manager = EncryptedCookieManager(
+    prefix="falowen_",
+    password="a-very-secret-key"   # You can set your own key here!
+)
+cookie_manager.ready()
+
+
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])   
 
