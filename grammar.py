@@ -349,7 +349,7 @@ def login_screen():
                 st.session_state["student_info"] = info
                 st.session_state["student_name"] = info.get('Name', 'Student')
                 st.session_state["student_code"] = info.get('StudentCode', '').lower()
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Login failed — code or email not recognized.")
         st.stop()
