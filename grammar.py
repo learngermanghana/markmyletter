@@ -146,18 +146,24 @@ CODES_FILE = "student_codes.csv"
 
 @st.cache_data
 def load_student_data():
+    """Load student data from STUDENTS_CSV.
+    If missing or empty, return empty DataFrame so app still runs."""
     path = globals().get("STUDENTS_CSV", "students.csv")
     if not os.path.exists(path):
-        st.error("Students file not found!")
+        st.warning("Students file not found. Using empty data.")
         return pd.DataFrame()
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        st.warning("Students file is empty. Using empty data.")
+        return pd.DataFrame()
+
     df.columns = [c.strip() for c in df.columns]
     for col in ["StudentCode", "Email"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.lower()
     return df
 
-df_students = load_student_data()
 
 # ====================================
 # 3. STUDENT LOGIN LOGIC (single, clean block!)
