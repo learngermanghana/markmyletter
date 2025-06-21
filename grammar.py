@@ -13,7 +13,7 @@ from openai import OpenAI
 from fpdf import FPDF
 
 # --- App and file constants ---
-STUDENTS_CSV          = "students.csv"
+STUDENTS_CSV          = "students.csv.csv"
 VOCAB_DB              = "vocab_progress.db"
 CODES_FILE            = "student_codes.csv"
 FALOWEN_DAILY_LIMIT   = 25
