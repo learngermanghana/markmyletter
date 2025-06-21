@@ -7,7 +7,9 @@ import atexit
 from datetime import date
 import pandas as pd
 import streamlit as st
-from openai import OpenAI
+from openai import OpenAI    # <--- Here
+
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])   
 
 # ---- Paste the DB connection helper here ----
 
