@@ -1,52 +1,24 @@
 # ====================================
-
 # 1. IMPORTS, CONSTANTS, AND PAGE SETUP
-
 # ====================================
 
-
-
 import os
-
 import random
-
 import difflib
-
 import sqlite3
-
-from datetime import date
-
-
-
+from datetime import date, datetime, timedelta
 import pandas as pd
-
 import streamlit as st
-
 from openai import OpenAI
 
+# ====================================
+# 2. STUDENT DATA LOADING
+# ====================================
 
+STUDENTS_CSV = "students.csv"
+CODES_FILE = "student_codes.csv"
 
-
-
-
-
-# Load your student list once (only on first run)
-
-@st.cache_data
-
-def load_student_data():
-
-    df = pd.read_csv("students.csv.csv")  # Use correct path
-
-    df.columns = [c.strip() for c in df.columns]  # Remove any header whitespace
-
-    return df
-
-
-
-df_students = load_student_data()
-
-# Load your student list once (only on first run)
+# --- Unified Loader: Use correct path, fallback to global config ---
 @st.cache_data
 def load_student_data():
     path = globals().get("STUDENTS_CSV", "students.csv")
@@ -54,39 +26,26 @@ def load_student_data():
         st.error("Students file not found!")
         return pd.DataFrame()
     df = pd.read_csv(path)
-    df.columns = [c.strip() for c in df.columns]
+    df.columns = [c.strip() for c in df.columns]  # Remove header whitespace
     for col in ["StudentCode", "Email"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().str.lower()
     return df
 
+df_students = load_student_data()
+
+# ====================================
+# 3. STUDENT LOGIN LOGIC
+# ====================================
 
 if "logged_in" not in st.session_state:
-
     st.session_state["logged_in"] = False
-
 if "student_row" not in st.session_state:
-
     st.session_state["student_row"] = None
+if "student_code" not in st.session_state:
+    st.session_state["student_code"] = ""
 
-
-
-if not st.session_state["logged_in"]:
-
-    st.title("🔑 Student Login")
-
-    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
-
-    if st.button("Login"):
-
-        found = df_students[
-
-            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
-
-            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
-
-        ]
-
+# -- MAIN LOGIN (first time) --
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
     login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
@@ -97,161 +56,67 @@ if not st.session_state["logged_in"]:
             (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
         ]
         if not found.empty:
-
             st.session_state["logged_in"] = True
-
             st.session_state["student_row"] = found.iloc[0].to_dict()
-
+            st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
             st.success(f"Welcome, {st.session_state['student_row']['Name']}! Login successful.")
-
             st.rerun()
-
         else:
-
             st.error("Login failed. Please check your Student Code or Email and try again.")
-
     st.stop()
 
-
-
-
-
-# --- Helper to load student data ---
-
-def load_student_data():
-
-    if not os.path.exists(STUDENTS_CSV):
-
-        st.error("Students file not found!")
-
-        return pd.DataFrame()
-
-    df = pd.read_csv(STUDENTS_CSV)
-
-    for col in ["StudentCode", "Email"]:
-
-        if col in df.columns:
-
-            df[col] = df[col].astype(str).str.strip().str.lower()
-
-    return df
-
-
-
-# --- Student login logic ---
-
-# --- Student login logic ---
-if "student_code" not in st.session_state:
-
-    st.session_state["student_code"] = ""
-
-if "logged_in" not in st.session_state:
-
-    st.session_state["logged_in"] = False
-
-
-
+# --- Alternative Login Logic: Accepts '**Student Code** or **Email**' field ---
 if not st.session_state["logged_in"]:
-
     st.title("🔑 Student Login")
-
     login_input = st.text_input("Enter your **Student Code** or **Email** to begin:")
-
     if st.button("Login"):
-
         login_input_clean = login_input.strip().lower()
-
         df_students = load_student_data()
-
         match = df_students[
-
-            (df_students["StudentCode"].str.lower() == login_input_clean) | 
-
+            (df_students["StudentCode"].str.lower() == login_input_clean) |
             (df_students["Email"].str.lower() == login_input_clean)
-
         ]
-
         if not match.empty:
-
             st.session_state["student_code"] = match.iloc[0]["StudentCode"].lower()
-
             st.session_state["logged_in"] = True
-
             st.session_state["student_info"] = match.iloc[0].to_dict()
-
             st.success("Welcome! Login successful.")
-
             st.rerun()
-
         else:
-
             st.error("Login failed. Code or Email not recognized.")
-
             st.stop()
-
     st.stop()
 
-@@ -198,52 +193,52 @@ def get_vocab_streak(student_code):
 # ====================================
-
-# 3. FLEXIBLE ANSWER CHECKERS
-
+# 4. FLEXIBLE ANSWER CHECKERS
 # ====================================
-
-
 
 def is_close_answer(student, correct):
-
     student = student.strip().lower()
-
     correct = correct.strip().lower()
-
     if correct.startswith("to "):
-
         correct = correct[3:]
-
     if len(student) < 3 or len(student) < 0.6 * len(correct):
-
         return False
-
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-
     return similarity > 0.80
 
-
-
 def is_almost(student, correct):
-
     student = student.strip().lower()
-
     correct = correct.strip().lower()
-
     if correct.startswith("to "):
-
         correct = correct[3:]
-
     similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-
     return 0.60 < similarity <= 0.80
 
-
-
+# ====================================
+# 5. LIMIT CONSTANTS
 # ====================================
 
-# 4. CONSTANTS & VOCAB LISTS
-
-# ====================================
-
-
-
-CODES_FILE = "student_codes.csv"␍␊
-STUDENTS_CSV = "students.csv"
-CODES_FILE = "student_codes.csv"␊
 FALOWEN_DAILY_LIMIT = 25
-
 VOCAB_DAILY_LIMIT = 20
-
 SCHREIBEN_DAILY_LIMIT = 5
+
 
 max_turns = 25
 # --- Vocab lists for all levels ---
