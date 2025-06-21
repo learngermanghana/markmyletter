@@ -14,12 +14,26 @@ from openai import OpenAI
 import urllib.parse   # Added for URL encoding, e.g., WhatsApp message links
 
 
-# ---- Set up Streamlit page config early (before any markup/render) ----
+# --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     layout="centered",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
+
+# ---- Falowen Header ----
+st.markdown(
+    """
+    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
+        <img src='https://cdn-icons-png.flaticon.com/512/6815/6815043.png' width='54' style='border-radius:50%;border:2.5px solid #51a8d2;box-shadow:0 2px 8px #cbe7fb;'/>
+        <div>
+            <span style='font-size:2.1rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen</span><br>
+            <span style='font-size:1.08rem;color:#268049;'>Your personal German speaking coach (Herr Felix)</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True
+)
+
 
 # ====================================
 # 2. STUDENT DATA LOADING
