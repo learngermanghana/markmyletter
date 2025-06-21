@@ -918,18 +918,16 @@ if tab == "Vocab Trainer":
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
-    # Always let student choose level (remember last used)
+
+    # Always let student choose level (auto-remembers)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
-    prev_schreiben_level = st.session_state.get("schreiben_level", "A1")
     schreiben_level = st.selectbox(
         "Choose your writing level:",
         schreiben_levels,
-        index=schreiben_levels.index(prev_schreiben_level) if prev_schreiben_level in schreiben_levels else 0,
         key="schreiben_level"
     )
-    st.session_state["schreiben_level"] = schreiben_level
 
-    # Show strengths/weaknesses using stats
+    # --- Show strengths/weaknesses using stats ---
     student_code = st.session_state.get("student_code", "")
     stats = get_student_stats(student_code)
     lvl_stats = stats.get(schreiben_level, {}) if stats else {}
@@ -950,20 +948,19 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # Input: Student types writing sample
+    # --- Input: Student types writing sample ---
     st.subheader("Write your text below and get instant feedback!")
     default_prompt = "Schreiben Sie einen kurzen Text zu einem Thema Ihrer Wahl..." if schreiben_level == "A1" else ""
     schreiben_text = st.text_area(
         f"Write your {schreiben_level} text here:", value=default_prompt, height=180, key="schreiben_input"
     )
 
-    # Submit for AI Feedback
+    # --- Submit for AI Feedback ---
     if st.button("Check & Get Feedback", key="schreiben_check"):
         if not schreiben_text.strip() or schreiben_text.strip() == default_prompt:
             st.warning("Please write something first!")
             st.stop()
         with st.spinner("Analyzing your writing..."):
-            # Example OpenAI call; adjust as needed for your feedback style
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -984,9 +981,7 @@ if tab == "Schreiben Trainer":
             st.success("AI Feedback:")
             st.markdown(feedback)
 
-            # Optionally store feedback in your DB for stats updates, if you wish
-
-            # WhatsApp Export
+            # --- WhatsApp Export ---
             import urllib.parse
             assignment_message = f"Mein Schreibtext für {schreiben_level}:\n\n{schreiben_text}\n\nFeedback:\n{feedback}"
             whatsapp_url = (
