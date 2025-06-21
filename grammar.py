@@ -986,15 +986,7 @@ if tab == "Schreiben Trainer":
                     "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
                     "6. Also check for AI usage or if the student wrote with their own effort. "
                     "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                    "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
-                    "\n"
-                    "Reply in a structured way:\n"
-                    "- **Comments:** (summary of strengths, overall feedback)\n"
-                    "- **Score:** X / 25\n"
-                    "- **Phrases with mistakes and corrections:**\n"
-                    "    - '... [WRONG PHRASE]' → explain the error, suggest a fix\n"
-                    "- **Suggestions:** (bullets for grammar, vocabulary, style, etc)\n"
-                    "- **Next Steps:** (encourage more practice or recommend submitting)\n"                            
+                    "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."                         
                 )
                 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
                 response = client.chat.completions.create(
