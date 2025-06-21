@@ -987,9 +987,6 @@ if tab == "Vocab Trainer":
 
 
 
-# ====================================
-# SCHREIBEN TRAINER TAB (with Daily Limit)
-# ====================================
 import urllib.parse
 from fpdf import FPDF
 from datetime import date
@@ -1117,6 +1114,17 @@ if tab == "Schreiben Trainer":
                     st.session_state["writing_stats"]["correct"] += 1
                 st.session_state["schreiben_usage"][limit_key] += 1
 
+                # === Save submission to DB ===
+                student_name = st.session_state.get("student_name", "")
+                save_schreiben_submission(
+                    student_code,
+                    student_name,
+                    schreiben_level,
+                    user_letter,
+                    score,
+                    feedback
+                )
+
                 # --- Show Feedback ---
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
@@ -1148,4 +1156,3 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-
