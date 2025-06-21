@@ -149,10 +149,12 @@ def load_student_data():
     return df
 
 df_students = load_student_data()
-
 # ====================================
 # 3. STUDENT LOGIN LOGIC (single, clean block!)
 # ====================================
+
+from streamlit_extras import CookieManager
+cookie_manager = CookieManager()
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
@@ -163,9 +165,27 @@ if "student_code" not in st.session_state:
 if "student_name" not in st.session_state:
     st.session_state["student_name"] = ""
 
+# --- 1. Check for cookie before showing login ---
+code_from_cookie = cookie_manager.get("student_code")
+if not st.session_state.get("logged_in", False) and code_from_cookie:
+    st.session_state["student_code"] = code_from_cookie
+    st.session_state["logged_in"] = True
+    # Optional: Fill in other fields
+    df_students = load_student_data()
+    found = df_students[
+        (df_students["StudentCode"].astype(str).str.lower().str.strip() == code_from_cookie)
+    ]
+    if not found.empty:
+        st.session_state["student_row"] = found.iloc[0].to_dict()
+        st.session_state["student_name"] = found.iloc[0]["Name"]
+
+# --- 2. Show login if not logged in ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
-    login_input = st.text_input("Enter your Student Code or Email to begin:").strip().lower()
+    login_input = st.text_input(
+        "Enter your Student Code or Email to begin:",
+        value=code_from_cookie if code_from_cookie else ""
+    ).strip().lower()
     if st.button("Login"):
         df_students = load_student_data()
         found = df_students[
@@ -177,11 +197,13 @@ if not st.session_state["logged_in"]:
             st.session_state["student_row"] = found.iloc[0].to_dict()
             st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
             st.session_state["student_name"] = found.iloc[0]["Name"]
+            cookie_manager.set("student_code", st.session_state["student_code"])  # <-- Set cookie!
             st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
             st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
+
 
 # ====================================
 # 4. FLEXIBLE ANSWER CHECKERS
