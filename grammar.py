@@ -33,6 +33,40 @@ def get_vocab_streak(student_code):
     # Placeholder: return a fake streak for now
     return 3
 
+# --- Create/verify tables if not exist (run once per app startup) ---
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # Vocab Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            word TEXT,
+            student_answer TEXT,
+            is_correct INTEGER,
+            date TEXT
+        )
+    """)
+    # Schreiben Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            essay TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
+    conn.commit()
+
+init_db()
+
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
