@@ -1,4 +1,3 @@
-# 1. IMPORTS, CONSTANTS, AND PAGE SETUP
 import os
 import random
 import difflib
@@ -8,7 +7,8 @@ import io
 from datetime import date
 import pandas as pd
 import streamlit as st
-from openai import OpenAI    # <--- Here
+from openai import OpenAI
+from streamlit_extras import CookieManager   # <--- For persistent login
 
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])   
 
