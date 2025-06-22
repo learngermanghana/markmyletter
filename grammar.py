@@ -1132,7 +1132,48 @@ if tab == "Exams Mode & Custom Chat":
                 )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
 
+        # ===== Chat input box and OpenAI response =====
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
+        if user_input:
+            # Add user message to chat history
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+
+            # "Herr Felix is typing..." spinner and OpenAI logic
+            with st.chat_message("assistant", avatar="🧑‍🏫"):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    # === System prompt logic ===
+                    if is_exam:
+                        system_prompt = build_exam_system_prompt(level, teil)
+                    else:
+                        system_prompt = build_custom_chat_prompt(level)
+
+                    # === Full message history for the AI ===
+                    messages = [{"role": "system", "content": system_prompt}]
+                    messages += [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state["falowen_messages"]
+                    ]
+
+                    # === OpenAI call ===
+                    try:
+                        completion = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600,
+                        )
+                        ai_reply = completion.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
+                    st.markdown(
+                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        unsafe_allow_html=True
+                    )
+                    st.markdown(ai_reply)
+            # Save AI reply to session for next turn
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 # ========================== END FALOWEN CHAT TAB ==========================
 
