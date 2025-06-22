@@ -1065,7 +1065,7 @@ if stage == 1:
         st.session_state["falowen_teil"] = ""
         st.session_state["falowen_messages"] = []
         st.session_state["falowen_exam_topic"] = None
-        st.experimental_rerun()
+        st.rerun()
     st.stop()
 
 if stage == 2:
@@ -1079,7 +1079,7 @@ if stage == 2:
     with col1:
         if st.button("⬅️ Back", key="falowen_back1"):
             st.session_state["falowen_stage"] = 1
-            st.experimental_rerun()
+            st.rerun()
     with col2:
         if st.button("Next ➡️", key="falowen_next_level"):
             st.session_state["falowen_level"] = level
@@ -1090,7 +1090,7 @@ if stage == 2:
             st.session_state["falowen_teil"] = ""
             st.session_state["falowen_messages"] = []
             st.session_state["falowen_exam_topic"] = None
-            st.experimental_rerun()
+            st.rerun()
     st.stop()
 
 if stage == 3:
