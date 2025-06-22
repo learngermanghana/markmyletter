@@ -649,6 +649,36 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
+def get_exam_topics(level):
+    """
+    Return a flat list of possible oral exam topics for the given level.
+
+    Args:
+        level (str): "A1", "A2", "B1", "B2", or "C1"
+
+    Returns:
+        List[str]: All possible topics for oral exam for that level.
+    """
+    if level == "A1":
+        # A1_TEIL2 is a list of (Thema, Keyword) tuples, flatten as "Thema – Keyword"
+        topics = (
+            A1_TEIL1
+            + [f"{t[0]} – {t[1]}" for t in A1_TEIL2]
+            + A1_TEIL3
+        )
+    elif level == "A2":
+        topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
+    elif level == "B1":
+        topics = B1_TEIL1 + B1_TEIL2 + B1_TEIL3
+    elif level == "B2":
+        topics = b2_teil1_topics + b2_teil2_presentations + b2_teil3_arguments
+    elif level == "C1":
+        topics = c1_teil1_lectures + c1_teil2_discussions + c1_teil3_evaluations
+    else:
+        topics = []
+    return topics
+
+
 
 # ====================================
 # 6. MAIN TAB SELECTOR (with Dashboard)
