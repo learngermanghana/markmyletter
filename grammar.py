@@ -1093,56 +1093,18 @@ if stage == 2:
             st.rerun()
     st.stop()
 
-if stage == 3:
-    level = st.session_state.get("falowen_level", "")
-    teil_options = {
-        "A1": [
-            "Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"
-        ],
-        "A2": [
-            "Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"
-        ],
-        "B1": [
-            "Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"
-        ],
-        "B2": [
-            "Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"
-        ],
-        "C1": [
-            "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
-        ]
-    }
-    # TODO: Replace the following with your real topic lists
-    exam_topics = []
-    # Example: if level == "A2": exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
+# --- Handle random topic selection ---
+if level != "A1" and st.session_state.get("falowen_exam_topic") is None:
+    exam_topics = st.session_state.get("falowen_exam_topics_cache", [])
+    if exam_topics:
+        st.session_state["falowen_exam_topic"] = random.choice(exam_topics)
 
-    st.subheader("Step 3: Choose Exam Part")
-    teil = st.radio(
-        "Which exam part?",
-        teil_options.get(level, []),
-        key="falowen_teil_center"
-    )
-    picked_topic = None
-    if level != "A1":
-        picked_topic = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
-        if picked_topic != "(random)":
-            st.session_state["falowen_exam_topic"] = picked_topic
-    else:
-        st.session_state["falowen_exam_topic"] = None
+# --- Handle random topic selection ---
+if level != "A1" and st.session_state.get("falowen_exam_topic") is None:
+    exam_topics = st.session_state.get("falowen_exam_topics_cache", [])
+    if exam_topics:
+        st.session_state["falowen_exam_topic"] = random.choice(exam_topics)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("⬅️ Back", key="falowen_back2"):
-            st.session_state["falowen_stage"] = 2
-            st.experimental_rerun()
-    with col2:
-        if st.button("Start Practice", key="falowen_start_practice"):
-            st.session_state["falowen_teil"] = teil
-            st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
-    st.stop()
 
 if stage == 4:
     # === Download as PDF Button ===
