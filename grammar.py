@@ -741,6 +741,105 @@ if st.session_state["logged_in"]:
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
 
+def show_upcoming_exams_dashboard(student_row):
+    """Show relevant Goethe exam info and registration steps on the Dashboard for A1–B1 students."""
+    import streamlit as st
+
+    # List of upcoming exams (edit/expand as needed)
+    exams = [
+        {
+            "name": "Goethe A1 Exam – Accra",
+            "level": "A1",
+            "registration_start": "2024-07-15",
+            "registration_end": "2024-08-10",
+            "exam_date": "2024-09-02",
+            "location": "Goethe-Institut Ghana, Accra",
+        },
+        {
+            "name": "Goethe A2 Exam – Accra",
+            "level": "A2",
+            "registration_start": "2024-08-12",
+            "registration_end": "2024-09-06",
+            "exam_date": "2024-10-01",
+            "location": "Goethe-Institut Ghana, Accra",
+        },
+        {
+            "name": "Goethe B1 Exam – Kumasi",
+            "level": "B1",
+            "registration_start": "2024-09-01",
+            "registration_end": "2024-09-20",
+            "exam_date": "2024-10-12",
+            "location": "Goethe-Institut Ghana, Kumasi",
+        },
+    ]
+
+    # Get student level, fallback to A1
+    student_level = (student_row.get('Level') or 'A1').upper()
+    levels_order = ["A1", "A2", "B1", "B2", "C1"]
+    try:
+        max_index = levels_order.index(student_level)
+    except Exception:
+        max_index = 0  # fallback to A1
+
+    # Only show exams for this level or below (A1 sees only A1, A2 sees A1+A2, B1 sees A1–B1)
+    filtered_exams = [e for e in exams if levels_order.index(e["level"]) <= max_index]
+
+    st.markdown("## 📅 Upcoming Goethe Exams")
+    if not filtered_exams:
+        st.info("No upcoming exams for your level at this time. Please check back later!")
+        return
+
+    for exam in filtered_exams:
+        st.markdown(
+            f"""
+            <div style='background:#e8f3fa;padding:15px 20px 15px 16px;border-radius:12px;
+                        margin-bottom:18px;border-left:7px solid #2275b4;'>
+                <b style="font-size:1.18rem;">{exam['name']}</b><br>
+                <b>Location:</b> {exam['location']}<br>
+                <b>Registration:</b> <span style="color:#266dd2;">{exam['registration_start']}</span> 
+                to <span style="color:#266dd2;">{exam['registration_end']}</span><br>
+                <b>Exam Date:</b> <span style="color:#17617a;">{exam['exam_date']}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # Registration steps
+    st.markdown("""
+    <div style="background:#fdf7e1;border-radius:11px;padding:18px 16px 18px 18px;
+                border-left:7px solid #b48b22;margin-bottom:10px;">
+    <b style="font-size:1.05rem;">How to Register for the Exam:</b>
+    <ol style="padding-left:19px;margin-top:8px;">
+      <li>
+        Open <a href="https://www.goethe.de/ins/gh/en/spr/prf/anm.html" target="_blank">this registration link</a> and click <b>Register</b> below the exam you want.<br>
+        <i>If the registration portal is open, you can start registering.</i>
+      </li>
+      <li>
+        Fill in your information and select <b>External</b> as candidate type with your exam level (A1/A2/B1).
+      </li>
+      <li>
+        After filling the forms, you'll get an <b>email confirmation</b>.
+      </li>
+      <li>
+        Make a payment of the agreed exam fee at the bank (or mobile money). Pay to:<br>
+        <b>ECOBANK GHANA</b><br>
+        <b>Account Name:</b> GOETHE-INSTITUT GHANA<br>
+        <b>Account Number:</b> 1441 001 701 903<br>
+        <b>Branch:</b> RING ROAD CENTRAL<br>
+        <b>SWIFT CODE:</b> ECOCGHAC<br>
+        <i>Use your FULL NAME as the payment reference.</i>
+      </li>
+      <li>
+        Send the payment receipt to <b>registrations-accra@goethe.de</b> by email.
+      </li>
+      <li>
+        You will hear from Goethe-Institut after a few days with your exam details.
+      </li>
+    </ol>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
