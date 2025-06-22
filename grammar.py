@@ -1112,18 +1112,101 @@ if stage == 2:
             st.rerun()
     st.stop()
 
-# --- Handle random topic selection ---
-if level != "A1" and st.session_state.get("falowen_exam_topic") is None:
+if stage == 3:
+    teil_options = {
+        "A1": [
+            "Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"
+        ],
+        "A2": [
+            "Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"
+        ],
+        "B1": [
+            "Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"
+        ],
+        "B2": [
+            "Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"
+        ],
+        "C1": [
+            "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
+        ]
+    }
+    st.subheader("Step 3: Choose Exam Part")
+    teil = st.radio(
+        "Which exam part?",
+        teil_options.get(level, []),
+        key="falowen_teil_center"
+    )
+
+    # -------- Assign exam_topics based on level and teil --------
+    exam_topics = []
+    if level == "A1":
+        if "Teil 1" in teil:
+            exam_topics = A1_TEIL1
+        elif "Teil 2" in teil:
+            exam_topics = [f"{t[0]} – {t[1]}" for t in A1_TEIL2]
+        elif "Teil 3" in teil:
+            exam_topics = A1_TEIL3
+    elif level == "A2":
+        if "Teil 1" in teil:
+            exam_topics = A2_TEIL1
+        elif "Teil 2" in teil:
+            exam_topics = A2_TEIL2
+        elif "Teil 3" in teil:
+            exam_topics = A2_TEIL3
+    elif level == "B1":
+        if "Teil 1" in teil:
+            exam_topics = B1_TEIL1
+        elif "Teil 2" in teil:
+            exam_topics = B1_TEIL2
+        elif "Teil 3" in teil:
+            exam_topics = B1_TEIL3
+    elif level == "B2":
+        if "Teil 1" in teil:
+            exam_topics = b2_teil1_topics
+        elif "Teil 2" in teil:
+            exam_topics = b2_teil2_presentations
+        elif "Teil 3" in teil:
+            exam_topics = b2_teil3_arguments
+    elif level == "C1":
+        if "Teil 1" in teil:
+            exam_topics = c1_teil1_lectures
+        elif "Teil 2" in teil:
+            exam_topics = c1_teil2_discussions
+        elif "Teil 3" in teil:
+            exam_topics = c1_teil3_evaluations
+
+    # Optionally cache for use in stage 4
+    st.session_state["falowen_exam_topics_cache"] = exam_topics
+
+    picked_topic = None
+    if level != "A1":
+        picked_topic = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
+        if picked_topic != "(random)":
+            st.session_state["falowen_exam_topic"] = picked_topic
+        else:
+            st.session_state["falowen_exam_topic"] = None
+    else:
+        st.session_state["falowen_exam_topic"] = None
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.rerun()
+    with col2:
+        if st.button("Start Practice", key="falowen_start_practice"):
+            st.session_state["falowen_teil"] = teil
+            st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
+    st.stop()
+
+# --- Handle random topic assignment for non-A1, when starting practice and no topic picked ---
+if stage == 4 and level != "A1" and st.session_state.get("falowen_exam_topic") is None:
     exam_topics = st.session_state.get("falowen_exam_topics_cache", [])
     if exam_topics:
         st.session_state["falowen_exam_topic"] = random.choice(exam_topics)
-
-# --- Handle random topic selection ---
-if level != "A1" and st.session_state.get("falowen_exam_topic") is None:
-    exam_topics = st.session_state.get("falowen_exam_topics_cache", [])
-    if exam_topics:
-        st.session_state["falowen_exam_topic"] = random.choice(exam_topics)
-
 
 if stage == 4:
     # === Download as PDF Button ===
@@ -1218,6 +1301,8 @@ if stage == 4:
             )
 
 # ========================== END FALOWEN CHAT TAB ==========================
+
+
 
 
 
