@@ -833,7 +833,7 @@ if tab == "Falowen Chat":
             elif mode == "Eigenes Thema/Frage (Custom Chat)":
                 ai_first = (
                     "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
-                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+                    "You can enter a topic, a question, or a keyword. "
                 )
             else:
                 ai_first = "Hallo! Womit möchtest du heute üben?"
