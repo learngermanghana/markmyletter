@@ -1038,51 +1038,55 @@ def build_custom_chat_prompt(level):
         )
     return ""
 
-# === Download as PDF Button ===
-if st.session_state.get("falowen_messages", []):
-    pdf_bytes = falowen_download_pdf(
-        st.session_state["falowen_messages"],
-        f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
-    )
-    st.download_button(
-        "⬇️ Download Chat as PDF",
-        pdf_bytes,
-        file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
-        mime="application/pdf"
-    )
-
-# === Session controls: Restart, Back, Change Level ===
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("Restart Chat"):
-        reset_chat()
-with col2:
-    if st.button("Back"):
-        back_step()
-with col3:
-    if st.button("Change Level"):
-        change_level()
-
-# --- Initialize variables from session state safely ---
+# --- Initialize session state at the top ---
 level = st.session_state.get("falowen_level", "")
 teil = st.session_state.get("falowen_teil", "")
 mode = st.session_state.get("falowen_mode", "")
 is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
 is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+stage = st.session_state.get("falowen_stage", 1)
 
-# === Show initial instruction if chat is empty ===
-if not st.session_state.get("falowen_messages", []):
-    instruction = ""
-    if is_exam:
-        instruction = build_exam_instruction(level, teil)
-    elif is_custom_chat:
-        instruction = (
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
-            "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+if stage == 4:
+    # === Download as PDF Button ===
+    if st.session_state.get("falowen_messages", []):
+        pdf_bytes = falowen_download_pdf(
+            st.session_state["falowen_messages"],
+            f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
         )
-    if instruction:
-        st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
-    # Do NOT call st.stop() here! Always allow the chat input box to display
+        st.download_button(
+            "⬇️ Download Chat as PDF",
+            pdf_bytes,
+            file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+            mime="application/pdf"
+        )
+
+    # === Session controls: Restart, Back, Change Level ===
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Restart Chat"):
+            reset_chat()
+    with col2:
+        if st.button("Back"):
+            back_step()
+    with col3:
+        if st.button("Change Level"):
+            change_level()
+
+    # === Show initial instruction if chat is empty ===
+    if not st.session_state.get("falowen_messages", []):
+        instruction = ""
+        if is_exam:
+            instruction = build_exam_instruction(level, teil)
+        elif is_custom_chat:
+            instruction = (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+            )
+        if instruction:
+            st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
+        # Do NOT call st.stop() here! Always allow the chat input box to display
+
+    # ... your chat input logic here ...
 
 
 # ===== Chat input box and OpenAI response =====
