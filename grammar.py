@@ -1064,7 +1064,7 @@ with col3:
         change_level()
 
 # === Show initial instruction if chat is empty ===
-if not st.session_state["falowen_messages"]:
+if not st.session_state.get("falowen_messages", []):
     instruction = ""
     if is_exam:
         instruction = build_exam_instruction(level, teil)
