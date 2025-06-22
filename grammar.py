@@ -752,7 +752,7 @@ def falowen_download_pdf(messages, filename):
     return pdf_bytes
 
 
-if tab == "Exam Mode & Custom Chat":
+if tab == "Exams Mode & Custom Chat":
     st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
     # --- Init session state for chat controls ---
