@@ -75,7 +75,6 @@ def get_vocab_streak(student_code):
 
     return streak
 
-
 # --- Create/verify tables if not exist (run once per app startup) ---
 def init_db():
     conn = get_connection()
@@ -106,9 +105,20 @@ def init_db():
             date TEXT
         )
     """)
+    # Oral Topic Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS oral_topic_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            teil TEXT,
+            topic TEXT,
+            date TEXT
+        )
+    """)
     conn.commit()
 
-init_db()
+init_db()  # <--- Call this ONCE after defining the function!
 
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
     conn = get_connection()
@@ -125,6 +135,15 @@ def save_schreiben_submission(student_code, name, level, essay, score, feedback)
     c.execute(
         "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (student_code, name, level, essay, score, feedback, str(date.today()))
+    )
+    conn.commit()
+
+def save_oral_topic_progress(student_code, level, teil, topic):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO oral_topic_progress (student_code, level, teil, topic, date) VALUES (?, ?, ?, ?, ?)",
+        (student_code, level, teil, topic, str(date.today()))
     )
     conn.commit()
 
@@ -159,31 +178,6 @@ def inc_falowen_usage(student_code):
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # ... (existing table creation code)
-    # --- Oral Topic Progress Table ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS oral_topic_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            teil TEXT,
-            topic TEXT,
-            date TEXT
-        )
-    """)
-    conn.commit()
-def save_oral_topic_progress(student_code, level, teil, topic):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO oral_topic_progress (student_code, level, teil, topic, date) VALUES (?, ?, ?, ?, ?)",
-        (student_code, level, teil, topic, str(date.today()))
-    )
-    conn.commit()
-
 def get_completed_oral_topics(student_code, level, teil):
     conn = get_connection()
     c = conn.cursor()
@@ -192,7 +186,6 @@ def get_completed_oral_topics(student_code, level, teil):
         (student_code, level, teil)
     )
     return set([r[0] for r in c.fetchall()])
-
 
 # --- Streamlit page config ---
 st.set_page_config(
