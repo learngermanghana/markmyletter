@@ -1042,6 +1042,32 @@ is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
 is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 stage = st.session_state.get("falowen_stage", 1)
 
+# ---- Session Navigation Helpers ----
+def reset_chat():
+    """Clear the current chat history and restart the conversation."""
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_exam_topic"] = None
+    st.session_state["falowen_user_input"] = ""
+    st.rerun()
+
+def back_step():
+    """Go back to the level selection step (Step 2)."""
+    st.session_state["falowen_stage"] = 2
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_exam_topic"] = None
+    st.session_state["falowen_user_input"] = ""
+    st.rerun()
+
+def change_level():
+    """Allow the user to pick a different level."""
+    st.session_state["falowen_level"] = ""
+    st.session_state["falowen_teil"] = ""
+    st.session_state["falowen_stage"] = 2
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_exam_topic"] = None
+    st.session_state["falowen_user_input"] = ""
+    st.rerun()
+
 # ====== FALOWEN CHAT STAGE SELECTOR ======
 
 if stage == 1:
