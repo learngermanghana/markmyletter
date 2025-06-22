@@ -140,6 +140,26 @@ def get_writing_stats(student_code):
     accuracy = round(100 * passed / attempted) if attempted > 0 else 0
     return attempted, passed, accuracy
 
+def get_falowen_usage(student_code):
+    today_str = str(date.today())
+    key = f"{student_code}_falowen_{today_str}"
+    if "falowen_usage" not in st.session_state:
+        st.session_state["falowen_usage"] = {}
+    st.session_state["falowen_usage"].setdefault(key, 0)
+    return st.session_state["falowen_usage"][key]
+
+def inc_falowen_usage(student_code):
+    today_str = str(date.today())
+    key = f"{student_code}_falowen_{today_str}"
+    if "falowen_usage" not in st.session_state:
+        st.session_state["falowen_usage"] = {}
+    st.session_state["falowen_usage"].setdefault(key, 0)
+    st.session_state["falowen_usage"][key] += 1
+
+def has_falowen_quota(student_code):
+    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+
+
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -307,7 +327,7 @@ def validate_translation_openai(word, student_answer):
 # 5. CONSTANTS & VOCAB LISTS
 # ====================================
 
-FALOWEN_DAILY_LIMIT = 25
+FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
@@ -721,6 +741,13 @@ if st.session_state["logged_in"]:
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
 
+if tab == "Exams Mode & Custom Chat":
+    # --- Daily Limit Check ---
+    # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
+    if not has_falowen_quota(student_code):
+        st.header("🗣️ Falowen – Speaking & Exam Trainer")
+        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+        st.stop()
 
 
 # ==========================
@@ -931,12 +958,12 @@ def build_custom_chat_prompt(level):
     if level in ["A1", "A2", "B1", "B2"]:
         return (
             "You are Herr Felix, a supportive and innovative German teacher. "
-            "The student will start with a topic or question. Give them compliments for the given topic or question in English and a bit of German. "
-            " Give them some ideas and key words and phrases they can use for the conversation. Support with English "
-            "Always answer with some feedback and correct their errors—explain in English for A1/A2, half English/German for B1/B2. "
-            "After your feedback, always begin the conversation with a follow-up question about the same topic in German "
-            "You can use keywords to guide your conversation. End conversation after you reply 20 times and tell them their performance. "
-            
+            "When the student gives a topic or question, always reply in a supportive way. "
+            "Start by giving them compliments on their topic or question in English and a little German. "
+            "Give them useful ideas, keywords, and phrases (explain in English for A1/A2, both German and English for B1/B2) to help with the conversation. "
+            "Correct all errors clearly—explain mistakes in English (A1/A2) or mix German and English (B1/B2). "
+            "After giving feedback, always ask a follow-up question on the same topic in German to keep the conversation going. "
+            "Always keep your answers clear and simple for A1/A2, and a bit more advanced for B1/B2."
         )
     return ""
 
@@ -1067,6 +1094,13 @@ if tab == "Exams Mode & Custom Chat":
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
+        # --- Falowen daily limit tracking ---
+        used_today = get_falowen_usage(student_code)
+        st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
+        if used_today >= FALOWEN_DAILY_LIMIT:
+            st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
+            st.stop()
+
         # -- Handle reset/back/change logic --
         def reset_chat():
             st.session_state["falowen_stage"] = 1
@@ -1144,8 +1178,8 @@ if tab == "Exams Mode & Custom Chat":
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
         if user_input:
-            # Add user message to chat history
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            inc_falowen_usage(student_code)  # <-- Increment daily usage
 
             # "Herr Felix is typing..." spinner and OpenAI logic
             with st.chat_message("assistant", avatar="🧑‍🏫"):
