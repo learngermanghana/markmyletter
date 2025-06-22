@@ -1037,6 +1037,18 @@ def build_custom_chat_prompt(level):
         )
     return ""
 
+# ==========================
+# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
+# ==========================
+
+# --- Initialize variables from session state safely ---
+level = st.session_state.get("falowen_level", "")
+teil = st.session_state.get("falowen_teil", "")
+mode = st.session_state.get("falowen_mode", "")
+is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+stage = st.session_state.get("falowen_stage", 1)
+
 # ====== FALOWEN CHAT STAGE SELECTOR ======
 
 if stage == 1:
@@ -1100,9 +1112,9 @@ if stage == 3:
             "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
         ]
     }
-    # Your exam topics here, as needed
+    # TODO: Replace the following with your real topic lists
     exam_topics = []
-    # EXAMPLE: if level == "A2": exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
+    # Example: if level == "A2": exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
 
     st.subheader("Step 3: Choose Exam Part")
     teil = st.radio(
@@ -1110,7 +1122,6 @@ if stage == 3:
         teil_options.get(level, []),
         key="falowen_teil_center"
     )
-    # Optional topic select
     picked_topic = None
     if level != "A1":
         picked_topic = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
@@ -1132,14 +1143,6 @@ if stage == 3:
             st.session_state["custom_topic_intro_done"] = False
             st.experimental_rerun()
     st.stop()
-
-# --- Initialize variables from session state safely ---
-level = st.session_state.get("falowen_level", "")
-teil = st.session_state.get("falowen_teil", "")
-mode = st.session_state.get("falowen_mode", "")
-is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-stage = st.session_state.get("falowen_stage", 1)
 
 if stage == 4:
     # === Download as PDF Button ===
@@ -1233,8 +1236,8 @@ if stage == 4:
                 st.session_state["falowen_exam_topic"]
             )
 
-
 # ========================== END FALOWEN CHAT TAB ==========================
+
 
 
 
