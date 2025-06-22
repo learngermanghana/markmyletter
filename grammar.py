@@ -225,7 +225,6 @@ if not st.session_state.get("logged_in", False) and code_from_cookie:
     if not found.empty:
         st.session_state["student_row"] = found.iloc[0].to_dict()
         st.session_state["student_name"] = found.iloc[0]["Name"]
-
 # --- 2. Show login if not logged in ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
@@ -244,7 +243,9 @@ if not st.session_state["logged_in"]:
             st.session_state["student_row"] = found.iloc[0].to_dict()
             st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
             st.session_state["student_name"] = found.iloc[0]["Name"]
-            cookie_manager.set("student_code", st.session_state["student_code"])  # <-- Set cookie!
+            # ← Replace .set() with dict assignment and save()
+            cookie_manager["student_code"] = st.session_state["student_code"]
+            cookie_manager.save()
             st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
             st.rerun()
         else:
@@ -1160,6 +1161,8 @@ if tab == "Vocab Trainer":
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
+import urllib.parse
+from fpdf import FPDF
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
@@ -1311,3 +1314,4 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
