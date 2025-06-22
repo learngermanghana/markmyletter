@@ -783,7 +783,7 @@ def build_exam_instruction(level, teil):
                 "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or use the imperative. "
                 "Example: Können Sie bitte das Radio anmachen? or Machen Sie bitte das Radio an.\n"
                 "Responding to request you can use ('Ja gerne or In Ordnung'). \n"
-                "I'll give you a random prompt now!"
+                "I'll give you a random prompt now! Are you ready"
             )
     if level == "A2":
         if "Teil 1" in teil:
