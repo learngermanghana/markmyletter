@@ -159,6 +159,39 @@ def inc_falowen_usage(student_code):
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # ... (existing table creation code)
+    # --- Oral Topic Progress Table ---
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS oral_topic_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            teil TEXT,
+            topic TEXT,
+            date TEXT
+        )
+    """)
+    conn.commit()
+def save_oral_topic_progress(student_code, level, teil, topic):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO oral_topic_progress (student_code, level, teil, topic, date) VALUES (?, ?, ?, ?, ?)",
+        (student_code, level, teil, topic, str(date.today()))
+    )
+    conn.commit()
+
+def get_completed_oral_topics(student_code, level, teil):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT topic FROM oral_topic_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    return set([r[0] for r in c.fetchall()])
 
 
 # --- Streamlit page config ---
@@ -1006,161 +1039,12 @@ def build_custom_chat_prompt(level):
     return ""
 
 
-# --- FALOWEN CHAT SESSION LOGIC ---
+ # ---- 6. Mark topic completed after use (call this after student finishes practice) ----
+        # Example: After student submits a valid response for this topic, call:
+        # mark_topic_completed(student_code, level, teil, topic)
 
-if tab == "Exams Mode & Custom Chat":
-    st.header("🗣️ Falowen – Speaking & Exam Trainer")
-
-    # --- Session state setup ---
-    default_state = {
-        "falowen_stage": 1,
-        "falowen_mode": None,
-        "falowen_level": None,
-        "falowen_teil": None,
-        "falowen_messages": [],
-        "falowen_turn_count": 0,
-        "custom_topic_intro_done": False,
-        "custom_chat_level": None,
-        "falowen_exam_topic": None,
-        "falowen_exam_keyword": None,
-    }
-    for key, val in default_state.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
-
-    # === Step 1: Mode selection ===
-    if st.session_state["falowen_stage"] == 1:
-        st.subheader("Step 1: Choose Practice Mode")
-        mode = st.radio(
-            "How would you like to practice?",
-            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
-            key="falowen_mode_center"
-        )
-        if st.button("Next ➡️", key="falowen_next_mode"):
-            st.session_state["falowen_mode"] = mode
-            st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_level"] = None
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-        st.stop()
-
-    # === Step 2: Level selection ===
-    if st.session_state["falowen_stage"] == 2:
-        st.subheader("Step 2: Choose Your Level")
-        level = st.radio(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="falowen_level_center"
-        )
-        if st.button("⬅️ Back", key="falowen_back1"):
-            st.session_state["falowen_stage"] = 1
-            st.stop()
-        if st.button("Next ➡️", key="falowen_next_level"):
-            st.session_state["falowen_level"] = level
-            if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-                st.session_state["falowen_stage"] = 3
-            else:
-                st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-        st.stop()
-
-    # === Step 3: Exam part selection (with dropdown for exam topics, as discussed) ===
-    if st.session_state["falowen_stage"] == 3:
-        level = st.session_state["falowen_level"]
-        teil_options = {
-            "A1": [
-                "Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"
-            ],
-            "A2": [
-                "Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"
-            ],
-            "B1": [
-                "Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"
-            ],
-            "B2": [
-                "Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"
-            ],
-            "C1": [
-                "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
-            ]
-        }
-        # Exam topics for dropdown (optional, example implementation)
-        exam_topics = []
-        if level == "A2":
-            exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
-        elif level == "B1":
-            exam_topics = B1_TEIL1 + B1_TEIL2 + B1_TEIL3
-        elif level == "B2":
-            exam_topics = b2_teil1_topics + b2_teil2_presentations + b2_teil3_arguments
-        elif level == "C1":
-            exam_topics = c1_teil1_lectures + c1_teil2_discussions + c1_teil3_evaluations
-        # For A1 we can pick from provided keywords for Teil 2/3
-
-        st.subheader("Step 3: Choose Exam Part")
-        teil = st.radio(
-            "Which exam part?",
-            teil_options[st.session_state["falowen_level"]],
-            key="falowen_teil_center"
-        )
-
-        # Optional: topic picker (for Teil 2/3)
-        picked_topic = None
-        if st.session_state["falowen_level"] != "A1":
-            picked_topic = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
-            if picked_topic != "(random)":
-                st.session_state["falowen_exam_topic"] = picked_topic
-        else:
-            st.session_state["falowen_exam_topic"] = None
-
-        if st.button("⬅️ Back", key="falowen_back2"):
-            st.session_state["falowen_stage"] = 2
-            st.stop()
-        if st.button("Start Practice", key="falowen_start_practice"):
-            st.session_state["falowen_teil"] = teil
-            st.session_state["falowen_stage"] = 4
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-        st.stop()
-
-    # === Step 4: Main Chat ===
-    if st.session_state["falowen_stage"] == 4:
-        level = st.session_state["falowen_level"]
-        teil = st.session_state.get("falowen_teil", "")
-        mode = st.session_state.get("falowen_mode", "")
-        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-
-        # --- Falowen daily limit tracking ---
-        used_today = get_falowen_usage(student_code)
-        st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
-        if used_today >= FALOWEN_DAILY_LIMIT:
-            st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
-            st.stop()
-
-        # -- Handle reset/back/change logic --
-        def reset_chat():
-            st.session_state["falowen_stage"] = 1
-            st.session_state["falowen_messages"] = []
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_mode"] = None
-            st.session_state["custom_topic_intro_done"] = False
-            st.session_state["falowen_turn_count"] = 0
-            st.session_state["falowen_exam_topic"] = None
-            st.rerun()
-
-        def back_step():
-            if st.session_state["falowen_stage"] > 1:
-                st.session_state["falowen_stage"] -= 1
-                st.session_state["falowen_messages"] = []
-                st.rerun()
-
-        def change_level():
-            st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_messages"] = []
-            st.rerun()
+        # ------- Your normal chat logic goes below this point -------
+        # ...
 
         # ---- Show chat history ----
         for msg in st.session_state["falowen_messages"]:
@@ -1255,6 +1139,19 @@ if tab == "Exams Mode & Custom Chat":
                     st.markdown(ai_reply)
             # Save AI reply to session for next turn
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
+            # Save AI reply to session for next turn
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
+            # ---- 6. Mark topic completed after use (call this after student finishes practice) ----
+            # Only mark as completed if this is Exam Mode and a topic is set!
+            if is_exam and st.session_state.get("falowen_exam_topic"):
+                mark_topic_completed(
+                    student_code,
+                    level,
+                    teil,
+                    st.session_state["falowen_exam_topic"]
+                )
 
 # ========================== END FALOWEN CHAT TAB ==========================
 
