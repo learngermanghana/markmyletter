@@ -772,15 +772,17 @@ def build_exam_instruction(level, teil):
             return (
                 "**A1 – Teil 2: Question and Answer**\n\n"
                 "You will get a topic and a keyword. Your job: ask a question using the keyword, "
-                "and then answer it yourself as if you are the examiner. For example: "
+                "and then answer it yourself like your partner will do in the exams hall. For example: "
                 "Thema: Geschäft – Keyword: schließen → You: Wann schließt das Geschäft?\n"
-                "Let's try one. I'll give you a random topic now!"
+                "Let's try one. I'll give you a random topic now! Are you ready"
+                
             )
         elif "Teil 3" in teil:
             return (
                 "**A1 – Teil 3: Making a Request**\n\n"
                 "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or use the imperative. "
                 "Example: Können Sie bitte das Radio anmachen? or Machen Sie bitte das Radio an.\n"
+                "Responding to request you can use ('Ja gerne or In Ordnung'). \n"
                 "I'll give you a random prompt now!"
             )
     if level == "A2":
