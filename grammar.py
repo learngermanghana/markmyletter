@@ -670,7 +670,7 @@ if st.session_state["logged_in"]:
 
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
 
-show_upcoming_exams_dashboard(student_row)
+
 
 def show_upcoming_exams_dashboard(student_row):
     """Show relevant Goethe exam info and registration steps on the Dashboard for A1–B1 students."""
