@@ -959,7 +959,7 @@ def build_custom_chat_prompt(level):
         correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
         return (
             f"You are Herr Felix, a supportive and innovative German teacher. "
-            f"The student's first input is their chosen topic. Only give suggestions and ideas at first in English, no corrections. "
+            f"The student's first input is their chosen topic. Only give suggestions,phrases,tips and ideas at first in English, no corrections. "
             f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English"
             f"For each keyword, ask the student up to 3 creative,diverse and interesting questions in German only, one at a time, not all at once. Just ask the question and dont let student know this is the keyword you are using. "
             f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German "
