@@ -667,10 +667,10 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
+
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
-    
     if tab == "Dashboard":
-        st.header("\U0001F4CA Student Dashboard")
+        st.header("📊 Student Dashboard")
 
         student_row = st.session_state.get("student_row") or {}
         streak = get_vocab_streak(student_code)
@@ -686,7 +686,7 @@ if st.session_state["logged_in"]:
         daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
         # Student name and essentials
-        st.markdown(f"### \U0001F464 {student_row.get('Name', '')}")
+        st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
             f"**Level:** {student_row.get('Level', '')}\n\n"
             f"**Code:** `{student_row.get('StudentCode', '')}`\n\n"
@@ -706,7 +706,7 @@ if st.session_state["logged_in"]:
             balance_float = 0.0
         if balance_float > 0:
             st.warning(
-                f"\U0001F4B8 Balance to pay: **₵{balance_float:.2f}** (update when paid)"
+                f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)"
             )
 
         # --- Contract End reminder ---
@@ -741,15 +741,13 @@ if st.session_state["logged_in"]:
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
 
-    if tab == "Exams Mode & Custom Chat":
-        # --- Daily Limit Check ---
-        if not has_falowen_quota(student_code):
-            st.header("🗣️ Falowen – Speaking & Exam Trainer")
-            st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-            st.stop()
-
-        # === CONTINUE TO FULL EXAM CHAT BLOCK === (already provided earlier)
-
+if tab == "Exams Mode & Custom Chat":
+    # --- Daily Limit Check ---
+    # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
+    if not has_falowen_quota(student_code):
+        st.header("🗣️ Falowen – Speaking & Exam Trainer")
+        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+        st.stop()
 
 
 # ==========================
