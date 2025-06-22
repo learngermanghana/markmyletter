@@ -1534,7 +1534,7 @@ if tab == "Admin":
             if admin_pw == "Felix029":
                 st.success("✅ Access granted.")
                 st.session_state["admin_unlocked"] = True
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("❌ Incorrect password.")
         st.stop()
