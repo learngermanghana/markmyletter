@@ -739,7 +739,8 @@ if st.session_state["logged_in"]:
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
 
-st.markdown("""
+        # --- Exam Registration Dates & Fees (only in Dashboard) ---
+        st.markdown("""
 **📢 Registration: Aug./Sept. 2025 Goethe-Institut Exams**
 
 **Exam Dates and Fees (Extern):**
@@ -766,7 +767,6 @@ Account Number: 1441 001 701 903
 Branch: Ring Road Central  
 SWIFT: ECOCGHAC
 """)
-
 
 
 # ==========================
