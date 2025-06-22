@@ -1037,6 +1037,102 @@ def build_custom_chat_prompt(level):
         )
     return ""
 
+# ====== FALOWEN CHAT STAGE SELECTOR ======
+
+if stage == 1:
+    st.subheader("Step 1: Choose Practice Mode")
+    mode = st.radio(
+        "How would you like to practice?",
+        ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
+        key="falowen_mode_center"
+    )
+    if st.button("Next ➡️", key="falowen_next_mode"):
+        st.session_state["falowen_mode"] = mode
+        st.session_state["falowen_stage"] = 2
+        st.session_state["falowen_level"] = ""
+        st.session_state["falowen_teil"] = ""
+        st.session_state["falowen_messages"] = []
+        st.session_state["falowen_exam_topic"] = None
+        st.experimental_rerun()
+    st.stop()
+
+if stage == 2:
+    st.subheader("Step 2: Choose Your Level")
+    level = st.radio(
+        "Select your level:",
+        ["A1", "A2", "B1", "B2", "C1"],
+        key="falowen_level_center"
+    )
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back", key="falowen_back1"):
+            st.session_state["falowen_stage"] = 1
+            st.experimental_rerun()
+    with col2:
+        if st.button("Next ➡️", key="falowen_next_level"):
+            st.session_state["falowen_level"] = level
+            if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
+                st.session_state["falowen_stage"] = 3
+            else:
+                st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_teil"] = ""
+            st.session_state["falowen_messages"] = []
+            st.session_state["falowen_exam_topic"] = None
+            st.experimental_rerun()
+    st.stop()
+
+if stage == 3:
+    level = st.session_state.get("falowen_level", "")
+    teil_options = {
+        "A1": [
+            "Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"
+        ],
+        "A2": [
+            "Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"
+        ],
+        "B1": [
+            "Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"
+        ],
+        "B2": [
+            "Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"
+        ],
+        "C1": [
+            "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
+        ]
+    }
+    # Your exam topics here, as needed
+    exam_topics = []
+    # EXAMPLE: if level == "A2": exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
+
+    st.subheader("Step 3: Choose Exam Part")
+    teil = st.radio(
+        "Which exam part?",
+        teil_options.get(level, []),
+        key="falowen_teil_center"
+    )
+    # Optional topic select
+    picked_topic = None
+    if level != "A1":
+        picked_topic = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
+        if picked_topic != "(random)":
+            st.session_state["falowen_exam_topic"] = picked_topic
+    else:
+        st.session_state["falowen_exam_topic"] = None
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.experimental_rerun()
+    with col2:
+        if st.button("Start Practice", key="falowen_start_practice"):
+            st.session_state["falowen_teil"] = teil
+            st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.experimental_rerun()
+    st.stop()
+
 # --- Initialize variables from session state safely ---
 level = st.session_state.get("falowen_level", "")
 teil = st.session_state.get("falowen_teil", "")
