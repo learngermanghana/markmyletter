@@ -1063,6 +1063,13 @@ with col3:
     if st.button("Change Level"):
         change_level()
 
+# --- Initialize variables from session state safely ---
+level = st.session_state.get("falowen_level", "")
+teil = st.session_state.get("falowen_teil", "")
+mode = st.session_state.get("falowen_mode", "")
+is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+
 # === Show initial instruction if chat is empty ===
 if not st.session_state.get("falowen_messages", []):
     instruction = ""
@@ -1074,8 +1081,9 @@ if not st.session_state.get("falowen_messages", []):
             "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
         )
     if instruction:
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+        st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
     # Do NOT call st.stop() here! Always allow the chat input box to display
+
 
 # ===== Chat input box and OpenAI response =====
 user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
