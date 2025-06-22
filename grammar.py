@@ -931,7 +931,9 @@ def build_custom_chat_prompt(level):
     if level in ["A1", "A2", "B1", "B2"]:
         return (
             "You are Herr Felix, a supportive German teacher. "
-            "The student will start with a topic or question. Always answer with some feedback and correct their errors—explain in English for A1/A2, half English/German for B1/B2. "
+            "The student will start with a topic or question. Give them compliments for the given topic or question. "
+            " Give them some ideas and key words and phrases they can use for the conversation. "
+            "Always answer with some feedback and correct their errors—explain in English for A1/A2, half English/German for B1/B2. "
             "After your feedback, always ask a follow-up question about the same topic, and encourage the student."
         )
     return ""
