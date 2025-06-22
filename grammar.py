@@ -20,8 +20,7 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
 client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
-# ---- Paste the DB connection helper here ----
-
+# ---- DB connection helper ----
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
@@ -30,50 +29,6 @@ def get_connection():
 
 conn = get_connection()
 c = conn.cursor()
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    # Group by level, count correct and attempted for each
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-def get_vocab_streak(student_code):
-    """Return the number of consecutive days with vocab submissions."""
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
-    rows = c.fetchall()
-    if not rows:
-        return 0
-
-    dates = [date.fromisoformat(r[0]) for r in rows]
-
-    # If the most recent submission wasn't today or yesterday, streak is lost
-    if (date.today() - dates[0]).days > 1:
-        return 0
-
-    streak = 1
-    prev = dates[0]
-    for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1
-            prev = d
-        else:
-            break
-
-    return streak
 
 # --- Create/verify tables if not exist (run once per app startup) ---
 def init_db():
@@ -120,6 +75,7 @@ def init_db():
 
 init_db()  # <--- Call this ONCE after defining the function!
 
+# --- Data saving helpers ---
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
     conn = get_connection()
     c = conn.cursor()
@@ -147,6 +103,46 @@ def save_oral_topic_progress(student_code, level, teil, topic):
     )
     conn.commit()
 
+# --- Stats helpers ---
+def get_student_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
+def get_vocab_streak(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
+        (student_code,),
+    )
+    rows = c.fetchall()
+    if not rows:
+        return 0
+
+    dates = [date.fromisoformat(r[0]) for r in rows]
+    if (date.today() - dates[0]).days > 1:
+        return 0
+
+    streak = 1
+    prev = dates[0]
+    for d in dates[1:]:
+        if (prev - d).days == 1:
+            streak += 1
+            prev = d
+        else:
+            break
+    return streak
+
 def get_writing_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
@@ -159,6 +155,7 @@ def get_writing_stats(student_code):
     accuracy = round(100 * passed / attempted) if attempted > 0 else 0
     return attempted, passed, accuracy
 
+# --- Falowen usage for daily quota ---
 def get_falowen_usage(student_code):
     today_str = str(date.today())
     key = f"{student_code}_falowen_{today_str}"
@@ -178,6 +175,7 @@ def inc_falowen_usage(student_code):
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
+# --- Oral Topic Helpers ---
 def get_completed_oral_topics(student_code, level, teil):
     conn = get_connection()
     c = conn.cursor()
@@ -186,6 +184,20 @@ def get_completed_oral_topics(student_code, level, teil):
         (student_code, level, teil)
     )
     return set([r[0] for r in c.fetchall()])
+
+def mark_topic_completed(student_code, level, teil, topic):
+    """
+    Record that a student has completed an oral exam topic.
+    Only saves if not already present, ensuring one record per topic.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT 1 FROM oral_topic_progress WHERE student_code=? AND level=? AND teil=? AND topic=?",
+        (student_code, level, teil, topic)
+    )
+    if not c.fetchone():
+        save_oral_topic_progress(student_code, level, teil, topic)
 
 # --- Streamlit page config ---
 st.set_page_config(
