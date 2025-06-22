@@ -1110,7 +1110,6 @@ if tab == "Exams Mode & Custom Chat":
                 file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
                 mime="application/pdf"
             )
-
         # === Session controls: Restart, Back, Change Level ===
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -1130,10 +1129,12 @@ if tab == "Exams Mode & Custom Chat":
                 instruction = build_exam_instruction(level, teil)
             elif is_custom_chat:
                 instruction = (
-                    f"Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
-                    f"You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
                 )
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            if instruction:
+                st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # Do NOT call st.stop() here! Always allow the chat input box to display
 
         # ===== Chat input box and OpenAI response =====
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
@@ -1179,6 +1180,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 # ========================== END FALOWEN CHAT TAB ==========================
+
 
 
 
