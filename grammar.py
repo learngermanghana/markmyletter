@@ -194,7 +194,6 @@ st.markdown(
 # ====================================
 
 STUDENTS_CSV = "students.csv"
-CODES_FILE = "student_codes.csv"
 
 @st.cache_data
 def load_student_data():
@@ -330,7 +329,6 @@ def validate_translation_openai(word, student_answer):
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
 
 
 # --- Vocab lists for all levels ---
@@ -769,6 +767,12 @@ Branch: Ring Road Central
 SWIFT: ECOCGHAC
 """)
 
+
+
+# ==========================
+# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
+# ==========================
+
 if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
@@ -776,11 +780,6 @@ if tab == "Exams Mode & Custom Chat":
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
-
-
-# ==========================
-# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
-# ==========================
 
 def falowen_download_pdf(messages, filename):
     import os
@@ -1522,4 +1521,110 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
+if tab == "Admin":
+    # --- Password protection ---
+    if "admin_unlocked" not in st.session_state:
+        st.session_state["admin_unlocked"] = False
+
+    if not st.session_state["admin_unlocked"]:
+        admin_pw = st.text_input("Enter Admin Password:", type="password")
+        if st.button("Unlock Admin"):
+            if admin_pw == "Felix029":
+                st.success("✅ Access granted.")
+                st.session_state["admin_unlocked"] = True
+                st.experimental_rerun()
+            else:
+                st.error("❌ Incorrect password.")
+        st.stop()
+
+    st.header("👨‍🏫 Admin & Teacher Settings")
+
+    # View all students
+    st.markdown("### 👩‍🎓 Student List")
+    students_df = load_student_data()
+    if not students_df.empty:
+        st.dataframe(students_df, use_container_width=True)
+    else:
+        st.info("No students found.")
+
+    # Export/import vocab progress
+    st.markdown("---")
+    st.markdown("### 📤 Export & Import: Vocab Progress")
+    conn = get_connection()
+    df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn)
+    st.download_button(
+        "⬇️ Download All Vocab Progress (CSV)",
+        df_vocab.to_csv(index=False).encode('utf-8'),
+        "vocab_progress_backup.csv",
+        "text/csv"
+    )
+    uploaded_vocab = st.file_uploader("Upload vocab_progress_backup.csv", type="csv")
+    if uploaded_vocab is not None:
+        df = pd.read_csv(uploaded_vocab)
+        c = conn.cursor()
+        c.execute("DELETE FROM vocab_progress")
+        for _, row in df.iterrows():
+            c.execute("""
+                INSERT INTO vocab_progress (id, student_code, name, level, word, student_answer, is_correct, date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                tuple(row)
+            )
+        conn.commit()
+        st.success("Vocab progress restored! Refresh the app to see updates.")
+
+    # Export/import schreiben progress
+    st.markdown("---")
+    st.markdown("### 📤 Export & Import: Schreiben Progress (Letters)")
+    df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn)
+    st.download_button(
+        "⬇️ Download All Schreiben Progress (CSV)",
+        df_schreiben.to_csv(index=False).encode('utf-8'),
+        "schreiben_progress_backup.csv",
+        "text/csv"
+    )
+    uploaded_schreiben = st.file_uploader("Upload schreiben_progress_backup.csv", type="csv")
+    if uploaded_schreiben is not None:
+        df = pd.read_csv(uploaded_schreiben)
+        c = conn.cursor()
+        c.execute("DELETE FROM schreiben_progress")
+        for _, row in df.iterrows():
+            c.execute("""
+                INSERT INTO schreiben_progress (id, student_code, name, level, essay, score, feedback, date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                tuple(row)
+            )
+        conn.commit()
+        st.success("Schreiben progress restored! Refresh the app to see updates.")
+
+    # View, filter, and export student letters for AI training
+    st.markdown("---")
+    st.markdown("### 📄 All Student Letters (for Review & AI Training)")
+
+    df_letters = pd.read_sql_query(
+        "SELECT id, student_code, name, level, essay, score, feedback, date FROM schreiben_progress ORDER BY date DESC", conn
+    )
+
+    if not df_letters.empty:
+        st.markdown("**Filter by student (optional):**")
+        selected_student = st.selectbox(
+            "Student:",
+            options=["(All)"] + sorted(df_letters['name'].unique().tolist()),
+            key="filter_admin_student"
+        )
+        if selected_student != "(All)":
+            filtered = df_letters[df_letters['name'] == selected_student]
+        else:
+            filtered = df_letters
+        st.dataframe(filtered, use_container_width=True)
+    else:
+        st.info("No student letters found.")
+
+    st.download_button(
+        "⬇️ Download All Student Letters for AI Training (CSV)",
+        df_letters[["level", "essay", "score", "feedback"]].to_csv(index=False).encode("utf-8"),
+        file_name="german_letters_ai_training.csv",
+        mime="text/csv"
+    )
+
 
