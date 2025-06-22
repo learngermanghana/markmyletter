@@ -845,28 +845,33 @@ def build_exam_instruction(level, teil):
         if "Teil 1" in teil:
             return (
                 "**A2 – Teil 1: Fragen zu Schlüsselwörtern**\n\n"
-                "You'll get a topic (e.g. 'Wohnort'). Ask a question about it, then answer it yourself."
+                "You'll get a topic (e.g. 'Wohnort'). Ask a question about it, then answer it yourself like your partner will do."
+                "You'll get a topic (e.g. 'Wohnort'). Ask a question about it, then answer it yourself like your partner will do."
+                "Give me a prompt like ('Yes, okay,begin) then i will start. Always let me know when you want the next question after answering"
             )
         elif "Teil 2" in teil:
             return (
                 "**A2 – Teil 2: Über das Thema sprechen**\n\n"
-                "Talk about the topic in 3-4 sentences. I'll help with correction and tips."
+                "Talk about the topic in 3-4 sentences. I'll help with correction and tips. "
+                "Should we begin. "
             )
         elif "Teil 3" in teil:
             return (
                 "**A2 – Teil 3: Gemeinsam planen**\n\n"
-                "Let's plan something together, like an activity. Respond to my suggestions and make your own."
+                "Let's plan something together, like an activity. Respond to my suggestions and make your own. "
+                "Should we begin. "
             )
     if level == "B1":
         if "Teil 1" in teil:
             return (
                 "**B1 – Teil 1: Gemeinsam planen**\n\n"
-                "We'll plan an activity together (e.g., a trip). Give your ideas and answer questions."
+                "We'll plan an activity together (e.g., a trip). If you are ready just type ready so we start. "
             )
         elif "Teil 2" in teil:
             return (
                 "**B1 – Teil 2: Präsentation**\n\n"
                 "Give a short presentation on the topic (2-3 minutes). I'll ask follow-up questions."
+                "Should we begin."
             )
         elif "Teil 3" in teil:
             return (
