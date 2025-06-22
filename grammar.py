@@ -647,6 +647,15 @@ if st.session_state["logged_in"]:
         streak = get_vocab_streak(student_code)
         total_attempted, total_passed, accuracy = get_writing_stats(student_code)
 
+        # --- Compute today's writing usage for Dashboard ---
+        from datetime import date
+        today_str = str(date.today())
+        limit_key = f"{student_code}_schreiben_{today_str}"
+        if "schreiben_usage" not in st.session_state:
+            st.session_state["schreiben_usage"] = {}
+        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
+        daily_so_far = st.session_state["schreiben_usage"][limit_key]
+
         # Student name and essentials
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
