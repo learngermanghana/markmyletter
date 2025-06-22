@@ -782,6 +782,9 @@ if tab == "Exams Mode & Custom Chat":
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
 # ==========================
 
+def falowen_download_pdf(messages, filename):
+    from fpdf import FPDF
+    import os
     def safe_latin1(text):
         # Replaces all unsupported characters with '?'
         return text.encode("latin1", "replace").decode("latin1")
@@ -800,6 +803,7 @@ if tab == "Exams Mode & Custom Chat":
         pdf_bytes = f.read()
     os.remove(pdf_output)
     return pdf_bytes
+
 
 # ---- Helper Functions for AI prompts ----
 
