@@ -781,9 +781,6 @@ if tab == "Exams Mode & Custom Chat":
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-def falowen_download_pdf(messages, filename):
-    import os
-    from fpdf import FPDF
     def safe_latin1(text):
         # Replaces all unsupported characters with '?'
         return text.encode("latin1", "replace").decode("latin1")
@@ -1369,7 +1366,6 @@ if tab == "Vocab Trainer":
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
 import urllib.parse
-from fpdf import FPDF
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
