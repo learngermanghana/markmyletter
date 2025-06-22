@@ -1039,7 +1039,7 @@ def build_custom_chat_prompt(level):
     return ""
 
 # === Download as PDF Button ===
-if st.session_state["falowen_messages"]:
+if st.session_state.get("falowen_messages", []):
     pdf_bytes = falowen_download_pdf(
         st.session_state["falowen_messages"],
         f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
