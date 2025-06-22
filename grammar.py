@@ -149,17 +149,26 @@ st.set_page_config(
 )
 
 # ---- Falowen Header ----
+
 st.markdown(
     """
     <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/6815/6815043.png' width='54' style='border-radius:50%;border:2.5px solid #51a8d2;box-shadow:0 2px 8px #cbe7fb;'/>
+        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
         <div>
-            <span style='font-size:2.1rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen</span><br>
-            <span style='font-size:1.08rem;color:#268049;'>Your personal German speaking coach (Herr Felix)</span>
+            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
+            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
+            <br>
+            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
+            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
+                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            </span>
         </div>
     </div>
-    """, unsafe_allow_html=True
+    """,
+    unsafe_allow_html=True
 )
+
+
 # ====================================
 # 2. STUDENT DATA LOADING
 # ====================================
@@ -607,7 +616,7 @@ if st.session_state["logged_in"]:
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Falowen Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
+        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
         key="main_tab_select"
     )
 
@@ -718,17 +727,23 @@ if st.session_state["logged_in"]:
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
 # ==========================
 
-from fpdf import FPDF
-
 def falowen_download_pdf(messages, filename):
+    def safe_latin1(text):
+        # Replaces all unsupported characters with '?'
+        return text.encode("latin1", "replace").decode("latin1")
+    
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     chat_text = ""
     for m in messages:
         role = "Herr Felix" if m["role"] == "assistant" else "Student"
-        chat_text += f"{role}: {m['content']}\n\n"
-    pdf.multi_cell(0, 10, chat_text)
+        # Safely encode each message
+        safe_msg = safe_latin1(m['content'])
+        chat_text += f"{role}: {safe_msg}\n\n"
+    # Also encode the entire block for safety (double insurance)
+    safe_chat_text = safe_latin1(chat_text)
+    pdf.multi_cell(0, 10, safe_chat_text)
     pdf_output = f"{filename}.pdf"
     pdf.output(pdf_output)
     with open(pdf_output, "rb") as f:
@@ -736,7 +751,8 @@ def falowen_download_pdf(messages, filename):
     os.remove(pdf_output)
     return pdf_bytes
 
-if tab == "Falowen Chat":
+
+if tab == "Exam Mode & Custom Chat":
     st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
     # --- Init session state for chat controls ---
