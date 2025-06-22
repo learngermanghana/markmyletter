@@ -1,24 +1,15 @@
-import os
-import random
-import difflib
-import sqlite3
-import atexit
-from datetime import date
-import pandas as pd
-import streamlit as st
 from openai import OpenAI
-from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
+import streamlit as st
+import os
 
-# ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error(
         "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
     )
     st.stop()
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
-client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
+
+client = OpenAI(api_key=OPENAI_API_KEY)  # <-- Pass api_key directly here
 
 # ---- DB connection helper ----
 def get_connection():
