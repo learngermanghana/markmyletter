@@ -769,10 +769,6 @@ SWIFT: ECOCGHAC
 """)
 
 
-# ==========================
-# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
-# ==========================
-
 if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
@@ -780,6 +776,11 @@ if tab == "Exams Mode & Custom Chat":
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
+
+
+# ==========================
+# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
+# ==========================
 
     def safe_latin1(text):
         # Replaces all unsupported characters with '?'
