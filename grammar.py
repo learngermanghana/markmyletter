@@ -1141,7 +1141,7 @@ if stage == 3:
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-            st.experimental_rerun()
+            st.rerun()
     st.stop()
 
 if stage == 4:
