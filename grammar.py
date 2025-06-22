@@ -1015,7 +1015,6 @@ def build_exam_system_prompt(level, teil):
             "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
         )
     return ""
-
 def build_custom_chat_prompt(level):
     if level == "C1":
         return (
@@ -1038,7 +1037,7 @@ def build_custom_chat_prompt(level):
         )
     return ""
 
-# --- Initialize session state at the top ---
+# --- Initialize variables from session state safely ---
 level = st.session_state.get("falowen_level", "")
 teil = st.session_state.get("falowen_teil", "")
 mode = st.session_state.get("falowen_mode", "")
@@ -1086,61 +1085,57 @@ if stage == 4:
             st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
         # Do NOT call st.stop() here! Always allow the chat input box to display
 
-    # ... your chat input logic here ...
+    # ===== Chat input box and OpenAI response =====
+    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
+    if user_input:
+        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+        inc_falowen_usage(student_code)  # <-- Increment daily usage
 
-# ===== Chat input box and OpenAI response =====
-user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        # "Herr Felix is typing..." spinner and OpenAI logic
+        with st.chat_message("assistant", avatar="🧑‍🏫"):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                # === System prompt logic ===
+                if is_exam:
+                    system_prompt = build_exam_system_prompt(level, teil)
+                else:
+                    system_prompt = build_custom_chat_prompt(level)
 
-if user_input:
-    st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-    inc_falowen_usage(student_code)  # <-- Increment daily usage
+                # === Full message history for the AI ===
+                messages = [{"role": "system", "content": system_prompt}]
+                messages += [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state["falowen_messages"]
+                ]
 
-    # "Herr Felix is typing..." spinner and OpenAI logic
-    with st.chat_message("assistant", avatar="🧑‍🏫"):
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            # === System prompt logic ===
-            if is_exam:
-                system_prompt = build_exam_system_prompt(level, teil)
-            else:
-                system_prompt = build_custom_chat_prompt(level)
+                # === OpenAI call ===
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=messages,
+                        temperature=0.15,
+                        max_tokens=600,
+                    )
+                    ai_reply = completion.choices[0].message.content.strip()
+                except Exception as e:
+                    ai_reply = f"Sorry, an error occurred: {e}"
 
-            # === Full message history for the AI ===
-            messages = [{"role": "system", "content": system_prompt}]
-            messages += [
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state["falowen_messages"]
-            ]
-
-            # === OpenAI call ===
-            try:
-                completion = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    temperature=0.15,
-                    max_tokens=600,
+                st.markdown(
+                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    unsafe_allow_html=True
                 )
-                ai_reply = completion.choices[0].message.content.strip()
-            except Exception as e:
-                ai_reply = f"Sorry, an error occurred: {e}"
+                st.markdown(ai_reply)
+        # Save AI reply to session for next turn
+        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-            st.markdown(
-                "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
-                unsafe_allow_html=True
+        # --- Mark topic completed (if in Exam Mode and topic set) ---
+        if is_exam and st.session_state.get("falowen_exam_topic"):
+            mark_topic_completed(
+                student_code,
+                level,
+                teil,
+                st.session_state["falowen_exam_topic"]
             )
-            st.markdown(ai_reply)
-    # Save AI reply to session for next turn
-    st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-
-    # ---- 6. Mark topic completed after use (call this after student finishes practice) ----
-    # Only mark as completed if this is Exam Mode and a topic is set!
-    if is_exam and st.session_state.get("falowen_exam_topic"):
-        mark_topic_completed(
-            student_code,
-            level,
-            teil,
-            st.session_state["falowen_exam_topic"]
-        )
 
 
 # ========================== END FALOWEN CHAT TAB ==========================
