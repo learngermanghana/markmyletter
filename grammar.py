@@ -741,50 +741,50 @@ if st.session_state["logged_in"]:
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
 
-        # --- Mobile-friendly Goethe-Institut Exam Registration Info (concise) ---
-        st.markdown("""
+# --- Super mobile-friendly Goethe-Institut Exam Info ---
+st.markdown("""
 <div style='
-    background: #f7fbff;
+    background: #f6f9ff;
     border-left: 4px solid #1767b4;
     border-radius: 12px;
-    margin: 22px 0 16px 0;
-    padding: 14px 10px 12px 16px;
-    font-size: 1.06rem;
-    box-shadow: 0 1px 3px #e2e5ea;'
+    margin: 18px 0 12px 0;
+    padding: 12px 10px 10px 13px;
+    font-size: 1.04rem;'
 >
-<b>📢 Registration: Aug./Sept. 2025 Goethe-Institut Exams</b><br>
-<ul style='list-style-type:none;padding-left:0.3em;margin:0.7em 0 0.6em 0;'>
-    <li><b>A1:</b> 21.07.2025 &nbsp; <span style='color:#1767b4;font-weight:600;'>2800 GHS</span></li>
-    <li><b>A2:</b> 22.07.2025 &nbsp; <span style='color:#1767b4;font-weight:600;'>2400 GHS</span></li>
-    <li><b>B1:</b> 23.07.2025 &nbsp; <span style='color:#1767b4;font-weight:600;'>2750 GHS (full) / 840 GHS (per module)</span></li>
-    <li><b>B2:</b> 24.07.2025 &nbsp; <span style='color:#1767b4;font-weight:600;'>2500 GHS (full) / 840 GHS (per module)</span></li>
-    <li><b>C1:</b> 25.07.2025 &nbsp; <span style='color:#1767b4;font-weight:600;'>2450 GHS (full) / 700 GHS (per module)</span></li>
+<b>📢 Registration: Aug./Sept. 2025 Goethe-Institut Exams</b>
+<ul style='list-style-type:none;padding-left:0.3em;margin:0.75em 0 0.6em 0;'>
+    <li><b>A1:</b> 21.07.2025 — <b>2800 GHS</b></li>
+    <li><b>A2:</b> 22.07.2025 — <b>2400 GHS</b></li>
+    <li><b>B1:</b> 23.07.2025 — <b>2750 GHS (full) / 840 GHS (per module)</b></li>
+    <li><b>B2:</b> 24.07.2025 — <b>2500 GHS (full) / 840 GHS (per module)</b></li>
+    <li><b>C1:</b> 25.07.2025 — <b>2450 GHS (full) / 700 GHS (per module)</b></li>
 </ul>
-<a href='https://www.goethe.de/ins/gh/en/spr/prf/anm.html' target='_blank' style='display:inline-block;margin:4px 0 10px 0;font-weight:600;color:#2a5dad;'>🔗 Click here to register now</a>
-<br>
-<details style='margin-top:10px;'>
-  <summary style='cursor:pointer;font-weight:600;color:#0d406b;'>How to Register</summary>
-  <ol style='margin-top:0.7em;margin-bottom:0.2em;'>
-    <li>Open the registration link above and click <b>register</b>.</li>
-    <li>Choose <b>Extern</b> and your correct exam level.</li>
-    <li>Wait for the email confirmation.</li>
-    <li>Pay via Mobile Money or bank transfer to Ecobank Ghana (details below). <i>Use your full name as reference.</i></li>
+<a href='https://www.goethe.de/ins/gh/en/spr/prf/anm.html' target='_blank' style='
+    display:inline-block;
+    margin:4px 0 12px 0;
+    font-weight:600;
+    color:#1150a5;
+    text-decoration:underline;
+'>🔗 Click here to register now</a>
+<br><br>
+<b>How to Register:</b>
+<ol style='margin:0.6em 0 0.5em 0;'>
+    <li>Tap the link above and click <b>register</b> on the Goethe site.</li>
+    <li>Choose <b>Extern</b> and your correct level.</li>
+    <li>Wait for the confirmation email.</li>
+    <li>Pay via Mobile Money or bank to Ecobank Ghana (details below). Use your full name as reference.</li>
     <li>Email your payment receipt to <a href='mailto:registrations-accra@goethe.de'>registrations-accra@goethe.de</a>.</li>
-    <li>You’ll get your final confirmation in a few days.</li>
-  </ol>
-</details>
-<details style='margin-top:6px;'>
-  <summary style='cursor:pointer;font-weight:600;color:#0d406b;'>Payment Details</summary>
-  <ul style='margin-top:0.7em;margin-bottom:0.2em;'>
-    <li><b>Bank:</b> Ecobank Ghana</li>
-    <li><b>Account Name:</b> GOETHE-INSTITUT GHANA</li>
-    <li><b>Account Number:</b> 1441 001 701 903</li>
-    <li><b>Branch:</b> Ring Road Central</li>
-    <li><b>SWIFT:</b> ECOCGHAC</li>
-  </ul>
-</details>
+    <li>Wait for your final confirmation (few days).</li>
+</ol>
+<b>Payment Details:</b><br>
+Bank: <b>Ecobank Ghana</b><br>
+Account Name: <b>GOETHE-INSTITUT GHANA</b><br>
+Account Number: <b>1441 001 701 903</b><br>
+Branch: <b>Ring Road Central</b><br>
+SWIFT: <b>ECOCGHAC</b>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 if tab == "Exams Mode & Custom Chat":
