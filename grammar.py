@@ -583,7 +583,7 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-if st.session_state.get("logged_in", False):
+if st.session_state["logged_in"]:
     student_code = st.session_state.get("student_code", "")
 
     st.header("Choose Practice Mode")
@@ -592,6 +592,7 @@ if st.session_state.get("logged_in", False):
         ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
         key="main_tab_select"
     )
+
 
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
@@ -639,6 +640,29 @@ if st.session_state.get("logged_in", False):
             except Exception:
                 pass
 
+        # --- Upcoming Goethe Exams, Prices & Registration Info ---
+        st.divider()
+        st.markdown("#### 📝 Upcoming Goethe Exam Dates, Prices, and Registration Info")
+
+        goethe_exam_data = [
+            {"Level": "A1", "Date": "2024-07-12", "Registration Deadline": "2024-06-30", "Price (GHS)": "1,100"},
+            {"Level": "A2", "Date": "2024-07-19", "Registration Deadline": "2024-07-07", "Price (GHS)": "1,250"},
+            {"Level": "B1", "Date": "2024-08-16", "Registration Deadline": "2024-08-01", "Price (GHS)": "1,300"},
+            {"Level": "B2", "Date": "2024-09-20", "Registration Deadline": "2024-09-07", "Price (GHS)": "1,400"},
+            # Add more dates as needed
+        ]
+        df_exams = pd.DataFrame(goethe_exam_data)
+        st.table(df_exams)
+
+        st.info(
+            "Register early! Visit the [Goethe-Institut Ghana Exam Page](https://www.goethe.de/ins/gh/en/m/sta/acc/prf.html) for updates.\n\n"
+            "- **Tip:** Pay at the Goethe office or via their official bank details (see website).\n"
+            "- **Bring:** Passport or valid national ID on exam day.\n"
+            "- **Contact:** info-accra@goethe.de / +233 302 776764\n"
+            "- **If in doubt, talk to your tutor or the school office.**"
+        )
+        st.divider()
+
         # --- Vocab streak ---
         st.markdown(f"🔥 **Vocab Streak:** {streak} days")
 
@@ -656,38 +680,7 @@ if st.session_state.get("logged_in", False):
             f"**🏅 Pass rate:** {accuracy}%"
         )
 
-        # --- Upcoming Goethe Exams, Prices & Registration Info ---
-        st.divider()
-        st.markdown("#### 📝 Upcoming Goethe Exam Dates, Prices, and Registration Info")
 
-        goethe_exam_data = [
-            {"Level": "A1", "Date": "2024-07-12", "Registration Deadline": "2024-06-30", "Price (GHS)": "1,100"},
-            {"Level": "A2", "Date": "2024-07-19", "Registration Deadline": "2024-07-07", "Price (GHS)": "1,250"},
-            {"Level": "B1", "Date": "2024-08-16", "Registration Deadline": "2024-08-01", "Price (GHS)": "1,300"},
-            {"Level": "B2", "Date": "2024-09-20", "Registration Deadline": "2024-09-07", "Price (GHS)": "1,400"},
-            # Add more dates as needed
-        ]
-        df_exams = pd.DataFrame(goethe_exam_data)
-        st.table(df_exams)
-
-        st.markdown(
-            """
-            **Goethe Registration Steps:**
-            1. Visit [this website](https://www.goethe.de/ins/gh/en/spr/prf/anm.html) and click register.
-            2. Fill in your information and choose your exam (choose “extern”).
-            3. After registration, you'll get a confirmation email.
-            4. Pay using Mobile Money or bank account (see below).
-            5. Email your payment proof to **registrations-accra@goethe.de** and wait for a reply (usually within 3 days). Follow up if you don’t get a reply!
-
-            **Bank Payment Details:**  
-            ECOBANK GHANA  
-            ACCOUNT NAME: GOETHE-INSTITUT GHANA  
-            ACCOUNT NUMBER: 1441 001 701 903  
-            BRANCH: RING ROAD CENTRAL  
-            SWIFT CODE: ECOCGHAC
-            """
-        )
-        st.divider()
 
         
 # ================================
