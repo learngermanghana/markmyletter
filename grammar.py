@@ -1132,115 +1132,140 @@ SWIFT: ECOCGHAC
 
 # ---- END STAGE 5C ----
 
-    # =========================================
-    # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
-    # =========================================
-    elif tab == "Vocab Trainer":
-        st.header("🧠 Vocab Trainer")
+# ---- END STAGE 4 ----
 
-        student_code = st.session_state.get("student_code", "demo")
-        student_name = st.session_state.get("student_name", "Demo")
-        today_str = str(date.today())
+elif tab == "Vocab Trainer":
+    st.header("🧠 Vocab Trainer")
 
-        # --- Daily Streak (fetch from your helper/db) ---
-        streak = get_vocab_streak(student_code)
-        if streak >= 1:
-            st.success(f"🔥 {streak}-day streak! Keep it up!")
-        else:
-            st.warning("You lost your streak. Start practicing today to get it back!")
+    # ---- Vocab Trainer helper functions ----
+    def is_close_answer(student, correct):
+        student = student.strip().lower()
+        correct = correct.strip().lower()
+        if correct.startswith("to "):
+            correct = correct[3:]
+        if len(student) < 3 or len(student) < 0.6 * len(correct):
+            return False
+        similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+        return similarity > 0.80
 
-        # --- Daily usage tracking ---
-        vocab_usage_key = f"{student_code}_vocab_{today_str}"
-        if "vocab_usage" not in st.session_state:
-            st.session_state["vocab_usage"] = {}
-        st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
-        used_today = st.session_state["vocab_usage"][vocab_usage_key]
+    def is_almost(student, correct):
+        student = student.strip().lower()
+        correct = correct.strip().lower()
+        if correct.startswith("to "):
+            correct = correct[3:]
+        similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+        return 0.60 < similarity <= 0.80
 
-        # --- Level selection ---
-        if "vocab_level" not in st.session_state:
-            st.session_state["vocab_level"] = "A1"
-        vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
-        if vocab_level != st.session_state["vocab_level"]:
-            st.session_state["vocab_level"] = vocab_level
-            st.session_state["vocab_feedback"] = ""
-            st.session_state["show_next_button"] = False
-            st.session_state["vocab_completed"] = set()
-
-        # --- Track completed words (fetch from DB if you want to persist) ---
-        if "vocab_completed" not in st.session_state:
-            st.session_state["vocab_completed"] = set()
-        completed_words = st.session_state["vocab_completed"]
-
-        vocab_list = VOCAB_LISTS.get(vocab_level, [])
-        is_tuple = isinstance(vocab_list[0], tuple) if vocab_list else False
-
-        # --- List of words not yet completed ---
-        new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
-        random.shuffle(new_words)
-
-        # --- Visual progress bar for today's goal ---
-        st.progress(
-            min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
-            text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
+    def validate_translation_openai(word, student_answer):
+        """Use OpenAI to verify if the student's answer is a valid translation."""
+        prompt = (
+            f"Is '{student_answer.strip()}' an accurate English translation of the German word '{word}'? "
+            "Reply with 'True' or 'False' only."
         )
+        try:
+            resp = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1,
+                temperature=0,
+            )
+            reply = resp.choices[0].message.content.strip().lower()
+            return reply.startswith("true")
+        except Exception:
+            return False
 
-        # --- Badge if daily goal reached ---
-        if used_today >= VOCAB_DAILY_LIMIT:
-            st.balloons()
-            st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
-            st.stop()
+    # ---- Main Vocab Trainer Logic ----
+    student_code = st.session_state.get("student_code", "demo")
+    student_name = st.session_state.get("student_name", "Demo")
+    today_str = str(date.today())
 
-        # --- Main vocab practice ---
-        if new_words:
-            idx = new_words[0]
-            word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
-            correct_answer = vocab_list[idx][1] if is_tuple else None
+    streak = get_vocab_streak(student_code)
+    if streak >= 1:
+        st.success(f"🔥 {streak}-day streak! Keep it up!")
+    else:
+        st.warning("You lost your streak. Start practicing today to get it back!")
 
-            st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
-            user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
+    vocab_usage_key = f"{student_code}_vocab_{today_str}"
+    if "vocab_usage" not in st.session_state:
+        st.session_state["vocab_usage"] = {}
+    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
+    used_today = st.session_state["vocab_usage"][vocab_usage_key]
 
-            if st.button("Check", key=f"vocab_check_{idx}"):
-                # --- New answer logic ---
-                if is_tuple:
-                    is_correct = is_close_answer(user_answer, correct_answer)
-                    almost = is_almost(user_answer, correct_answer)
-                else:
-                    # For single-word vocab (e.g., advanced levels), use OpenAI for validation
-                    is_correct = validate_translation_openai(word, user_answer)
-                    almost = False
+    if "vocab_level" not in st.session_state:
+        st.session_state["vocab_level"] = "A1"
+    vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
+    if vocab_level != st.session_state["vocab_level"]:
+        st.session_state["vocab_level"] = vocab_level
+        st.session_state["vocab_feedback"] = ""
+        st.session_state["show_next_button"] = False
+        st.session_state["vocab_completed"] = set()
 
-                # --- Show feedback ---
-                if is_correct:
-                    st.success("✅ Correct!")
-                    completed_words.add(idx)
-                elif almost:
-                    st.warning(
-                        f"Almost! The correct answer is: <b>{correct_answer}</b>",
-                        icon="⚠️",
-                    )
-                else:
-                    st.error(
-                        f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>" if is_tuple else "❌ Not quite.",
-                        icon="❗️",
-                    )
+    if "vocab_completed" not in st.session_state:
+        st.session_state["vocab_completed"] = set()
+    completed_words = st.session_state["vocab_completed"]
 
-                # --- Save to DB ---
-                save_vocab_submission(
-                    student_code=student_code,
-                    name=student_name,
-                    level=vocab_level,
-                    word=word,
-                    student_answer=user_answer,
-                    is_correct=is_correct,
+    vocab_list = VOCAB_LISTS.get(vocab_level, [])
+    is_tuple = isinstance(vocab_list[0], tuple) if vocab_list else False
+
+    new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
+    random.shuffle(new_words)
+
+    st.progress(
+        min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
+        text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
+    )
+
+    if used_today >= VOCAB_DAILY_LIMIT:
+        st.balloons()
+        st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
+        st.stop()
+
+    if new_words:
+        idx = new_words[0]
+        word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
+        correct_answer = vocab_list[idx][1] if is_tuple else None
+
+        st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
+        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
+
+        if st.button("Check", key=f"vocab_check_{idx}"):
+            if is_tuple:
+                is_correct = is_close_answer(user_answer, correct_answer)
+                almost = is_almost(user_answer, correct_answer)
+            else:
+                is_correct = validate_translation_openai(word, user_answer)
+                almost = False
+
+            if is_correct:
+                st.success("✅ Correct!")
+                completed_words.add(idx)
+            elif almost:
+                st.warning(
+                    f"Almost! The correct answer is: <b>{correct_answer}</b>",
+                    icon="⚠️",
                 )
-                st.session_state["vocab_usage"][vocab_usage_key] += 1
-                st.rerun()
-        else:
-            st.success("🎉 You've finished all new words for this level today!")
+            else:
+                st.error(
+                    f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>" if is_tuple else "❌ Not quite.",
+                    icon="❗️",
+                )
 
-        # --- Optionally: show summary of all words completed so far for this level ---
-        if completed_words:
-            st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+            save_vocab_submission(
+                student_code=student_code,
+                name=student_name,
+                level=vocab_level,
+                word=word,
+                student_answer=user_answer,
+                is_correct=is_correct,
+            )
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            st.rerun()
+    else:
+        st.success("🎉 You've finished all new words for this level today!")
+
+    if completed_words:
+        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
 
 # ---- END STAGE 5D ----
 
