@@ -577,11 +577,6 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-# ====================================
-# 6. MAIN TAB SELECTOR (with Dashboard)
-# ====================================
-
-
 if st.session_state["logged_in"]:
     student_code = st.session_state.get("student_code", "")
 
@@ -685,6 +680,7 @@ if st.session_state["logged_in"]:
     - **Branch:** Ring Road Central  
     - **SWIFT CODE:** ECOCGHAC
         """)
+
         
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
