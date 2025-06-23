@@ -692,7 +692,6 @@ def get_exam_topics(level):
     return topics
 
 
-
 # ====================================
 # 6. MAIN TAB SELECTOR (with Dashboard)
 # ====================================
@@ -740,10 +739,10 @@ if st.session_state.get("logged_in"):
         unsafe_allow_html=True
     )
 
-    # === SINGLE TAB LOGIC BLOCK ===
+    # ====== TAB LOGIC BLOCK ======
 
-    # --- DASHBOARD TAB ---
     if tab == "Dashboard":
+        # Dashboard logic here...
         st.header("📊 Student Dashboard")
         student_row = st.session_state.get("student_row") or {}
         streak = get_vocab_streak(student_code)
@@ -839,10 +838,6 @@ Account Number: 1441 001 701 903
 Branch: Ring Road Central  
 SWIFT: ECOCGHAC
 """)
-
-if tab == "Dashboard":
-    # Dashboard logic here
-    ...
 
 elif tab == "Exams Mode & Custom Chat":
     # Example usage check
