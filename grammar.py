@@ -839,16 +839,12 @@ Branch: Ring Road Central
 SWIFT: ECOCGHAC
 """)
 
-elif tab == "Exams Mode & Custom Chat":
-    # Example usage check
-    if not has_falowen_quota(student_code):
-        st.header("🗣️ Falowen – Speaking & Exam Trainer")
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
-        
+
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
 # ==========================
+
+elif tab == "Exams Mode & Custom Chat":
     
 def falowen_download_pdf(messages, filename):
     import os
@@ -871,6 +867,45 @@ def falowen_download_pdf(messages, filename):
     os.remove(pdf_output)
     return pdf_bytes
 
+
+
+# ==========================
+# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
+# ==========================
+
+# --- Initialize variables from session state safely ---
+level = st.session_state.get("falowen_level", "")
+teil = st.session_state.get("falowen_teil", "")
+mode = st.session_state.get("falowen_mode", "")
+is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+stage = st.session_state.get("falowen_stage", 1)
+
+# ---- Session Navigation Helpers ----
+def reset_chat():
+    """Clear the current chat history and restart the conversation."""
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_exam_topic"] = None
+    st.session_state["falowen_user_input"] = ""
+    st.rerun()
+
+def back_step():
+    """Go back to the level selection step (Step 2)."""
+    st.session_state["falowen_stage"] = 2
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_exam_topic"] = None
+    st.session_state["falowen_user_input"] = ""
+    st.rerun()
+
+def change_level():
+    """Allow the user to pick a different level."""
+    st.session_state["falowen_level"] = ""
+    st.session_state["falowen_teil"] = ""
+    st.session_state["falowen_stage"] = 2
+    st.session_state["falowen_messages"] = []
+    st.session_state["falowen_exam_topic"] = None
+    st.session_state["falowen_user_input"] = ""
+    st.rerun()
 
 # ---- Helper Functions for AI prompts ----
 
@@ -1070,45 +1105,12 @@ def build_custom_chat_prompt(level):
             f"Encourage the student and keep the chat motivating. "
         )
     return ""
-
-# ==========================
-# FALOWEN CHAT TAB (Exam Mode & Custom Chat)
-# ==========================
-
-# --- Initialize variables from session state safely ---
-level = st.session_state.get("falowen_level", "")
-teil = st.session_state.get("falowen_teil", "")
-mode = st.session_state.get("falowen_mode", "")
-is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-stage = st.session_state.get("falowen_stage", 1)
-
-# ---- Session Navigation Helpers ----
-def reset_chat():
-    """Clear the current chat history and restart the conversation."""
-    st.session_state["falowen_messages"] = []
-    st.session_state["falowen_exam_topic"] = None
-    st.session_state["falowen_user_input"] = ""
-    st.rerun()
-
-def back_step():
-    """Go back to the level selection step (Step 2)."""
-    st.session_state["falowen_stage"] = 2
-    st.session_state["falowen_messages"] = []
-    st.session_state["falowen_exam_topic"] = None
-    st.session_state["falowen_user_input"] = ""
-    st.rerun()
-
-def change_level():
-    """Allow the user to pick a different level."""
-    st.session_state["falowen_level"] = ""
-    st.session_state["falowen_teil"] = ""
-    st.session_state["falowen_stage"] = 2
-    st.session_state["falowen_messages"] = []
-    st.session_state["falowen_exam_topic"] = None
-    st.session_state["falowen_user_input"] = ""
-    st.rerun()
-
+    
+    if not has_falowen_quota(student_code):
+        st.header("🗣️ Falowen – Speaking & Exam Trainer")
+        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+        st.stop()
+        
 # ================== FALOWEN CHAT STAGE SELECTOR ==================
 
 if stage == 1:
