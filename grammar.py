@@ -741,8 +741,6 @@ if st.session_state.get("logged_in"):
     )
 
     # === SINGLE TAB LOGIC BLOCK ===
-    if tab == "Dashboard":
-        # ------- DASHBOARD TAB CODE -------
 
     # --- DASHBOARD TAB ---
     if tab == "Dashboard":
