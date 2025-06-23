@@ -583,13 +583,19 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-if st.session_state["logged_in"]:
+if st.session_state.get("logged_in", False):  # Safe get with default False
     student_code = st.session_state.get("student_code", "")
 
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
+        [
+            "Dashboard", 
+            "Exams Mode & Custom Chat", 
+            "Vocab Trainer", 
+            "Schreiben Trainer", 
+            "Admin"
+        ],
         key="main_tab_select"
     )
 
@@ -670,22 +676,24 @@ if st.session_state["logged_in"]:
         df_exams = pd.DataFrame(goethe_exam_data)
         st.table(df_exams)
 
+        st.markdown(
+            """
+            **Goethe Registration Steps:**
+            1. Visit [this website](https://www.goethe.de/ins/gh/en/spr/prf/anm.html) and click register.
+            2. Fill in your information and choose your exam (choose “extern”).
+            3. After registration, you'll get a confirmation email.
+            4. Pay using Mobile Money or bank account (see below).
+            5. Email your payment proof to **registrations-accra@goethe.de** and wait for a reply (usually within 3 days). Follow up if you don’t get a reply!
+
+            **Bank Payment Details:**  
+            ECOBANK GHANA  
+            ACCOUNT NAME: GOETHE-INSTITUT GHANA  
+            ACCOUNT NUMBER: 1441 001 701 903  
+            BRANCH: RING ROAD CENTRAL  
+            SWIFT CODE: ECOCGHAC
+            """
+        )
         st.divider()
-        st.markdown("### 📝 How to Register for a Goethe Exam")
-        st.markdown("""
-1. **Visit** the [Goethe online registration page](https://www.goethe.de/ins/gh/en/spr/prf/anm.html) and click **Register**.
-2. **Fill in your information**, select your exam level, and choose **'Extern'**.
-3. After registration, you will receive a **confirmation email**.
-4. **Pay** the exam fee by Mobile Money or bank account transfer.
-5. After payment, **send a copy of your payment slip** to `registrations-accra@goethe.de` and wait for their reply (usually within 3 days).  
-   - If you don’t receive a reply, **follow up** with them via email or phone.
-6. **Bank payment details:**  
-    - **Bank:** ECOBANK GHANA  
-    - **Account Name:** GOETHE-INSTITUT GHANA  
-    - **Account Number:** 1441 001 701 903  
-    - **Branch:** Ring Road Central  
-    - **SWIFT CODE:** ECOCGHAC
-        """)
 
         
 # ================================
