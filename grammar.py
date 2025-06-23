@@ -1307,7 +1307,6 @@ elif tab == "Vocab Trainer":
     else:
         st.warning("You lost your streak. Start practicing today to get it back!")
 
-
     # --- Daily usage tracking ---
     vocab_usage_key = f"{student_code}_vocab_{today_str}"
     if "vocab_usage" not in st.session_state:
