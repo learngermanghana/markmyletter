@@ -742,6 +742,21 @@ if st.session_state.get("logged_in"):
 
     # --- DASHBOARD TAB ---
     if tab == "Dashboard":
+        ...
+    # --- EXAMS/CUSTOM CHAT TAB ---
+    if tab == "Exams Mode & Custom Chat":
+        ...
+    # --- VOCAB TRAINER TAB ---
+    if tab == "Vocab Trainer":
+        ...
+    # --- SCHREIBEN TRAINER TAB ---
+    if tab == "Schreiben Trainer":
+        ...
+    # --- ADMIN TAB ---
+    if tab == "Admin":
+        
+    # --- DASHBOARD TAB ---
+    if tab == "Dashboard":
         st.header("📊 Student Dashboard")
         student_row = st.session_state.get("student_row") or {}
         streak = get_vocab_streak(student_code)
@@ -850,7 +865,7 @@ SWIFT: ECOCGHAC
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
 # ==========================
-
+    
 def falowen_download_pdf(messages, filename):
     import os
     def safe_latin1(text):
