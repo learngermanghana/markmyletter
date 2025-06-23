@@ -697,14 +697,20 @@ def get_exam_topics(level):
 # 6. MAIN TAB SELECTOR (with Dashboard)
 # ====================================
 
-if st.session_state["logged_in"]:
+if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "")
 
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
-        key="main_tab_select"
+        [
+            "Dashboard",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "Admin",
+        ],
+        key="main_tab_select",
     )
 
     # --- Mobile-friendly Active Tab Indicator ---
@@ -734,17 +740,15 @@ if st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-
-    # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
+    # --- DASHBOARD TAB ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
-
         student_row = st.session_state.get("student_row") or {}
         streak = get_vocab_streak(student_code)
         total_attempted, total_passed, accuracy = get_writing_stats(student_code)
 
-        # --- Compute today's writing usage for Dashboard ---
-        from datetime import date
+        # --- Today's schreiben usage ---
+        from datetime import date, datetime
         today_str = str(date.today())
         limit_key = f"{student_code}_schreiben_{today_str}"
         if "schreiben_usage" not in st.session_state:
@@ -752,7 +756,7 @@ if st.session_state["logged_in"]:
         st.session_state["schreiben_usage"].setdefault(limit_key, 0)
         daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-        # Student name and essentials
+        # Student details
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
             f"**Level:** {student_row.get('Level', '')}\n\n"
@@ -772,12 +776,9 @@ if st.session_state["logged_in"]:
         except Exception:
             balance_float = 0.0
         if balance_float > 0:
-            st.warning(
-                f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)"
-            )
+            st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
 
         # --- Contract End reminder ---
-        from datetime import datetime
         contract_end = student_row.get('ContractEnd')
         if contract_end:
             try:
@@ -837,15 +838,14 @@ Branch: Ring Road Central
 SWIFT: ECOCGHAC
 """)
 
-
-if tab == "Exams Mode & Custom Chat":
-    # --- Daily Limit Check ---
-    # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
-    if not has_falowen_quota(student_code):
-        st.header("🗣️ Falowen – Speaking & Exam Trainer")
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
-
+    # --- EXAMS/CUSTOM CHAT TAB (logic comes here, after this block) ---
+    if tab == "Exams Mode & Custom Chat":
+        # Example usage check
+        if not has_falowen_quota(student_code):
+            st.header("🗣️ Falowen – Speaking & Exam Trainer")
+            st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+            st.stop()
+        # Your Falowen chat tab logic goes here (as previously discussed)
 
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
