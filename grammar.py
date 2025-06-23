@@ -640,7 +640,7 @@ SWIFT: ECOCGHAC
 """)
 # ---- END STAGE 4 ----
 
-elif tab == "Exams Mode & Custom Chat":
+    elif tab == "Exams Mode & Custom Chat":
 
     # ---- PDF Helper ----
     def falowen_download_pdf(messages, filename):
