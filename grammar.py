@@ -143,6 +143,12 @@ def pick_new_sprechen_topic(student_code, level, teil, topic_list):
         return None
     return random.choice(remaining)
 
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = {}
+if "student_code" not in st.session_state:
+    st.session_state["student_code"] = ""
 
 # ====================================
 # STAGE 2 – FLEXIBLE CHECKERS & PROGRESS HELPERS
