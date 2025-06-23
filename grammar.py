@@ -1339,14 +1339,11 @@ if stage == 4:
 
 # ========================== END FALOWEN CHAT TAB ==========================
 
-
-    elif tab == "Vocab Trainer":
-
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
 # =========================================
 
-if tab == "Vocab Trainer":
+elif tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
     student_code = st.session_state.get("student_code", "demo")
@@ -1359,6 +1356,7 @@ if tab == "Vocab Trainer":
         st.success(f"🔥 {streak}-day streak! Keep it up!")
     else:
         st.warning("You lost your streak. Start practicing today to get it back!")
+
 
     # --- Daily usage tracking ---
     vocab_usage_key = f"{student_code}_vocab_{today_str}"
