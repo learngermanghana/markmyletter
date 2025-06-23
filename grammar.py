@@ -1121,278 +1121,289 @@ if st.session_state["logged_in"]:
             # Save AI reply to session for next turn
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
+if st.session_state["logged_in"]:
+    # =========================================
+    # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
+    # =========================================
 
+    if tab == "Vocab Trainer":
+        st.header("🧠 Vocab Trainer")
 
+        student_code = st.session_state.get("student_code", "demo")
+        student_name = st.session_state.get("student_name", "Demo")
+        today_str = str(date.today())
 
+        # --- Daily Streak (fetch from your helper/db) ---
+        streak = get_vocab_streak(student_code)
+        if streak >= 1:
+            st.success(f"🔥 {streak}-day streak! Keep it up!")
+        else:
+            st.warning("You lost your streak. Start practicing today to get it back!")
 
+        # --- Daily usage tracking ---
+        vocab_usage_key = f"{student_code}_vocab_{today_str}"
+        if "vocab_usage" not in st.session_state:
+            st.session_state["vocab_usage"] = {}
+        st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
+        used_today = st.session_state["vocab_usage"][vocab_usage_key]
 
-# =========================================
-# VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
-# =========================================
+        # --- Level selection ---
+        if "vocab_level" not in st.session_state:
+            st.session_state["vocab_level"] = "A1"
+        vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
+        if vocab_level != st.session_state["vocab_level"]:
+            st.session_state["vocab_level"] = vocab_level
+            st.session_state["vocab_feedback"] = ""
+            st.session_state["show_next_button"] = False
+            st.session_state["vocab_completed"] = set()
 
-if tab == "Vocab Trainer":
-    st.header("🧠 Vocab Trainer")
+        # --- Track completed words (fetch from DB if you want to persist) ---
+        if "vocab_completed" not in st.session_state:
+            st.session_state["vocab_completed"] = set()
+        completed_words = st.session_state["vocab_completed"]
 
-    student_code = st.session_state.get("student_code", "demo")
-    student_name = st.session_state.get("student_name", "Demo")
-    today_str = str(date.today())
+        vocab_list = VOCAB_LISTS.get(vocab_level, [])
+        is_tuple = isinstance(vocab_list[0], tuple) if vocab_list else False
 
-    # --- Daily Streak (fetch from your helper/db) ---
-    streak = get_vocab_streak(student_code)
-    if streak >= 1:
-        st.success(f"🔥 {streak}-day streak! Keep it up!")
-    else:
-        st.warning("You lost your streak. Start practicing today to get it back!")
+        # --- List of words not yet completed ---
+        new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
+        random.shuffle(new_words)
 
-    # --- Daily usage tracking ---
-    vocab_usage_key = f"{student_code}_vocab_{today_str}"
-    if "vocab_usage" not in st.session_state:
-        st.session_state["vocab_usage"] = {}
-    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
-    used_today = st.session_state["vocab_usage"][vocab_usage_key]
+        # --- Visual progress bar for today's goal ---
+        st.progress(
+            min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
+            text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
+        )
 
-    # --- Level selection ---
-    if "vocab_level" not in st.session_state:
-        st.session_state["vocab_level"] = "A1"
-    vocab_level = st.selectbox("Choose level", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
-    if vocab_level != st.session_state["vocab_level"]:
-        st.session_state["vocab_level"] = vocab_level
-        st.session_state["vocab_feedback"] = ""
-        st.session_state["show_next_button"] = False
-        st.session_state["vocab_completed"] = set()
+        # --- Badge if daily goal reached ---
+        if used_today >= VOCAB_DAILY_LIMIT:
+            st.balloons()
+            st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
+            st.stop()
 
-    # --- Track completed words (fetch from DB if you want to persist) ---
-    if "vocab_completed" not in st.session_state:
-        st.session_state["vocab_completed"] = set()
-    completed_words = st.session_state["vocab_completed"]
+        # --- Main vocab practice ---
+        if new_words:
+            idx = new_words[0]
+            word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
+            correct_answer = vocab_list[idx][1] if is_tuple else None
 
-    vocab_list = VOCAB_LISTS.get(vocab_level, [])
-    is_tuple = isinstance(vocab_list[0], tuple) if vocab_list else False
+            st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
+            user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
 
-    # --- List of words not yet completed ---
-    new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
-    random.shuffle(new_words)
+            if st.button("Check", key=f"vocab_check_{idx}"):
+                # --- New answer logic ---
+                if is_tuple:
+                    is_correct = is_close_answer(user_answer, correct_answer)
+                    almost = is_almost(user_answer, correct_answer)
+                else:
+                    # For single-word vocab (e.g., advanced levels), use OpenAI for validation
+                    is_correct = validate_translation_openai(word, user_answer)
+                    almost = False
 
-    # --- Visual progress bar for today's goal ---
-    st.progress(
-        min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
-        text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
-    )
+                # --- Show feedback ---
+                if is_correct:
+                    st.success("✅ Correct!")
+                    completed_words.add(idx)
+                elif almost:
+                    st.warning(
+                        f"Almost! The correct answer is: <b>{correct_answer}</b>",
+                        icon="⚠️",
+                    )
 
-    # --- Badge if daily goal reached ---
-    if used_today >= VOCAB_DAILY_LIMIT:
-        st.balloons()
-        st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
-        st.stop()
-
-    # --- Main vocab practice ---
-    if new_words:
-        idx = new_words[0]
-        word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
-        correct_answer = vocab_list[idx][1] if is_tuple else None
-
-        st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
-        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
-
-        if st.button("Check", key=f"vocab_check_{idx}"):
-            # --- New answer logic ---
-            if is_tuple:
-                is_correct = is_close_answer(user_answer, correct_answer)
-                almost = is_almost(user_answer, correct_answer)
-            else:
-                # For single-word vocab (e.g., advanced levels), use OpenAI for validation
-                is_correct = validate_translation_openai(word, user_answer)
-                almost = False
-
-            # --- Show feedback ---
-            if is_correct:
-                st.success("✅ Correct!")
-                completed_words.add(idx)
-            elif almost:
-                st.warning(
-                    f"Almost! The correct answer is: <b>{correct_answer}</b>",
-                    icon="⚠️",
-                )
-            else:
-                st.error(
-                    f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>" if is_tuple else "❌ Not quite.",
-                    icon="❗️",
-                )
-
-            # --- Save to DB ---
-            save_vocab_submission(
-                student_code=student_code,
-                name=student_name,
-                level=vocab_level,
-                word=word,
-                student_answer=user_answer,
-                is_correct=is_correct,
+        # ---- PDF Download Button ----
+        if st.session_state["falowen_messages"]:
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
             )
-            st.session_state["vocab_usage"][vocab_usage_key] += 1
-            st.rerun()
-    else:
-        st.success("🎉 You've finished all new words for this level today!")
-
-    # --- Optionally: show summary of all words completed so far for this level ---
-    if completed_words:
-        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
-
-# ====================================
-# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
-# ====================================
-import urllib.parse
-from fpdf import FPDF
-
-if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer (Writing Practice)")
-
-    # 1. Choose Level (remember previous)
-    schreiben_levels = ["A1", "A2", "B1", "B2"]
-    prev_level = st.session_state.get("schreiben_level", "A1")
-    schreiben_level = st.selectbox(
-        "Choose your writing level:",
-        schreiben_levels,
-        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
-        key="schreiben_level_selector"
-    )
-    st.session_state["schreiben_level"] = schreiben_level
-
-    # 2. Daily limit tracking (by student & date)
-    student_code = st.session_state.get("student_code", "demo")
-    student_name = st.session_state.get("student_name", "")
-    today_str = str(date.today())
-    limit_key = f"{student_code}_schreiben_{today_str}"
-    if "schreiben_usage" not in st.session_state:
-        st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(limit_key, 0)
-    daily_so_far = st.session_state["schreiben_usage"][limit_key]
-
-    # 3. Show overall writing performance (DB-driven, mobile-first)
-    attempted, passed, accuracy = get_writing_stats(student_code)
-    st.markdown(f"""**📝 Your Overall Writing Performance**
-- 📨 **Submitted:** {attempted}
-- ✅ **Passed (≥17):** {passed}
-- 📊 **Pass Rate:** {accuracy}%
-- 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
-""")
-
-    # 4. Level-Specific Stats (optional)
-    stats = get_student_stats(student_code)
-    lvl_stats = stats.get(schreiben_level, {}) if stats else {}
-    if lvl_stats and lvl_stats["attempted"]:
-        correct = lvl_stats.get("correct", 0)
-        attempted_lvl = lvl_stats.get("attempted", 0)
-        st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
-    else:
-        st.info("_No previous writing activity for this level yet._")
-
-    st.divider()
-
-    # 5. Input Box (disabled if limit reached)
-    user_letter = st.text_area(
-        "Paste or type your German letter/essay here.",
-        key="schreiben_input",
-        disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
-        height=180,
-        placeholder="Write your German letter here..."
-    )
-
-    # 6. AI prompt (always define before calling the API)
-    ai_prompt = (
-        f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-        f"The student has submitted a {schreiben_level} German letter or essay. "
-        "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-        "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-        "Don't just say errors—show exactly where the mistakes are. "
-        "1. Give a score out of 25 marks and always display the score clearly. "
-        "2. If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. "
-        "3. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
-        "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-        "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-        "6. Also check for AI usage or if the student wrote with their own effort. "
-        "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-        "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
-    )
-
-    # 7. Submit & AI Feedback
-    feedback = ""
-    submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
-    if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
-        st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
-
-    if st.button("Get Feedback", type="primary", disabled=submit_disabled):
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            try:
-                completion = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": ai_prompt},
-                        {"role": "user", "content": user_letter},
-                    ],
-                    temperature=0.6,
-                )
-                feedback = completion.choices[0].message.content
-            except Exception as e:
-                st.error("AI feedback failed. Please check your OpenAI setup.")
-                feedback = None
-
-        if feedback:
-            # === Extract score and check if passed ===
-            import re
-            # Robust regex for score detection
-            score_match = re.search(
-                r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
-                feedback,
-                re.IGNORECASE,
-            )
-            if not score_match:
-                score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
-            if score_match:
-                score = int(score_match.group(1))
-            else:
-                st.warning("Could not detect a score in the AI feedback.")
-                score = 0
-
-            # === Update usage and save to DB ===
-            st.session_state["schreiben_usage"][limit_key] += 1
-            save_schreiben_submission(
-                student_code, student_name, schreiben_level, user_letter, score, feedback
-            )
-
-            # --- Show Feedback ---
-            st.markdown("---")
-            st.markdown("#### 📝 Feedback from Herr Felix")
-            st.markdown(feedback)
-
-            # === Download as PDF ===
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.multi_cell(0, 10, f"Your Letter:\n\n{user_letter}\n\nFeedback from Herr Felix:\n\n{feedback}")
-            pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-            pdf.output(pdf_output)
-            with open(pdf_output, "rb") as f:
-                pdf_bytes = f.read()
             st.download_button(
-                "⬇️ Download Feedback as PDF",
+                "⬇️ Download Chat as PDF",
                 pdf_bytes,
-                file_name=pdf_output,
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
                 mime="application/pdf"
             )
-            import os
-            os.remove(pdf_output)
 
-            # === WhatsApp Share ===
-            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-            wa_url = (
-                "https://api.whatsapp.com/send"
-                "?phone=233205706589"
-                f"&text={urllib.parse.quote(wa_message)}"
-            )
-            st.markdown(
-                f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                unsafe_allow_html=True
-            )
+        # ---- Session Controls
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Restart Chat"):
+                reset_chat()
+        with col2:
+            if st.button("Back"):
+                back_step()
+        with col3:
+            if st.button("Change Level"):
+                change_level()
+
+        # ---- Initial instruction (only if chat is empty) ----
+        if not st.session_state["falowen_messages"]:
+            instruction = ""
+            if is_exam:
+                instruction = build_exam_instruction(level, teil)
+            elif is_custom_chat:
+                instruction = (
+                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+                )
+            if instruction:
+                st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+
+        # ---- Chat Input Box & OpenAI Response ----
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        if user_input:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            inc_falowen_usage(student_code)  # increment daily usage
+
+            # Spinner and OpenAI call
+            with st.chat_message("assistant", avatar="🧑‍🏫"):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    # System prompt logic
+                    if is_exam:
+                        system_prompt = build_exam_system_prompt(level, teil)
+                    else:
+                        system_prompt = build_custom_chat_prompt(level)
+
+                    # Compose full history for OpenAI
+                    messages = [{"role": "system", "content": system_prompt}]
+                    messages += [{"role": m["role"], "content": m["content"]} for m in st.session_state["falowen_messages"]]
+
+                    try:
+                        completion = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600,
+                        )
+                        ai_reply = completion.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
+                    st.markdown(
+                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        unsafe_allow_html=True
+                    )
+                    st.markdown(ai_reply)
+            
+            st.session_state["vocab_usage"][vocab_usage_key] += 1
+            st.rerun()
+
+        else:
+            st.success("🎉 You've finished all new words for this level today!")
+
+        # --- Optionally: show summary of all words completed so far for this level ---
+        if completed_words:
+            st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
+if st.session_state["logged_in"]:
+    # ====================================
+    # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
+    # ====================================
+
+    import urllib.parse
+    from fpdf import FPDF
+
+    if tab == "Schreiben Trainer":
+
+        st.header("✍️ Schreiben Trainer (Writing Practice)")
+
+        # 1. Choose Level (remember previous)
+        schreiben_levels = ["A1", "A2", "B1", "B2"]
+        prev_level = st.session_state.get("schreiben_level", "A1")
+        schreiben_level = st.selectbox(
+            "Choose your writing level:",
+            schreiben_levels,
+            index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+            key="schreiben_level_selector"
+        )
+        st.session_state["schreiben_level"] = schreiben_level
+
+        # 2. Daily limit tracking (by student & date)
+        student_code = st.session_state.get("student_code", "demo")
+        student_name = st.session_state.get("student_name", "")
+        today_str = str(date.today())
+        limit_key = f"{student_code}_schreiben_{today_str}"
+
+        if "schreiben_usage" not in st.session_state:
+            st.session_state["schreiben_usage"] = {}
+
+        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
+        daily_so_far = st.session_state["schreiben_usage"][limit_key]
+
+        # 3. Show overall writing performance (DB-driven, mobile-first)
+        attempted, passed, accuracy = get_writing_stats(student_code)
+        st.markdown(f"""**📝 Your Overall Writing Performance**
+        - 📨 **Submitted:** {attempted}
+        - ✅ **Passed (≥17):** {passed}
+        - 📊 **Pass Rate:** {accuracy}%
+        - 📅 **Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}
+        """)
+
+        # 4. Level-Specific Stats (optional)
+        stats = get_student_stats(student_code)
+        lvl_stats = stats.get(schreiben_level, {}) if stats else {}
+
+        if lvl_stats and lvl_stats["attempted"]:
+            correct = lvl_stats.get("correct", 0)
+            attempted_lvl = lvl_stats.get("attempted", 0)
+            st.info(f"Level `{schreiben_level}`: {correct} / {attempted_lvl} passed")
+        else:
+            st.info("_No previous writing activity for this level yet._")
+
+        st.divider()
+
+        # 5. Input Box (disabled if limit reached)
+        user_letter = st.text_area(
+            "Paste or type your German letter/essay here.",
+            key="schreiben_input",
+            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
+            height=180,
+            placeholder="Write your German letter here..."
+        )
+
+        # 6. AI prompt (always define before calling the API)
+        ai_prompt = (
+            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+            f"The student has submitted a {schreiben_level} German letter or essay. "
+            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+            "Don't just say errors—show exactly where the mistakes are. "
+            "1. Give a score out of 25 marks and always display the score clearly. "
+            "2. If the score is 17 or more (17, 18, ..., 25), write: '**Passed: You may submit to your tutor!**'. "
+            "3. If the score is 16 or less (16, 15, ..., 0), write: '**Keep improving before you submit.**'. "
+            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+            "6. Also check for AI usage or if the student wrote with their own effort. "
+            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
+        )
+
+        # 7. Submit & AI Feedback
+        feedback = ""
+        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
+
+        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
+            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+
+        if st.button("Get Feedback", type="primary", disabled=submit_disabled):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    ai_reply = completion.choices[0].message.content.strip()
+                    st.markdown(ai_reply)
+
+                except Exception as e:
+                    ai_reply = f"Sorry, an error occurred: {e}"
+
+            # Save AI reply to session for next turn
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
 
 if tab == "Admin":
     st.header("⚙️ Admin Dashboard")
@@ -1427,4 +1438,43 @@ if tab == "Admin":
             file_name="schreiben_progress.csv",
             mime="text/csv"
         )
+
+if st.session_state["logged_in"]:
+    # =========================================
+    # ADMIN TAB (Manage Students, Export Data)
+    # =========================================
+
+    st.header("⚙️ Admin Dashboard")
+
+    # Show student list and info
+    try:
+        df_students = load_student_data()
+        st.subheader("👥 Student List")
+        st.write(df_students)
+        st.info(f"Total students: {len(df_students)}")
+    except Exception as e:
+        st.error(f"Error loading student data: {e}")
+
+    # Export vocab_progress table
+    if st.button("Export Vocabulary Progress"):
+        conn = get_connection()
+        df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn)
+        st.download_button(
+            "Download vocab_progress.csv",
+            df_vocab.to_csv(index=False).encode("utf-8"),
+            file_name="vocab_progress.csv",
+            mime="text/csv"
+        )
+
+    # Export schreiben_progress table
+    if st.button("Export Schreiben Progress"):
+        conn = get_connection()
+        df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn)
+        st.download_button(
+            "Download schreiben_progress.csv",
+            df_schreiben.to_csv(index=False).encode("utf-8"),
+            file_name="schreiben_progress.csv",
+            mime="text/csv"
+        )
+
 
