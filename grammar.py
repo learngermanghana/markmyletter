@@ -700,7 +700,7 @@ if st.session_state.get("logged_in", False):  # Safe get with default False
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
 
-elif tab == "Exams Mode & Custom Chat":
+if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
     if not has_falowen_quota(student_code):
