@@ -1292,7 +1292,6 @@ def build_custom_chat_prompt(level):
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
 # =========================================
-
 elif tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
