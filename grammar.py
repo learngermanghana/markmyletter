@@ -1451,16 +1451,13 @@ elif tab == "Vocab Trainer":
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
-
-    elif tab == "Schreiben Trainer":
-
-
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
-import urllib.parse
 
-if tab == "Schreiben Trainer":
+elif tab == "Schreiben Trainer":
+    import urllib.parse
+
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
     # 1. Choose Level (remember previous)
@@ -1473,6 +1470,7 @@ if tab == "Schreiben Trainer":
         key="schreiben_level_selector"
     )
     st.session_state["schreiben_level"] = schreiben_level
+
 
     # 2. Daily limit tracking (by student & date)
     student_code = st.session_state.get("student_code", "demo")
@@ -1611,9 +1609,7 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-    elif tab == "Admin":
-
-if tab == "Admin":
+elif tab == "Admin":
     # --- Password protection ---
     if "admin_unlocked" not in st.session_state:
         st.session_state["admin_unlocked"] = False
