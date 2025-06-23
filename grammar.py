@@ -114,14 +114,40 @@ def save_sprechen_session(student_code, name, level, teil, topic, messages, scor
     )
     conn.commit()
 
-# ---- END STAGE 1 ----
+def get_sprechen_attempted_topics(student_code, level, teil):
+    """
+    Returns a set of topic names the student has ALREADY practiced for a given level & teil (exam part).
+    Use this to avoid giving the same topic again!
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT topic FROM sprechen_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    rows = c.fetchall()
+    return set(r[0] for r in rows if r[0])
+
+# ====================================
+# STAGE 2 – Sprechen Topic Picker (No Repeats)
+# ====================================
+
+def pick_new_sprechen_topic(student_code, level, teil, topic_list):
+    """
+    Returns a random topic from topic_list that the student has NOT attempted yet for this level & teil.
+    If all topics are done, will return None.
+    """
+    attempted = get_sprechen_attempted_topics(student_code, level, teil)
+    remaining = [t for t in topic_list if (t if isinstance(t, str) else t[0]) not in attempted]
+    if not remaining:
+        return None
+    return random.choice(remaining)
+
 
 # ====================================
 # STAGE 2 – FLEXIBLE CHECKERS & PROGRESS HELPERS
 # ====================================
 
-import difflib
-from datetime import date
 
 # --- Flexible answer checkers ---
 def is_close_answer(student, correct):
