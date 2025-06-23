@@ -544,6 +544,16 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
+if st.session_state["logged_in"]:
+    student_code = st.session_state.get("student_code", "")
+
+    st.header("Choose Practice Mode")
+    tab = st.radio(
+        "How do you want to practice?",
+        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
+        key="main_tab_select"
+    )
+
 
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
