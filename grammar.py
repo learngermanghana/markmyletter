@@ -545,7 +545,7 @@ if st.session_state["logged_in"]:
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
+        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer",],
         key="main_tab_select"
     )
 
@@ -1404,47 +1404,5 @@ if st.session_state["logged_in"]:
             # Save AI reply to session for next turn
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-
-# Ensure the 'logged_in' key is present in session_state
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False  # Default to False if not set
-
-# Only proceed if the user is logged in
-if st.session_state["logged_in"]:
-    # Your Admin Dashboard code here
-    st.header("⚙️ Admin Dashboard")
-    
-    # Show student list and info
-    try:
-        df_students = load_student_data()
-        st.subheader("👥 Student List")
-        st.write(df_students)
-        st.info(f"Total students: {len(df_students)}")
-    except Exception as e:
-        st.error(f"Error loading student data: {e}")
-    
-    # Export vocab_progress table
-    if st.button("Export Vocabulary Progress"):
-        conn = get_connection()
-        df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn)
-        st.download_button(
-            "Download vocab_progress.csv",
-            df_vocab.to_csv(index=False).encode("utf-8"),
-            file_name="vocab_progress.csv",
-            mime="text/csv"
-        )
-
-    # Export schreiben_progress table
-    if st.button("Export Schreiben Progress"):
-        conn = get_connection()
-        df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn)
-        st.download_button(
-            "Download schreiben_progress.csv",
-            df_schreiben.to_csv(index=False).encode("utf-8"),
-            file_name="schreiben_progress.csv",
-            mime="text/csv"
-        )
-else:
-    st.warning("You need to be logged in to access the Admin Dashboard.")
 
 
