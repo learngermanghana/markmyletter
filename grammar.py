@@ -1056,11 +1056,24 @@ def build_custom_chat_prompt(level):
             f"Encourage the student and keep the chat motivating. "
         )
     return ""
-    
-    if not has_falowen_quota(student_code):
-        st.header("🗣️ Falowen – Speaking & Exam Trainer")
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
+
+# --- Check Falowen daily usage limit ---
+if not has_falowen_quota(student_code):
+    st.header("🗣️ Falowen – Speaking & Exam Trainer")
+    st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+    st.stop()
+
+# --- Initialize chat stage and mode ---
+stage = st.session_state.get("falowen_stage", 1)
+is_exam = (
+    st.session_state.get("falowen_mode")
+    == "Geführte Prüfungssimulation (Exam Mode)"
+)
+is_custom_chat = (
+    st.session_state.get("falowen_mode")
+    == "Eigenes Thema/Frage (Custom Chat)"
+)
+
         
 
 
