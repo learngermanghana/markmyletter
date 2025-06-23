@@ -840,18 +840,17 @@ Branch: Ring Road Central
 SWIFT: ECOCGHAC
 """)
 
-    elif tab == "Exams Mode & Custom Chat":
-        # ------- EXAMS/CUSTOM CHAT TAB CODE -------
+if tab == "Dashboard":
+    # Dashboard logic here
+    ...
 
-    # --- EXAMS/CUSTOM CHAT TAB (logic comes here, after this block) ---
-    if tab == "Exams Mode & Custom Chat":
-        # Example usage check
-        if not has_falowen_quota(student_code):
-            st.header("🗣️ Falowen – Speaking & Exam Trainer")
-            st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-            st.stop()
-        # Your Falowen chat tab logic goes here (as previously discussed)
-
+elif tab == "Exams Mode & Custom Chat":
+    # Example usage check
+    if not has_falowen_quota(student_code):
+        st.header("🗣️ Falowen – Speaking & Exam Trainer")
+        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+        st.stop()
+        
 # ==========================
 # FALOWEN CHAT TAB (Exam Mode & Custom Chat)
 # ==========================
