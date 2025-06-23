@@ -1405,18 +1405,15 @@ if st.session_state["logged_in"]:
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 
-# Ensure logged_in key is initialized if not already set
+# Ensure the 'logged_in' key is present in session_state
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False  # Default to False if not set
 
-# Check if the user is logged in before displaying the Admin dashboard
+# Only proceed if the user is logged in
 if st.session_state["logged_in"]:
-    # =========================================
-    # ADMIN TAB (Manage Students, Export Data)
-    # =========================================
-
+    # Your Admin Dashboard code here
     st.header("⚙️ Admin Dashboard")
-
+    
     # Show student list and info
     try:
         df_students = load_student_data()
@@ -1425,7 +1422,7 @@ if st.session_state["logged_in"]:
         st.info(f"Total students: {len(df_students)}")
     except Exception as e:
         st.error(f"Error loading student data: {e}")
-
+    
     # Export vocab_progress table
     if st.button("Export Vocabulary Progress"):
         conn = get_connection()
@@ -1447,5 +1444,7 @@ if st.session_state["logged_in"]:
             file_name="schreiben_progress.csv",
             mime="text/csv"
         )
+else:
+    st.warning("You need to be logged in to access the Admin Dashboard.")
 
 
