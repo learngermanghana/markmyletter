@@ -1110,7 +1110,7 @@ def change_level():
     st.session_state["falowen_user_input"] = ""
     st.rerun()
 
-# ====== FALOWEN CHAT STAGE SELECTOR ======
+# ================== FALOWEN CHAT STAGE SELECTOR ==================
 
 if stage == 1:
     st.subheader("Step 1: Choose Practice Mode")
@@ -1217,7 +1217,6 @@ if stage == 3:
         elif "Teil 3" in teil:
             exam_topics = c1_teil3_evaluations
 
-    # Optionally cache for use in stage 4
     st.session_state["falowen_exam_topics_cache"] = exam_topics
 
     picked_topic = None
@@ -1276,135 +1275,65 @@ if stage == 4:
         if st.button("Change Level"):
             change_level()
 
-    # --- Choose topics for the relevant exam parts ---
-    cycle_teils = (
-        (level == "A1" and ("Teil 2" in teil or "Teil 3" in teil)) or
-        (level == "A2" and ("Teil 1" in teil or "Teil 2" in teil or "Teil 3" in teil))
-        # Extend for B1/B2 as needed
-    )
+    # === INITIAL INSTRUCTION INSERTION ===
+    if not st.session_state.get("falowen_messages"):
+        instruction = ""
+        if is_exam:
+            instruction = build_exam_instruction(level, teil)
+        elif is_custom_chat:
+            instruction = (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+            )
+        if instruction:
+            st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
 
-    if cycle_teils and is_exam:
-        exam_topics = st.session_state.get("falowen_exam_topics_cache", [])
-        idx_key = f"{level}_{teil}_idx"
-        awaiting_key = f"{level}_{teil}_awaiting"
+    # === DISPLAY THE CHAT ===
+    for m in st.session_state["falowen_messages"]:
+        who = "🧑‍🏫 Herr Felix" if m["role"] == "assistant" else "🙋 Student"
+        with st.chat_message(m["role"], avatar="🧑‍🏫" if m["role"] == "assistant" else "🙂"):
+            st.markdown(m["content"])
 
-        if idx_key not in st.session_state:
-            st.session_state[idx_key] = 0
-        if awaiting_key not in st.session_state:
-            st.session_state[awaiting_key] = False
+    # === Chat input box and OpenAI response ===
+    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+    if user_input:
+        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+        inc_falowen_usage(student_code)
+        with st.chat_message("assistant", avatar="🧑‍🏫"):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                # Choose prompt
+                if is_exam:
+                    system_prompt = build_exam_system_prompt(level, teil)
+                else:
+                    system_prompt = build_custom_chat_prompt(level)
+                messages = [{"role": "system", "content": system_prompt}] + [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state["falowen_messages"]
+                ]
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=messages,
+                        temperature=0.15,
+                        max_tokens=600,
+                    )
+                    ai_reply = completion.choices[0].message.content.strip()
+                except Exception as e:
+                    ai_reply = f"Sorry, an error occurred: {e}"
+                st.markdown(ai_reply)
+        # Save AI reply to session for next turn
+        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-        # Show intro if chat is empty
-        if not st.session_state.get("falowen_messages"):
-            intro = build_exam_instruction(level, teil)
-            st.session_state["falowen_messages"] = [{"role": "assistant", "content": intro}]
-            st.session_state[awaiting_key] = False
-
-        # Display chat history
-        for m in st.session_state["falowen_messages"]:
-            who = "🧑‍🏫 Herr Felix" if m["role"] == "assistant" else "🙋 Student"
-            with st.chat_message(m["role"], avatar="🧑‍🏫" if m["role"] == "assistant" else "🙂"):
-                st.markdown(m["content"])
-
-        user_input = st.chat_input("Type your answer here...", key="falowen_user_input")
-
-        # If waiting for a "yes"/"okay"/start confirmation, start with topic 0
-        if user_input and not st.session_state[awaiting_key]:
-            if user_input.strip().lower() in ("yes", "ok", "okay", "begin", "start"):
-                topic = exam_topics[st.session_state[idx_key]]
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": f"Das Thema ist: {topic}. Bitte stelle eine Frage dazu und beantworte sie selbst."})
-                st.session_state[awaiting_key] = True
-            else:
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": "Bitte antworte mit 'Yes', 'Okay' oder 'Begin', um zu starten."})
-
-        elif user_input and st.session_state[awaiting_key]:
-            # User answered for the topic, send to OpenAI for correction
-            topic = exam_topics[st.session_state[idx_key]]
-            messages = [
-                {"role": "system", "content": f"You are a supportive examiner. Correct the student's German answer for the topic: {topic}. Give feedback in English, show the right German, then ask if they want the next topic."},
-                {"role": "user", "content": user_input}
-            ]
-            try:
-                completion = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    temperature=0.15,
-                    max_tokens=400,
-                )
-                ai_reply = completion.choices[0].message.content.strip()
-            except Exception as e:
-                ai_reply = f"Sorry, an error occurred: {e}"
-            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-            # Mark topic completed in DB
-            mark_topic_completed(student_code, level, teil, topic)
-            st.session_state[awaiting_key] = False
-
-            # Only increment topic if more remain, else finish
-            if st.session_state[idx_key] + 1 < len(exam_topics):
-                st.session_state[idx_key] += 1
-                # Show "Next" button or accept "yes" to continue
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": "Möchtest du das nächste Thema machen? Antworte mit 'Yes' oder 'Okay'."})
-            else:
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": "Super! Du hast alle Themen bearbeitet!"})
-
-    else:
-        # ========== Default Chat/Exam Mode (old logic) ==========
-        # Show initial instruction if chat is empty
-        if not st.session_state.get("falowen_messages"):
-            instruction = ""
-            if is_exam:
-                instruction = build_exam_instruction(level, teil)
-            elif is_custom_chat:
-                instruction = (
-                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
-                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
-                )
-            if instruction:
-                st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
-
-        for m in st.session_state["falowen_messages"]:
-            who = "🧑‍🏫 Herr Felix" if m["role"] == "assistant" else "🙋 Student"
-            with st.chat_message(m["role"], avatar="🧑‍🏫" if m["role"] == "assistant" else "🙂"):
-                st.markdown(m["content"])
-
-        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-        if user_input:
-            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            inc_falowen_usage(student_code)
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    # Choose prompt
-                    if is_exam:
-                        system_prompt = build_exam_system_prompt(level, teil)
-                    else:
-                        system_prompt = build_custom_chat_prompt(level)
-                    messages = [{"role": "system", "content": system_prompt}] + [
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state["falowen_messages"]
-                    ]
-                    try:
-                        completion = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=messages,
-                            temperature=0.15,
-                            max_tokens=600,
-                        )
-                        ai_reply = completion.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_reply = f"Sorry, an error occurred: {e}"
-                    st.markdown(ai_reply)
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
-
-            if is_exam and st.session_state.get("falowen_exam_topic"):
-                mark_topic_completed(
-                    student_code,
-                    level,
-                    teil,
-                    st.session_state["falowen_exam_topic"]
-                )
+        # Mark topic completed if needed
+        if is_exam and st.session_state.get("falowen_exam_topic"):
+            mark_topic_completed(
+                student_code,
+                level,
+                teil,
+                st.session_state["falowen_exam_topic"]
+            )
 
 # ========================== END FALOWEN CHAT TAB ==========================
-
 
 
 
