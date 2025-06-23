@@ -576,13 +576,6 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-c1_teil3_evaluations = [
-    "Die wichtigsten Kompetenzen für die Zukunft",
-    "Vor- und Nachteile globaler Zusammenarbeit",
-    "Welchen Einfluss hat Technik auf unser Leben?",
-    "Wie verändert sich die Familie?",
-]
-
 if st.session_state["logged_in"]:
     student_code = st.session_state.get("student_code", "")
 
@@ -592,7 +585,6 @@ if st.session_state["logged_in"]:
         ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
         key="main_tab_select"
     )
-
 
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
@@ -640,29 +632,6 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-        # --- Upcoming Goethe Exams, Prices & Registration Info ---
-        st.divider()
-        st.markdown("#### 📝 Upcoming Goethe Exam Dates, Prices, and Registration Info")
-
-        goethe_exam_data = [
-            {"Level": "A1", "Date": "2024-07-12", "Registration Deadline": "2024-06-30", "Price (GHS)": "1,100"},
-            {"Level": "A2", "Date": "2024-07-19", "Registration Deadline": "2024-07-07", "Price (GHS)": "1,250"},
-            {"Level": "B1", "Date": "2024-08-16", "Registration Deadline": "2024-08-01", "Price (GHS)": "1,300"},
-            {"Level": "B2", "Date": "2024-09-20", "Registration Deadline": "2024-09-07", "Price (GHS)": "1,400"},
-            # Add more dates as needed
-        ]
-        df_exams = pd.DataFrame(goethe_exam_data)
-        st.table(df_exams)
-
-        st.info(
-            "Register early! Visit the [Goethe-Institut Ghana Exam Page](https://www.goethe.de/ins/gh/en/m/sta/acc/prf.html) for updates.\n\n"
-            "- **Tip:** Pay at the Goethe office or via their official bank details (see website).\n"
-            "- **Bring:** Passport or valid national ID on exam day.\n"
-            "- **Contact:** info-accra@goethe.de / +233 302 776764\n"
-            "- **If in doubt, talk to your tutor or the school office.**"
-        )
-        st.divider()
-
         # --- Vocab streak ---
         st.markdown(f"🔥 **Vocab Streak:** {streak} days")
 
@@ -680,7 +649,39 @@ if st.session_state["logged_in"]:
             f"**🏅 Pass rate:** {accuracy}%"
         )
 
+        st.divider()
+        # --- Upcoming Goethe Exams, Prices & Registration Info ---
+        st.markdown("#### 📝 Upcoming Goethe Exam Dates, Prices, and Registration Info")
 
+        goethe_exam_data = [
+            {"Level": "A1", "Date": "2024-07-12", "Registration Deadline": "2024-06-30", "Price (GHS)": "1,100"},
+            {"Level": "A2", "Date": "2024-07-19", "Registration Deadline": "2024-07-07", "Price (GHS)": "1,250"},
+            {"Level": "B1", "Date": "2024-08-16", "Registration Deadline": "2024-08-01", "Price (GHS)": "1,300"},
+            {"Level": "B2", "Date": "2024-09-20", "Registration Deadline": "2024-09-07", "Price (GHS)": "1,400"},
+            # Add more dates as needed
+        ]
+        df_exams = pd.DataFrame(goethe_exam_data)
+        st.table(df_exams)
+
+        st.markdown("""
+        **How to register for the Goethe exam:**
+
+        1. Visit [this website](https://www.goethe.de/ins/gh/en/spr/prf/anm.html) and click "register".
+        2. Fill in your information and select your exam level. Choose **extern** if you are not a Goethe student.
+        3. After registration, you will receive a confirmation email.
+        4. Make payment via Mobile Money or Bank Account. Bank details:
+
+           - **ECOBANK GHANA**
+           - **Account Name:** GOETHE-INSTITUT GHANA
+           - **Account Number:** 1441 001 701 903
+           - **Branch:** RING ROAD CENTRAL
+           - **SWIFT CODE:** ECOCGHAC
+
+        5. Send your payment slip by email to [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de).
+        6. Wait for the reply (it usually takes 3 days). Follow up if no reply is received.
+
+        **Remember:** Bring your passport or a valid national ID on exam day. If you need help, talk to your tutor or contact the school office.
+        """)
 
         
 # ================================
