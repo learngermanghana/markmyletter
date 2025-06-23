@@ -545,48 +545,6 @@ c1_teil3_evaluations = [
 ]
 
 
-# ====================================
-# 6. MAIN TAB SELECTOR (with Dashboard)
-# ====================================
-
-if st.session_state["logged_in"]:
-    student_code = st.session_state.get("student_code", "")
-
-    st.header("Choose Practice Mode")
-    tab = st.radio(
-        "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
-        key="main_tab_select"
-    )
-
-    # --- Mobile-friendly Active Tab Indicator ---
-    st.markdown(
-        f"""
-        <div style='
-            display: flex; 
-            justify-content: center; 
-            align-items: center;
-            margin-bottom: 10px;
-        '>
-            <span style='
-                background: #3498db;
-                color: #fff;
-                padding: 6px 18px;
-                border-radius: 22px;
-                font-size: 1.1rem;
-                font-weight: 600;
-                letter-spacing: 1px;
-                box-shadow: 0 1px 4px #bbc;
-                white-space: nowrap;
-            '>
-                {tab}
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
@@ -595,16 +553,7 @@ if st.session_state["logged_in"]:
         streak = get_vocab_streak(student_code)
         total_attempted, total_passed, accuracy = get_writing_stats(student_code)
 
-        # --- Compute today's writing usage for Dashboard ---
-        from datetime import date
-        today_str = str(date.today())
-        limit_key = f"{student_code}_schreiben_{today_str}"
-        if "schreiben_usage" not in st.session_state:
-            st.session_state["schreiben_usage"] = {}
-        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
-        daily_so_far = st.session_state["schreiben_usage"][limit_key]
-
-        # Student name and essentials
+        # --- Student name and essentials ---
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
             f"**Level:** {student_row.get('Level', '')}\n\n"
@@ -642,6 +591,29 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
+        # --- Upcoming Goethe Exams, Prices & Registration Info ---
+        st.divider()
+        st.markdown("#### 📝 Upcoming Goethe Exam Dates, Prices, and Registration Info")
+
+        goethe_exam_data = [
+            {"Level": "A1", "Date": "2024-07-12", "Registration Deadline": "2024-06-30", "Price (GHS)": "1,100"},
+            {"Level": "A2", "Date": "2024-07-19", "Registration Deadline": "2024-07-07", "Price (GHS)": "1,250"},
+            {"Level": "B1", "Date": "2024-08-16", "Registration Deadline": "2024-08-01", "Price (GHS)": "1,300"},
+            {"Level": "B2", "Date": "2024-09-20", "Registration Deadline": "2024-09-07", "Price (GHS)": "1,400"},
+            # Add more dates as needed
+        ]
+        df_exams = pd.DataFrame(goethe_exam_data)
+        st.table(df_exams)
+
+        st.info(
+            "Register early! Visit the [Goethe-Institut Ghana Exam Page](https://www.goethe.de/ins/gh/en/m/sta/acc/prf.html) for updates.\n\n"
+            "- **Tip:** Pay at the Goethe office or via their official bank details (see website).\n"
+            "- **Bring:** Passport or valid national ID on exam day.\n"
+            "- **Contact:** info-accra@goethe.de / +233 302 776764\n"
+            "- **If in doubt, talk to your tutor or the school office.**"
+        )
+        st.divider()
+
         # --- Vocab streak ---
         st.markdown(f"🔥 **Vocab Streak:** {streak} days")
 
@@ -656,9 +628,14 @@ if st.session_state["logged_in"]:
         st.markdown(
             f"**📝 Letters submitted:** {total_attempted}\n\n"
             f"**✅ Passed (score ≥17):** {total_passed}\n\n"
-            f"**🏅 Pass rate:** {accuracy}%\n\n"
-            f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
+            f"**🏅 Pass rate:** {accuracy}%"
         )
+
+
+
+# ================================
+# 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
+# ================================
 
 if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
@@ -668,13 +645,6 @@ if tab == "Exams Mode & Custom Chat":
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-
-# ================================
-# 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
-# ================================
-
-if tab == "Exams Mode & Custom Chat":
-    st.header("🗣️ Falowen – Speaking & Exam Trainer")
 
     # ---- PDF Helper ----
     def falowen_download_pdf(messages, filename):
