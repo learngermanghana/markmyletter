@@ -1400,6 +1400,7 @@ elif tab == "Vocab Trainer":
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
+
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
