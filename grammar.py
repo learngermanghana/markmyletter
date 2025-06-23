@@ -740,21 +740,10 @@ if st.session_state.get("logged_in"):
         unsafe_allow_html=True
     )
 
-    # --- DASHBOARD TAB ---
+    # === SINGLE TAB LOGIC BLOCK ===
     if tab == "Dashboard":
-        ...
-    # --- EXAMS/CUSTOM CHAT TAB ---
-    if tab == "Exams Mode & Custom Chat":
-        ...
-    # --- VOCAB TRAINER TAB ---
-    if tab == "Vocab Trainer":
-        ...
-    # --- SCHREIBEN TRAINER TAB ---
-    if tab == "Schreiben Trainer":
-        ...
-    # --- ADMIN TAB ---
-    if tab == "Admin":
-        
+        # ------- DASHBOARD TAB CODE -------
+
     # --- DASHBOARD TAB ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
@@ -852,6 +841,9 @@ Account Number: 1441 001 701 903
 Branch: Ring Road Central  
 SWIFT: ECOCGHAC
 """)
+
+    elif tab == "Exams Mode & Custom Chat":
+        # ------- EXAMS/CUSTOM CHAT TAB CODE -------
 
     # --- EXAMS/CUSTOM CHAT TAB (logic comes here, after this block) ---
     if tab == "Exams Mode & Custom Chat":
@@ -1351,9 +1343,7 @@ if stage == 4:
 # ========================== END FALOWEN CHAT TAB ==========================
 
 
-
-
-
+    elif tab == "Vocab Trainer":
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
@@ -1464,7 +1454,11 @@ if tab == "Vocab Trainer":
 
     # --- Optionally: show summary of all words completed so far for this level ---
     if completed_words:
-        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")-
+
+
+    elif tab == "Schreiben Trainer":
+
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
@@ -1622,6 +1616,8 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
+    elif tab == "Admin":
+
 if tab == "Admin":
     # --- Password protection ---
     if "admin_unlocked" not in st.session_state:
@@ -1726,5 +1722,16 @@ if tab == "Admin":
         file_name="german_letters_ai_training.csv",
         mime="text/csv"
     )
+
+
+
+
+
+
+
+
+
+
+
 
 
