@@ -1449,7 +1449,7 @@ elif tab == "Vocab Trainer":
 
     # --- Optionally: show summary of all words completed so far for this level ---
     if completed_words:
-        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")-
+        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
 
 
     elif tab == "Schreiben Trainer":
