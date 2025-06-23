@@ -852,7 +852,6 @@ if tab == "Exams Mode & Custom Chat":
 # ==========================
 
 def falowen_download_pdf(messages, filename):
-    from fpdf import FPDF
     import os
     def safe_latin1(text):
         # Replaces all unsupported characters with '?'
