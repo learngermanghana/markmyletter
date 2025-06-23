@@ -570,17 +570,6 @@ c1_teil3_evaluations = [
     "Wie verändert sich die Familie?",
 ]
 
-if st.session_state["logged_in"]:
-    student_code = st.session_state.get("student_code", "")
-
-    st.header("Choose Practice Mode")
-    tab = st.radio(
-        "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
-        key="main_tab_select"
-    )
-
-
     # --- DASHBOARD TAB, MOBILE-FRIENDLY ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
@@ -649,6 +638,41 @@ if st.session_state["logged_in"]:
             "- **If in doubt, talk to your tutor or the school office.**"
         )
         st.divider()
+
+        # --- Step-by-step exam registration guide ---
+        with st.expander("📝 Register for Your Goethe Exam – Step by Step"):
+            st.markdown("""
+1. **Go to the official Goethe registration site:**  
+   👉 [Register for exams here](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
+
+2. **Fill in all required details.**  
+   - Choose your preferred exam (A1, A2, B1, etc.).
+   - Select "Extern" if you are not a Goethe school student.
+
+3. **Submit your form and check your email.**  
+   - You’ll receive a confirmation email from Goethe-Institut after registration.
+
+4. **Pay your exam fee.**  
+   - Use **Mobile Money** or **Bank Transfer** with the details below.
+
+    ```
+    ECOBANK GHANA
+    ACCOUNT NAME: GOETHE-INSTITUT GHANA
+    ACCOUNT NUMBER: 1441 001 701 903
+    BRANCH: RING ROAD CENTRAL
+    SWIFT CODE: ECOCGHAC
+    ```
+
+5. **After payment, email proof to:**  
+   📧 registrations-accra@goethe.de
+
+6. **Wait for confirmation reply.**
+   - It usually takes **about 3 days** to get a reply.
+   - If you don’t hear back, follow up by email.
+
+---
+**Tip:** Always double-check your details before submitting. If you need help, talk to your teacher or school office!
+""")
 
         # --- Vocab streak ---
         st.markdown(f"🔥 **Vocab Streak:** {streak} days")
