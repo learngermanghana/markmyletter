@@ -154,7 +154,6 @@ if "student_code" not in st.session_state:
 # STAGE 2 – FLEXIBLE CHECKERS & PROGRESS HELPERS
 # ====================================
 
-
 # --- Flexible answer checkers ---
 def is_close_answer(student, correct):
     student = student.strip().lower()
@@ -266,9 +265,37 @@ def inc_falowen_usage(student_code):
     st.session_state["falowen_usage"].setdefault(key, 0)
     st.session_state["falowen_usage"][key] += 1
 
+# --- Only one, global FALOWEN_DAILY_LIMIT at the top of your script ---
 def has_falowen_quota(student_code):
-    FALOWEN_DAILY_LIMIT = 20  # Move this to your constants stage!
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+
+# --- Student data loader ---
+def load_student_data(csv_path: str = "students.csv") -> pd.DataFrame:
+    """Return contents of students.csv as a DataFrame.
+
+    Parameters
+    ----------
+    csv_path : str, optional
+        Path to the CSV file, by default "students.csv".
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the student records.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
+    RuntimeError
+        If an unexpected error occurs while reading the file.
+    """
+    try:
+        return pd.read_csv(csv_path)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Student file not found: {csv_path}") from e
+    except Exception as e:  # pragma: no cover - generic catch
+        raise RuntimeError(f"Failed to read {csv_path}: {e}") from e
 
 # ---- END STAGE 2 ----
 
