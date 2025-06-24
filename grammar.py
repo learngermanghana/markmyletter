@@ -3,12 +3,17 @@ import random
 import difflib
 import sqlite3
 import atexit
-from datetime import date
+from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
+import urllib.parse
+import requests
+from io import BytesIO
+import re
+
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -693,7 +698,7 @@ if st.session_state["logged_in"]:
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", "Admin"],
+        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", “My Results & Resources”, "Admin"],
         key="main_tab_select"
     )
 
@@ -1542,7 +1547,105 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+if tab == "My Results & Resources":
+    st.header("📚 My Results & Resources")
+    student_code = st.session_state.get("student_code", "").strip().lower()
+    student_name = st.session_state.get("student_name", "")
 
+    # --- 1. Fetch the scores_backup.csv from GitHub ---
+    csv_url = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
+    try:
+        resp = requests.get(csv_url)
+        resp.raise_for_status()
+        df_scores = pd.read_csv(BytesIO(resp.content))
+    except Exception as e:
+        st.error(f"Could not load results. Please try again later. ({e})")
+        st.stop()
+
+    # --- 2. Filter for this student's scores only ---
+    mask = df_scores["student_code"].astype(str).str.strip().str.lower() == student_code
+    student_scores = df_scores[mask].copy()
+    if student_scores.empty:
+        st.info("No results found for your student code yet. Please check back later.")
+        st.stop()
+
+    # --- 3. Highlight best score per assignment ---
+    # Assume columns: assignment, score, date, etc.
+    if "assignment" not in student_scores or "score" not in student_scores:
+        st.error("Results file is missing required columns ('assignment' and 'score').")
+        st.stop()
+
+    # Find max score for each assignment
+    student_scores["is_best"] = student_scores.groupby("assignment")["score"].transform(lambda x: x == x.max())
+    # Sort for clarity
+    student_scores = student_scores.sort_values(["assignment", "date"], ascending=[True, False])
+
+    # --- 4. Show table with highlighting for best scores ---
+    def highlight_best(val, is_best):
+        return "background-color: #FFD700; font-weight: bold;" if is_best else ""
+    
+    st.write("### 📊 Your Results Table")
+    styled_scores = student_scores.style.apply(
+        lambda row: [highlight_best(row['score'], row['is_best']) if col == 'score' else "" for col in student_scores.columns],
+        axis=1
+    )
+    st.dataframe(styled_scores, hide_index=True)
+
+    # --- 5. Show Overall/Average Score ---
+    overall_score = round(student_scores["score"].mean(), 2)
+    st.markdown(f"**🏅 Your overall average score:** `{overall_score}`")
+
+    # --- 6. PDF Download of all results (signed by you) ---
+    if st.button("⬇️ Download Full Results as PDF"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(0, 10, "Official Student Score Report", ln=1, align="C")
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, f"Name: {student_name}", ln=1)
+        pdf.cell(0, 10, f"Student Code: {student_code}", ln=1)
+        pdf.cell(0, 10, f"Overall Average Score: {overall_score}", ln=1)
+        pdf.ln(5)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(40, 8, "Assignment")
+        pdf.cell(30, 8, "Score")
+        pdf.cell(40, 8, "Date")
+        pdf.cell(0, 8, "Comments", ln=1)
+        pdf.set_font("Arial", "", 12)
+        for _, row in student_scores.iterrows():
+            assignment = str(row["assignment"])
+            score = str(row["score"])
+            date_val = str(row["date"]) if "date" in row else ""
+            comment = str(row["comment"]) if "comment" in row else ""
+            prefix = "(BEST) " if row["is_best"] else ""
+            pdf.cell(40, 8, prefix + assignment)
+            pdf.cell(30, 8, score)
+            pdf.cell(40, 8, date_val)
+            pdf.cell(0, 8, comment, ln=1)
+        pdf.ln(10)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "Signed: Felix Asadu (Academy Director)", ln=1)
+        pdf_output = f"Results_{student_code}.pdf"
+        pdf.output(pdf_output)
+        with open(pdf_output, "rb") as f:
+            pdf_bytes = f.read()
+        st.download_button(
+            "Download Official Results PDF",
+            pdf_bytes,
+            file_name=pdf_output,
+            mime="application/pdf"
+        )
+
+    # --- 7. Resource Section (add/edit files as needed) ---
+    st.write("---")
+    st.markdown("### 📁 Download Useful Resources (PDFs)")
+    st.markdown("""
+    - [A1 Sample Letter PDF](https://drive.google.com/uc?export=download&id=YOUR_A1_SAMPLE_ID)
+    - [A2 Grammar Guide PDF](https://drive.google.com/uc?export=download&id=YOUR_A2_GRAMMAR_ID)
+    - [Vocabulary List PDF](https://drive.google.com/uc?export=download&id=YOUR_VOCAB_ID)
+    """)
+    st.info("You can suggest more resources to be added here!")
+    
 if tab == "Admin":
     st.header("⚙️ Admin Dashboard")
 
