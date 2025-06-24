@@ -1070,7 +1070,7 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("Step 1: Choose Practice Mode")
         mode = st.radio(
             "How would you like to practice?",
-            [" Exam Mode (Geführte Prüfungssimulation)", "Custom Chat (Eigenes Thema/Frage )"],
+            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
             key="falowen_mode_center"
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
@@ -1172,7 +1172,7 @@ if st.session_state["falowen_stage"] == 4:
     mode = st.session_state.get("falowen_mode", "")
     is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
     is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
-
+ 
     used_today = get_falowen_usage(student_code)
     st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
     if used_today >= FALOWEN_DAILY_LIMIT:
