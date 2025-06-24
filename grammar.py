@@ -1547,7 +1547,7 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-if tab == "My Results & Resources":
+if tab == "My Results and Resources":
     st.header("📚 My Results & Resources")
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
