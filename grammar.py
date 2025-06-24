@@ -11,7 +11,8 @@ from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
 import urllib.parse
 import requests
-from io import BytesIO
+from io 
+import BytesIO
 import re
 
 
