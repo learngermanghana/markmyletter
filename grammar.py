@@ -1294,7 +1294,7 @@ def ai_vocab_feedback(word, student, correct):
         f"1. Was the student's answer correct? Reply 'True' or 'False' only on the first line.\n"
         f"2. If False, say: 'Correct answer: {correct.strip()}'.\n"
         f"3. If the answer is very close but not perfect, say 'You were close!'.\n"
-        f"4. Give 1 or 2 simple English example sentences using the correct answer in context, as for a German A1/A2 learner."
+        f"4. Give 1 or 2 simple English and German example sentences using the correct answer in context, as for a German A1/A2 learner."
     )
     try:
         resp = client.chat.completions.create(
