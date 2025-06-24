@@ -1566,8 +1566,8 @@ def fetch_scores_from_github():
         st.error(f"Failed to fetch scores from GitHub: {e}")
         return pd.DataFrame()
 
-# --- Your tab setup ---
 if tab == "My Results and Resources":
+    import io  # Make sure this is at the top of your file!
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
@@ -1578,14 +1578,18 @@ if tab == "My Results and Resources":
         try:
             r = requests.get(GITHUB_RAW_URL, timeout=7)
             r.raise_for_status()
-            df = pd.read_csv(StringIO(r.text), sep=None, engine='python')  # Robust for tab/csv
-            # Standardize column names
-            rename_dict = {col: col.strip().replace("StudentCode", "student_code") for col in df.columns}
-            df = df.rename(columns=rename_dict)
-            df.columns = [c.strip() for c in df.columns]
-            # Safety: force lower-case for filtering
+            # Use io.StringIO (not StringIO) for Streamlit/Colab compatibility
+            df = pd.read_csv(io.StringIO(r.text), sep=None, engine='python')
+            # Standardize columns
+            col_map = {}
+            for c in df.columns:
+                base = c.strip().lower()
+                if base == "studentcode": base = "student_code"
+                col_map[c] = base
+            df = df.rename(columns=col_map)
+            # Now ensure required columns exist
             if "student_code" not in df.columns:
-                st.error("No student_code column found in score data!")
+                st.error("CSV is missing 'student_code' column. Please check your upload or contact support.")
                 st.stop()
             return df
         except Exception as e:
@@ -1593,9 +1597,10 @@ if tab == "My Results and Resources":
             return pd.DataFrame()
 
     df_scores = fetch_scores_from_github()
-    required_cols = {"student_code", "Assignment", "Score", "Comments", "Date", "Level", "Name"}
-    if not required_cols.issubset(df_scores.columns):
-        st.error("CSV is missing required columns. Please check your upload or contact support.")
+    required_cols = {"student_code", "assignment", "score", "comments", "date", "level", "name"}
+    missing_cols = required_cols - set(df_scores.columns)
+    if missing_cols:
+        st.error(f"CSV is missing required columns: {', '.join(missing_cols)}")
         st.stop()
 
     student_code = st.session_state.get("student_code", "").strip().lower()
@@ -1606,19 +1611,20 @@ if tab == "My Results and Resources":
         st.info("No results available yet. Complete an assignment to see your scores!")
     else:
         # Level Filter (A1, A2, B1, B2)
-        level_options = sorted(df_student["Level"].dropna().unique())
+        level_options = sorted(df_student["level"].dropna().unique())
         level = st.selectbox("Choose your level to view results:", level_options, index=0)
 
-        df_this_level = df_student[df_student["Level"] == level]
+        df_this_level = df_student[df_student["level"] == level]
 
-        # Key stats
-        total_assignments = {
-            "A1": 18, "A2": 28, "B1": 26, "B2": 24  # Update B2 as needed
-        }.get(level, 0)
-        completed = df_this_level["Assignment"].nunique()
+        # Key stats (change these if your assignment counts ever change)
+        total_assignments_dict = {
+            "A1": 18, "A2": 28, "B1": 26, "B2": 24  # Update as needed
+        }
+        total_assignments = total_assignments_dict.get(level, 0)
+        completed = df_this_level["assignment"].nunique()
         not_completed = max(0, total_assignments - completed)
-        avg_score = df_this_level["Score"].mean() if completed else 0
-        best_score = df_this_level["Score"].max() if completed else 0
+        avg_score = df_this_level["score"].mean() if completed else 0
+        best_score = df_this_level["score"].max() if completed else 0
 
         st.markdown(f"""
         - **Assignments for {level}:** {total_assignments}
@@ -1631,16 +1637,27 @@ if tab == "My Results and Resources":
         # Table: highlight best per assignment
         df_this_level = df_this_level.copy()
         # Mark best score per assignment
-        df_this_level['is_best'] = df_this_level.groupby('Assignment')['Score'].transform('max') == df_this_level['Score']
-        def color_best(val, is_best):
+        df_this_level['is_best'] = df_this_level.groupby('assignment')['score'].transform('max') == df_this_level['score']
+
+        def highlight_best(val, is_best):
             return 'background-color: #d4edda' if is_best else ''
+
+        # We have to drop the 'is_best' for display but use for styling
+        styled = df_this_level[["assignment", "score", "comments", "date", "is_best"]].sort_values(
+            ["assignment", "score"], ascending=[True, False]
+        ).style.apply(
+            lambda row: [
+                highlight_best(v, row["is_best"]) if col != "is_best" else ''
+                for col, v in zip(row.index, row.values)
+            ],
+            axis=1
+        )
         st.dataframe(
-            df_this_level[["Assignment", "Score", "Comments", "Date"]]
-                .sort_values(["Assignment", "Score"], ascending=[True, False])
-                .style.apply(lambda row: [color_best(v, row['is_best']) for v in row], axis=1),
+            styled.hide_columns(['is_best']),
             use_container_width=True,
             hide_index=True
         )
+
 
         # PDF Download: summary + full table
         import tempfile
