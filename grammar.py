@@ -1163,8 +1163,11 @@ if st.session_state["falowen_stage"] == 4:
         st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
         st.stop()
 
-    # --- Guarantee first prompt always shows ONLY on new chat ---
-    if not st.session_state["falowen_messages"]:
+    # --- Ensure prompt only shows ONCE on fresh chat using a flag and rerun ---
+    if "falowen_prompt_inserted" not in st.session_state:
+        st.session_state["falowen_prompt_inserted"] = False
+
+    if not st.session_state["falowen_messages"] and not st.session_state["falowen_prompt_inserted"]:
         instruction = ""
         if is_exam:
             instruction = build_exam_instruction(level, teil)
@@ -1175,9 +1178,14 @@ if st.session_state["falowen_stage"] == 4:
             )
         if instruction:
             st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
-        # DO NOT st.rerun() here – prompt will render!
+            st.session_state["falowen_prompt_inserted"] = True
+            st.rerun()
 
-    # ---- Controls (keep your current code here) ----
+    # Reset the flag after the prompt is inserted and rerun happened, so reset works in future
+    if st.session_state["falowen_prompt_inserted"]:
+        st.session_state["falowen_prompt_inserted"] = False
+
+    # ---- Controls (your current code) ----
     def reset_chat():
         st.session_state["falowen_stage"] = 1
         st.session_state["falowen_teil"] = None
@@ -1241,6 +1249,7 @@ if st.session_state["falowen_stage"] == 4:
     user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
     if user_input:
+        # Immediately show user message in chat
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
         inc_falowen_usage(student_code)
         # Compose OpenAI prompt
@@ -1272,6 +1281,7 @@ if st.session_state["falowen_stage"] == 4:
                 )
                 st.markdown(ai_reply)
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
 
 # =========================================
 # End of Exams and Custom chat
