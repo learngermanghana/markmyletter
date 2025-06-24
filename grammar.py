@@ -1490,7 +1490,6 @@ def ai_vocab_feedback(word, student, correct):
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
 # ====================================
 import urllib.parse
-from fpdf import FPDF
 
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
