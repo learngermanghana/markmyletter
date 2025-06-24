@@ -1312,6 +1312,8 @@ if tab == "Vocab Trainer":
         st.session_state["vocab_feedback"] = ""
         st.session_state["show_next_button"] = False
         st.session_state["vocab_completed"] = set()
+        if "vocab_current_idx" in st.session_state:
+            del st.session_state["vocab_current_idx"]
 
     # --- Track completed words (fetch from DB if you want to persist) ---
     if "vocab_completed" not in st.session_state:
@@ -1337,41 +1339,49 @@ if tab == "Vocab Trainer":
         st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
         st.stop()
 
-    # --- Main vocab practice ---
+    # --- Main vocab practice with "Next" button ---
     if new_words:
-        idx = new_words[0]
+        # Use session_state to keep current idx
+        if "vocab_current_idx" not in st.session_state or st.session_state["vocab_current_idx"] not in new_words:
+            st.session_state["vocab_current_idx"] = new_words[0]
+        idx = st.session_state["vocab_current_idx"]
         word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
         correct_answer = vocab_list[idx][1] if is_tuple else None
 
         st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
-        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
 
-        if st.button("Check", key=f"vocab_check_{idx}"):
-            # --- New answer logic ---
+        # Track feedback & state
+        if "vocab_feedback" not in st.session_state:
+            st.session_state["vocab_feedback"] = ""
+        if "show_next_button" not in st.session_state:
+            st.session_state["show_next_button"] = False
+
+        user_answer = st.text_input(
+            "Your English translation",
+            key=f"vocab_answer_{idx}",
+            disabled=st.session_state["show_next_button"]
+        )
+
+        if st.button("Check", key=f"vocab_check_{idx}", disabled=st.session_state["show_next_button"]):
             if is_tuple:
                 is_correct = is_close_answer(user_answer, correct_answer)
                 almost = is_almost(user_answer, correct_answer)
             else:
-                # For single-word vocab (e.g., advanced levels), use OpenAI for validation
                 is_correct = validate_translation_openai(word, user_answer)
                 almost = False
 
-            # --- Show feedback ---
+            # Show feedback and block input
             if is_correct:
-                st.success("✅ Correct!")
+                st.session_state["vocab_feedback"] = "✅ Correct!"
                 completed_words.add(idx)
             elif almost:
-                st.warning(
-                    f"Almost! The correct answer is: <b>{correct_answer}</b>",
-                    icon="⚠️",
-                )
+                st.session_state["vocab_feedback"] = f"Almost! The correct answer is: <b>{correct_answer}</b>"
             else:
-                st.error(
-                    f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>" if is_tuple else "❌ Not quite.",
-                    icon="❗️",
-                )
+                st.session_state["vocab_feedback"] = f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>"
 
-            # --- Save to DB ---
+            st.session_state["show_next_button"] = True
+
+            # Save to DB
             save_vocab_submission(
                 student_code=student_code,
                 name=student_name,
@@ -1381,13 +1391,30 @@ if tab == "Vocab Trainer":
                 is_correct=is_correct,
             )
             st.session_state["vocab_usage"][vocab_usage_key] += 1
-            st.rerun()
+
+        # Show feedback
+        if st.session_state["vocab_feedback"]:
+            st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
+
+        # Only show "Next" button after checking
+        if st.session_state["show_next_button"]:
+            if st.button("Next"):
+                st.session_state["vocab_feedback"] = ""
+                st.session_state["show_next_button"] = False
+                # Remove this word from new_words so next word appears
+                completed_words.add(idx)
+                del st.session_state["vocab_current_idx"]  # Will force next new word on rerun
+                st.rerun()
+        else:
+            st.session_state["vocab_current_idx"] = idx
+
     else:
         st.success("🎉 You've finished all new words for this level today!")
 
     # --- Optionally: show summary of all words completed so far for this level ---
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
