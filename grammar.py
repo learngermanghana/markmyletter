@@ -1554,13 +1554,11 @@ def fetch_scores_from_github():
     try:
         response = requests.get(url)
         response.raise_for_status()
-        df = pd.read_csv(pd.compat.StringIO(response.text))
-        # Rename for consistency
+        df = pd.read_csv(io.StringIO(response.text))
         if "StudentCode" in df.columns:
             df = df.rename(columns={"StudentCode": "student_code"})
         if "Level" not in df.columns:
-            df["Level"] = ""  # fallback if missing
-        # Standardize
+            df["Level"] = ""
         df["student_code"] = df["student_code"].astype(str).str.strip().str.lower()
         df["Level"] = df["Level"].astype(str).str.strip().str.upper()
         return df
@@ -1570,22 +1568,20 @@ def fetch_scores_from_github():
 
 if tab == "My Results and Resources":
     st.header("📑 My Results and Resources")
-    st.markdown(
-        "View your official results, download your score report, and access key resources from Learn Language Education Academy."
-    )
+    # ... rest of intro
 
     # -- Select Level --
-    levels = {"A1": 18, "A2": 28, "B1": 26, "B2": 0}  # Update B2 later
+    levels = {"A1": 18, "A2": 28, "B1": 26, "B2": 0}
     selected_level = st.selectbox("Select your level", list(levels.keys()), key="results_level")
     total_assignments = levels[selected_level]
 
     # -- Fetch data --
     df_scores = fetch_scores_from_github()
+    required_cols = {"student_code", "Assignment", "Score", "Comments", "Date", "Level", "Name"}
+    if not required_cols.issubset(df_scores.columns):
+        st.error("CSV is missing required columns. Please check your upload.")
+        st.stop()
     student_code = st.session_state.get("student_code", "").strip().lower()
-    df_student = df_scores[
-        (df_scores["student_code"].str.lower() == student_code) &
-        (df_scores["Level"].str.upper() == selected_level)
-    ]
 
     # -- Stats --
     completed = df_student["Assignment"].nunique() if not df_student.empty else 0
