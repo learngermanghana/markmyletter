@@ -1054,7 +1054,7 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("Step 1: Choose Practice Mode")
         mode = st.radio(
             "How would you like to practice?",
-            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
+            [" Exam Mode (Geführte Prüfungssimulation)", "Custom Chat (Eigenes Thema/Frage )"],
             key="falowen_mode_center"
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
@@ -1146,136 +1146,141 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-    # ---- STAGE 4: MAIN CHAT ----
-    if st.session_state["falowen_stage"] == 4:
-        level = st.session_state["falowen_level"]
-        teil = st.session_state.get("falowen_teil", "")
-        mode = st.session_state.get("falowen_mode", "")
-        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+# ---- STAGE 4: MAIN CHAT ----
+if st.session_state["falowen_stage"] == 4:
+    level = st.session_state["falowen_level"]
+    teil = st.session_state.get("falowen_teil", "")
+    mode = st.session_state.get("falowen_mode", "")
+    is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+    is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
-        # ---- Show daily usage ----
-        used_today = get_falowen_usage(student_code)
-        st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
-        if used_today >= FALOWEN_DAILY_LIMIT:
-            st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
-            st.stop()
+    used_today = get_falowen_usage(student_code)
+    st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
+    if used_today >= FALOWEN_DAILY_LIMIT:
+        st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
+        st.stop()
 
-        # -- Controls: reset, back, change level
-        def reset_chat():
-            st.session_state["falowen_stage"] = 1
-            st.session_state["falowen_messages"] = []
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_mode"] = None
-            st.session_state["custom_topic_intro_done"] = False
-            st.session_state["falowen_turn_count"] = 0
-            st.session_state["falowen_exam_topic"] = None
-            st.rerun()
+    # --- Controls ---
+    def reset_chat():
+        st.session_state["falowen_stage"] = 1
+        st.session_state["falowen_messages"] = []
+        st.session_state["falowen_teil"] = None
+        st.session_state["falowen_mode"] = None
+        st.session_state["custom_topic_intro_done"] = False
+        st.session_state["falowen_turn_count"] = 0
+        st.session_state["falowen_exam_topic"] = None
+        st.rerun()
 
-        def back_step():
-            if st.session_state["falowen_stage"] > 1:
-                st.session_state["falowen_stage"] -= 1
-                st.session_state["falowen_messages"] = []
-                st.rerun()
-
-        def change_level():
-            st.session_state["falowen_stage"] = 2
+    def back_step():
+        if st.session_state["falowen_stage"] > 1:
+            st.session_state["falowen_stage"] -= 1
             st.session_state["falowen_messages"] = []
             st.rerun()
 
-        # ---- Show chat history ----
-        for msg in st.session_state["falowen_messages"]:
-            if msg["role"] == "assistant":
-                with st.chat_message("assistant", avatar="🧑‍🏫"):
-                    st.markdown(
-                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
-                        unsafe_allow_html=True
-                    )
-                    st.markdown(msg["content"])
-            else:
-                with st.chat_message("user"):
-                    st.markdown(f"🗣️ {msg['content']}")
+    def change_level():
+        st.session_state["falowen_stage"] = 2
+        st.session_state["falowen_messages"] = []
+        st.rerun()
 
-        # ---- PDF Download Button ----
-        if st.session_state["falowen_messages"]:
-            pdf_bytes = falowen_download_pdf(
-                st.session_state["falowen_messages"],
-                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
+    # ---- Initial instruction (only if chat is empty) ----
+    if not st.session_state["falowen_messages"]:
+        instruction = ""
+        if is_exam:
+            instruction = build_exam_instruction(level, teil)
+        elif is_custom_chat:
+            instruction = (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
             )
-            st.download_button(
-                "⬇️ Download Chat as PDF",
-                pdf_bytes,
-                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
-                mime="application/pdf"
-            )
+        if instruction:
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+        # Do NOT call st.stop() here so input box is always visible
 
-        # ---- Session Controls
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Restart Chat"):
-                reset_chat()
-        with col2:
-            if st.button("Back"):
-                back_step()
-        with col3:
-            if st.button("Change Level"):
-                change_level()
-
-        # ---- Initial instruction (only if chat is empty) ----
-        if not st.session_state["falowen_messages"]:
-            instruction = ""
-            if is_exam:
-                instruction = build_exam_instruction(level, teil)
-            elif is_custom_chat:
-                instruction = (
-                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
-                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
-                )
-            if instruction:
-                st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-            # Do NOT call st.stop() here so input box is always visible
-
-        # ---- Chat Input Box & OpenAI Response ----
-        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-
-        if user_input:
-            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            inc_falowen_usage(student_code)  # increment daily usage
-
-            # Spinner and OpenAI call
+    # ---- Show chat history (user and assistant messages) ----
+    for msg in st.session_state["falowen_messages"]:
+        if msg["role"] == "assistant":
             with st.chat_message("assistant", avatar="🧑‍🏫"):
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    # System prompt logic
-                    if is_exam:
-                        system_prompt = build_exam_system_prompt(level, teil)
-                    else:
-                        system_prompt = build_custom_chat_prompt(level)
+                st.markdown(
+                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    unsafe_allow_html=True
+                )
+                st.markdown(msg["content"])
+        else:
+            with st.chat_message("user"):
+                st.markdown(f"🗣️ {msg['content']}")
 
-                    # Compose full history for OpenAI
-                    messages = [{"role": "system", "content": system_prompt}]
-                    messages += [
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state["falowen_messages"]
-                    ]
+    # ---- PDF Download Button ----
+    if st.session_state["falowen_messages"]:
+        pdf_bytes = falowen_download_pdf(
+            st.session_state["falowen_messages"],
+            f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
+        )
+        st.download_button(
+            "⬇️ Download Chat as PDF",
+            pdf_bytes,
+            file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+            mime="application/pdf"
+        )
 
-                    try:
-                        completion = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=messages,
-                            temperature=0.15,
-                            max_tokens=600,
-                        )
-                        ai_reply = completion.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_reply = f"Sorry, an error occurred: {e}"
+    # ---- Session Controls
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Restart Chat"):
+            reset_chat()
+    with col2:
+        if st.button("Back"):
+            back_step()
+    with col3:
+        if st.button("Change Level"):
+            change_level()
 
-                    st.markdown(
-                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
-                        unsafe_allow_html=True
+    # ---- Chat Input & Response ----
+    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+
+    if user_input:
+        # Immediately show user message in chat
+        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+        inc_falowen_usage(student_code)  # increment daily usage
+
+        # AI response logic
+        if is_exam:
+            system_prompt = build_exam_system_prompt(level, teil)
+        else:
+            system_prompt = build_custom_chat_prompt(level)
+
+        # Build OpenAI message history
+        messages = [{"role": "system", "content": system_prompt}]
+        messages += [
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state["falowen_messages"]
+        ]
+
+        # Show spinner and AI reply
+        with st.chat_message("assistant", avatar="🧑‍🏫"):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=messages,
+                        temperature=0.15,
+                        max_tokens=600,
                     )
-                    st.markdown(ai_reply)
-            # Save AI reply to session for next turn
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+                    ai_reply = completion.choices[0].message.content.strip()
+                except Exception as e:
+                    ai_reply = f"Sorry, an error occurred: {e}"
+
+                st.markdown(
+                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    unsafe_allow_html=True
+                )
+                st.markdown(ai_reply)
+
+        # Add AI reply to chat history (so it appears on next rerun)
+        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
+# =========================================
+# End of Exams and Custom chat
+# =========================================
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification, AI Feedback)
