@@ -1546,75 +1546,60 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-def safe_latin1(text):
-    return text.encode("latin1", "replace").decode("latin1")
 
-def fetch_scores_from_github():
-    url = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text))
-        if "StudentCode" in df.columns:
-            df = df.rename(columns={"StudentCode": "student_code"})
-        if "Level" not in df.columns:
-            df["Level"] = ""
-        df["student_code"] = df["student_code"].astype(str).str.strip().str.lower()
-        df["Level"] = df["Level"].astype(str).str.strip().str.upper()
-        return df
-    except Exception as e:
-        st.error(f"Failed to fetch scores from GitHub: {e}")
-        return pd.DataFrame()
 
 if tab == "My Results and Resources":
-    import io  # Redundant if already at top, but safe
+    import io
+    from fpdf import FPDF
+
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
     GITHUB_RAW_URL = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
 
+    # --- Fetch and prepare data ---
     def fetch_scores_from_github():
         try:
             r = requests.get(GITHUB_RAW_URL, timeout=7)
             r.raise_for_status()
             df = pd.read_csv(io.StringIO(r.text), sep=None, engine='python')
-            df.columns = [c.strip().lower() for c in df.columns]
-            # Rename common variants
-            if "studentcode" in df.columns:
-                df = df.rename(columns={"studentcode": "student_code"})
-            if "assignment" not in df.columns and "assignments" in df.columns:
-                df = df.rename(columns={"assignments": "assignment"})
-            # Debug: print headers
-            st.caption(f"CSV Columns found: {list(df.columns)}")
+            # Standardize columns (force lower-case, underscores)
+            col_map = {}
+            for c in df.columns:
+                base = c.strip().lower()
+                if base == "studentcode": base = "student_code"
+                col_map[c] = base
+            df = df.rename(columns=col_map)
             return df
         except Exception as e:
             st.error(f"Failed to fetch scores from GitHub: {e}")
             return pd.DataFrame()
 
     df_scores = fetch_scores_from_github()
-    required_cols = {"student_code", "assignment", "score", "comments", "date", "level", "name"}
+
+    # ---- Check columns ----
+    required_cols = {"student_code", "name", "assignment", "score", "comments", "date", "level"}
     missing_cols = required_cols - set(df_scores.columns)
     if missing_cols:
-        st.error(f"CSV is missing required columns: {', '.join(missing_cols)}\nColumns found: {list(df_scores.columns)}")
+        st.error(f"CSV is missing required columns: {', '.join(missing_cols)}. Columns found: {list(df_scores.columns)}")
         st.stop()
 
     student_code = st.session_state.get("student_code", "").strip().lower()
     df_scores["student_code"] = df_scores["student_code"].astype(str).str.lower().str.strip()
-    df_student = df_scores[df_scores["student_code"] == student_code]
+    df_student = df_scores[df_scores["student_code"] == student_code].copy()
 
     if df_student.empty:
         st.info("No results available yet. Complete an assignment to see your scores!")
     else:
-        # Level Filter (A1, A2, B1, B2)
-        level_options = sorted(df_student["level"].dropna().unique())
-        level = st.selectbox("Choose your level to view results:", level_options, index=0)
+        # Level filter (force uppercase for comparison)
+        df_student["level"] = df_student["level"].astype(str).str.upper().str.strip()
+        all_levels = sorted(df_student["level"].dropna().unique())
+        level = st.selectbox("Choose your level to view results:", all_levels, index=0)
+        df_this_level = df_student[df_student["level"] == level].copy()
 
-        df_this_level = df_student[df_student["level"] == level]
-
-        # Key stats
-        total_assignments = {
-            "A1": 18, "A2": 28, "B1": 26, "B2": 24
-        }.get(level, 0)
+        # Assignment counts per level
+        ASSIGNMENT_TOTALS = {"A1": 18, "A2": 28, "B1": 26, "B2": 24}
+        total_assignments = ASSIGNMENT_TOTALS.get(level, 0)
         completed = df_this_level["assignment"].nunique()
         not_completed = max(0, total_assignments - completed)
         avg_score = df_this_level["score"].mean() if completed else 0
@@ -1628,82 +1613,84 @@ if tab == "My Results and Resources":
         - **Best Score:** {best_score}
         """)
 
-        # Table: highlight best per assignment
+        # --- Table: highlight best score per assignment only ---
         df_this_level = df_this_level.copy()
+        df_this_level["score"] = pd.to_numeric(df_this_level["score"], errors="coerce")
         df_this_level['is_best'] = df_this_level.groupby('assignment')['score'].transform('max') == df_this_level['score']
-
-        def color_best(val, is_best):
+        def highlight_best(val, is_best):
             return 'background-color: #d4edda' if is_best else ''
-
+        styled = df_this_level[["assignment", "score", "comments", "date", "is_best"]].sort_values(
+            ["assignment", "score"], ascending=[True, False]
+        ).style.apply(lambda row: [
+            highlight_best(row["score"], row["is_best"]),
+            '', '', '', ''], axis=1)
         st.dataframe(
-            df_this_level[["assignment", "score", "comments", "date"]]
-                .sort_values(["assignment", "score"], ascending=[True, False])
-                .style.apply(lambda row: [color_best(v, row['is_best']) for v in row], axis=1),
+            styled.hide_columns("is_best"),
             use_container_width=True,
             hide_index=True
         )
 
-        # PDF Download: summary + full table
-        import tempfile
-        import os
+        # --- PDF DOWNLOAD: All results for this level ---
+        def generate_pdf(df, student_name, level, completed, not_completed, avg_score, best_score, total_assignments):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            # School Info
+            pdf.cell(0, 10, "Learn Language Education Academy", ln=True, align="C")
+            pdf.cell(0, 10, "www.learngermanghana.com | learngermanghana@gmail.com", ln=True, align="C")
+            pdf.ln(8)
+            # Student Info
+            pdf.set_font("Arial", size=11)
+            pdf.cell(0, 8, f"Student: {student_name}", ln=True)
+            pdf.cell(0, 8, f"Level: {level}", ln=True)
+            pdf.ln(2)
+            # Stats
+            pdf.set_font("Arial", "B", size=11)
+            pdf.cell(0, 8, f"Assignments for {level}: {total_assignments}", ln=True)
+            pdf.cell(0, 8, f"Completed: {completed}   Not Completed: {not_completed}", ln=True)
+            pdf.cell(0, 8, f"Average Score: {avg_score:.1f}   Best Score: {best_score}", ln=True)
+            pdf.ln(4)
+            # Table header
+            pdf.set_font("Arial", "B", size=10)
+            pdf.cell(65, 8, "Assignment", 1)
+            pdf.cell(20, 8, "Score", 1)
+            pdf.cell(55, 8, "Comments", 1)
+            pdf.cell(30, 8, "Date", 1)
+            pdf.ln()
+            pdf.set_font("Arial", size=9)
+            # Table rows
+            for _, row in df.iterrows():
+                pdf.cell(65, 8, str(row["assignment"])[:32], 1)
+                pdf.cell(20, 8, str(row["score"]), 1)
+                pdf.cell(55, 8, str(row["comments"])[:32], 1)
+                pdf.cell(30, 8, str(row["date"]), 1)
+                pdf.ln()
+            pdf.ln(5)
+            pdf.set_font("Arial", "I", size=9)
+            pdf.cell(0, 8, f"This document is issued for official use. Signed: Felix Asadu (Head of Exams)", ln=True)
+            return pdf
 
-        if st.button("Download My Full Results as PDF"):
-            import matplotlib.pyplot as plt
-            from matplotlib.backends.backend_pdf import PdfPages
+        # PDF button
+        if st.button("⬇️ Download My Results as PDF"):
+            # Only pass the columns to PDF that are present
+            pdf = generate_pdf(
+                df_this_level,
+                student_name=df_this_level.iloc[0]["name"],
+                level=level,
+                completed=completed,
+                not_completed=not_completed,
+                avg_score=avg_score,
+                best_score=best_score,
+                total_assignments=total_assignments,
+            )
+            # Write to memory (not file)
+            pdf_output = io.BytesIO()
+            pdf.output(pdf_output)
+            pdf_bytes = pdf_output.getvalue()
+            st.download_button(
+                "Download PDF",
+                data=pdf_bytes,
+                file_name=f"{student_code}_{level}_results.pdf",
+                mime="application/pdf"
+            )
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                pdf_file = tmp_pdf.name
-                # Simple text PDF (matplotlib workaround)
-                with PdfPages(pdf_file) as pdf:
-                    # First page: summary
-                    plt.figure(figsize=(8, 4))
-                    plt.axis('off')
-                    plt.title(f"My Results for {level}", fontsize=16, fontweight='bold')
-                    txt = (
-                        f"Student: {df_this_level['Name'].iloc[0]}\n"
-                        f"Level: {level}\n"
-                        f"Assignments: {total_assignments}\n"
-                        f"Completed: {completed}\n"
-                        f"Not Completed: {not_completed}\n"
-                        f"Average Score: {avg_score:.1f}\n"
-                        f"Best Score: {best_score}\n"
-                        f"Official use only. Signed: Felix Asadu\n"
-                        f"School: Learn Language Education Academy\n"
-                        f"Email: learngermanghana@gmail.com\n"
-                        f"Website: www.learngermanghana.com"
-                    )
-                    plt.text(0, 1, txt, fontsize=12, va='top')
-                    pdf.savefig()
-                    plt.close()
-                    # Second page: Table
-                    plt.figure(figsize=(10, 0.5 + 0.4 * len(df_this_level)))
-                    plt.axis('off')
-                    tbl = plt.table(
-                        cellText=df_this_level[["Assignment", "Score", "Comments", "Date"]].values,
-                        colLabels=["Assignment", "Score", "Comments", "Date"],
-                        loc='center'
-                    )
-                    tbl.auto_set_font_size(False)
-                    tbl.set_fontsize(10)
-                    tbl.scale(1.2, 1.2)
-                    pdf.savefig()
-                    plt.close()
-
-                # Download
-                with open(pdf_file, "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download PDF",
-                        data=f.read(),
-                        file_name=f"My_Results_{level}.pdf",
-                        mime="application/pdf"
-                    )
-                os.remove(pdf_file)
-        
-        # Resource downloads section
-        st.divider()
-        st.subheader("📚 Resources & Downloads")
-        st.markdown(
-            "- [Sample Letter Format (PDF)](https://www.goethe.de/resources/files/pdf222/schreiben_teil2_a2_modellsatz.pdf)"
-            "\n- [German Grammar Topics A1–B1 (PDF)](https://learngermanghana.com/german_grammar.pdf)"
-            "\n- [Official Exam Info (Website)](https://www.goethe.de/en/spr/kup/prf/prf/gzsd1/ueb.html)"
-        )
