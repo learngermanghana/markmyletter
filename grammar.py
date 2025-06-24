@@ -281,6 +281,63 @@ if not st.session_state["logged_in"]:
             st.error("Login failed. Please check your Student Code or Email and try again.")
     st.stop()
 
+# --- 1. Always check if cookie manager is ready ---
+if not cookie_manager.ready():
+    st.warning("Cookies are not ready. Please refresh this page.")
+    st.stop()
+
+# --- 2. Try to load student code from cookie safely ---
+code_from_cookie = cookie_manager.get("student_code") or ""
+
+# --- 3. Check if user is logged in (via session) ---
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = None
+if "student_code" not in st.session_state:
+    st.session_state["student_code"] = ""
+if "student_name" not in st.session_state:
+    st.session_state["student_name"] = ""
+
+# --- 4. Try auto-login if cookie exists ---
+if not st.session_state["logged_in"] and code_from_cookie:
+    df_students = load_student_data()
+    if not df_students.empty and "StudentCode" in df_students.columns:
+        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code_from_cookie]
+        if not found.empty:
+            st.session_state["student_code"] = code_from_cookie
+            st.session_state["logged_in"] = True
+            st.session_state["student_row"] = found.iloc[0].to_dict()
+            st.session_state["student_name"] = found.iloc[0]["Name"]
+
+# --- 5. If not logged in, show login UI ---
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    login_input = st.text_input(
+        "Enter your Student Code or Email to begin:",
+        value=code_from_cookie
+    ).strip().lower()
+    if st.button("Login"):
+        df_students = load_student_data()
+        if not df_students.empty:
+            found = df_students[
+                (df_students["StudentCode"].str.lower().str.strip() == login_input) |
+                (df_students["Email"].str.lower().str.strip() == login_input)
+            ]
+            if not found.empty:
+                st.session_state["logged_in"] = True
+                st.session_state["student_row"] = found.iloc[0].to_dict()
+                st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
+                st.session_state["student_name"] = found.iloc[0]["Name"]
+                cookie_manager["student_code"] = st.session_state["student_code"]
+                cookie_manager.save()
+                st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
+                st.rerun()
+            else:
+                st.error("Login failed. Please check your Student Code or Email and try again.")
+        else:
+            st.error("Student list is not available.")
+    st.stop()
 
 # ====================================
 # 4. FLEXIBLE ANSWER CHECKERS
