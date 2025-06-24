@@ -1546,8 +1546,6 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-
-
 if tab == "My Results and Resources":
     import io
     from fpdf import FPDF
@@ -1568,6 +1566,7 @@ if tab == "My Results and Resources":
             for c in df.columns:
                 base = c.strip().lower()
                 if base == "studentcode": base = "student_code"
+                if base == "level": base = "level"
                 col_map[c] = base
             df = df.rename(columns=col_map)
             return df
@@ -1614,83 +1613,67 @@ if tab == "My Results and Resources":
         """)
 
         # --- Table: highlight best score per assignment only ---
-        df_this_level = df_this_level.copy()
         df_this_level["score"] = pd.to_numeric(df_this_level["score"], errors="coerce")
         df_this_level['is_best'] = df_this_level.groupby('assignment')['score'].transform('max') == df_this_level['score']
-        def highlight_best(val, is_best):
-            return 'background-color: #d4edda' if is_best else ''
-        styled = df_this_level[["assignment", "score", "comments", "date", "is_best"]].sort_values(
+        df_display = df_this_level[["assignment", "score", "comments", "date", "is_best"]].sort_values(
             ["assignment", "score"], ascending=[True, False]
-        ).style.apply(lambda row: [
-            highlight_best(row["score"], row["is_best"]),
-            '', '', '', ''], axis=1)
+        )
+
+        def color_best_rows(row):
+            # Only highlight the row if is_best is True
+            color = ['background-color: #d4edda' if row['is_best'] else '' for _ in row[:-1]]
+            color.append('')  # For the 'is_best' column (which will be dropped)
+            return color
+
+        styled = df_display.style.apply(color_best_rows, axis=1)
         st.dataframe(
-            styled.hide_columns("is_best"),
+            styled.hide(axis="columns", subset=["is_best"]),
             use_container_width=True,
             hide_index=True
         )
 
-        # --- PDF DOWNLOAD: All results for this level ---
-        def generate_pdf(df, student_name, level, completed, not_completed, avg_score, best_score, total_assignments):
+        # --- PDF Download (Full History) ---
+        if st.button("⬇️ Download My Results as PDF"):
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
-            # School Info
-            pdf.cell(0, 10, "Learn Language Education Academy", ln=True, align="C")
-            pdf.cell(0, 10, "www.learngermanghana.com | learngermanghana@gmail.com", ln=True, align="C")
-            pdf.ln(8)
-            # Student Info
-            pdf.set_font("Arial", size=11)
-            pdf.cell(0, 8, f"Student: {student_name}", ln=True)
-            pdf.cell(0, 8, f"Level: {level}", ln=True)
-            pdf.ln(2)
-            # Stats
-            pdf.set_font("Arial", "B", size=11)
-            pdf.cell(0, 8, f"Assignments for {level}: {total_assignments}", ln=True)
-            pdf.cell(0, 8, f"Completed: {completed}   Not Completed: {not_completed}", ln=True)
-            pdf.cell(0, 8, f"Average Score: {avg_score:.1f}   Best Score: {best_score}", ln=True)
-            pdf.ln(4)
-            # Table header
-            pdf.set_font("Arial", "B", size=10)
-            pdf.cell(65, 8, "Assignment", 1)
-            pdf.cell(20, 8, "Score", 1)
-            pdf.cell(55, 8, "Comments", 1)
-            pdf.cell(30, 8, "Date", 1)
-            pdf.ln()
-            pdf.set_font("Arial", size=9)
-            # Table rows
-            for _, row in df.iterrows():
-                pdf.cell(65, 8, str(row["assignment"])[:32], 1)
-                pdf.cell(20, 8, str(row["score"]), 1)
-                pdf.cell(55, 8, str(row["comments"])[:32], 1)
-                pdf.cell(30, 8, str(row["date"]), 1)
-                pdf.ln()
+            pdf.cell(0, 10, "Learn Language Education Academy", ln=1, align="C")
+            pdf.cell(0, 10, "Student Results Summary", ln=1, align="C")
             pdf.ln(5)
-            pdf.set_font("Arial", "I", size=9)
-            pdf.cell(0, 8, f"This document is issued for official use. Signed: Felix Asadu (Head of Exams)", ln=True)
-            return pdf
-
-        # PDF button
-        if st.button("⬇️ Download My Results as PDF"):
-            # Only pass the columns to PDF that are present
-            pdf = generate_pdf(
-                df_this_level,
-                student_name=df_this_level.iloc[0]["name"],
-                level=level,
-                completed=completed,
-                not_completed=not_completed,
-                avg_score=avg_score,
-                best_score=best_score,
-                total_assignments=total_assignments,
-            )
-            # Write to memory (not file)
-            pdf_output = io.BytesIO()
-            pdf.output(pdf_output)
-            pdf_bytes = pdf_output.getvalue()
+            pdf.cell(0, 10, f"Name: {df_student['name'].iloc[0]}", ln=1)
+            pdf.cell(0, 10, f"Student Code: {student_code}", ln=1)
+            pdf.cell(0, 10, f"Date Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=1)
+            pdf.ln(5)
+            pdf.set_font("Arial", style="B", size=12)
+            pdf.cell(0, 10, f"Level: {level}", ln=1)
+            pdf.set_font("Arial", size=11)
+            pdf.cell(0, 10, f"Assignments for {level}: {total_assignments}", ln=1)
+            pdf.cell(0, 10, f"Completed: {completed}", ln=1)
+            pdf.cell(0, 10, f"Not Completed: {not_completed}", ln=1)
+            pdf.cell(0, 10, f"Average Score: {avg_score:.1f}", ln=1)
+            pdf.cell(0, 10, f"Best Score: {best_score}", ln=1)
+            pdf.ln(4)
+            pdf.set_font("Arial", style="B", size=11)
+            pdf.cell(0, 10, "Assignments Completed:", ln=1)
+            pdf.set_font("Arial", size=10)
+            for idx, row in df_this_level.iterrows():
+                pdf.cell(0, 9, f"{row['assignment']} | Score: {row['score']} | Date: {row['date']}", ln=1)
+            pdf.ln(4)
+            pdf.set_font("Arial", size=9)
+            pdf.cell(0, 8, "Contact: learngermanghana@gmail.com | www.learngermanghana.com", ln=1, align="C")
+            pdf.cell(0, 8, "Signed: Felix Asadu, Director", ln=1, align="C")
+            # Save PDF in memory for download
+            pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
             st.download_button(
                 "Download PDF",
                 data=pdf_bytes,
-                file_name=f"{student_code}_{level}_results.pdf",
+                file_name=f"{student_code}_results_{level}.pdf",
                 mime="application/pdf"
             )
+
+
+
+
+
+      
 
