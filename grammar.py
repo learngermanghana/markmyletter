@@ -1546,108 +1546,158 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-
-import requests, io
+import requests
 import pandas as pd
 from fpdf import FPDF
+from datetime import date
+import io
 
 if tab == "My Results and Resources":
-    st.header("🎓 My Results and Resources")
+    st.header("📑 My Results and Resources")
 
-    # --- Configuration ---
-    GITHUB_CSV_URL = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
-    PDF_SIGNATURE_LINE = "Signed by Felix Asadu, Director – Learn Language Education Academy"
+    # ---- School/Brand Info ----
+    SCHOOL_NAME = "Learn Language Education Academy"
+    SCHOOL_URL = "www.learngermanghana.com"
+    SCHOOL_CONTACT = "learngermanghana@gmail.com | +233 20 570 6589"
+    DIRECTOR = "Felix Asadu"
 
-    # --- Helper: Load and clean scores data ---
-    @st.cache_data(ttl=60*5)
-    def load_scores_csv(url_or_path):
-        try:
-            if url_or_path.startswith("http"):
-                response = requests.get(url_or_path)
-                response.raise_for_status()
-                df = pd.read_csv(io.StringIO(response.text))
-            else:
-                df = pd.read_csv(url_or_path)
-            # Rename all columns to lower snake_case
-            df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
-            # Rename studentcode to student_code
-            if "studentcode" in df.columns:
-                df.rename(columns={"studentcode": "student_code"}, inplace=True)
-            return df
-        except Exception as e:
-            st.error(f"Failed to fetch scores from GitHub: {e}")
-            return pd.DataFrame()
+    # ---- Assignment counts per level ----
+    LEVEL_ASSIGNMENT_TOTALS = {
+        "A1": 18,
+        "A2": 28,
+        "B1": 26,
+        "B2": 0,   # update later when ready
+    }
 
-    # --- Load scores ---
-    df_scores = load_scores_csv(GITHUB_CSV_URL)
+    # ---- 1. Fetch scores from your public GitHub CSV ----
+    GITHUB_RAW_CSV = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
+    try:
+        response = requests.get(GITHUB_RAW_CSV)
+        response.raise_for_status()
+        df_scores = pd.read_csv(io.StringIO(response.text))
+    except Exception as e:
+        st.error(f"Could not fetch results from GitHub: {e}")
+        st.stop()
 
+    # ---- 2. Robust column handling ----
+    # Normalize columns to lower, strip spaces, and correct common variants
+    df_scores.columns = [col.strip().lower().replace(" ", "_") for col in df_scores.columns]
+    colmap = {c: c for c in df_scores.columns}
+    # Standardize key columns
+    for variant in ["studentcode", "student_code"]:
+        if variant in df_scores.columns:
+            colmap[variant] = "student_code"
+    if "level" not in df_scores.columns:
+        df_scores["level"] = ""
+    df_scores.rename(columns=colmap, inplace=True)
+
+    # ---- 3. Filter for current student ----
     student_code = st.session_state.get("student_code", "").strip().lower()
-    student_name = st.session_state.get("student_name", "")
+    mask = df_scores["student_code"].astype(str).str.strip().str.lower() == student_code
+    my_scores = df_scores[mask].copy()
 
-    # --- Filter to this student's results ---
-    if "student_code" in df_scores.columns:
-        mask = df_scores["student_code"].astype(str).str.strip().str.lower() == student_code
-        df_my_scores = df_scores[mask]
+    if my_scores.empty:
+        st.warning("No results found for your student code. If you think this is an error, please contact your tutor.")
     else:
-        df_my_scores = pd.DataFrame()
+        # ---- 4. Show summary stats and breakdowns ----
+        st.subheader("📋 My Assignment Progress")
 
-    if not df_my_scores.empty:
-        st.subheader(f"📑 Your Exam & Assignment Results")
-        # Highlight best score per assignment
-        best_scores = df_my_scores.groupby("assignment")["score"].transform("max")
-        def highlight_best(row):
-            if row["score"] == best_scores.loc[row.name]:
-                return ['background-color: #c0f7b4'] * len(row)
-            return [''] * len(row)
-        # Show table, highlight bests
-        st.dataframe(
-            df_my_scores.style.apply(highlight_best, axis=1),
-            use_container_width=True,
-            hide_index=True
-        )
+        # --- Table of results (show main columns only) ---
+        show_cols = ["assignment", "score", "comments", "date", "level"]
+        st.dataframe(my_scores[show_cols], hide_index=True, use_container_width=True)
 
-        # Show overall summary
-        avg_score = df_my_scores["score"].mean()
-        st.info(f"**Average Score:** {avg_score:.1f} / 25")
+        # --- Compute stats by level ---
+        st.markdown("### 📊 Completion Stats (by Level)")
+        completed = my_scores.groupby("level")["assignment"].count().to_dict()
+        all_levels = list(LEVEL_ASSIGNMENT_TOTALS.keys())
+        for lvl in all_levels:
+            total = LEVEL_ASSIGNMENT_TOTALS[lvl]
+            done = completed.get(lvl, 0)
+            st.write(
+                f"**{lvl}:** {done} of {total} assignments completed "
+                f"({'✅' if done == total and total > 0 else 'In progress' if done > 0 else 'Not started'})"
+            )
+        st.write("---")
 
-        # PDF download of history
-        if st.button("⬇️ Download Full Score History (PDF)"):
+        # --- Show total and missing assignments (for PDF report) ---
+        summary_rows = []
+        for lvl in all_levels:
+            total = LEVEL_ASSIGNMENT_TOTALS[lvl]
+            done = completed.get(lvl, 0)
+            missing = max(0, total - done)
+            summary_rows.append([lvl, total, done, missing])
+
+        # --- Assignment score stats ---
+        avg_score = my_scores["score"].mean() if not my_scores.empty else 0.0
+        st.success(f"**Average Score:** {avg_score:.1f} / 100")
+
+        # ---- 5. Best Score Highlight ----
+        best_row = my_scores.loc[my_scores["score"].idxmax()] if not my_scores.empty else None
+        if best_row is not None:
+            st.info(f"🏆 **Best Assignment:** {best_row['assignment']} ({best_row['score']} points)")
+
+        # ---- 6. PDF Download (official record) ----
+        def download_results_pdf():
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Arial", "B", 15)
-            pdf.cell(0, 12, f"{student_name} ({student_code}) – Results", ln=1)
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(0, 12, SCHOOL_NAME, ln=1, align="C")
+            pdf.set_font("Arial", "", 12)
+            pdf.cell(0, 8, "Official Results & Progress Statement", ln=1, align="C")
+            pdf.cell(0, 8, SCHOOL_URL, ln=1, align="C")
+            pdf.cell(0, 8, " ", ln=1)
             pdf.set_font("Arial", "", 11)
-            for _, row in df_my_scores.iterrows():
-                pdf.cell(0, 8, f"{row['assignment']}: {row['score']} / 25 – {row.get('date', '')}", ln=1)
-            pdf.ln(10)
+            pdf.cell(0, 8, f"Student: {st.session_state.get('student_name','')}   Code: {student_code.upper()}", ln=1)
+            pdf.cell(0, 8, f"Generated: {str(date.today())}", ln=1)
+            pdf.cell(0, 8, " ", ln=1)
+            # Stats
             pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 10, f"Average Score: {avg_score:.1f} / 25", ln=1)
-            pdf.ln(8)
-            pdf.set_font("Arial", "I", 11)
-            pdf.cell(0, 8, PDF_SIGNATURE_LINE, ln=1)
-            pdf_file = f"{student_name}_results.pdf"
-            pdf.output(pdf_file)
-            with open(pdf_file, "rb") as f:
-                st.download_button(
-                    "Download PDF",
-                    f.read(),
-                    file_name=pdf_file,
-                    mime="application/pdf"
-                )
-        st.markdown("---")
-    else:
-        st.warning("No results found for your account yet.")
+            pdf.cell(0, 8, "Summary of Progress", ln=1)
+            pdf.set_font("Arial", "", 11)
+            for row in summary_rows:
+                lvl, total, done, missing = row
+                pdf.cell(0, 8, f"{lvl}:  {done} completed / {total} total  (Not completed: {missing})", ln=1)
+            pdf.cell(0, 8, f"Overall Average Score: {avg_score:.1f} / 100", ln=1)
+            if best_row is not None:
+                pdf.cell(0, 8, f"Best Score: {best_row['score']} ({best_row['assignment']})", ln=1)
+            pdf.cell(0, 8, " ", ln=1)
+            # Assignment Table
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, "Assignment Details", ln=1)
+            pdf.set_font("Arial", "", 10)
+            for _, row in my_scores.iterrows():
+                assignment = str(row['assignment'])
+                score = str(row['score'])
+                comments = str(row.get('comments', ''))
+                adate = str(row.get('date', ''))
+                lvl = str(row.get('level', ''))
+                pdf.cell(0, 8, f"[{lvl}] {assignment}: {score} / 100 | {comments} | {adate}", ln=1)
+            pdf.cell(0, 8, " ", ln=1)
+            # School official footer
+            pdf.set_font("Arial", "I", 9)
+            pdf.cell(0, 8, "This is an official record generated by Learn Language Education Academy.", ln=1)
+            pdf.cell(0, 8, f"Director: {DIRECTOR}    Date: {str(date.today())}", ln=1)
+            pdf.cell(0, 8, SCHOOL_CONTACT, ln=1)
+            # "Signature"
+            pdf.cell(0, 12, f"Signed: {DIRECTOR}", ln=1)
+            # Return PDF as bytes
+            pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+            return pdf_bytes
 
-    # --- Resource Downloads Section ---
-    st.subheader("📚 Important Resources & Downloads")
-    st.markdown("""
-    - [A1/B1 Model Test Paper (PDF)](https://www.goethe.de/resources/files/pdf219/a1-modellsatz.pdf)
-    - [A2 Exam Tips Sheet](https://www.goethe.de/resources/files/pdf218/a2-tipps.pdf)
-    - [Letter Writing Guide (PDF)](https://www.goethe.de/resources/files/pdf218/briefeschreiben-tipps.pdf)
-    - [Class Timetable (PDF)](https://www.learngermanghana.com/class-timetable.pdf)
-    """)
+        st.download_button(
+            "⬇️ Download Overall Results as PDF",
+            download_results_pdf(),
+            file_name=f"Results_{student_code}_{str(date.today())}.pdf",
+            mime="application/pdf"
+        )
 
-    st.info("If you need a special results statement or missing a resource, please contact Felix Asadu.")
+    # ---- 7. Resource Downloads (add more if needed) ----
+    st.subheader("📂 Downloadable Resources")
+    st.markdown("- [Sample Exam Sheet (PDF)](https://example.com/sample-exam-sheet.pdf)")
+    st.markdown("- [A1 Vocab List (PDF)](https://example.com/a1-vocab-list.pdf)")
+    st.markdown("- [A2 Assignment Guide (PDF)](https://example.com/a2-assignment-guide.pdf)")
+    st.info("More resources will be added soon. Contact your tutor if you need something specific.")
+
 
 
 if tab == "Admin":
