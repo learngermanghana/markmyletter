@@ -1282,15 +1282,53 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
 # =========================================
 
+import difflib
+
+def is_close_answer(student, correct):
+    """Stricter match: must match 90%+ and be nearly identical for A1/A2."""
+    student = student.strip().lower()
+    correct = correct.strip().lower()
+    if correct.startswith("to "):
+        correct = correct[3:]
+    if len(student) < 3 or len(student) < 0.8 * len(correct):
+        return False
+    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
+    return similarity >= 0.95 and student == correct  # Only accept true match (case/lowercased)
+
+def validate_translation_openai_with_feedback(word, student_answer):
+    """Use OpenAI to check and explain (for B1/B2/C1)."""
+    prompt = (
+        f"Is '{student_answer.strip()}' an accurate English translation of the German word '{word}'? "
+        "Reply with 'True' or 'False'. If false, give the correct answer."
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=10,
+            temperature=0,
+        )
+        reply = resp.choices[0].message.content.strip().lower()
+        if reply.startswith("true"):
+            return True, "Correct translation!"
+        else:
+            # Try to extract expected answer
+            parts = reply.split("correct answer is")
+            if len(parts) > 1:
+                return False, "Correct answer: " + parts[1].strip(". ")
+            else:
+                return False, reply
+    except Exception as e:
+        return False, "AI check failed – try again."
+
 if tab == "Vocab Trainer":
-    import random
     st.header("🧠 Vocab Trainer")
 
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "Demo")
     today_str = str(date.today())
 
-    # --- Daily Streak (fetch from your helper/db) ---
+    # --- Daily Streak ---
     streak = get_vocab_streak(student_code)
     if streak >= 1:
         st.success(f"🔥 {streak}-day streak! Keep it up!")
@@ -1313,7 +1351,6 @@ if tab == "Vocab Trainer":
         st.session_state["vocab_feedback"] = ""
         st.session_state["show_next_button"] = False
         st.session_state["vocab_completed"] = set()
-        st.session_state["vocab_last_idx"] = None
 
     # --- Track completed words ---
     if "vocab_completed" not in st.session_state:
@@ -1327,7 +1364,7 @@ if tab == "Vocab Trainer":
     new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
     random.shuffle(new_words)
 
-    # --- Visual progress bar for today's goal ---
+    # --- Visual progress bar ---
     st.progress(
         min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
         text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
@@ -1339,62 +1376,41 @@ if tab == "Vocab Trainer":
         st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
         st.stop()
 
-    # --- AI-powered translation validator ---
-    def validate_translation_openai_with_feedback(word, student_answer):
-        """
-        Use OpenAI to verify if the student's answer is a valid translation,
-        and get a short feedback explanation.
-        """
-        prompt = (
-            f"You are a helpful German teacher. "
-            f"The German word is '{word}'. The student wrote: '{student_answer}'.\n"
-            f"1. Is this an accurate English translation? Reply with True or False (just the word).\n"
-            f"2. In one short sentence, explain why it's correct or what is missing."
-        )
-        try:
-            resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
-                temperature=0.0,
-            )
-            text = resp.choices[0].message.content.strip()
-            # Find first "True" or "False" (case-insensitive)
-            verdict = "false"
-            for line in text.split("\n"):
-                if "true" in line.lower():
-                    verdict = "true"
-                    break
-                if "false" in line.lower():
-                    verdict = "false"
-                    break
-            feedback = text
-            return verdict.startswith("t"), feedback
-        except Exception as e:
-            return False, f"AI check failed: {e}"
-
-    # --- Main vocab practice with AI and Next button ---
+    # --- Main vocab practice ---
     if new_words:
-        idx = new_words[0] if not st.session_state.get("vocab_last_idx") else st.session_state["vocab_last_idx"]
+        idx = new_words[0]
         word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
         correct_answer = vocab_list[idx][1] if is_tuple else None
 
         st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
-        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
+        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}", disabled=st.session_state.get("show_next_button", False))
 
-        # Only show "Check" button if no feedback is being displayed
+        # Show feedback and Next button after Check
+        feedback = st.session_state.get("vocab_feedback", "")
+        if feedback:
+            if st.session_state.get("last_vocab_correct", False):
+                st.success(feedback)
+            else:
+                st.error(feedback, icon="❗️")
+
+        # --- Check button logic ---
         if not st.session_state.get("show_next_button", False):
             if st.button("Check", key=f"vocab_check_{idx}"):
-                is_correct, ai_feedback = validate_translation_openai_with_feedback(word, user_answer)
-
-                # --- Show feedback ---
-                if is_correct:
-                    st.success("✅ Correct! " + ai_feedback)
-                    completed_words.add(idx)
+                # A1/A2: stricter manual, B1+ AI
+                if vocab_level in ["A1", "A2"]:
+                    if is_close_answer(user_answer, correct_answer):
+                        is_correct, ai_feedback = True, "✅ Correct!"
+                    else:
+                        is_correct, ai_feedback = False, f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>"
                 else:
-                    st.error(f"❌ Not quite. {ai_feedback}", icon="❗️")
+                    is_correct, ai_feedback = validate_translation_openai_with_feedback(word, user_answer)
 
-                # --- Save to DB ---
+                st.session_state["vocab_feedback"] = ai_feedback
+                st.session_state["last_vocab_correct"] = is_correct
+
+                if is_correct:
+                    completed_words.add(idx)
+                # Save to DB regardless (optional: only on correct if you want)
                 save_vocab_submission(
                     student_code=student_code,
                     name=student_name,
@@ -1408,18 +1424,21 @@ if tab == "Vocab Trainer":
                 st.session_state["vocab_last_idx"] = idx
                 st.rerun()
 
-        # Show Next button after feedback
+        # --- Next button logic ---
         if st.session_state.get("show_next_button", False):
-            if st.button("Next"):
+            if st.button("Next", key=f"vocab_next_{idx}"):
                 st.session_state["show_next_button"] = False
+                st.session_state["vocab_feedback"] = ""
                 st.session_state["vocab_last_idx"] = None
                 st.rerun()
+
     else:
         st.success("🎉 You've finished all new words for this level today!")
 
-    # --- Optionally: show summary of all words completed so far for this level ---
+    # --- Optionally: show summary ---
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
+
 
 
 
