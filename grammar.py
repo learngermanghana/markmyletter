@@ -1277,49 +1277,42 @@ if tab == "Exams Mode & Custom Chat":
             # Save AI reply to session for next turn
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-
 # =========================================
-# VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification)
+# VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification + AI Feedback)
 # =========================================
 
 import difflib
 
-def is_close_answer(student, correct):
-    """Stricter match: must match 90%+ and be nearly identical for A1/A2."""
+def is_close(student, correct):
+    """Checks if student answer is close (>=85% similarity), not just exact."""
     student = student.strip().lower()
     correct = correct.strip().lower()
-    if correct.startswith("to "):
-        correct = correct[3:]
-    if len(student) < 3 or len(student) < 0.8 * len(correct):
-        return False
-    similarity = difflib.SequenceMatcher(None, student, correct).ratio()
-    return similarity >= 0.95 and student == correct  # Only accept true match (case/lowercased)
+    return difflib.SequenceMatcher(None, student, correct).ratio() >= 0.85
 
-def validate_translation_openai_with_feedback(word, student_answer):
-    """Use OpenAI to check and explain (for B1/B2/C1)."""
+def is_exact(student, correct):
+    """Returns True only if student answer matches exactly (case-insensitive, ignore whitespace)."""
+    return student.strip().lower() == correct.strip().lower()
+
+def ai_vocab_feedback(word, correct, student):
+    """Uses AI to check, correct, and provide 1-2 example sentences."""
     prompt = (
-        f"Is '{student_answer.strip()}' an accurate English translation of the German word '{word}'? "
-        "Reply with 'True' or 'False'. If false, give the correct answer."
+        f"The student gave '{student.strip()}' as the English for the German word '{word.strip()}'. "
+        f"The correct answer is '{correct.strip()}'. "
+        f"1. Was the student's answer correct? Reply 'True' or 'False' only on the first line.\n"
+        f"2. If 'False', say: 'Correct answer: {correct.strip()}'.\n"
+        f"3. If student was close, say 'You were close!'.\n"
+        f"4. Give 1 or 2 simple English example sentences using the correct answer in context, as for a German A1/A2 learner."
     )
     try:
         resp = client.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=10,
-            temperature=0,
+            max_tokens=100,
+            temperature=0.15,
         )
-        reply = resp.choices[0].message.content.strip().lower()
-        if reply.startswith("true"):
-            return True, "Correct translation!"
-        else:
-            # Try to extract expected answer
-            parts = reply.split("correct answer is")
-            if len(parts) > 1:
-                return False, "Correct answer: " + parts[1].strip(". ")
-            else:
-                return False, reply
-    except Exception as e:
-        return False, "AI check failed – try again."
+        return resp.choices[0].message.content.strip()
+    except Exception:
+        return "AI feedback unavailable, but the correct answer is: " + correct.strip()
 
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
@@ -1383,41 +1376,57 @@ if tab == "Vocab Trainer":
         correct_answer = vocab_list[idx][1] if is_tuple else None
 
         st.markdown(f"🔤 **Translate this German word to English:** <b>{word}</b>", unsafe_allow_html=True)
-        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}", disabled=st.session_state.get("show_next_button", False))
+        # Only disable input after checking
+        user_answer = st.text_input(
+            "Your English translation",
+            key=f"vocab_answer_{idx}",
+            disabled=st.session_state.get("show_next_button", False),
+        )
 
-        # Show feedback and Next button after Check
         feedback = st.session_state.get("vocab_feedback", "")
+        last_was_correct = st.session_state.get("last_vocab_correct", False)
+        last_was_close = st.session_state.get("last_vocab_close", False)
+
+        # Show feedback
         if feedback:
-            if st.session_state.get("last_vocab_correct", False):
+            if last_was_correct:
                 st.success(feedback)
+            elif last_was_close:
+                st.warning(feedback)
             else:
                 st.error(feedback, icon="❗️")
 
         # --- Check button logic ---
         if not st.session_state.get("show_next_button", False):
             if st.button("Check", key=f"vocab_check_{idx}"):
-                # A1/A2: stricter manual, B1+ AI
-                if vocab_level in ["A1", "A2"]:
-                    if is_close_answer(user_answer, correct_answer):
-                        is_correct, ai_feedback = True, "✅ Correct!"
-                    else:
-                        is_correct, ai_feedback = False, f"❌ Not quite. The correct answer is: <b>{correct_answer}</b>"
+                correct = is_exact(user_answer, correct_answer)
+                close = (not correct) and is_close(user_answer, correct_answer)
+
+                if correct:
+                    feedback_msg = "✅ Correct!"
                 else:
-                    is_correct, ai_feedback = validate_translation_openai_with_feedback(word, user_answer)
+                    # Use AI for examples, and add 'You were close!' if needed
+                    ai_feedback = ai_vocab_feedback(word, correct_answer, user_answer)
+                    if close:
+                        feedback_msg = f"You were close!\n\n{ai_feedback}"
+                    else:
+                        feedback_msg = ai_feedback
 
-                st.session_state["vocab_feedback"] = ai_feedback
-                st.session_state["last_vocab_correct"] = is_correct
+                # Save stats
+                st.session_state["vocab_feedback"] = feedback_msg
+                st.session_state["last_vocab_correct"] = correct
+                st.session_state["last_vocab_close"] = close
 
-                if is_correct:
+                if correct or close:
                     completed_words.add(idx)
-                # Save to DB regardless (optional: only on correct if you want)
+                # Save to DB for each attempt
                 save_vocab_submission(
                     student_code=student_code,
                     name=student_name,
                     level=vocab_level,
                     word=word,
                     student_answer=user_answer,
-                    is_correct=is_correct,
+                    is_correct=correct or close,
                 )
                 st.session_state["vocab_usage"][vocab_usage_key] += 1
                 st.session_state["show_next_button"] = True
@@ -1430,6 +1439,8 @@ if tab == "Vocab Trainer":
                 st.session_state["show_next_button"] = False
                 st.session_state["vocab_feedback"] = ""
                 st.session_state["vocab_last_idx"] = None
+                st.session_state["last_vocab_correct"] = False
+                st.session_state["last_vocab_close"] = False
                 st.rerun()
 
     else:
@@ -1438,8 +1449,6 @@ if tab == "Vocab Trainer":
     # --- Optionally: show summary ---
     if completed_words:
         st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
-
-
 
 
 # ====================================
