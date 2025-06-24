@@ -1190,7 +1190,7 @@ if st.session_state["falowen_stage"] == 4:
             )
         st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
         st.session_state["falowen_prompt_inserted"] = True
-        st.experimental_rerun()
+        st.rerun()
 
     # ---- Render chat history ----
     for msg in st.session_state["falowen_messages"]:
