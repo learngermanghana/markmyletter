@@ -6,14 +6,11 @@ import atexit
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
+import requests
+import io  # <---- Add this!
 from openai import OpenAI
 from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager  # Persistent login
-import urllib.parse
-import requests
-from io 
-import BytesIO
-import re
+from streamlit_cookies_manager import EncryptedCookieManager
 
 
 # ---- OpenAI Client Setup ----
