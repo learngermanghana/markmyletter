@@ -1567,25 +1567,25 @@ def fetch_scores_from_github():
         return pd.DataFrame()
 
 if tab == "My Results and Resources":
-    import io  # (Already at the top is fine, safe to repeat)
+    import io  # Redundant if already at top, but safe
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
     GITHUB_RAW_URL = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
 
-    # -- Fetch and prepare data --
     def fetch_scores_from_github():
         try:
             r = requests.get(GITHUB_RAW_URL, timeout=7)
             r.raise_for_status()
-            # Always clean and lower columns
             df = pd.read_csv(io.StringIO(r.text), sep=None, engine='python')
             df.columns = [c.strip().lower() for c in df.columns]
+            # Rename common variants
             if "studentcode" in df.columns:
                 df = df.rename(columns={"studentcode": "student_code"})
-            if "student_code" not in df.columns:
-                st.error("CSV is missing 'student_code' column. Please check your upload or contact support.")
-                st.stop()
+            if "assignment" not in df.columns and "assignments" in df.columns:
+                df = df.rename(columns={"assignments": "assignment"})
+            # Debug: print headers
+            st.caption(f"CSV Columns found: {list(df.columns)}")
             return df
         except Exception as e:
             st.error(f"Failed to fetch scores from GitHub: {e}")
@@ -1595,7 +1595,7 @@ if tab == "My Results and Resources":
     required_cols = {"student_code", "assignment", "score", "comments", "date", "level", "name"}
     missing_cols = required_cols - set(df_scores.columns)
     if missing_cols:
-        st.error(f"CSV is missing required columns: {', '.join(missing_cols)}")
+        st.error(f"CSV is missing required columns: {', '.join(missing_cols)}\nColumns found: {list(df_scores.columns)}")
         st.stop()
 
     student_code = st.session_state.get("student_code", "").strip().lower()
@@ -1642,7 +1642,6 @@ if tab == "My Results and Resources":
             use_container_width=True,
             hide_index=True
         )
-
 
         # PDF Download: summary + full table
         import tempfile
