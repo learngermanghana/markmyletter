@@ -805,26 +805,6 @@ if st.session_state["logged_in"]:
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
 
-# ---- Falowen Exams/Chat: Set default session state values (always do this first!) ----
-for key, default in {
-    "falowen_stage": 1,
-    "falowen_mode": None,
-    "falowen_level": None,
-    "falowen_teil": None,
-    "falowen_messages": [],
-    "falowen_turn_count": 0,
-    "custom_topic_intro_done": False,
-    "falowen_exam_topic": None,
-    "falowen_prompt_inserted": False,
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
-
-
-# ================================
-# 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
-# ================================
-
 if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
