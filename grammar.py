@@ -1195,7 +1195,7 @@ if st.session_state["falowen_stage"] == 4:
         if instruction:
             st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
             st.session_state["falowen_prompt_inserted"] = True
-            st.experimental_rerun()
+            st.rerun()
         # This rerun happens ONLY if the chat was empty AND prompt was inserted.
 
     # After rerun, if prompt exists, set flag to False (for future resets)
