@@ -1548,108 +1548,152 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 import requests
+import io
+import pandas as pd
 from fpdf import FPDF
-from io import StringIO
+import streamlit as st
 
 if tab == "My Results & Resource Hub":
-    st.header("🏆 My Results & Resource Hub")
+    st.header("📚 My Results & Resource Hub")
 
-    # Always fetch latest scores from GitHub
-    csv_url = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
+    # ---- 1. Fetch latest scores from GitHub ----
+    # Update this URL if you move the file
+    scores_url = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
     try:
-        res = requests.get(csv_url)
-        res.raise_for_status()
-        df_scores = pd.read_csv(StringIO(res.text))
-        df_scores.columns = [c.strip().lower().replace(" ", "_") for c in df_scores.columns]
+        response = requests.get(scores_url)
+        response.raise_for_status()
+        df_scores = pd.read_csv(io.StringIO(response.text))
     except Exception as e:
-        st.error(f"Could not load scores from GitHub. {e}")
+        st.error(f"Failed to fetch scores from GitHub: {e}")
         st.stop()
+
+    # ---- 2. Clean up columns, lowercase for code matching ----
+    for col in df_scores.columns:
+        df_scores[col] = df_scores[col].astype(str).str.strip()
 
     student_code = st.session_state.get("student_code", "").strip().lower()
+    # Make sure column is lowercase for search
     if "student_code" not in df_scores.columns:
-        st.error("CSV format error: no 'student_code' column.")
+        st.error("CSV is missing the 'student_code' column.")
         st.stop()
 
-    mask = df_scores["student_code"].astype(str).str.strip().str.lower() == student_code
-    df_student = df_scores[mask]
+    mask = df_scores["student_code"].str.strip().str.lower() == student_code
+    df_student = df_scores[mask].copy()
 
     if df_student.empty:
-        st.info("No scores found for your account yet.")
+        st.info("No results available for your code yet.")
+        st.markdown("If you have recently submitted work, check back later or contact your instructor.")
+        st.stop()
+
+    # ---- 3. Table: show student results, highlight best score ----
+    # Try to convert score columns to numeric
+    if "score" in df_student.columns:
+        df_student["score"] = pd.to_numeric(df_student["score"], errors="coerce")
     else:
-        # Highlight highest score per assignment
-        if "assignment" in df_student.columns and "score" in df_student.columns:
-            df_student["best"] = df_student.groupby("assignment")["score"].transform("max") == df_student["score"]
-        else:
-            df_student["best"] = False
+        st.warning("No 'score' column found in your results.")
+        st.stop()
 
-        def highlight_best(row):
-            color = "background-color: #eaffd0" if row["best"] else ""
-            return [color if c == "score" else "" for c in row.index]
+    st.markdown("### 📝 **Your Assignments & Scores**")
 
-        # Display scores table
+    # Highlight highest score(s) per assignment if 'assignment' column exists
+    if "assignment" in df_student.columns:
+        idx = df_student.groupby("assignment")["score"].transform("max") == df_student["score"]
+        highlight = ["background-color: #b8e994" if x else "" for x in idx]
         st.dataframe(
-            df_student.drop(columns=["best"]).style.apply(highlight_best, axis=1),
-            hide_index=True,
+            df_student.style.apply(lambda s: highlight, axis=0) if highlight else df_student,
             use_container_width=True
         )
+    else:
+        st.dataframe(df_student, use_container_width=True)
 
-        # Show average score and summary
-        avg_score = df_student["score"].mean() if "score" in df_student.columns else None
-        st.success(f"**Your average score:** {avg_score:.2f}" if avg_score is not None else "Scores loaded.")
+    # ---- 4. Summary stats ----
+    avg_score = df_student["score"].mean()
+    max_score = df_student["score"].max()
+    total = len(df_student)
+    n_passed = (df_student["score"] >= 17).sum()
 
-        # Download all scores as PDF
-        def generate_pdf(df, avg_score, student_code, student_name):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, "Official Student Score Report", ln=1, align="C")
-            pdf.ln(6)
-            pdf.set_font("Arial", "", 12)
-            pdf.cell(0, 10, f"Student: {student_name}", ln=1)
-            pdf.cell(0, 10, f"Code: {student_code}", ln=1)
-            pdf.ln(4)
-            if avg_score is not None:
-                pdf.cell(0, 10, f"Overall Average Score: {avg_score:.2f}", ln=1)
-            pdf.ln(6)
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(40, 8, "Assignment", 1)
-            pdf.cell(20, 8, "Score", 1)
-            pdf.cell(50, 8, "Date", 1)
-            pdf.cell(70, 8, "Remarks", 1)
+    st.markdown(f"""
+    **Average Score:** {avg_score:.1f}  
+    **Highest Score:** {max_score:.1f}  
+    **Assignments Passed (≥17):** {n_passed} / {total}
+    """)
+
+    # ---- 5. Feedback: Show last 2 remarks if available ----
+    if "remarks" in df_student.columns:
+        st.markdown("#### 💬 **Recent Feedback**")
+        for fb in df_student["remarks"].dropna().tail(2):
+            st.info(fb)
+
+    # ---- 6. Badges for milestones ----
+    st.markdown("#### 🏅 **Milestones**")
+    if total >= 10:
+        st.success("🎉 **Completed 10+ assignments!**")
+    if (df_student["score"] >= 20).any():
+        st.success("🔥 **Scored 20 or higher! Excellent work!**")
+    if avg_score >= 17:
+        st.success("✅ **Average above 17: Exam-ready!**")
+
+    # ---- 7. PDF Download: Full Score History & Official Statement ----
+    def make_results_pdf(df, student_name, student_code):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(0, 12, "Official Results & Resource Report", ln=1, align="C")
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, f"Name: {student_name}", ln=1)
+        pdf.cell(0, 10, f"Student Code: {student_code}", ln=1)
+        pdf.cell(0, 10, f"Date: {date.today().isoformat()}", ln=1)
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, f"Overall Average Score: {avg_score:.1f}", ln=1)
+        pdf.cell(0, 8, f"Highest Score: {max_score:.1f}", ln=1)
+        pdf.cell(0, 8, f"Assignments Passed: {n_passed} / {total}", ln=1)
+        pdf.ln(6)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Assignment Results:", ln=1)
+        pdf.set_font("Arial", "", 10)
+        # Table header
+        cols = ["assignment", "score", "remarks", "date"]
+        for col in cols:
+            pdf.cell(45, 7, col.capitalize(), border=1)
+        pdf.ln()
+        # Table rows
+        for _, row in df[cols].iterrows():
+            for col in cols:
+                txt = str(row[col])[:32]
+                pdf.cell(45, 7, txt, border=1)
             pdf.ln()
-            pdf.set_font("Arial", "", 11)
-            for i, row in df.iterrows():
-                pdf.cell(40, 8, str(row.get("assignment", "")), 1)
-                pdf.cell(20, 8, str(row.get("score", "")), 1)
-                pdf.cell(50, 8, str(row.get("date", "")), 1)
-                pdf.cell(70, 8, str(row.get("remarks", "")), 1)
-                pdf.ln()
-            pdf.ln(5)
-            pdf.set_font("Arial", "I", 11)
-            pdf.cell(0, 8, "Signed: Felix Asadu, Director – Learn Language Education Academy", ln=1)
-            return pdf.output(dest="S").encode("latin1")
+        pdf.ln(6)
+        pdf.set_font("Arial", "I", 11)
+        pdf.multi_cell(0, 8, "This document is valid for reporting to school or official purposes. Signed: Felix Asadu (Instructor)")
+        return pdf.output(dest="S").encode("latin1")
 
-        # Download button
-        if st.button("⬇️ Download Full History as PDF"):
-            student_name = st.session_state.get("student_name", "Student")
-            pdf_bytes = generate_pdf(df_student, avg_score, student_code, student_name)
-            st.download_button(
-                "Download My Results as PDF",
-                pdf_bytes,
-                file_name=f"My_Results_{student_code}.pdf",
-                mime="application/pdf"
-            )
+    student_name = st.session_state.get("student_name", "")
+    pdf_bytes = make_results_pdf(df_student, student_name, student_code)
+    st.download_button(
+        "⬇️ Download Full Score History & Statement (PDF)",
+        pdf_bytes,
+        file_name=f"{student_code}_results_{date.today().isoformat()}.pdf",
+        mime="application/pdf"
+    )
 
-    # --- Resource Downloads Section ---
-    st.markdown("### 📥 Download Resources")
-    resources = [
-        {"title": "A1/B1 Schreiben Musterbrief", "url": "https://github.com/learngermanghana/grammarhelper/raw/main/resources/A1_B1_Letter_Samples.pdf"},
-        {"title": "B1 Redemittel", "url": "https://github.com/learngermanghana/grammarhelper/raw/main/resources/B1_Redemittel.pdf"},
-        {"title": "B1 Prüfung Beispiel", "url": "https://github.com/learngermanghana/grammarhelper/raw/main/resources/B1_Exam_Sample.pdf"},
-        # Add more resources as you wish!
-    ]
-    for res in resources:
-        st.markdown(f"• [{res['title']}]({res['url']})")
+    # ---- 8. Extra Resource Downloads ----
+    st.markdown("### 📁 **Resource Downloads**")
+    st.markdown("""
+    - [A1 Letter Samples (PDF)](https://example.com/a1_letters.pdf)
+    - [B1 Essay Redemittel (PDF)](https://example.com/b1_essays.pdf)
+    - [Official Exam Guide (PDF)](https://example.com/exam_guide.pdf)
+    """)
+    # (Replace links above with your own PDF links)
+
+    # ---- 9. FAQ / Support ----
+    with st.expander("❓ Frequently Asked Questions & Help"):
+        st.write("""
+        - **How do I improve my score?** Practice regularly, review feedback, and use resources.
+        - **Who can see my results?** Only you and your teacher.
+        - **How do I download my feedback?** Use the 'Download Full Score History & Statement' button above.
+        - **Still need help?** [Contact Mr. Felix on WhatsApp](https://wa.me/233205706589)
+        """)
 
 
 if tab == "Admin":
