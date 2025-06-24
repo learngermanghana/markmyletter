@@ -698,7 +698,7 @@ if st.session_state["logged_in"]:
     st.header("Choose Practice Mode")
     tab = st.radio(
         "How do you want to practice?",
-        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer", “My Results & Resources”, "Admin"],
+        ["Dashboard", "Exams Mode & Custom Chat", "Vocab Trainer", "Schreiben Trainer","My Results and Resources", , "Admin"],
         key="main_tab_select"
     )
 
