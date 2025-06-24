@@ -1163,9 +1163,8 @@ if st.session_state["falowen_stage"] == 4:
         st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
         st.stop()
 
-    # --- Helper: always start chat with instruction ---
-    def start_new_falowen_chat():
-        st.session_state["falowen_messages"] = []
+    # --- Guarantee first prompt always shows ---
+    if "falowen_messages" not in st.session_state or not st.session_state["falowen_messages"]:
         instruction = ""
         if is_exam:
             instruction = build_exam_instruction(level, teil)
@@ -1175,9 +1174,10 @@ if st.session_state["falowen_stage"] == 4:
                 "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
             )
         if instruction:
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
+            st.rerun()
 
-    # --- Controls ---
+    # ---- Controls
     def reset_chat():
         st.session_state["falowen_stage"] = 1
         st.session_state["falowen_teil"] = None
@@ -1185,25 +1185,21 @@ if st.session_state["falowen_stage"] == 4:
         st.session_state["custom_topic_intro_done"] = False
         st.session_state["falowen_turn_count"] = 0
         st.session_state["falowen_exam_topic"] = None
-        start_new_falowen_chat()
+        st.session_state["falowen_messages"] = []
         st.rerun()
 
     def back_step():
         if st.session_state["falowen_stage"] > 1:
             st.session_state["falowen_stage"] -= 1
-            start_new_falowen_chat()
+            st.session_state["falowen_messages"] = []
             st.rerun()
 
     def change_level():
         st.session_state["falowen_stage"] = 2
-        start_new_falowen_chat()
+        st.session_state["falowen_messages"] = []
         st.rerun()
 
-    # --- Ensure chat always starts with an instruction ---
-    if not st.session_state.get("falowen_messages"):
-        start_new_falowen_chat()
-
-    # ---- Show chat history (user and assistant messages) ----
+    # ---- Show chat history ----
     for msg in st.session_state["falowen_messages"]:
         if msg["role"] == "assistant":
             with st.chat_message("assistant", avatar="🧑‍🏫"):
