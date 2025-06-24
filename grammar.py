@@ -1567,7 +1567,7 @@ def fetch_scores_from_github():
         return pd.DataFrame()
 
 if tab == "My Results and Resources":
-    import io  # Make sure this is at the top of your file!
+    import io  # (Already at the top is fine, safe to repeat)
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
@@ -1578,16 +1578,11 @@ if tab == "My Results and Resources":
         try:
             r = requests.get(GITHUB_RAW_URL, timeout=7)
             r.raise_for_status()
-            # Use io.StringIO (not StringIO) for Streamlit/Colab compatibility
+            # Always clean and lower columns
             df = pd.read_csv(io.StringIO(r.text), sep=None, engine='python')
-            # Standardize columns
-            col_map = {}
-            for c in df.columns:
-                base = c.strip().lower()
-                if base == "studentcode": base = "student_code"
-                col_map[c] = base
-            df = df.rename(columns=col_map)
-            # Now ensure required columns exist
+            df.columns = [c.strip().lower() for c in df.columns]
+            if "studentcode" in df.columns:
+                df = df.rename(columns={"studentcode": "student_code"})
             if "student_code" not in df.columns:
                 st.error("CSV is missing 'student_code' column. Please check your upload or contact support.")
                 st.stop()
@@ -1616,11 +1611,10 @@ if tab == "My Results and Resources":
 
         df_this_level = df_student[df_student["level"] == level]
 
-        # Key stats (change these if your assignment counts ever change)
-        total_assignments_dict = {
-            "A1": 18, "A2": 28, "B1": 26, "B2": 24  # Update as needed
-        }
-        total_assignments = total_assignments_dict.get(level, 0)
+        # Key stats
+        total_assignments = {
+            "A1": 18, "A2": 28, "B1": 26, "B2": 24
+        }.get(level, 0)
         completed = df_this_level["assignment"].nunique()
         not_completed = max(0, total_assignments - completed)
         avg_score = df_this_level["score"].mean() if completed else 0
@@ -1636,24 +1630,15 @@ if tab == "My Results and Resources":
 
         # Table: highlight best per assignment
         df_this_level = df_this_level.copy()
-        # Mark best score per assignment
         df_this_level['is_best'] = df_this_level.groupby('assignment')['score'].transform('max') == df_this_level['score']
 
-        def highlight_best(val, is_best):
+        def color_best(val, is_best):
             return 'background-color: #d4edda' if is_best else ''
 
-        # We have to drop the 'is_best' for display but use for styling
-        styled = df_this_level[["assignment", "score", "comments", "date", "is_best"]].sort_values(
-            ["assignment", "score"], ascending=[True, False]
-        ).style.apply(
-            lambda row: [
-                highlight_best(v, row["is_best"]) if col != "is_best" else ''
-                for col, v in zip(row.index, row.values)
-            ],
-            axis=1
-        )
         st.dataframe(
-            styled.hide_columns(['is_best']),
+            df_this_level[["assignment", "score", "comments", "date"]]
+                .sort_values(["assignment", "score"], ascending=[True, False])
+                .style.apply(lambda row: [color_best(v, row['is_best']) for v in row], axis=1),
             use_container_width=True,
             hide_index=True
         )
