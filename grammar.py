@@ -1179,7 +1179,7 @@ if st.session_state["falowen_stage"] == 4:
         st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
         st.stop()
 
-    # --- Guarantee first prompt only shows ONCE on fresh chat using a flag and rerun ---
+    # --- Ensure first prompt on empty chat with correct flag handling ---
     if "falowen_prompt_inserted" not in st.session_state:
         st.session_state["falowen_prompt_inserted"] = False
 
@@ -1196,12 +1196,13 @@ if st.session_state["falowen_stage"] == 4:
             st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
             st.session_state["falowen_prompt_inserted"] = True
             st.experimental_rerun()
+        # This rerun happens ONLY if the chat was empty AND prompt was inserted.
 
-    # Reset the flag after the prompt is inserted and rerun happened
-    if st.session_state["falowen_prompt_inserted"] and st.session_state["falowen_messages"]:
+    # After rerun, if prompt exists, set flag to False (for future resets)
+    if st.session_state["falowen_messages"] and st.session_state.get("falowen_prompt_inserted", False):
         st.session_state["falowen_prompt_inserted"] = False
 
-    # ---- Controls (reset, back, change level) ----
+    # ---- Controls ----
     def reset_chat():
         st.session_state["falowen_stage"] = 1
         st.session_state["falowen_teil"] = None
@@ -1210,17 +1211,20 @@ if st.session_state["falowen_stage"] == 4:
         st.session_state["falowen_turn_count"] = 0
         st.session_state["falowen_exam_topic"] = None
         st.session_state["falowen_messages"] = []
+        st.session_state["falowen_prompt_inserted"] = False
         st.rerun()
 
     def back_step():
         if st.session_state["falowen_stage"] > 1:
             st.session_state["falowen_stage"] -= 1
             st.session_state["falowen_messages"] = []
+            st.session_state["falowen_prompt_inserted"] = False
             st.rerun()
 
     def change_level():
         st.session_state["falowen_stage"] = 2
         st.session_state["falowen_messages"] = []
+        st.session_state["falowen_prompt_inserted"] = False
         st.rerun()
 
     # ---- Show chat history ----
@@ -1265,23 +1269,17 @@ if st.session_state["falowen_stage"] == 4:
     user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
     if user_input:
-        # Immediately show user message in chat
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        inc_falowen_usage(student_code)  # increment daily usage
-
-        # Compose OpenAI prompt
+        inc_falowen_usage(student_code)
         if is_exam:
             system_prompt = build_exam_system_prompt(level, teil)
         else:
             system_prompt = build_custom_chat_prompt(level)
-
         messages = [{"role": "system", "content": system_prompt}]
         messages += [
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state["falowen_messages"]
         ]
-
-        # Spinner and AI reply
         with st.chat_message("assistant", avatar="🧑‍🏫"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
@@ -1294,18 +1292,16 @@ if st.session_state["falowen_stage"] == 4:
                     ai_reply = completion.choices[0].message.content.strip()
                 except Exception as e:
                     ai_reply = f"Sorry, an error occurred: {e}"
-
                 st.markdown(
                     "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
                     unsafe_allow_html=True
                 )
                 st.markdown(ai_reply)
-
-        # Add AI reply to chat history (so it appears on next rerun)
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 # =========================================
 # End of Exams and Custom chat
+
 
 
 
