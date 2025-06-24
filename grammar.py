@@ -1281,6 +1281,45 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification, AI Feedback)
 # =========================================
 
+# ----------- Helper function: AI Vocab Feedback -----------
+def ai_vocab_feedback(word, student, correct):
+    from openai import OpenAI
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    # If no correct, fall back to direct check
+    if correct is None:
+        correct = word  # For single-word vocab, check meaning via AI
+    prompt = (
+        f"The student gave '{student.strip()}' as the English for the German word '{word.strip()}'. "
+        f"The correct answer is '{correct.strip()}'. "
+        f"1. Was the student's answer correct? Reply 'True' or 'False' only on the first line.\n"
+        f"2. If False, say: 'Correct answer: {correct.strip()}'.\n"
+        f"3. If the answer is very close but not perfect, say 'You were close!'.\n"
+        f"4. Give 1 or 2 simple English example sentences using the correct answer in context, as for a German A1/A2 learner."
+    )
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.2,
+        )
+        reply = resp.choices[0].message.content.strip()
+        first_line, *rest = reply.splitlines()
+        is_correct = first_line.strip().lower().startswith("true")
+        is_close = "You were close!" in reply or "close" in reply.lower()
+        # Color feedback
+        if is_correct:
+            feedback = f"<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
+        elif is_close:
+            feedback = f"<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
+        else:
+            feedback = f"<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
+        feedback += "\n".join(rest)
+        return feedback, is_correct, is_close
+    except Exception as e:
+        return f"<span style='color:red'>AI check failed: {e}</span>", False, False
+
+
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
