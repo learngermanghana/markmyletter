@@ -1146,7 +1146,10 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
+# =========================================
 # ---- STAGE 4: MAIN CHAT ----
+# =========================================
+
 if st.session_state["falowen_stage"] == 4:
     level = st.session_state["falowen_level"]
     teil = st.session_state.get("falowen_teil", "")
@@ -1160,30 +1163,9 @@ if st.session_state["falowen_stage"] == 4:
         st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
         st.stop()
 
-    # --- Controls ---
-    def reset_chat():
-        st.session_state["falowen_stage"] = 1
+    # --- Helper: always start chat with instruction ---
+    def start_new_falowen_chat():
         st.session_state["falowen_messages"] = []
-        st.session_state["falowen_teil"] = None
-        st.session_state["falowen_mode"] = None
-        st.session_state["custom_topic_intro_done"] = False
-        st.session_state["falowen_turn_count"] = 0
-        st.session_state["falowen_exam_topic"] = None
-        st.rerun()
-
-    def back_step():
-        if st.session_state["falowen_stage"] > 1:
-            st.session_state["falowen_stage"] -= 1
-            st.session_state["falowen_messages"] = []
-            st.rerun()
-
-    def change_level():
-        st.session_state["falowen_stage"] = 2
-        st.session_state["falowen_messages"] = []
-        st.rerun()
-
-    # ---- Initial instruction (only if chat is empty) ----
-    if not st.session_state["falowen_messages"]:
         instruction = ""
         if is_exam:
             instruction = build_exam_instruction(level, teil)
@@ -1194,7 +1176,32 @@ if st.session_state["falowen_stage"] == 4:
             )
         if instruction:
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-        # Do NOT call st.stop() here so input box is always visible
+
+    # --- Controls ---
+    def reset_chat():
+        st.session_state["falowen_stage"] = 1
+        st.session_state["falowen_teil"] = None
+        st.session_state["falowen_mode"] = None
+        st.session_state["custom_topic_intro_done"] = False
+        st.session_state["falowen_turn_count"] = 0
+        st.session_state["falowen_exam_topic"] = None
+        start_new_falowen_chat()
+        st.rerun()
+
+    def back_step():
+        if st.session_state["falowen_stage"] > 1:
+            st.session_state["falowen_stage"] -= 1
+            start_new_falowen_chat()
+            st.rerun()
+
+    def change_level():
+        st.session_state["falowen_stage"] = 2
+        start_new_falowen_chat()
+        st.rerun()
+
+    # --- Ensure chat always starts with an instruction ---
+    if not st.session_state.get("falowen_messages"):
+        start_new_falowen_chat()
 
     # ---- Show chat history (user and assistant messages) ----
     for msg in st.session_state["falowen_messages"]:
@@ -1242,20 +1249,19 @@ if st.session_state["falowen_stage"] == 4:
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
         inc_falowen_usage(student_code)  # increment daily usage
 
-        # AI response logic
+        # Compose OpenAI prompt
         if is_exam:
             system_prompt = build_exam_system_prompt(level, teil)
         else:
             system_prompt = build_custom_chat_prompt(level)
 
-        # Build OpenAI message history
         messages = [{"role": "system", "content": system_prompt}]
         messages += [
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state["falowen_messages"]
         ]
 
-        # Show spinner and AI reply
+        # Spinner and AI reply
         with st.chat_message("assistant", avatar="🧑‍🏫"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
@@ -1280,6 +1286,7 @@ if st.session_state["falowen_stage"] == 4:
 
 # =========================================
 # End of Exams and Custom chat
+
 # =========================================
 
 # =========================================
