@@ -1,32 +1,3 @@
-import streamlit as st
-
-# Check if the user is logged in
-if not st.session_state.get("logged_in", False):
-    st.title("Welcome to Falowen Academy! 🎓")
-    st.markdown("""
-        #### Learn German. Practice. Pass your exam.
-        - 🗣️ Speaking exam simulator  
-        - ✍️ Writing correction with instant AI feedback  
-        - 🧠 Vocabulary trainer  
-        - 📊 Progress dashboard  
-
-        ---
-        Please log in to continue.
-    """)
-    # Show your login box here (or a login button)
-    # e.g.
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        # ... (your login logic)
-        st.session_state["logged_in"] = True
-        st.experimental_rerun()
-    st.stop()
-else:
-    # ---- Main app code goes here ----
-    ...
-
-
 import os
 import random
 import difflib
