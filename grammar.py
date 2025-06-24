@@ -1547,13 +1547,9 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
-import requests
-import io
-import pandas as pd
-from fpdf import FPDF
-import streamlit as st
 
-if tab == "My Results & Resource Hub":
+
+if tab == "My Results and Resources":
     st.header("📚 My Results & Resource Hub")
 
     # ---- 1. Fetch latest scores from GitHub ----
