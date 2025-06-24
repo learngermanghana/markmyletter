@@ -1179,7 +1179,7 @@ if st.session_state["falowen_stage"] == 4:
         st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
         st.stop()
 
-    # --- Ensure prompt only shows ONCE on fresh chat using a flag and rerun ---
+    # --- Guarantee first prompt only shows ONCE on fresh chat using a flag and rerun ---
     if "falowen_prompt_inserted" not in st.session_state:
         st.session_state["falowen_prompt_inserted"] = False
 
@@ -1195,13 +1195,13 @@ if st.session_state["falowen_stage"] == 4:
         if instruction:
             st.session_state["falowen_messages"] = [{"role": "assistant", "content": instruction}]
             st.session_state["falowen_prompt_inserted"] = True
-            st.rerun()
+            st.experimental_rerun()
 
-    # Reset the flag after the prompt is inserted and rerun happened, so reset works in future
-    if st.session_state["falowen_prompt_inserted"]:
+    # Reset the flag after the prompt is inserted and rerun happened
+    if st.session_state["falowen_prompt_inserted"] and st.session_state["falowen_messages"]:
         st.session_state["falowen_prompt_inserted"] = False
 
-    # ---- Controls (your current code) ----
+    # ---- Controls (reset, back, change level) ----
     def reset_chat():
         st.session_state["falowen_stage"] = 1
         st.session_state["falowen_teil"] = None
@@ -1267,17 +1267,20 @@ if st.session_state["falowen_stage"] == 4:
     if user_input:
         # Immediately show user message in chat
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        inc_falowen_usage(student_code)
+        inc_falowen_usage(student_code)  # increment daily usage
+
         # Compose OpenAI prompt
         if is_exam:
             system_prompt = build_exam_system_prompt(level, teil)
         else:
             system_prompt = build_custom_chat_prompt(level)
+
         messages = [{"role": "system", "content": system_prompt}]
         messages += [
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state["falowen_messages"]
         ]
+
         # Spinner and AI reply
         with st.chat_message("assistant", avatar="🧑‍🏫"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
@@ -1291,16 +1294,19 @@ if st.session_state["falowen_stage"] == 4:
                     ai_reply = completion.choices[0].message.content.strip()
                 except Exception as e:
                     ai_reply = f"Sorry, an error occurred: {e}"
+
                 st.markdown(
                     "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
                     unsafe_allow_html=True
                 )
                 st.markdown(ai_reply)
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
+        # Add AI reply to chat history (so it appears on next rerun)
+        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 # =========================================
 # End of Exams and Custom chat
+
 
 
 # =========================================
