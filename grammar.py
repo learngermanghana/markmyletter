@@ -976,7 +976,8 @@ if tab == "Exams Mode & Custom Chat":
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, an A1 examiner. Give the student a prompt (e.g. 'Radio anmachen'). "
-                    "Ask them to write a polite request or imperative. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt."
+                    "Ask them to write a polite request or imperative and answer themseves like their partners will do. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt."
+                    " They respond using Ja gerne or In ordnung. They can also answer using Ja, Ich kann and the question of the verb at the end (e.g 'Ich kann das Radio anmachen'). "
                 )
         if level == "A2":
             if "Teil 1" in teil:
@@ -1044,7 +1045,7 @@ if tab == "Exams Mode & Custom Chat":
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 20 questions in total). "
                 f"Never ask more than 3 questions about the same keyword. "
-                f"After the student answers 20 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English. "
+                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English. "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
