@@ -1142,7 +1142,7 @@ if st.session_state.get("falowen_stage") == 3:
         key="falowen_teil_center"
     )
 
-    # Optional: topic picker for levels A2 and above
+    # Optional: topic picker for A2+ levels
     if level != "A1" and exam_topics:
         picked = st.selectbox(
             "Choose a topic (optional):",
@@ -1152,7 +1152,7 @@ if st.session_state.get("falowen_stage") == 3:
     else:
         st.session_state["falowen_exam_topic"] = None
 
-    # Navigation buttons
+    # Navigation
     if st.button("⬅️ Back", key="falowen_back2"):
         st.session_state["falowen_stage"] = 2
         st.stop()
@@ -1164,10 +1164,10 @@ if st.session_state.get("falowen_stage") == 3:
         st.session_state["falowen_messages"] = []
         st.session_state["custom_topic_intro_done"] = False
 
-        # Load or initialize shuffled deck using random.sample
+        # Load or initialize shuffled deck
         rem, used = load_progress(student_code, level, teil)
         if rem is None:
-            deck = random.sample(exam_topics, len(exam_topics))  # copy & shuffle without modifying original
+            deck = random.sample(exam_topics, len(exam_topics))  # copy & shuffle
             st.session_state["remaining_topics"] = deck
             st.session_state["used_topics"] = []
         else:
@@ -1192,25 +1192,49 @@ if st.session_state.get("falowen_stage") == 4:
     is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
     is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
 
-    # Advance exam deck: pop next topic if not yet assigned
+    # Session controls must be defined before use
+    def reset_chat():
+        st.session_state.update({
+            "falowen_stage": 1,
+            "falowen_messages": [],
+            "falowen_teil": None,
+            "falowen_mode": None,
+            "custom_topic_intro_done": False,
+            "falowen_turn_count": 0,
+            "falowen_exam_topic": None
+        })
+        st.rerun()
+    def back_step():
+        st.session_state.update({
+            "falowen_stage": max(1, st.session_state["falowen_stage"] - 1),
+            "falowen_messages": []
+        })
+        st.rerun()
+    def change_level():
+        st.session_state.update({
+            "falowen_stage": 2,
+            "falowen_messages": []
+        })
+        st.rerun()
+
+    # Advance exam deck
     if is_exam:
         if not st.session_state.get("falowen_exam_topic") and st.session_state.get("remaining_topics"):
             next_topic = st.session_state["remaining_topics"].pop(0)
             st.session_state["used_topics"].append(next_topic)
             st.session_state["falowen_exam_topic"] = next_topic
-            # Persist updated progress
             save_progress(
                 student_code, level, teil,
                 st.session_state["remaining_topics"],
                 st.session_state["used_topics"]
             )
 
-    # Display exam progress counts
+    # Show progress counts
     total_prompts = len(st.session_state.get("remaining_topics", [])) + len(st.session_state.get("used_topics", []))
     completed = len(st.session_state.get("used_topics", []))
     st.info(f"🎯 You have completed {completed} of {total_prompts} prompts.")
 
-    # Show daily usage
+    # Daily usage
     used_today = get_falowen_usage(student_code)
     st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
     if used_today >= FALOWEN_DAILY_LIMIT:
@@ -1229,10 +1253,10 @@ if st.session_state.get("falowen_stage") == 4:
             with st.chat_message("user"):
                 st.markdown(f"🗣️ {msg['content']}")
 
-    # Auto-scroll to bottom of page
+    # Auto-scroll
     st.markdown('<script>window.scrollTo(0, document.body.scrollHeight);</script>', unsafe_allow_html=True)
 
-    # PDF download
+    # PDF download button (uses helper defined earlier)
     if st.session_state["falowen_messages"]:
         pdf_bytes = falowen_download_pdf(
             st.session_state["falowen_messages"],
@@ -1245,7 +1269,7 @@ if st.session_state.get("falowen_stage") == 4:
             mime="application/pdf"
         )
 
-    # Session controls
+    # Session buttons
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("Restart Chat"): reset_chat()
@@ -1254,14 +1278,14 @@ if st.session_state.get("falowen_stage") == 4:
     with col3:
         if st.button("Change Level"): change_level()
 
-    # Initial instruction (if chat is empty)
+    # Initial instruction
     if not st.session_state["falowen_messages"]:
         instruction = build_exam_instruction(level, teil) if is_exam else (
             "Hallo! 👋 What would you like to talk about? Give me details so I can understand."
         )
         st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
 
-    # Build system prompt including optional topic
+    # Build system prompt
     if is_exam:
         base_prompt = build_exam_system_prompt(level, teil)
         topic = st.session_state.get("falowen_exam_topic")
@@ -1269,17 +1293,15 @@ if st.session_state.get("falowen_stage") == 4:
     else:
         system_prompt = build_custom_chat_prompt(level)
 
-    # Chat input and assistant response
+    # Chat input & response
     user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
     if user_input:
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
         inc_falowen_usage(student_code)
 
-        # Immediately render user bubble
         with st.chat_message("user"):
             st.markdown(f"🗣️ {user_input}")
 
-        # Assistant response
         with st.chat_message("assistant", avatar="🧑‍🏫"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
@@ -1295,10 +1317,10 @@ if st.session_state.get("falowen_stage") == 4:
             )
             st.markdown(ai_reply)
 
-        # Save AI reply
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 #end
+
 
 
 # =========================================
