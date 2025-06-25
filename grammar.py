@@ -888,7 +888,8 @@ if tab == "Exams Mode & Custom Chat":
                 return (
                     "**A1 – Teil 3: Making a Request**\n\n"
                     "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or imperative. "
-                    "Example: Können Sie bitte das Radio anmachen?\nReady?"
+                    "You can answer by saying Ja gerne or In ordnung when the question is a request or imperative"
+                    "Example: Können Sie bitte das Radio anmachen? Ja gerne\nReady?"
                 )
         if level == "A2":
             if "Teil 1" in teil:
@@ -1231,6 +1232,11 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Auto-scroll to bottom ----
         st.markdown("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
+
+        # ---- Show Exam Progress ----
+        total_prompts = len(st.session_state["used_topics"]) + len(st.session_state["remaining_topics"])
+        completed = len(st.session_state["used_topics"])
+        st.info(f"🎯 You have completed {completed} of {total_prompts} prompts.")
 
         # ---- PDF Download Button ----
         if st.session_state["falowen_messages"]:
