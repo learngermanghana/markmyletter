@@ -1623,11 +1623,18 @@ if tab == "My Results and Resources":
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
-    # Cached data fetch
-    GITHUB_RAW_URL = "https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/scores_backup.csv"
+    # === LIVE GOOGLE SHEETS CSV LINK ===
+    # Make sure your Google Sheet is shared as "Anyone with the link can view"
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+
+    import requests
+    import io
+    import pandas as pd
+    from fpdf import FPDF
+
     @st.cache_data
     def fetch_scores():
-        response = requests.get(GITHUB_RAW_URL, timeout=7)
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
         response.raise_for_status()
         df = pd.read_csv(io.StringIO(response.text), engine='python')
         df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
