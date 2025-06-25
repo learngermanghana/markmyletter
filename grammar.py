@@ -3,15 +3,29 @@ import random
 import difflib
 import sqlite3
 import atexit
-import json  # For progress tracking with exam cards
+import json
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 import requests
-import io  # Needed for StringIO (robust CSV reading)
+import io
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+
+# === PDF Helper (module‐level, no indent) ===
+def safe_latin1(text: str) -> str:
+    return text.encode("latin1", "replace").decode("latin1")
+
+def falowen_download_pdf(messages: list[dict], filename: str) -> bytes:
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    for m in messages:
+        role = "Herr Felix" if m["role"] == "assistant" else "Student"
+        text = safe_latin1(m["content"])
+        pdf.multi_cell(0, 8, f"{role}: {text}\n")
+    return pdf.output(dest="S").encode("latin1")
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -836,28 +850,6 @@ if tab == "Exams Mode & Custom Chat":
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-
-    # ---- PDF Helper ----
-    def falowen_download_pdf(messages, filename):
-        from fpdf import FPDF
-        import os
-        def safe_latin1(text):
-            return text.encode("latin1", "replace").decode("latin1")
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        chat_text = ""
-        for m in messages:
-            role = "Herr Felix" if m["role"] == "assistant" else "Student"
-            safe_msg = safe_latin1(m["content"])
-            chat_text += f"{role}: {safe_msg}\n\n"
-        pdf.multi_cell(0, 10, chat_text)
-        pdf_output = f"{filename}.pdf"
-        pdf.output(pdf_output)
-        with open(pdf_output, "rb") as f:
-            pdf_bytes = f.read()
-        os.remove(pdf_output)
-        return pdf_bytes
 
     # ---- PROMPT BUILDERS (ALL LOGIC) ----
     def build_a1_exam_intro():
