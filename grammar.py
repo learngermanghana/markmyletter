@@ -1283,20 +1283,28 @@ if tab == "Exams Mode & Custom Chat":
 
 # ----------- Helper function: AI Vocab Feedback -----------
 def ai_vocab_feedback(word, student, correct):
-    from openai import OpenAI
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    # If no correct, fall back to direct check
-    if correct is None:
-        correct = word  # For single-word vocab, check meaning via AI
+    """Use direct matching for known answers before falling back to AI for nuanced feedback."""
+    student_ans = student.strip().lower()
+    # Direct match if correct key(s) provided
+    if correct is not None:
+        valid = ([c.strip().lower() for c in correct]
+                 if isinstance(correct, (list, tuple))
+                 else [correct.strip().lower()])
+        if student_ans in valid:
+            return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
+
+    # Fallback to AI check
+    target = correct or word
     prompt = (
-        f"The student gave '{student.strip()}' as the English for the German word '{word.strip()}'. "
-        f"The correct answer is '{correct.strip()}'. "
-        f"1. Was the student's answer correct? Reply 'True' or 'False' only on the first line.\n"
-        f"2. If False, say: 'Correct answer: {correct.strip()}'.\n"
-        f"3. If the answer is very close but not perfect, say 'You were close!'.\n"
-        f"4. Give 1 or 2 simple English and German example sentences using the correct answer in context, as for a German A1/A2 learner."
+        f"The student answered '{student.strip()}' for the German word '{word.strip()}'. "
+        f"The expected answer is '{target.strip()}'.\n"
+        "1. Reply 'True' or 'False' on the first line if the student's answer is correct.\n"
+        "2. If False, write: 'Correct answer: {target}'.\n"
+        "3. If the student's answer is close, include 'You were close!'.\n"
+        "4. Provide 1–2 simple German and English example sentences using the correct answer for A1/A2 learners."
     )
     try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         resp = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
@@ -1304,186 +1312,122 @@ def ai_vocab_feedback(word, student, correct):
             temperature=0.2,
         )
         reply = resp.choices[0].message.content.strip()
-        first_line, *rest = reply.splitlines()
-        is_correct = first_line.strip().lower().startswith("true")
-        is_close = "You were close!" in reply or "close" in reply.lower()
-        # Color feedback
+        lines = reply.splitlines()
+        is_correct = lines[0].strip().lower().startswith("true")
+        is_close = "close" in reply.lower()
         if is_correct:
-            feedback = f"<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
+            prefix = "<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
         elif is_close:
-            feedback = f"<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
+            prefix = "<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
         else:
-            feedback = f"<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
-        feedback += "\n".join(rest)
+            prefix = "<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
+        feedback = prefix + "\n".join(lines[1:])
         return feedback, is_correct, is_close
     except Exception as e:
         return f"<span style='color:red'>AI check failed: {e}</span>", False, False
 
 
+# ----------- Vocab Trainer Tab -----------
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
-    # Session state setup
+    # Student/context setup
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "Demo")
-    today_str = str(date.today())
+    today_str = date.today().isoformat()
 
-    if "vocab_level" not in st.session_state:
-        st.session_state["vocab_level"] = "A1"
-    if "vocab_feedback" not in st.session_state:
-        st.session_state["vocab_feedback"] = ""
-    if "show_next_button" not in st.session_state:
-        st.session_state["show_next_button"] = False
-    if "vocab_completed" not in st.session_state:
-        st.session_state["vocab_completed"] = set()
-    if "current_vocab_idx" not in st.session_state:
-        st.session_state["current_vocab_idx"] = None
-
-    # Daily streak logic
+    # Initialize session state
+    for key, default in {
+        "vocab_level": "A1",
+        "vocab_feedback": "",
+        "show_next_button": False,
+        "vocab_completed": set(),
+        "current_vocab_idx": None,
+        "last_was_correct": False
+    }.items():
+        if key not in st.session_state:
+            st.session_state[key] = default
+    
+    # Streak
     streak = get_vocab_streak(student_code)
-    if streak >= 1:
+    if streak > 0:
         st.success(f"🔥 {streak}-day streak! Keep it up!")
     else:
-        st.warning("You lost your streak. Start practicing today to get it back!")
+        st.warning("You lost your streak. Start practicing today!")
 
-    # Daily usage tracking
-    vocab_usage_key = f"{student_code}_vocab_{today_str}"
-    if "vocab_usage" not in st.session_state:
-        st.session_state["vocab_usage"] = {}
-    st.session_state["vocab_usage"].setdefault(vocab_usage_key, 0)
-    used_today = st.session_state["vocab_usage"][vocab_usage_key]
+    # Daily usage
+    usage_key = f"{student_code}_vocab_{today_str}"
+    st.session_state.setdefault("vocab_usage", {})
+    st.session_state["vocab_usage"].setdefault(usage_key, 0)
+    used_today = st.session_state["vocab_usage"][usage_key]
 
-    # Level selection (dropdown)
-    level_options = ["A1", "A2", "B1", "B2", "C1"]
-    vocab_level = st.selectbox("Choose level", level_options, key="vocab_level_select")
-    if vocab_level != st.session_state["vocab_level"]:
-        st.session_state["vocab_level"] = vocab_level
-        st.session_state["vocab_feedback"] = ""
-        st.session_state["show_next_button"] = False
-        st.session_state["vocab_completed"] = set()
-        st.session_state["current_vocab_idx"] = None
-
-    vocab_list = VOCAB_LISTS.get(vocab_level, [])
-    is_tuple = isinstance(vocab_list[0], tuple) if vocab_list else False
-
-    completed_words = st.session_state["vocab_completed"]
-    # Words not completed yet
-    new_words = [i for i in range(len(vocab_list)) if i not in completed_words]
+    # Level selection
+    level_opts = ["A1","A2","B1","B2","C1"]
+    selected = st.selectbox("Choose level", level_opts, key="vocab_level_select")
+    if selected != st.session_state["vocab_level"]:
+        for k in ["vocab_feedback","show_next_button","vocab_completed","current_vocab_idx"]:
+            st.session_state[k] = [] if k=="vocab_completed" else "" if k=="vocab_feedback" else False if k=="show_next_button" else None
+        st.session_state["vocab_level"] = selected
+    
+    vocab_list = VOCAB_LISTS.get(st.session_state["vocab_level"], [])
+    is_tuple = bool(vocab_list and isinstance(vocab_list[0], (list,tuple)))
+    completed = st.session_state["vocab_completed"]
+    pending_idxs = [i for i in range(len(vocab_list)) if i not in completed]
 
     # Progress bar
-    st.progress(
-        min(used_today, VOCAB_DAILY_LIMIT) / VOCAB_DAILY_LIMIT,
-        text=f"{used_today} / {VOCAB_DAILY_LIMIT} words practiced today"
-    )
+    st.progress(min(used_today, VOCAB_DAILY_LIMIT)/VOCAB_DAILY_LIMIT, text=f"{used_today}/{VOCAB_DAILY_LIMIT} today")
 
-    # Reset button
-    if st.button("🔄 Reset Progress", key="reset_vocab_progress"):
+    # Reset progress
+    if st.button("🔄 Reset Progress"): 
         st.session_state["vocab_completed"] = set()
         st.session_state["vocab_feedback"] = ""
         st.session_state["show_next_button"] = False
         st.session_state["current_vocab_idx"] = None
-        st.success("Progress reset for this level.")
+        st.success("Progress reset.")
         st.stop()
 
-    # Badge if daily goal reached
+    # Check daily goal
     if used_today >= VOCAB_DAILY_LIMIT:
         st.balloons()
-        st.success("✅ Daily Goal Complete! You’ve finished your vocab goal for today.")
+        st.success("✅ Daily goal complete!")
         st.stop()
 
-    # --- Main Vocab Practice ---
-    # If feedback exists and next button should show
+    # After feedback display
     if st.session_state["vocab_feedback"] and st.session_state["show_next_button"]:
         st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
-        if st.button("➡️ Next", key="vocab_next_btn"):
-            # Mark word as completed if correct
-            if st.session_state.get("last_was_correct"):
-                completed_words.add(st.session_state["current_vocab_idx"])
-            st.session_state["vocab_feedback"] = ""
-            st.session_state["show_next_button"] = False
-            st.session_state["current_vocab_idx"] = None
-            st.session_state["last_was_correct"] = False
+        if st.button("➡️ Next"):
+            if st.session_state["last_was_correct"]:
+                st.session_state["vocab_completed"].add(st.session_state["current_vocab_idx"])
+            for k in ["vocab_feedback","show_next_button","current_vocab_idx","last_was_correct"]:
+                st.session_state[k] = False if isinstance(st.session_state[k], bool) else None if k=="current_vocab_idx" else ""
             st.rerun()
         st.stop()
 
-    if new_words:
-        # Pick current idx, or random if first
-        if st.session_state["current_vocab_idx"] is None:
-            idx = random.choice(new_words)
-            st.session_state["current_vocab_idx"] = idx
-        else:
-            idx = st.session_state["current_vocab_idx"]
-
+    # New word practice
+    if pending_idxs:
+        idx = st.session_state["current_vocab_idx"] or random.choice(pending_idxs)
+        st.session_state["current_vocab_idx"] = idx
         word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
-        correct_answer = vocab_list[idx][1] if is_tuple else None
-
-        st.markdown(f"<b>({len(completed_words)+1}/{len(vocab_list)})</b> 🔤 <b>Translate this German word to English:</b> <span style='font-size:1.2em'>{word}</span>", unsafe_allow_html=True)
-        user_answer = st.text_input("Your English translation", key=f"vocab_answer_{idx}")
-
+        corr = vocab_list[idx][1] if is_tuple else None
+        st.markdown(f"**Translate:** {word}")
+        ans = st.text_input("Your answer:", key=f"vocab_ans_{idx}")
         if st.button("Check", key=f"vocab_check_{idx}"):
-            # ---- AI Feedback logic for ALL levels ----
-            ai_feedback, is_correct, is_close = ai_vocab_feedback(word, user_answer, correct_answer)
-            st.session_state["vocab_feedback"] = ai_feedback
+            fb, correct, close = ai_vocab_feedback(word, ans, corr)
+            st.session_state["vocab_feedback"] = fb
             st.session_state["show_next_button"] = True
-            st.session_state["last_was_correct"] = is_correct
-            # If correct, count usage (so students can't spam Next for usage)
-            if is_correct or is_close:
-                st.session_state["vocab_usage"][vocab_usage_key] += 1
-            # Optionally: save in DB even if not correct
+            st.session_state["last_was_correct"] = correct
+            if correct or close:
+                st.session_state["vocab_usage"][usage_key] += 1
             save_vocab_submission(
-                student_code=student_code,
-                name=student_name,
-                level=vocab_level,
-                word=word,
-                student_answer=user_answer,
-                is_correct=is_correct,
+                student_code, student_name, st.session_state["vocab_level"], word, ans, correct
             )
             st.stop()
     else:
-        st.success("🎉 You've finished all new words for this level today!")
+        st.success("🎉 All words done for today!")
 
-    # Optionally: show summary
-    if completed_words:
-        st.info(f"You have completed {len(completed_words)} words in {vocab_level} so far. Try another level or come back tomorrow!")
-
-# ----------- Helper function: AI Vocab Feedback -----------
-def ai_vocab_feedback(word, student, correct):
-    """Use OpenAI to check, and give feedback + example sentences."""
-    from openai import OpenAI
-    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    # If no correct, fall back to direct check
-    if correct is None:
-        correct = word  # For single-word vocab, check meaning via AI
-    prompt = (
-        f"The student gave '{student.strip()}' as the English for the German word '{word.strip()}'. "
-        f"The correct answer is '{correct.strip()}'. "
-        f"1. Was the student's answer correct? Reply 'True' or 'False' only on the first line.\n"
-        f"2. If False, say: 'Correct answer: {correct.strip()}'.\n"
-        f"3. If the answer is very close but not perfect, say 'You were close!'.\n"
-        f"4. Give 1 or 2 simple English example sentences using the correct answer in context, as for a German A1/A2 learner."
-    )
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
-            temperature=0.2,
-        )
-        reply = resp.choices[0].message.content.strip()
-        first_line, *rest = reply.splitlines()
-        is_correct = first_line.strip().lower().startswith("true")
-        is_close = "You were close!" in reply or "close" in reply.lower()
-        # Color feedback
-        if is_correct:
-            feedback = f"<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
-        elif is_close:
-            feedback = f"<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
-        else:
-            feedback = f"<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
-        feedback += "\n".join(rest)
-        return feedback, is_correct, is_close
-    except Exception as e:
-        return f"<span style='color:red'>AI check failed: {e}</span>", False, False
+    # Summary prompt
+    if completed:
+        st.info(f"Completed {len(completed)}/{len(vocab_list)} words. Come back tomorrow or switch level!")
 
 
 # ====================================
