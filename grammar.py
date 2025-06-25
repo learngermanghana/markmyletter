@@ -1112,9 +1112,10 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
+
 # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
-if st.session_state["falowen_stage"] == 3:
-    level = st.session_state["falowen_level"]
+if st.session_state.get("falowen_stage") == 3:
+    level = st.session_state.get("falowen_level")
     teil_options = {
         "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"],
         "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"],
@@ -1184,10 +1185,10 @@ if st.session_state["falowen_stage"] == 3:
 #end
 
 # ---- STAGE 4: MAIN CHAT ----
-if st.session_state["falowen_stage"] == 4:
-    level = st.session_state["falowen_level"]
-    teil = st.session_state["falowen_teil"]
-    mode = st.session_state["falowen_mode"]
+if st.session_state.get("falowen_stage") == 4:
+    level = st.session_state.get("falowen_level")
+    teil = st.session_state.get("falowen_teil")
+    mode = st.session_state.get("falowen_mode")
     is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
     is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
 
@@ -1229,9 +1230,7 @@ if st.session_state["falowen_stage"] == 4:
                 st.markdown(f"🗣️ {msg['content']}")
 
     # Auto-scroll to bottom of page
-    st.markdown("<script>
-window.scrollTo(0, document.body.scrollHeight);
-</script>", unsafe_allow_html=True)
+    st.markdown('<script>window.scrollTo(0, document.body.scrollHeight);</script>', unsafe_allow_html=True)
 
     # PDF download
     if st.session_state["falowen_messages"]:
@@ -1300,6 +1299,7 @@ window.scrollTo(0, document.body.scrollHeight);
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 #end
+
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification, AI Feedback)
