@@ -1642,7 +1642,6 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-```python
 if tab == "My Results and Resources":
     import io
     from fpdf import FPDF
