@@ -1192,6 +1192,19 @@ if st.session_state["falowen_stage"] == 4:
     is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
     is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
 
+    # Advance exam deck: pop next topic if not yet assigned
+    if is_exam:
+        if not st.session_state.get("falowen_exam_topic") and st.session_state.get("remaining_topics"):
+            next_topic = st.session_state["remaining_topics"].pop(0)
+            st.session_state["used_topics"].append(next_topic)
+            st.session_state["falowen_exam_topic"] = next_topic
+            # Persist updated progress
+            save_progress(
+                student_code, level, teil,
+                st.session_state["remaining_topics"],
+                st.session_state["used_topics"]
+            )
+
     # Display exam progress counts
     total_prompts = len(st.session_state.get("remaining_topics", [])) + len(st.session_state.get("used_topics", []))
     completed = len(st.session_state.get("used_topics", []))
