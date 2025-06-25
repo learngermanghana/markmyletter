@@ -1239,10 +1239,15 @@ if tab == "Exams Mode & Custom Chat":
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
 
         if user_input:
+            # Save user message
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             inc_falowen_usage(student_code)  # increment daily usage
 
-            # Spinner and OpenAI call
+            # Immediately render the user bubble
+            with st.chat_message("user"):
+                st.markdown(f"🗣️ {user_input}")
+
+            # Spinner and OpenAI call, then render assistant bubble
             with st.chat_message("assistant", avatar="🧑‍🏫"):
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     # System prompt logic
@@ -1269,13 +1274,18 @@ if tab == "Exams Mode & Custom Chat":
                     except Exception as e:
                         ai_reply = f"Sorry, an error occurred: {e}"
 
-                    st.markdown(
-                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
-                        unsafe_allow_html=True
-                    )
-                    st.markdown(ai_reply)
+                st.markdown(
+                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    unsafe_allow_html=True
+                )
+                st.markdown(ai_reply)
+
             # Save AI reply to session for next turn
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
+# =========================================
+#End of Code
+# =========================================
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification, AI Feedback)
