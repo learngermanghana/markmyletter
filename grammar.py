@@ -1113,180 +1113,196 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-# ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
-if st.session_state["falowen_stage"] == 3:
-    level = st.session_state["falowen_level"]
-    teil_options = {
-        "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"],
-        "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"],
-        "B1": ["Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"],
-        "B2": ["Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"],
-        "C1": ["Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"]
-    }
+    # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
+    if st.session_state["falowen_stage"] == 3:
+        level = st.session_state["falowen_level"]
+        teil_options = {
+            "A1": [
+                "Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"
+            ],
+            "A2": [
+                "Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"
+            ],
+            "B1": [
+                "Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen"
+            ],
+            "B2": [
+                "Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"
+            ],
+            "C1": [
+                "Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"
+            ]
+        }
 
-    # Build exam topics list based on level
-    exam_topics = []
-    if level == "A2":
-        exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
-    elif level == "B1":
-        exam_topics = B1_TEIL1 + B1_TEIL2 + B1_TEIL3
-    elif level == "B2":
-        exam_topics = b2_teil1_topics + b2_teil2_presentations + b2_teil3_arguments
-    elif level == "C1":
-        exam_topics = c1_teil1_lectures + c1_teil2_discussions + c1_teil3_evaluations
+        # Exam topics for dropdown (optional, can be expanded)
+        exam_topics = []
+        if level == "A2":
+            exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
+        elif level == "B1":
+            exam_topics = B1_TEIL1 + B1_TEIL2 + B1_TEIL3
+        elif level == "B2":
+            exam_topics = b2_teil1_topics + b2_teil2_presentations + b2_teil3_arguments
+        elif level == "C1":
+            exam_topics = c1_teil1_lectures + c1_teil2_discussions + c1_teil3_evaluations
 
-    st.subheader("Step 3: Choose Exam Part")
-    teil = st.radio(
-        "Which exam part?",
-        teil_options[level],
-        key="falowen_teil_center"
-    )
-
-    # Optional: topic picker for levels A2 and above
-    if level != "A1" and exam_topics:
-        picked = st.selectbox(
-            "Choose a topic (optional):",
-            ["(random)"] + exam_topics
+        st.subheader("Step 3: Choose Exam Part")
+        teil = st.radio(
+            "Which exam part?",
+            teil_options[st.session_state["falowen_level"]],
+            key="falowen_teil_center"
         )
-        st.session_state["falowen_exam_topic"] = None if picked == "(random)" else picked
-    else:
-        st.session_state["falowen_exam_topic"] = None
 
-    # Navigation buttons
-    if st.button("⬅️ Back", key="falowen_back2"):
-        st.session_state["falowen_stage"] = 2
+        # Optional: topic picker (for Teil 2/3, not A1)
+        picked_topic = None
+        if st.session_state["falowen_level"] != "A1" and exam_topics:
+            picked_topic = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
+            if picked_topic != "(random)":
+                st.session_state["falowen_exam_topic"] = picked_topic
+        else:
+            st.session_state["falowen_exam_topic"] = None
+
+        if st.button("⬅️ Back", key="falowen_back2"):
+            st.session_state["falowen_stage"] = 2
+            st.stop()
+        if st.button("Start Practice", key="falowen_start_practice"):
+            st.session_state["falowen_teil"] = teil
+            st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
-    if st.button("Start Practice", key="falowen_start_practice"):
-        # Initialize exam parameters
-        st.session_state["falowen_teil"] = teil
-        st.session_state["falowen_stage"] = 4
-        st.session_state["falowen_messages"] = []
-        st.session_state["custom_topic_intro_done"] = False
+    # ---- STAGE 4: MAIN CHAT ----
+    if st.session_state["falowen_stage"] == 4:
+        level = st.session_state["falowen_level"]
+        teil = st.session_state.get("falowen_teil", "")
+        mode = st.session_state.get("falowen_mode", "")
+        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
-        # Load or initialize shuffled deck using random.sample
-        rem, used = load_progress(student_code, level, teil)
-        if rem is None:
-            deck = random.sample(exam_topics, len(exam_topics))  # copy & shuffle without modifying original
-            st.session_state["remaining_topics"] = deck
-            st.session_state["used_topics"] = []
-        else:
-            st.session_state["remaining_topics"] = rem
-            st.session_state["used_topics"] = used
+        # ---- Show daily usage ----
+        used_today = get_falowen_usage(student_code)
+        st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
+        if used_today >= FALOWEN_DAILY_LIMIT:
+            st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
+            st.stop()
 
-        # Persist initial progress
-        save_progress(
-            student_code, level, teil,
-            st.session_state["remaining_topics"],
-            st.session_state["used_topics"]
-        )
-    st.stop()
+        # -- Controls: reset, back, change level
+        def reset_chat():
+            st.session_state["falowen_stage"] = 1
+            st.session_state["falowen_messages"] = []
+            st.session_state["falowen_teil"] = None
+            st.session_state["falowen_mode"] = None
+            st.session_state["custom_topic_intro_done"] = False
+            st.session_state["falowen_turn_count"] = 0
+            st.session_state["falowen_exam_topic"] = None
+            st.rerun()
 
-#end
+        def back_step():
+            if st.session_state["falowen_stage"] > 1:
+                st.session_state["falowen_stage"] -= 1
+                st.session_state["falowen_messages"] = []
+                st.rerun()
 
-# ---- STAGE 4: MAIN CHAT ----
-if st.session_state["falowen_stage"] == 4:
-    level = st.session_state["falowen_level"]
-    teil = st.session_state["falowen_teil"]
-    mode = st.session_state["falowen_mode"]
-    is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
-    is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
+        def change_level():
+            st.session_state["falowen_stage"] = 2
+            st.session_state["falowen_messages"] = []
+            st.rerun()
 
-    # Display exam progress counts
-    total_prompts = len(st.session_state.get("remaining_topics", [])) + len(st.session_state.get("used_topics", []))
-    completed = len(st.session_state.get("used_topics", []))
-    st.info(f"🎯 You have completed {completed} of {total_prompts} prompts.")
-
-    # Show daily usage
-    used_today = get_falowen_usage(student_code)
-    st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
-    if used_today >= FALOWEN_DAILY_LIMIT:
-        st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
-        st.stop()
-
-    # Render chat history
-    for msg in st.session_state["falowen_messages"]:
-        if msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
-                st.markdown(
-                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>", unsafe_allow_html=True
-                )
-                st.markdown(msg["content"])
-        else:
-            with st.chat_message("user"):
-                st.markdown(f"🗣️ {msg['content']}")
-
-    # Auto-scroll to bottom of page
-    st.markdown("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
-
-    # PDF download
-    if st.session_state["falowen_messages"]:
-        pdf_bytes = falowen_download_pdf(
-            st.session_state["falowen_messages"],
-            f"Falowen_Chat_{level}_{teil.replace(' ', '_')}.pdf"
-        )
-        st.download_button(
-            "⬇️ Download Chat as PDF",
-            pdf_bytes,
-            file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_')}.pdf",
-            mime="application/pdf"
-        )
-
-    # Session controls
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Restart Chat"): reset_chat()
-    with col2:
-        if st.button("Back"): back_step()
-    with col3:
-        if st.button("Change Level"): change_level()
-
-    # Initial instruction (if chat is empty)
-    if not st.session_state["falowen_messages"]:
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details so I can understand."
-        )
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-
-    # Build system prompt including optional topic
-    if is_exam:
-        base_prompt = build_exam_system_prompt(level, teil)
-        topic = st.session_state.get("falowen_exam_topic")
-        system_prompt = f"{base_prompt} Thema: {topic}." if topic else base_prompt
-    else:
-        system_prompt = build_custom_chat_prompt(level)
-
-    # Chat input and assistant response
-    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-    if user_input:
-        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        inc_falowen_usage(student_code)
-
-        # Immediately render user bubble
-        with st.chat_message("user"):
-            st.markdown(f"🗣️ {user_input}")
-
-        # Assistant response
-        with st.chat_message("assistant", avatar="🧑‍🏫"):
-            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
-                try:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o", messages=messages, temperature=0.15, max_tokens=600
+        # ---- Show chat history ----
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        unsafe_allow_html=True
                     )
-                    ai_reply = resp.choices[0].message.content.strip()
-                except Exception as e:
-                    ai_reply = f"Sorry, an error occurred: {e}"
-            st.markdown(
-                "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>", unsafe_allow_html=True
+                    st.markdown(msg["content"])
+            else:
+                with st.chat_message("user"):
+                    st.markdown(f"🗣️ {msg['content']}")
+
+        # ---- PDF Download Button ----
+        if st.session_state["falowen_messages"]:
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
             )
-            st.markdown(ai_reply)
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+                mime="application/pdf"
+            )
 
-        # Save AI reply
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+        # ---- Session Controls
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Restart Chat"):
+                reset_chat()
+        with col2:
+            if st.button("Back"):
+                back_step()
+        with col3:
+            if st.button("Change Level"):
+                change_level()
 
-#end
+        # ---- Initial instruction (only if chat is empty) ----
+        if not st.session_state["falowen_messages"]:
+            instruction = ""
+            if is_exam:
+                instruction = build_exam_instruction(level, teil)
+            elif is_custom_chat:
+                instruction = (
+                    "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand. "
+                    "You can enter a topic, a question, or a keyword. I'll help you prepare for your class presentation."
+                )
+            if instruction:
+                st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # Do NOT call st.stop() here so input box is always visible
 
+        # ---- Chat Input Box & OpenAI Response ----
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+
+        if user_input:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            inc_falowen_usage(student_code)  # increment daily usage
+
+            # Spinner and OpenAI call
+            with st.chat_message("assistant", avatar="🧑‍🏫"):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    # System prompt logic
+                    if is_exam:
+                        system_prompt = build_exam_system_prompt(level, teil)
+                    else:
+                        system_prompt = build_custom_chat_prompt(level)
+
+                    # Compose full history for OpenAI
+                    messages = [{"role": "system", "content": system_prompt}]
+                    messages += [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state["falowen_messages"]
+                    ]
+
+                    try:
+                        completion = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600,
+                        )
+                        ai_reply = completion.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
+                    st.markdown(
+                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        unsafe_allow_html=True
+                    )
+                    st.markdown(ai_reply)
+            # Save AI reply to session for next turn
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+
+#End
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification, AI Feedback)
