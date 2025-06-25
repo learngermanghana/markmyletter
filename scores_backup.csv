@@ -1,23 +1,23 @@
 StudentCode,Name,Assignment,Score,Comments,Date,Level
 sandraa2,Sandra Oppong,A2 1.1 Small Talk,77,,2025-06-25,A2
-ednaa1,Edna Owusu Ansah,Lesen und Horen 5,96.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 4,86.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 2,96.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 6,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 3,96.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 1.1,50.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 0.2,92.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 0.1,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Hören 1.2,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 7,74.0,,2025-06-25,A1
-esthera1,Esther Woanyah,Lesen und Horen 3,95.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 13,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 12.2,94.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 12.1,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 11,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 10,94.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 9,100.0,,2025-06-25,A1
-ednaa1,Edna Owusu Ansah,Lesen und Horen 8,74.0,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 5,96,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 4,86,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 2,96,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 6,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 3,96,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 1.1,50,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 0.2,92,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 0.1,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Hören 1.2,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 7,74,,2025-06-25,A1
+esthera1,Esther Woanyah,Lesen und Horen 3,95,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 13,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 12.2,94,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 12.1,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 11,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 10,94,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 9,100,,2025-06-25,A1
+ednaa1,Edna Owusu Ansah,Lesen und Horen 8,74,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 0.2,84,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 1.1,100,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Hören 1.2,100,,2025-06-25,A1
@@ -33,104 +33,14 @@ margareta1,Margaret Akyramah Tweneboah,Lesen und Horen 2,68,,2025-06-25,A1
 margareta1,Margaret Akyramah Tweneboah,Lesen und Horen 4,35,,2025-06-25,A1
 titrikua1,Millicent G Titriku,Lesen und Horen 3,95,,2025-06-25,A1
 titrikua1,Millicent G Titriku,Lesen und Horen 2,100,,2025-06-25,A1
-esthera1,Esther Woanyah,Lesen und Horen 6,97,"Lesen and Horen - 50
-Sprechen - 10
-Schreiben - 18 / 25
-
- you wrote „Meine Chef“, but this is not correct because „Chef“ is a masculine word in German. For masculine nouns, we use „mein“ – so the correct phrase is „Mein Chef“.
-
-You also wrote „Er ist Lehrerin“, which is the female form of the word. But you are talking about a man, so you need the masculine form: „Er ist Lehrer.“
-
-Next, you wrote „shirt und trousers“. In a German letter, it’s important to use German vocabulary, not English. The correct German words are „T-Shirt“ and „Hose“.
-
-One of your sentences said „Ich gefällt dir…“ – this is not correct because the verb gefallen does not work with “ich” as the subject. We say „Mir gefällt…“ (to me, it is pleasing), not ich gefällt. Also, you want to give a full sentence, so it’s better to say:
-„Mir gefällt an meinem Chef, dass er respektvoll ist.“
-
-You also had the word „denn“ in one part of the sentence, and then you crossed it out – that was actually the right decision! It didn’t fit well there, and removing it made the sentence clearer.
-
-Finally, you used the word „geduldig“ correctly! This was a great choice of vocabulary to describe someone’s personality.
-
-Overall, you are doing very well. Keep paying attention to article gender (mein/meine), vocabulary choice, and word order in German. With regular practice, your writing will keep improving!",2025-06-25,A1
-sandraa2,Sandra Oppong,A2 1.2 Personen Beschreiben,75,"Lesen and Horen - 50
-Sprechen - 10
-Schreiben - 18 / 25
-
- you wrote „Meine Chef“, but this is not correct because „Chef“ is a masculine word in German. For masculine nouns, we use „mein“ – so the correct phrase is „Mein Chef“.
-
-You also wrote „Er ist Lehrerin“, which is the female form of the word. But you are talking about a man, so you need the masculine form: „Er ist Lehrer.“
-
-Next, you wrote „shirt und trousers“. In a German letter, it’s important to use German vocabulary, not English. The correct German words are „T-Shirt“ and „Hose“.
-
-One of your sentences said „Ich gefällt dir…“ – this is not correct because the verb gefallen does not work with “ich” as the subject. We say „Mir gefällt…“ (to me, it is pleasing), not ich gefällt. Also, you want to give a full sentence, so it’s better to say:
-„Mir gefällt an meinem Chef, dass er respektvoll ist.“
-
-You also had the word „denn“ in one part of the sentence, and then you crossed it out – that was actually the right decision! It didn’t fit well there, and removing it made the sentence clearer.
-
-Finally, you used the word „geduldig“ correctly! This was a great choice of vocabulary to describe someone’s personality.
-
-Overall, you are doing very well. Keep paying attention to article gender (mein/meine), vocabulary choice, and word order in German. With regular practice, your writing will keep improving!",2025-06-25,A2
-anniea2,Annie Doe,A2 1.1 Small Talk,68,"Lesen and Horen  - 38/50
-Sprechen - 12/25
-Schreiben - 19 / 25
-
-In the first sentence, you wrote „Ich Schriebe“ with a capital “S” and the wrong spelling. The correct form is „Ich schreibe“, with a small “s” and an -e at the end. German verbs change depending on the subject.
-
-You also wrote „von meiner arbeit.“ but that’s not a full sentence. It’s better to say „Ich schreibe dir, weil ich dir von meiner Arbeit erzählen möchte.“ This gives a complete idea and sounds more natural.
-
-Next, you wrote „etwas 25 Kindergartenkinder“, but the word „etwas“ means “something.” What you need here is „etwa“, which means “about” – so the correct phrase is „etwa 25 Kindergartenkinder“.
-
-You wrote „die Verantwortung is groB“. There are two small mistakes: “is” should be „ist“, and “groB” should be „groß“, with the correct ß letter. So the correct sentence is „Die Verantwortung ist groß.“
-
-Later, you mentioned your family: „die mutter, die schwester...“. In German, when you talk about your family with the verb “zu” (to), you need to use “meiner” for female family members. So the correct form is „zu meiner Mutter, meiner Schwester...“
-
-You also wrote „essen und beten zusamman“. The correct spelling of “zusamman” is „zusammen“, with “e” instead of “a”.
-
-In „musik horen“, the spelling is not correct. It should be „Musik hören“ with an umlaut (ö), and both words should start with capital letters since “Musik” is a noun.
-
-Finally, you wrote „Was gibt’s neuse?“ The idea is great, but “neuse” is spelled incorrectly. The correct spelling is „Was gibt’s Neues?“ – “Neues” is an adjective and always starts with a capital “N”.
-
-You are doing very well! These are small things that you can fix easily. With more writing and practice, you will become more confident and accurate in German. Keep it up – your effort is very clear, and you are improving fast!
-",2025-06-25,A2
-aarona2,Aaron Ayibotele,A2 1.1 Small Talk,75,"Lesen and Horen - 50
-Sprechen - 15
-Schreiben - 0 . I didnt see your schreiben",2025-06-25,A2
+esthera1,Esther Woanyah,Lesen und Horen 6,97,,2025-06-25,A1
+sandraa2,Sandra Oppong,A2 1.2 Personen Beschreiben,75,,2025-06-25,A2
+anniea2,Annie Doe,A2 1.1 Small Talk,68,,2025-06-25,A2
+aarona2,Aaron Ayibotele,A2 1.1 Small Talk,75,,2025-06-25,A2
 nhyiraa2,Nhyira Gillett-Spio,A2 1.1 Small Talk,91,,2025-06-25,A2
 philipaa2,Philippa Asamoah Larbi,A2 1.1 Small Talk,95,,2025-06-25,A2
-philipaa2,Philippa Asamoah Larbi,A2 3.6 Mobel und Raume Kennenlernen?,89,"Lesen and Horen - 46
-Sprechen - 23
-
-Schreiben - 20/25
-
- Try to use structuring phrases like Erstens, Außerdem, and Zum Schluss to clearly separate your points (First, Furthermore, In conclusion).
-
-With better organization and clearer structure, your letter will improve a lot. Keep it up!
-
-    Spelling & Grammar:
-        ""Wow get es sir"" should be ""Wie geht es dir."" Make sure to use ""Wie"" for asking ""how"" and ""dir"" for ""you"" in informal settings.
-        ""mir gehts es gut"" should be ""mir geht es gut."" The contraction ""geht's"" is common in spoken language, but here, use ""geht es.""
-        ""am wochenende zeit have"" should be ""am Wochenende Zeit habe."" Remember to capitalize nouns like ""Wochenende"" and ensure verb endings match the subject.
-        ""I mochte dir treffen"" should be ""Ich möchte dich treffen."" Use ""Ich"" instead of ""I"" and the correct pronoun ""dich"" for ""you"" as the object.
-        ""eine idee con was wer machen konnten"" should be ""eine Idee, was wir machen könnten."" Use ""wir"" for ""we"" and ""könnten"" for the subjunctive form.
-        ""Ich freue mich Aug deine antwort"" should be ""Ich freue mich auf deine Antwort."" Ensure ""auf"" is used and ""Antwort"" is capitalized.
-
-    Vocabulary:
-        You used some English words like ""I"" and ""con."" Ensure to stay in German throughout the letter.
-
-    Structure:
-        The letter's structure is clear, but consider adding more details or questions to enrich your communication.
-
-    Coherence:
-        Ensure your sentences flow smoothly by using correct conjunctions and sentence structures.
-
-Overall, your letter shows your effort and understanding at the A2 level, but there are key areas that need attention, especially in grammar and vocabulary consistency.",2025-06-25,A2
-chekwubea2,Chekwube,A2 2.5 Was machst du in deiner Freizeit?,80,"Lesen and Horen - 50
-Sprechen - 17
-
-Schreiben - 13/25
-
-In your letter, you forgot to include the sentence “Ich schreibe Ihnen, weil...” at the beginning of the introduction. The body of the letter  lacked connectors such as deshalb, dann, etc. Try to use structuring phrases like Erstens, Außerdem, and Zum Schluss to clearly separate your points (First, Furthermore, In conclusion). Dont also use Mir geht es gut in your letter
-
-With better organization and clearer structure, your letter will improve a lot. Keep it up!",2025-06-25,A2
+philipaa2,Philippa Asamoah Larbi,A2 3.6 Mobel und Raume Kennenlernen?,89,,2025-06-25,A2
+chekwubea2,Chekwube,A2 2.5 Was machst du in deiner Freizeit?,80,,2025-06-25,A2
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 3,76,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 4,78,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 5,83,,2025-06-25,A1
@@ -138,59 +48,26 @@ kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 6,84,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 7,63,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 8,71,,2025-06-25,A1
 jeannettea1,Azombli Ayaba Jeannette,Lesen und Hören 1.2,100,,2025-06-25,A1
-philipaa2,Philippa Asamoah Larbi,A2 2.4 Wo möchten wir uns treffen?,74,"Sprechen - 14
-Lesen and horen - 46
-Schreiben - 14
-
-Your letter is structured clearly with a good intention. However, grammar mistakes like using correct modal verbs (""möchte,"" ""hätte"") and capitalizing formal pronouns (""Ihnen,"" ""Sie"") need attention. Also, try connecting your ideas better to make the invitation coherent. Keep practicing to improve these areas and enhance your formal writing skills!",2025-06-25,A2
-philipaa2,Philippa Asamoah Larbi,A2 2.5 Was machst du in deiner Freizeit?,74,"Lesen and Horen - 38/50
-Sprechen - 21/25
-Schreiben - 15/25",2025-06-25,A2
-margareta1,Margaret Akyramah Tweneboah,Lesen und Horen 5,87,"Akkusative Articles - Den,die,das,die and Einen,eine,ein.... You did a lot of mistakes with the akkusative",2025-06-25,A1
-esthera1,Esther Woanyah,Lesen und Horen 0.1,90,"Akkusative Articles - Den,die,das,die and Einen,eine,ein.... You did a lot of mistakes with the akkusative",2025-06-25,A1
-esthera1,Esther Woanyah,Lesen und Hören 1.2,82,"Akkusative Articles - Den,die,das,die and Einen,eine,ein.... You did a lot of mistakes with the akkusative",2025-06-25,A1
+philipaa2,Philippa Asamoah Larbi,A2 2.4 Wo möchten wir uns treffen?,74,,2025-06-25,A2
+philipaa2,Philippa Asamoah Larbi,A2 2.5 Was machst du in deiner Freizeit?,74,,2025-06-25,A2
+margareta1,Margaret Akyramah Tweneboah,Lesen und Horen 5,87,,2025-06-25,A1
+esthera1,Esther Woanyah,Lesen und Horen 0.1,90,,2025-06-25,A1
+esthera1,Esther Woanyah,Lesen und Hören 1.2,82,,2025-06-25,A1
 kingsleya1,Kingsley Adomako Odrey,Lesen und Horen 0.1,100,,2025-06-25,A1
 jeannettea1,Azombli Ayaba Jeannette,Lesen und Horen 2,100,,2025-06-25,A1
 titrikua1,Millicent G Titriku,Lesen und Hören 1.2,100,,2025-06-25,A1
 langhaa1,Langha Brian Ngong,Lesen und Horen 0.1,100,,2025-06-25,A1
 langhaa1,Langha Brian Ngong,Lesen und Horen 0.2,100,,2025-06-25,A1
-chekwubea2,Chekwube,A2 3.6 Mobel und Raume Kennenlernen?,68,"Lesen and Horen - 38
-Sprechen - 17
-
-Schreiben - 13/25
-
-Areas to Improve: In your letter, you forgot to include the sentence “Ich schreibe dir, weil...” at the beginning of the introduction. The body of the letter was also quite short and lacked connectors such as deshalb, dann, etc. Try to use structuring phrases like Erstens, Außerdem, and Zum Schluss to clearly separate your points (First, Furthermore, In conclusion).
-
-With better organization and clearer structure, your letter will improve a lot. Keep it up!
-
-    Spelling & Grammar:
-        ""Wow get es sir"" should be ""Wie geht es dir."" Make sure to use ""Wie"" for asking ""how"" and ""dir"" for ""you"" in informal settings.
-        ""mir gehts es gut"" should be ""mir geht es gut."" The contraction ""geht's"" is common in spoken language, but here, use ""geht es.""
-        ""am wochenende zeit have"" should be ""am Wochenende Zeit habe."" Remember to capitalize nouns like ""Wochenende"" and ensure verb endings match the subject.
-        ""I mochte dir treffen"" should be ""Ich möchte dich treffen."" Use ""Ich"" instead of ""I"" and the correct pronoun ""dich"" for ""you"" as the object.
-        ""eine idee con was wer machen konnten"" should be ""eine Idee, was wir machen könnten."" Use ""wir"" for ""we"" and ""könnten"" for the subjunctive form.
-        ""Ich freue mich Aug deine antwort"" should be ""Ich freue mich auf deine Antwort."" Ensure ""auf"" is used and ""Antwort"" is capitalized.
-
-    Vocabulary:
-        You used some English words like ""I"" and ""con."" Ensure to stay in German throughout the letter.
-
-    Structure:
-        The letter's structure is clear, but consider adding more details or questions to enrich your communication.
-
-    Coherence:
-        Ensure your sentences flow smoothly by using correct conjunctions and sentence structures.
-
-Overall, your letter shows your effort and understanding at the A2 level, but there are key areas that need attention, especially in grammar and vocabulary consistency.",2025-06-25,A2
-esthera1,Esther Woanyah,Lesen und Horen 2,81.0,,2025-06-25,A1
-StudentCode,Name,Assignment,Score,Comments,,
-felixa1,Felix Asadu,Lesen und HÃ¶ren 0.2,85,Your schreiben was okay,,A1
-abigaila1,Abigail kelli sakara,Lesen und HÃ¶ren 0.2,87,13/15,,A1
-abigaila1,Abigail kelli sakara,Lesen und HÃ¶ren 1.2,100,15/15,,A1
-abigaila1,Abigail kelli sakara,Lesen und HÃ¶ren 2,100,13/15,,A1
-juditha1,Judith boahen,Lesen und HÃ¶ren 2,100,15/15,,A1
-abigaila1,Abigail kelli sakara,Lesen und HÃ¶ren 1.1,100,,,A1
-esthera1,Esther Woanyah,Lesen und HÃ¶ren 4,94,Don't bring comma after Ich komme aus Ghana. It supposed to be full stop.,,A1
-jeannettea1,Azombli Ayaba Jeannette,Lesen und HÃ¶ren 4,100,,,A1
-margareta1,Margaret Akyramah Tweneboah,Lesen und HÃ¶ren 4,35,You didnt answer the lesen and horen. You only did the schreiben 1,,A1
-jeannettea1,Azombli Ayaba Jeannette,Lesen und HÃ¶ren 5,100,,,A1
+chekwubea2,Chekwube,A2 3.6 Mobel und Raume Kennenlernen?,68,,2025-06-25,A2
+esthera1,Esther Woanyah,Lesen und Horen 2,81,,2025-06-25,A1
+felixa1,Felix Asadu,Lesen und Horen 0.2,85,,2025-06-25,A1
+abigaila1,Abigail kelli sakara,Lesen und Horen 0.2,87,,2025-06-25,A1
+abigaila1,Abigail kelli sakara,Lesen und Horen 1.2,100,,2025-06-25,A1
+abigaila1,Abigail kelli sakara,Lesen und Horen 2,100,,2025-06-25,A1
+juditha1,Judith boahen,Lesen und Horen 2,100,,2025-06-25,A1
+abigaila1,Abigail kelli sakara,Lesen und Horen 1.1,100,,2025-06-25,A1
+esthera1,Esther Woanyah,Lesen und Horen 4,94,,2025-06-25,A1
+jeannettea1,Azombli Ayaba Jeannette,Lesen und Horen 4,100,,2025-06-25,A1
+margareta1,Margaret Akyramah Tweneboah,Lesen und Horen ,35,,2025-06-25,A1
+jeannettea1,Azombli Ayaba Jeannette,Lesen und Horen 5,100,,2025-06-25,A1
 ,,,,,,
