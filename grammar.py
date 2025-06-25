@@ -1192,7 +1192,7 @@ if st.session_state.get("falowen_stage") == 4:
     is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
     is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
 
-    # Define session-control helpers
+    # Session-control helpers
     def reset_chat():
         st.session_state.update({
             "falowen_stage": 1,
@@ -1206,7 +1206,7 @@ if st.session_state.get("falowen_stage") == 4:
         st.rerun()
     def back_step():
         st.session_state.update({
-            "falowen_stage": max(1, st.session_state.get("falowen_stage",1) - 1),
+            "falowen_stage": max(1, st.session_state.get("falowen_stage", 1) - 1),
             "falowen_messages": []
         })
         st.rerun()
@@ -1217,9 +1217,10 @@ if st.session_state.get("falowen_stage") == 4:
         })
         st.rerun()
 
-    # Advance exam deck for Mode
+    # Advance exam deck
     if is_exam:
-        if not st.session_state.get("falowen_exam_topic") and st.session_state.get("remaining_topics",[]):
+        if (not st.session_state.get("falowen_exam_topic")
+            and st.session_state.get("remaining_topics", [])):
             next_topic = st.session_state["remaining_topics"].pop(0)
             st.session_state["used_topics"].append(next_topic)
             st.session_state["falowen_exam_topic"] = next_topic
@@ -1229,12 +1230,13 @@ if st.session_state.get("falowen_stage") == 4:
                 st.session_state["used_topics"]
             )
 
-    # Show progress counts
-    total_prompts = len(st.session_state.get("remaining_topics", [])) + len(st.session_state.get("used_topics", []))
+    # Progress counts
+    total_prompts = (len(st.session_state.get("remaining_topics", []))
+                     + len(st.session_state.get("used_topics", [])))
     completed = len(st.session_state.get("used_topics", []))
     st.info(f"🎯 You have completed {completed} of {total_prompts} prompts.")
 
-    # Show daily usage
+    # Daily usage
     used_today = get_falowen_usage(student_code)
     st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
     if used_today >= FALOWEN_DAILY_LIMIT:
@@ -1246,17 +1248,18 @@ if st.session_state.get("falowen_stage") == 4:
         if msg.get("role") == "assistant":
             with st.chat_message("assistant", avatar="🧑‍🏫"):
                 st.markdown(
-                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>", unsafe_allow_html=True
+                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    unsafe_allow_html=True
                 )
                 st.markdown(msg.get("content"))
         else:
             with st.chat_message("user"):
                 st.markdown(f"🗣️ {msg.get('content')}")
 
-    # Auto-scroll to bottom
+    # Auto-scroll
     st.markdown('<script>window.scrollTo(0, document.body.scrollHeight);</script>', unsafe_allow_html=True)
 
-    # PDF download button
+    # PDF download
     if st.session_state.get("falowen_messages"):
         base_filename = f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
         pdf_bytes = falowen_download_pdf(
@@ -1281,12 +1284,12 @@ if st.session_state.get("falowen_stage") == 4:
 
     # Initial instruction
     if not st.session_state.get("falowen_messages"):
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details so I can understand."
-        )
+        instruction = (build_exam_instruction(level, teil)
+                        if is_exam else
+                        "Hallo! 👋 What would you like to talk about? Give me details so I can understand.")
         st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
 
-    # Build system prompt with optional topic
+    # System prompt
     if is_exam:
         base_prompt = build_exam_system_prompt(level, teil)
         topic = st.session_state.get("falowen_exam_topic")
@@ -1294,7 +1297,7 @@ if st.session_state.get("falowen_stage") == 4:
     else:
         system_prompt = build_custom_chat_prompt(level)
 
-    # Chat input & response
+    # Chat input & AI response
     user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
     if user_input:
         st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
@@ -1305,7 +1308,8 @@ if st.session_state.get("falowen_stage") == 4:
 
         with st.chat_message("assistant", avatar="🧑‍🏫"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                messages = [{"role": "system", "content": system_prompt}] + st.session_state.get("falowen_messages", [])
+                messages = ([{"role": "system", "content": system_prompt}]
+                            + st.session_state.get("falowen_messages", []))
                 try:
                     resp = client.chat.completions.create(
                         model="gpt-4o", messages=messages, temperature=0.15, max_tokens=600
@@ -1314,14 +1318,14 @@ if st.session_state.get("falowen_stage") == 4:
                 except Exception as e:
                     ai_reply = f"Sorry, an error occurred: {e}"
             st.markdown(
-                "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>", unsafe_allow_html=True
+                "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                unsafe_allow_html=True
             )
             st.markdown(ai_reply)
 
         st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
 #end
-
 
 
 # =========================================
