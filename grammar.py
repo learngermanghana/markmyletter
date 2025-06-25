@@ -1149,12 +1149,10 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("Start Practice", key="falowen_start_practice"):
             # initialize exam part
-            st.session_state.update({
-                "falowen_teil": teil,
-                "falowen_stage": 4,
-                "falowen_messages": [],
-                "custom_topic_intro_done": False
-            })
+            st.session_state["falowen_teil"] = teil
+            st.session_state["falowen_stage"] = 4
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
 
             # initialize or load shuffled deck
             rem, used = load_progress(student_code, level, teil)
@@ -1180,8 +1178,8 @@ if tab == "Exams Mode & Custom Chat":
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
         mode = st.session_state["falowen_mode"]
-        is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
-        is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
+        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
         # ---- Show daily usage ----
         used_today = get_falowen_usage(student_code)
@@ -1230,6 +1228,9 @@ if tab == "Exams Mode & Custom Chat":
                 with st.chat_message("user"):
                     st.markdown(f"🗣️ {msg['content']}")
 
+        # ---- Auto-scroll to bottom ----
+        st.markdown("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
+
         # ---- PDF Download Button ----
         if st.session_state["falowen_messages"]:
             pdf_bytes = falowen_download_pdf(
@@ -1254,26 +1255,21 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Initial Instruction ----
         if not st.session_state["falowen_messages"]:
-            instruction = (build_exam_instruction(level, teil) if is_exam else
+            instruction = build_exam_instruction(level, teil) if is_exam else (
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
             )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
 
-        # ---- Advance Deck for Exam ----
-        if is_exam and not st.session_state.get("falowen_exam_topic"):
-            rem = st.session_state["remaining_topics"]
-            if rem:
-                next_card = rem.pop(0)
-                st.session_state["falowen_exam_topic"] = next_card
-                st.session_state["used_topics"].append(next_card)
-                save_progress(
-                    student_code, level, teil,
-                    st.session_state["remaining_topics"],
-                    st.session_state["used_topics"]
-                )
+        # ---- Build System Prompt including topic/context ----
+        if is_exam:
+            base_prompt = build_exam_system_prompt(level, teil)
+            topic = st.session_state.get("falowen_exam_topic")
+            if topic:
+                system_prompt = f"{base_prompt} Thema: {topic}."
             else:
-                st.info("🎉 You have completed all cards for this section!")
-        system_prompt = (build_exam_system_prompt(level, teil) if is_exam else build_custom_chat_prompt(level))
+                system_prompt = base_prompt
+        else:
+            system_prompt = build_custom_chat_prompt(level)
 
         # ---- Chat Input & Assistant Response ----
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
