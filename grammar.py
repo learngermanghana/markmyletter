@@ -712,14 +712,23 @@ c1_teil3_evaluations = [
 ]
 
 
-if tab == "Dashboard":
-    st.header("📊 Student Dashboard")
+if st.session_state["logged_in"]:
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
+    tab = st.radio(
+        "How do you want to practice?",
+        [
+            "Dashboard",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "My Results and Resources",
+            "Admin"
+        ],
+        key="main_tab_select"
+    )
 
-    # 🔄 Reload Button (fetch latest from Google Sheet)
-    if st.button("🔄 Reload Student Data from Google Sheet"):
-        st.cache_data.clear()
-        st.success("Student data reloaded! Please wait a second...")
-        st.rerun()
+    if tab == "Dashboard":
 
     # Always fetch latest student data (using student_code defined ONCE at the top)
     df_students = load_student_data()
