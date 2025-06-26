@@ -721,6 +721,7 @@ if st.session_state["logged_in"]:
             "Vocab Trainer",
             "Schreiben Trainer",
             "My Results and Resources"
+            "Admin"
         ],
         key="main_tab_select"
     )
@@ -1708,5 +1709,31 @@ if tab == "My Results and Resources":
             mime="application/pdf"
         )
 
+if tab == "Admin":
+    # Only ask for password if not already logged in as admin
+    if not st.session_state.get("is_admin", False):
+        admin_pw = st.text_input("Enter admin password:", type="Felix029", key="admin_pw")
+        if st.button("Login as Admin"):
+            # REPLACE 'my_secret_password' with a strong password in your .streamlit/secrets.toml
+            ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "my_secret_password")
+            if admin_pw == ADMIN_PASSWORD:
+                st.session_state["is_admin"] = True
+                st.success("Welcome, Admin!")
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+        st.stop()
+    else:
+        st.info("You are logged in as admin.")
+        # ---- Place your admin tools here ----
+        if st.button("🔄 Force Refresh All Data"):
+            st.cache_data.clear()  # Clear ALL cached data, including student data!
+            st.success("Cache cleared! Reloading…")
+            st.rerun()
+
+        # Example: View all students
+        df_students = load_student_data()
+        st.dataframe(df_students)
+        # You can add more admin tools/buttons below
 
 
