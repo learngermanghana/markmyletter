@@ -1359,14 +1359,28 @@ if tab == "Exams Mode & Custom Chat":
 
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1, with Progress, Streak, Goal, Gamification, AI Feedback)
+# VOCAB TRAINER TAB (A1–C1 + "My Words" with Progress, Add, Delete, Practice)
 # =========================================
+
+# === Ensure "personal_vocab" table exists ===
+def ensure_personal_vocab_table():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS personal_vocab (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            word TEXT,
+            translation TEXT,
+            date_added TEXT
+        )
+    """)
+    conn.commit()
+ensure_personal_vocab_table()
 
 # ----------- Helper function: AI Vocab Feedback -----------
 def ai_vocab_feedback(word, student, correct):
-    """Use direct matching for known answers before falling back to AI for nuanced feedback."""
     student_ans = student.strip().lower()
-    # Direct match if correct key(s) provided
     if correct is not None:
         valid = ([c.strip().lower() for c in correct]
                  if isinstance(correct, (list, tuple))
@@ -1374,7 +1388,6 @@ def ai_vocab_feedback(word, student, correct):
         if student_ans in valid:
             return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
 
-    # Fallback to AI check
     target = correct or word
     prompt = (
         f"The student answered '{student.strip()}' for the German word '{word.strip()}'. "
@@ -1407,86 +1420,150 @@ def ai_vocab_feedback(word, student, correct):
     except Exception as e:
         return f"<span style='color:red'>AI check failed: {e}</span>", False, False
 
-
 # ----------- Vocab Trainer Tab -----------
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
-    # Student/context setup
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "Demo")
     today_str = date.today().isoformat()
 
-    # Initialize session state
-    for key, default in {
+    # Initialize session state (fixes post-reset problem: always re-initialize)
+    default_states = {
         "vocab_level": "A1",
         "vocab_feedback": "",
         "show_next_button": False,
         "vocab_completed": set(),
         "current_vocab_idx": None,
-        "last_was_correct": False
-    }.items():
-        if key not in st.session_state:
-            st.session_state[key] = default
-    
-    # Streak
+        "last_was_correct": False,
+        "mywords_last_word_id": None
+    }
+    for key, value in default_states.items():
+        if key not in st.session_state or (key == "vocab_completed" and not isinstance(st.session_state[key], set)):
+            st.session_state[key] = value
+
+    # Level selection
+    level_opts = ["A1", "A2", "B1", "B2", "C1", "My Words"]
+    selected = st.selectbox("Choose level", level_opts, key="vocab_level_select")
+    if selected != st.session_state["vocab_level"]:
+        # Reset state when switching levels
+        for k in ["vocab_feedback", "show_next_button", "vocab_completed", "current_vocab_idx", "last_was_correct", "mywords_last_word_id"]:
+            st.session_state[k] = set() if k == "vocab_completed" else False if k in ["show_next_button", "last_was_correct"] else None if k in ["current_vocab_idx", "mywords_last_word_id"] else ""
+        st.session_state["vocab_level"] = selected
+
+    # Streak and usage
     streak = get_vocab_streak(student_code)
     if streak > 0:
         st.success(f"🔥 {streak}-day streak! Keep it up!")
     else:
         st.warning("You lost your streak. Start practicing today!")
 
-    # Daily usage
     usage_key = f"{student_code}_vocab_{today_str}"
     st.session_state.setdefault("vocab_usage", {})
     st.session_state["vocab_usage"].setdefault(usage_key, 0)
     used_today = st.session_state["vocab_usage"][usage_key]
 
-    # Level selection
-    level_opts = ["A1","A2","B1","B2","C1"]
-    selected = st.selectbox("Choose level", level_opts, key="vocab_level_select")
-    if selected != st.session_state["vocab_level"]:
-        for k in ["vocab_feedback","show_next_button","vocab_completed","current_vocab_idx"]:
-            st.session_state[k] = [] if k=="vocab_completed" else "" if k=="vocab_feedback" else False if k=="show_next_button" else None
-        st.session_state["vocab_level"] = selected
-    
-    vocab_list = VOCAB_LISTS.get(st.session_state["vocab_level"], [])
-    is_tuple = bool(vocab_list and isinstance(vocab_list[0], (list,tuple)))
-    completed = st.session_state["vocab_completed"]
-    pending_idxs = [i for i in range(len(vocab_list)) if i not in completed]
-
-    # Progress bar
     st.progress(min(used_today, VOCAB_DAILY_LIMIT)/VOCAB_DAILY_LIMIT, text=f"{used_today}/{VOCAB_DAILY_LIMIT} today")
 
     # Reset progress
-    if st.button("🔄 Reset Progress"): 
-        st.session_state["vocab_completed"] = set()
-        st.session_state["vocab_feedback"] = ""
-        st.session_state["show_next_button"] = False
-        st.session_state["current_vocab_idx"] = None
+    if st.button("🔄 Reset Progress"):
+        for k in ["vocab_feedback", "show_next_button", "vocab_completed", "current_vocab_idx", "last_was_correct", "mywords_last_word_id"]:
+            st.session_state[k] = set() if k == "vocab_completed" else False if k in ["show_next_button", "last_was_correct"] else None if k in ["current_vocab_idx", "mywords_last_word_id"] else ""
         st.success("Progress reset.")
-        st.rerun()
+        st.experimental_rerun()  # Ensures UI and input return immediately
 
-    # Check daily goal
+    # Daily limit check
     if used_today >= VOCAB_DAILY_LIMIT:
         st.balloons()
         st.success("✅ Daily goal complete!")
         st.stop()
 
-    # After feedback display
+    # ========== MY WORDS ("personal_vocab") MODE ==========
+    if selected == "My Words":
+        st.subheader("📒 Practice & Save Your Own Words")
+
+        # Add new word form
+        with st.form("add_personal_vocab"):
+            word = st.text_input("German Word")
+            translation = st.text_input("Your Translation")
+            add_submit = st.form_submit_button("Add Word")
+            if add_submit and word and translation:
+                conn = get_connection()
+                c = conn.cursor()
+                c.execute(
+                    "INSERT INTO personal_vocab (student_code, word, translation, date_added) VALUES (?, ?, ?, ?)",
+                    (student_code, word.strip(), translation.strip(), str(date.today()))
+                )
+                conn.commit()
+                st.success(f"Added: {word} – {translation}")
+                st.experimental_rerun()  # Refresh immediately
+
+        # List and allow deleting
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "SELECT id, word, translation, date_added FROM personal_vocab WHERE student_code=? ORDER BY date_added DESC",
+            (student_code,)
+        )
+        rows = c.fetchall()
+        if rows:
+            df = pd.DataFrame(rows, columns=["ID", "German Word", "Translation", "Date Added"])
+            # Option to delete a word
+            delete_word_id = st.selectbox("Delete a word (optional):", ["None"] + [f"{r[1]} ({r[2]})" for r in rows], key="delete_mywords")
+            if delete_word_id != "None":
+                idx = [f"{r[1]} ({r[2]})" for r in rows].index(delete_word_id)
+                word_id = rows[idx][0]
+                if st.button("Delete Selected Word"):
+                    c.execute("DELETE FROM personal_vocab WHERE id=?", (word_id,))
+                    conn.commit()
+                    st.success("Word deleted.")
+                    st.experimental_rerun()
+            st.dataframe(df[["German Word", "Translation", "Date Added"]], use_container_width=True)
+
+            # Practice logic: pick a random personal vocab not yet completed today
+            done_ids = st.session_state["vocab_completed"]
+            not_done = [r for r in rows if r[0] not in done_ids]
+            if not_done:
+                r = random.choice(not_done)
+                st.session_state["mywords_last_word_id"] = r[0]
+                vocab_word = r[1]
+                vocab_tr = r[2]
+                st.markdown(f"**Translate:** {vocab_word}")
+                ans = st.text_input("Your translation", key=f"mywords_ans_{r[0]}")
+                if st.button("Check", key=f"mywords_check_{r[0]}"):
+                    if ans.strip().lower() == vocab_tr.strip().lower():
+                        st.success("✅ Correct!")
+                        st.session_state["vocab_usage"][usage_key] += 1
+                        st.session_state["vocab_completed"].add(r[0])
+                    else:
+                        st.warning(f"❌ Not quite. Correct: {vocab_tr}")
+                    st.experimental_rerun()
+            else:
+                st.success("🎉 All your words done for today!")
+        else:
+            st.info("No words saved yet. Add your first word above!")
+        st.stop()  # Prevents A1–C1 block from running
+
+    # ========== STANDARD VOCAB PRACTICE (A1–C1) ==========
+    vocab_list = VOCAB_LISTS.get(st.session_state["vocab_level"], [])
+    is_tuple = bool(vocab_list and isinstance(vocab_list[0], (list, tuple)))
+    completed = st.session_state["vocab_completed"]
+    pending_idxs = [i for i in range(len(vocab_list)) if i not in completed]
+
+    # Feedback from last check, Next button
     if st.session_state["vocab_feedback"] and st.session_state["show_next_button"]:
         st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
         if st.button("➡️ Next"):
             if st.session_state["last_was_correct"]:
                 st.session_state["vocab_completed"].add(st.session_state["current_vocab_idx"])
-            for k in ["vocab_feedback","show_next_button","current_vocab_idx","last_was_correct"]:
-                st.session_state[k] = False if isinstance(st.session_state[k], bool) else None if k=="current_vocab_idx" else ""
-            st.rerun()
+            for k in ["vocab_feedback", "show_next_button", "current_vocab_idx", "last_was_correct"]:
+                st.session_state[k] = False if isinstance(st.session_state[k], bool) else None if k == "current_vocab_idx" else ""
+            st.experimental_rerun()
         st.stop()
 
     # New word practice
     if pending_idxs:
-        idx = st.session_state["current_vocab_idx"] or random.choice(pending_idxs)
+        idx = st.session_state["current_vocab_idx"] if st.session_state["current_vocab_idx"] is not None else random.choice(pending_idxs)
         st.session_state["current_vocab_idx"] = idx
         word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
         corr = vocab_list[idx][1] if is_tuple else None
@@ -1502,13 +1579,14 @@ if tab == "Vocab Trainer":
             save_vocab_submission(
                 student_code, student_name, st.session_state["vocab_level"], word, ans, correct
             )
-            st.stop()
+            st.experimental_rerun()
     else:
         st.success("🎉 All words done for today!")
 
     # Summary prompt
     if completed:
         st.info(f"Completed {len(completed)}/{len(vocab_list)} words. Come back tomorrow or switch level!")
+
 
 
 # ====================================
