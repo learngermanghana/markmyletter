@@ -33,13 +33,6 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-# ---- DB connection helper ----
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
-
 # --- Create/verify tables if not exist (run once per app startup) ---
 def init_db():
     conn = get_connection()
@@ -108,10 +101,23 @@ def init_db():
             PRIMARY KEY (student_code, level, teil)
         )
     """)
+    # My Vocab Table (STUDENT PERSONAL VOCAB)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS my_vocab (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            word TEXT,
+            translation TEXT,
+            date_added TEXT
+        )
+    """)
     conn.commit()
 
 # Call DB initialization ONCE after imports
 init_db()
+
+# ====== DB HELPERS (for all tables) ======
 
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
     conn = get_connection()
@@ -140,6 +146,49 @@ def save_sprechen_submission(student_code, name, level, teil, message, score, fe
     )
     conn.commit()
 
+# ====== PERSONAL VOCAB HELPERS ======
+
+def add_my_vocab(student_code, level, word, translation):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
+        (student_code, level, word, translation, str(date.today()))
+    )
+    conn.commit()
+
+def get_my_vocab(student_code, level=None):
+    conn = get_connection()
+    c = conn.cursor()
+    if level:
+        c.execute(
+            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
+            (student_code, level)
+        )
+    else:
+        c.execute(
+            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
+            (student_code,)
+        )
+    return c.fetchall()
+
+def delete_my_vocab(vocab_id, student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
+    conn.commit()
+
+def count_my_vocab(student_code, level=None):
+    conn = get_connection()
+    c = conn.cursor()
+    if level:
+        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
+    else:
+        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
+    return c.fetchone()[0]
+
+# ====== OTHER HELPERS (existing, no change) ======
+
 def get_writing_stats(student_code):
     conn = get_connection()
     c = conn.cursor()
@@ -166,7 +215,6 @@ def get_student_stats(student_code):
     for level, correct, attempted in c.fetchall():
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
-
 
 def get_falowen_usage(student_code):
     today_str = str(date.today())
@@ -197,7 +245,6 @@ def get_vocab_streak(student_code):
     rows = c.fetchall()
     if not rows:
         return 0
-
     dates = [date.fromisoformat(r[0]) for r in rows]
     if (date.today() - dates[0]).days > 1:
         return 0
@@ -211,6 +258,7 @@ def get_vocab_streak(student_code):
             break
     return streak
 
+# Done!
 
 # --- Streamlit page config ---
 st.set_page_config(
