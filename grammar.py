@@ -1458,7 +1458,7 @@ if tab == "Vocab Trainer":
         st.markdown("**Personal Vocab Stats:**")
         for lvl in level_opts:
             if lvl == selected:
-                st.markdown(f"- `{lvl}`: **{stats[lvl]}** words")
+                st.markdown(f"- `{lvl}`: **{stats.get(lvl, 0)}** words")
             else:
                 st.markdown(f"- {lvl}: {stats[lvl]}")
 
