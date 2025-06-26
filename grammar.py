@@ -33,50 +33,6 @@ def get_connection():
 conn = get_connection()
 c = conn.cursor()
 
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    # Group by level, count correct and attempted for each
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-def get_vocab_streak(student_code):
-    """Return the number of consecutive days with vocab submissions."""
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
-    rows = c.fetchall()
-    if not rows:
-        return 0
-
-    dates = [date.fromisoformat(r[0]) for r in rows]
-
-    # If the most recent submission wasn't today or yesterday, streak is lost
-    if (date.today() - dates[0]).days > 1:
-        return 0
-
-    streak = 1
-    prev = dates[0]
-    for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1
-            prev = d
-        else:
-            break
-
-    return streak
-
 # --- Create/verify tables if not exist (run once per app startup) ---
 def init_db():
     conn = get_connection()
@@ -107,6 +63,20 @@ def init_db():
             date TEXT
         )
     """)
+    # 🟢 Sprechen Progress Table (added)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            teil TEXT,
+            message TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
+        )
+    """)
     # Exam Progress Table for random card progress
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
@@ -120,7 +90,9 @@ def init_db():
     """)
     conn.commit()
 
+# Call this ONCE after import
 init_db()
+
 
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
     conn = get_connection()
