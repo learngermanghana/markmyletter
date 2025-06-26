@@ -814,7 +814,46 @@ if st.session_state["logged_in"]:
             f"**🏅 Pass rate:** {accuracy}%\n\n"
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
-        
+
+            # --- UPCOMING EXAMS SECTION ---
+    st.markdown("## 📅 Upcoming Goethe Exams & Registration Info")
+
+    st.markdown(
+        """
+**Registration for Aug./Sept. 2025 Exams:**  
+&nbsp;
+
+| Level | Exam Date | Fee (GHS)         | Per Module (GHS) |
+|-------|-----------|-------------------|------------------|
+| A1    | 21.07.25  | 2,850             | —                |
+| A2    | 22.07.25  | 2,400             | —                |
+| B1    | 23.07.25  | 2,750             | 880              |
+| B2    | 24.07.25  | 2,500             | 840              |
+| C1    | 25.07.25  | 2,450             | 700              |
+
+---
+### 📝 Registration Steps
+
+1. [**Open this link and click register**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html) (if registration is open, you'll see the form).  
+   _Usually open between **9:00am – 10:00am**. Check within this range!_
+2. **Fill the form** and choose **extern**.
+3. **Submit**. You will get a **payment confirmation**.
+4. **Pay via Mobile Money or Ecobank** using your **full name as reference**.
+    - Email proof/payment to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
+5. **Wait for response**. If you don’t hear from them, send polite reminders by email.
+
+---
+
+**Payment Details**  
+**ECOBANK GHANA**  
+Account Name: **GOETHE-INSTITUT GHANA**  
+Account Number: **1441 001 701 903**  
+Branch: **Ring Road Central**  
+SWIFT Code: **ECOCGHAC**
+        """,
+        unsafe_allow_html=True,
+    )
+
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
