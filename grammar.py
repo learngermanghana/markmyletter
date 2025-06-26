@@ -1624,7 +1624,6 @@ if tab == "My Results and Resources":
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
     # === LIVE GOOGLE SHEETS CSV LINK ===
-    # Make sure your Google Sheet is shared as "Anyone with the link can view"
     GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
     import requests
@@ -1637,13 +1636,21 @@ if tab == "My Results and Resources":
         response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
         response.raise_for_status()
         df = pd.read_csv(io.StringIO(response.text), engine='python')
+
+        # Clean and validate columns
         df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
+
+        # Drop rows with missing *required* fields
+        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        df = df.dropna(subset=required_cols)
+
         return df
 
     df_scores = fetch_scores()
     required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
+        st.write("Columns found:", df_scores.columns.tolist())  # <-- for debugging
         st.stop()
 
     # Filter for current student
@@ -1715,5 +1722,6 @@ if tab == "My Results and Resources":
             file_name=f"{code}_results_{level}.pdf",
             mime="application/pdf"
         )
+
 
 
