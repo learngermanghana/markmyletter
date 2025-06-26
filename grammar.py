@@ -1432,8 +1432,8 @@ if tab == "Vocab Trainer":
         student_ans = student.strip().lower()
         if correct is not None:
             valid = ([c.strip().lower() for c in correct]
-                    if isinstance(correct, (list, tuple))
-                    else [correct.strip().lower()])
+                     if isinstance(correct, (list, tuple))
+                     else [correct.strip().lower()])
             if student_ans in valid:
                 return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
         # Fallback to AI
@@ -1467,6 +1467,7 @@ if tab == "Vocab Trainer":
             return feedback, is_correct, is_close
         except Exception as e:
             return f"<span style='color:red'>AI check failed: {e}</span>", False, False
+
 
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "Demo")
