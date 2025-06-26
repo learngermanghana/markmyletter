@@ -13,6 +13,26 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+# ---- OpenAI Client Setup ----
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error(
+        "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
+    )
+    st.stop()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
+client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
+
+# ---- DB connection helper ----
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+conn = get_connection()
+c = conn.cursor()
+
 # ---- DB connection helper ----
 def get_connection():
     if "conn" not in st.session_state:
