@@ -147,6 +147,21 @@ def save_sprechen_submission(student_code, name, level, teil, message, score, fe
     conn.commit()
 
 # ====== PERSONAL VOCAB HELPERS ======
+def get_personal_vocab_stats(student_code):
+    """
+    Returns a dict: {level: count} for all levels where this student has personal vocab,
+    and total.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
+        (student_code,)
+    )
+    rows = c.fetchall()
+    stats = {row[0]: row[1] for row in rows}
+    stats['total'] = sum(stats.values())
+    return stats
 
 def add_my_vocab(student_code, level, word, translation):
     conn = get_connection()
