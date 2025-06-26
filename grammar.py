@@ -1426,7 +1426,14 @@ if tab == "Exams Mode & Custom Chat":
 if tab == "Vocab Trainer":
     # Always define tab_mode at the top!
     tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
-
+    
+    # ---- SAFE INITIALIZATION of session state keys ----
+    st.session_state.setdefault("vocab_feedback", "")
+    st.session_state.setdefault("show_next_button", False)
+    st.session_state.setdefault("last_was_correct", False)
+    st.session_state.setdefault("current_vocab_idx", None)
+    st.session_state.setdefault("vocab_completed", set())
+    
     def ai_vocab_feedback(word, student, correct):
         """Direct match and fallback to AI for nuanced feedback."""
         student_ans = student.strip().lower()
