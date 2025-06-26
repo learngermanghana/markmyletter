@@ -1470,7 +1470,7 @@ if tab == "Vocab Trainer":
         for k in ["vocab_feedback", "show_next_button", "vocab_completed", "current_vocab_idx", "last_was_correct", "mywords_last_word_id"]:
             st.session_state[k] = set() if k == "vocab_completed" else False if k in ["show_next_button", "last_was_correct"] else None if k in ["current_vocab_idx", "mywords_last_word_id"] else ""
         st.success("Progress reset.")
-        st.experimental_rerun()  # Ensures UI and input return immediately
+        st.rerun()  # Ensures UI and input return immediately
 
     # Daily limit check
     if used_today >= VOCAB_DAILY_LIMIT:
