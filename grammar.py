@@ -708,7 +708,6 @@ c1_teil3_evaluations = [
 
 
 
-
 if st.session_state["logged_in"]:
     tab = st.radio(
         "How do you want to practice?",
@@ -726,6 +725,12 @@ if st.session_state["logged_in"]:
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
+        # 🔄 Add reload button BEFORE loading df_students
+        if st.button("🔄 Reload Student Data from Google Sheet"):
+            st.cache_data.clear()  # This clears your @st.cache_data, so next load is fresh!
+            st.success("Student data reloaded! Please wait a second...")
+            st.experimental_rerun()  # Soft page refresh to re-run code below
+
         # Always fetch the latest student row from Google Sheets (not from st.session_state)
         df_students = load_student_data()
         code = st.session_state.get("student_code", "")
@@ -733,7 +738,7 @@ if st.session_state["logged_in"]:
         student_row = found.iloc[0].to_dict() if not found.empty else {}
 
         streak = get_vocab_streak(code)
-        total_attempted, total_passed, accuracy = get_writing_stats(code)
+        total_attempted, total_passed, accuracy = get_writing_stats(code
 
         # --- Compute today's writing usage for Dashboard ---
         from datetime import date
