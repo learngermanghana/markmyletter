@@ -1425,6 +1425,15 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB
 # ===============================
 
+def fetch_personal_vocab(student_code, level):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, word, meaning, date FROM personal_vocab WHERE student_code=? AND level=? ORDER BY date DESC",
+        (student_code, level)
+    )
+    return c.fetchall()
+
 if tab == "Vocab Trainer":
     st.header("🧠 Vocab Trainer")
 
