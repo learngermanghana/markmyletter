@@ -1460,7 +1460,7 @@ if tab == "Vocab Trainer":
             if lvl == selected:
                 st.markdown(f"- `{lvl}`: **{stats.get(lvl, 0)}** words")
             else:
-                st.markdown(f"- {lvl}: {stats[lvl]}")
+                st.markdown(f"- {lvl}: {stats.get(lvl, 0)}")
 
     if selected != st.session_state["vocab_level"]:
         for k in ["vocab_feedback", "show_next_button", "vocab_completed", "current_vocab_idx"]:
