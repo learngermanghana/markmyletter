@@ -738,7 +738,7 @@ if st.session_state["logged_in"]:
         student_row = found.iloc[0].to_dict() if not found.empty else {}
 
         streak = get_vocab_streak(code)
-        total_attempted, total_passed, accuracy = get_writing_stats(code
+        total_attempted, total_passed, accuracy = get_writing_stats(code)
 
         # --- Compute today's writing usage for Dashboard ---
         from datetime import date
