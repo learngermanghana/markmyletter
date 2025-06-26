@@ -1641,7 +1641,9 @@ if tab == "Schreiben Trainer":
 #Myresults
 
 if tab == "My Results and Resources":
-
+    # Always define these at the top
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
     st.header("📈 My Results and Resources Hub")
     st.markdown("View and download your assignment history. All results are private and only visible to you.")
 
