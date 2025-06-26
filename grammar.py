@@ -1424,6 +1424,8 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 if tab == "Vocab Trainer":
+    # Always define tab_mode before using it!
+    tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
 
     def ai_vocab_feedback(word, student, correct):
         """Direct match and fallback to AI for nuanced feedback."""
