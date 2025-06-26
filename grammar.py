@@ -729,7 +729,7 @@ if st.session_state["logged_in"]:
         if st.button("🔄 Reload Student Data from Google Sheet"):
             st.cache_data.clear()  # This clears your @st.cache_data, so next load is fresh!
             st.success("Student data reloaded! Please wait a second...")
-            st.experimental_rerun()  # Soft page refresh to re-run code below
+            st.rerun()  # Soft page refresh to re-run code below
 
         # Always fetch the latest student row from Google Sheets (not from st.session_state)
         df_students = load_student_data()
