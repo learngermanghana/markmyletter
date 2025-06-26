@@ -273,8 +273,6 @@ def get_vocab_streak(student_code):
             break
     return streak
 
-# Done!
-
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
