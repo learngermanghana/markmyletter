@@ -1743,6 +1743,43 @@ if tab == "My Results and Resources":
             mime="application/pdf"
         )
 
+with st.expander("📅 Upcoming Goethe Exams & Registration Info (Important)", expanded=False):
+    st.markdown(
+        """
+**Registration for Aug./Sept. 2025 Exams:**
+
+| Level | Date       | Fee (GHS) | Per Module (GHS) |
+|-------|------------|-----------|------------------|
+| A1    | 21.07.2025 | 2,850     | —                |
+| A2    | 22.07.2025 | 2,400     | —                |
+| B1    | 23.07.2025 | 2,750     | 880              |
+| B2    | 24.07.2025 | 2,500     | 840              |
+| C1    | 25.07.2025 | 2,450     | 700              |
+
+---
+
+### 📝 Registration Steps
+
+1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
+2. Fill the form and choose **extern**
+3. Submit and get payment confirmation
+4. Pay by Mobile Money or Ecobank (**use full name as reference**)
+    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
+5. Wait for response. If not, send polite reminders by email.
+
+---
+
+**Payment Details:**  
+**Ecobank Ghana**  
+Account Name: **GOETHE-INSTITUT GHANA**  
+Account No.: **1441 001 701 903**  
+Branch: **Ring Road Central**  
+SWIFT: **ECOCGHAC**
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 if tab == "Admin":
     # --- Admin Auth ---
     if not st.session_state.get("is_admin", False):
