@@ -714,7 +714,7 @@ c1_teil3_evaluations = [
 
 
 if st.session_state["logged_in"]:
-    # Always define these at the top for use everywhere
+    # Get student context
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
     
@@ -731,27 +731,26 @@ if st.session_state["logged_in"]:
         key="main_tab_select"
     )
 
-    # --- DASHBOARD TAB ---
+    # --- DASHBOARD TAB ONLY ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
 
-        # 🔄 Add reload button BEFORE loading df_students
+        # 🔄 Reload Button (fetch latest from Google Sheet)
         if st.button("🔄 Reload Student Data from Google Sheet"):
-            st.cache_data.clear()  # This clears your @st.cache_data, so next load is fresh!
+            st.cache_data.clear()
             st.success("Student data reloaded! Please wait a second...")
-            st.rerun()  # Soft page refresh to re-run code below
-
-        # Always fetch the latest student row from Google Sheets (not from st.session_state)
+            st.rerun()
+        
+        # Always fetch latest student data
         df_students = load_student_data()
-        code = st.session_state.get("student_code", "")
+        code = student_code
         found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
         student_row = found.iloc[0].to_dict() if not found.empty else {}
 
         streak = get_vocab_streak(code)
         total_attempted, total_passed, accuracy = get_writing_stats(code)
 
-        # --- Compute today's writing usage for Dashboard ---
-        from datetime import date
+        # --- Usage calculation
         today_str = str(date.today())
         limit_key = f"{code}_schreiben_{today_str}"
         if "schreiben_usage" not in st.session_state:
@@ -759,32 +758,29 @@ if st.session_state["logged_in"]:
         st.session_state["schreiben_usage"].setdefault(limit_key, 0)
         daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
-        # Student name and essentials
+        # --- Student Info ---
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
-            f"**Level:** {student_row.get('Level', '')}\n\n"
-            f"**Code:** `{student_row.get('StudentCode', '')}`\n\n"
-            f"**Email:** {student_row.get('Email', '')}\n\n"
-            f"**Phone:** {student_row.get('Phone', '')}\n\n"
-            f"**Location:** {student_row.get('Location', '')}\n\n"
-            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}\n\n"
-            f"**Enroll Date:** {student_row.get('EnrollDate', '')}\n\n"
+            f"**Level:** {student_row.get('Level', '')}  \n"
+            f"**Code:** `{student_row.get('StudentCode', '')}`  \n"
+            f"**Email:** {student_row.get('Email', '')}  \n"
+            f"**Phone:** {student_row.get('Phone', '')}  \n"
+            f"**Location:** {student_row.get('Location', '')}  \n"
+            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}  \n"
+            f"**Enroll Date:** {student_row.get('EnrollDate', '')}  \n"
             f"**Status:** {student_row.get('Status', '')}"
         )
 
-        # --- Payment info, clear message ---
+        # --- Payment info ---
         balance = student_row.get('Balance', '0.0')
         try:
             balance_float = float(balance)
         except Exception:
             balance_float = 0.0
         if balance_float > 0:
-            st.warning(
-                f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)"
-            )
+            st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
 
         # --- Contract End reminder ---
-        from datetime import datetime
         contract_end = student_row.get('ContractEnd')
         if contract_end:
             try:
@@ -797,63 +793,57 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-        # --- Vocab streak ---
+        # --- Progress stats ---
         st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-
-        # --- Writing goal tracker ---
         goal_remain = max(0, 2 - (total_attempted or 0))
         if goal_remain > 0:
             st.success(f"🎯 Your next goal: Write {goal_remain} more letter(s) this week!")
         else:
             st.success("🎉 Weekly goal reached! Keep practicing!")
-
-        # --- Writing stats, big and clear ---
         st.markdown(
-            f"**📝 Letters submitted:** {total_attempted}\n\n"
-            f"**✅ Passed (score ≥17):** {total_passed}\n\n"
-            f"**🏅 Pass rate:** {accuracy}%\n\n"
+            f"**📝 Letters submitted:** {total_attempted}  \n"
+            f"**✅ Passed (score ≥17):** {total_passed}  \n"
+            f"**🏅 Pass rate:** {accuracy}%  \n"
             f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
 
-            # --- UPCOMING EXAMS SECTION ---
-    st.markdown("## 📅 Upcoming Goethe Exams & Registration Info")
+        # --- UPCOMING EXAMS (dashboard only) ---
+        with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
+            st.markdown(
+                """
+**Registration for Aug./Sept. 2025 Exams:**
 
-    st.markdown(
-        """
-**Registration for Aug./Sept. 2025 Exams:**  
-&nbsp;
-
-| Level | Exam Date | Fee (GHS)         | Per Module (GHS) |
-|-------|-----------|-------------------|------------------|
-| A1    | 21.07.25  | 2,850             | —                |
-| A2    | 22.07.25  | 2,400             | —                |
-| B1    | 23.07.25  | 2,750             | 880              |
-| B2    | 24.07.25  | 2,500             | 840              |
-| C1    | 25.07.25  | 2,450             | 700              |
+| Level | Date       | Fee (GHS) | Per Module (GHS) |
+|-------|------------|-----------|------------------|
+| A1    | 21.07.2025 | 2,850     | —                |
+| A2    | 22.07.2025 | 2,400     | —                |
+| B1    | 23.07.2025 | 2,750     | 880              |
+| B2    | 24.07.2025 | 2,500     | 840              |
+| C1    | 25.07.2025 | 2,450     | 700              |
 
 ---
+
 ### 📝 Registration Steps
 
-1. [**Open this link and click register**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html) (if registration is open, you'll see the form).  
-   _Usually open between **9:00am – 10:00am**. Check within this range!_
-2. **Fill the form** and choose **extern**.
-3. **Submit**. You will get a **payment confirmation**.
-4. **Pay via Mobile Money or Ecobank** using your **full name as reference**.
-    - Email proof/payment to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
-5. **Wait for response**. If you don’t hear from them, send polite reminders by email.
+1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
+2. Fill the form and choose **extern**
+3. Submit and get payment confirmation
+4. Pay by Mobile Money or Ecobank (**use full name as reference**)
+    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
+5. Wait for response. If not, send polite reminders by email.
 
 ---
 
-**Payment Details**  
-**ECOBANK GHANA**  
+**Payment Details:**  
+**Ecobank Ghana**  
 Account Name: **GOETHE-INSTITUT GHANA**  
-Account Number: **1441 001 701 903**  
+Account No.: **1441 001 701 903**  
 Branch: **Ring Road Central**  
-SWIFT Code: **ECOCGHAC**
-        """,
-        unsafe_allow_html=True,
-    )
-
+SWIFT: **ECOCGHAC**
+                """,
+                unsafe_allow_html=True,
+            )
+            
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
