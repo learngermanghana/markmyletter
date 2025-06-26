@@ -709,6 +709,10 @@ c1_teil3_evaluations = [
 
 
 if st.session_state["logged_in"]:
+    # Always define these at the top for use everywhere
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
+    
     tab = st.radio(
         "How do you want to practice?",
         [
