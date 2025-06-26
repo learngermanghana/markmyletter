@@ -720,7 +720,7 @@ if st.session_state["logged_in"]:
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
-            "My Results and Resources"
+            "My Results and Resources",
             "Admin"
         ],
         key="main_tab_select"
