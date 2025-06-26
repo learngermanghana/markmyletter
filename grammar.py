@@ -1,3 +1,32 @@
+import os
+import random
+import difflib
+import sqlite3
+import atexit
+import json
+from datetime import date, datetime
+import pandas as pd
+import streamlit as st
+import requests
+import io
+from openai import OpenAI
+from fpdf import FPDF
+from streamlit_cookies_manager import EncryptedCookieManager
+
+# ---- DB connection helper ----
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
+
+# --- Now define init_db() ---
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # ... all your CREATE TABLE code ...
+    conn.commit()
+
 def init_db():
     conn = get_connection()
     c = conn.cursor()
