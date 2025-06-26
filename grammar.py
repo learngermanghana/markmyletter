@@ -1496,7 +1496,7 @@ if tab == "Vocab Trainer":
                 )
                 conn.commit()
                 st.success(f"Added: {word} – {translation}")
-                st.experimental_rerun()  # Refresh immediately
+                st.rerun()  # Refresh immediately
 
         # List and allow deleting
         conn = get_connection()
