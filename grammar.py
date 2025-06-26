@@ -1712,10 +1712,10 @@ if tab == "My Results and Resources":
 if tab == "Admin":
     # Only ask for password if not already logged in as admin
     if not st.session_state.get("is_admin", False):
-        admin_pw = st.text_input("Enter admin password:", type="Felix029", key="admin_pw")
+        admin_pw = st.text_input("Enter admin password:", type="password", key="admin_pw")
         if st.button("Login as Admin"):
-            # REPLACE 'my_secret_password' with a strong password in your .streamlit/secrets.toml
-            ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "my_secret_password")
+            # Hard-coded password (change as needed)
+            ADMIN_PASSWORD = "Felix029"
             if admin_pw == ADMIN_PASSWORD:
                 st.session_state["is_admin"] = True
                 st.success("Welcome, Admin!")
@@ -1734,6 +1734,5 @@ if tab == "Admin":
         # Example: View all students
         df_students = load_student_data()
         st.dataframe(df_students)
-        # You can add more admin tools/buttons below
-
+        # Add more admin tools/buttons here
 
