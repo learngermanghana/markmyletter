@@ -132,6 +132,22 @@ def get_writing_stats(student_code):
     accuracy = round(100 * passed / attempted) if attempted > 0 else 0
     return attempted, passed, accuracy
 
+def get_student_stats(student_code):
+    """Return writing stats per level for a student."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
+        GROUP BY level
+    """, (student_code,))
+    stats = {}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
+    return stats
+
+
 def get_falowen_usage(student_code):
     today_str = str(date.today())
     key = f"{student_code}_falowen_{today_str}"
