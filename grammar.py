@@ -1489,10 +1489,6 @@ import urllib.parse
 if tab == "Schreiben Trainer":
     st.header("✍️ Schreiben Trainer (Writing Practice)")
 
-    # Always define at the top!
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
-
     # 1. Choose Level (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
     prev_level = st.session_state.get("schreiben_level", "A1")
