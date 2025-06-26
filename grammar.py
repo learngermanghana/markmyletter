@@ -1579,25 +1579,39 @@ if tab_mode == "My Vocab":
         if st.button("📄 Download My Vocab as PDF"):
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(0, 10, f"My Personal Vocab – {selected} ({student_name})", ln=1)
-            pdf.cell(0, 10, "", ln=1)
+            pdf.set_font("Arial", size=11)
+            title = f"My Personal Vocab – {selected} ({student_name})"
+            pdf.cell(0, 8, title, ln=1)
+            pdf.ln(3)
+
+            # Table headers
+            pdf.set_font("Arial", "B", 10)
+            pdf.cell(50, 8, "German", border=1)
+            pdf.cell(60, 8, "Translation", border=1)
+            pdf.cell(30, 8, "Date", border=1)
+            pdf.ln()
+            pdf.set_font("Arial", "", 10)
+
             for row in rows:
-                pdf.cell(0, 10, f"{row[1]} = {row[2]} (added {row[3]})", ln=1)
-            pdf_bytes = pdf.output(dest="S").encode("latin1")
+                pdf.cell(50, 8, str(row[1]), border=1)
+                pdf.cell(60, 8, str(row[2]), border=1)
+                pdf.cell(30, 8, str(row[3]), border=1)
+                pdf.ln()
+
+            pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
             st.download_button(
                 label="Download PDF",
                 data=pdf_bytes,
                 file_name=f"{student_code}_my_vocab_{selected}.pdf",
                 mime="application/pdf"
             )
-    else:
-        st.info("No personal vocab saved yet for this level.")
+        else:
+            st.info("No personal vocab saved yet for this level.")
 
 # ===================
 # END OF VOCAB TRAINER TAB
 # ===================
-
+# ===================
 
 # ====================================
 # SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
