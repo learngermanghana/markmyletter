@@ -20,17 +20,11 @@ def get_connection():
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# --- Now define init_db() ---
+# --- Create/verify tables if not exist (run once per app startup) ---
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # ... all your CREATE TABLE code ...
-    conn.commit()
-
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # ... existing tables ...
+    # Vocab Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +37,7 @@ def init_db():
             date TEXT
         )
     """)
+    # Schreiben Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +50,7 @@ def init_db():
             date TEXT
         )
     """)
+    # Sprechen Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +64,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Add this block for scores!
+    # Scores Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS scores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,6 +77,7 @@ def init_db():
             level TEXT
         )
     """)
+    # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
             student_code TEXT,
@@ -93,9 +90,8 @@ def init_db():
     """)
     conn.commit()
 
-# Call this ONCE after import
+# Call DB initialization ONCE after imports
 init_db()
-
 
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
     conn = get_connection()
@@ -112,6 +108,15 @@ def save_schreiben_submission(student_code, name, level, essay, score, feedback)
     c.execute(
         "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (student_code, name, level, essay, score, feedback, str(date.today()))
+    )
+    conn.commit()
+
+def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, teil, message, score, feedback, str(date.today()))
     )
     conn.commit()
 
@@ -145,6 +150,31 @@ def inc_falowen_usage(student_code):
 
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+
+def get_vocab_streak(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
+        (student_code,),
+    )
+    rows = c.fetchall()
+    if not rows:
+        return 0
+
+    dates = [date.fromisoformat(r[0]) for r in rows]
+    if (date.today() - dates[0]).days > 1:
+        return 0
+    streak = 1
+    prev = dates[0]
+    for d in dates[1:]:
+        if (prev - d).days == 1:
+            streak += 1
+            prev = d
+        else:
+            break
+    return streak
+
 
 # --- Streamlit page config ---
 st.set_page_config(
