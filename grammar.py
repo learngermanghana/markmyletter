@@ -769,12 +769,6 @@ if st.session_state["logged_in"]:
     # --- DASHBOARD TAB ---
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
-
-        # 🔄 Reload Button (fetch latest from Google Sheet)
-        if st.button("🔄 Reload Student Data from Google Sheet"):
-            st.cache_data.clear()
-            st.success("Student data reloaded! Please wait a second...")
-            st.rerun()
         
         # Always fetch latest student data
         df_students = load_student_data()
