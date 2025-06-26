@@ -1465,7 +1465,7 @@ if tab == "Vocab Trainer":
         st.session_state["show_next_button"] = False
         st.session_state["current_vocab_idx"] = None
         st.success("Progress reset.")
-        st.stop()
+        st.rerun()
 
     # Check daily goal
     if used_today >= VOCAB_DAILY_LIMIT:
