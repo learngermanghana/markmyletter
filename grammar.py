@@ -224,23 +224,21 @@ CODES_FILE = "student_codes.csv"
 
 @st.cache_data
 def load_student_data():
-    """Load student data from STUDENTS_CSV.
-    If missing or empty, return empty DataFrame so app still runs."""
-    path = globals().get("STUDENTS_CSV", "students.csv")
-    if not os.path.exists(path):
-        st.warning("Students file not found. Using empty data.")
-        return pd.DataFrame()
-    try:
-        df = pd.read_csv(path)
-    except pd.errors.EmptyDataError:
-        st.warning("Students file is empty. Using empty data.")
-        return pd.DataFrame()
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+    import requests, io, pandas as pd
 
-    df.columns = [c.strip() for c in df.columns]
-    for col in ["StudentCode", "Email"]:
-        if col in df.columns:
-            df[col] = df[col].astype(str).str.strip().str.lower()
-    return df
+    try:
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+        response.raise_for_status()
+        df = pd.read_csv(io.StringIO(response.text), engine='python')
+        df.columns = [c.strip() for c in df.columns]
+        for col in ["StudentCode", "Email"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip().str.lower()
+        return df
+    except Exception as e:
+        st.warning(f"Could not load student data from Google Sheets: {e}")
+        return pd.DataFrame()
 
 
 # ====================================
