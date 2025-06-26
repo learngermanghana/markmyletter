@@ -1423,6 +1423,8 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1) + MY VOCAB
 # =========================================
 
+if tab == "Vocab Trainer":
+
 def ai_vocab_feedback(word, student, correct):
     """Direct match and fallback to AI for nuanced feedback."""
     student_ans = student.strip().lower()
