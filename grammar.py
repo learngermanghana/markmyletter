@@ -1513,10 +1513,7 @@ if tab == "Vocab Trainer":
     cols[1].success(f"**Practiced**\n\n{count_practiced(selected)} words")
     cols[2].warning(f"**Completed**\n\n{count_completed(selected)} words")
     cols[3].info(f"**My Vocab ({selected})**\n\n{personal_stats.get(selected,0)} saved")
-
     # =============== PRACTICE MODE ===============
-
-    # ... (other code unchanged)
 
     if tab_mode == "Practice":
         st.header("🧠 Vocabulary Practice")
@@ -1539,19 +1536,21 @@ if tab == "Vocab Trainer":
             st.session_state["show_next_button"] = False
             st.session_state["current_vocab_idx"] = None
             st.session_state["last_was_correct"] = False
+            st.session_state.pop("vocab_answer_box", None)
             st.rerun()
 
         # If feedback exists and waiting for Next:
-        if st.session_state.get("vocab_feedback") and st.session_state.get("show_next_button"):
+        if st.session_state["vocab_feedback"] and st.session_state["show_next_button"]:
             st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
             if st.button("➡️ Next"):
-                if st.session_state.get("last_was_correct"):
+                if st.session_state["last_was_correct"]:
                     st.session_state["vocab_completed"].add(st.session_state["current_vocab_idx"])
                 # Reset for next round
                 st.session_state["vocab_feedback"] = ""
                 st.session_state["show_next_button"] = False
                 st.session_state["current_vocab_idx"] = None
                 st.session_state["last_was_correct"] = False
+                st.session_state.pop("vocab_answer_box", None)
                 st.rerun()
             st.stop()  # Don't show input again until Next is pressed
 
@@ -1560,15 +1559,15 @@ if tab == "Vocab Trainer":
             if idx is None or idx not in pending_idxs:
                 idx = random.choice(pending_idxs)
                 st.session_state["current_vocab_idx"] = idx
+                st.session_state.pop("vocab_answer_box", None)
             word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
             corr = vocab_list[idx][1] if is_tuple else None
-            ans_key = f"vocab_ans_{idx}"
-            check_key = f"vocab_check_{idx}_{st.session_state.get('show_next_button', False)}"
 
-            ans = st.text_input("Your answer:", key=ans_key)
+            st.markdown(f"**Translate:** {word}")
+            ans = st.text_input("Your answer:", key="vocab_answer_box")
             # Show "Check" only if no feedback is waiting
-            if not st.session_state.get("show_next_button"):
-                if st.button("Check", key=check_key):
+            if not st.session_state["show_next_button"]:
+                if st.button("Check", key=f"check_{idx}_{selected}"):
                     fb, correct, close = ai_vocab_feedback(word, ans, corr)
                     st.session_state["vocab_feedback"] = fb
                     st.session_state["show_next_button"] = True
@@ -1580,6 +1579,9 @@ if tab == "Vocab Trainer":
                     st.rerun()
         else:
             st.success("🎉 All words completed for this level!")
+
+
+
 
     # =============== MY VOCAB MODE ===============
     if tab_mode == "My Vocab":
