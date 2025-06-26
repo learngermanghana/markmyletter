@@ -1425,46 +1425,46 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
 
-def ai_vocab_feedback(word, student, correct):
-    """Direct match and fallback to AI for nuanced feedback."""
-    student_ans = student.strip().lower()
-    if correct is not None:
-        valid = ([c.strip().lower() for c in correct]
-                 if isinstance(correct, (list, tuple))
-                 else [correct.strip().lower()])
-        if student_ans in valid:
-            return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
-    # Fallback to AI
-    target = correct or word
-    prompt = (
-        f"The student answered '{student.strip()}' for the German word '{word.strip()}'. "
-        f"The expected answer is '{target.strip()}'.\n"
-        "1. Reply 'True' or 'False' on the first line if the student's answer is correct.\n"
-        "2. If False, write: 'Correct answer: {target}'.\n"
-        "3. If the student's answer is close, include 'You were close!'."
-    )
-    try:
-        client = OpenAI()
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=100,
-            temperature=0.2,
+    def ai_vocab_feedback(word, student, correct):
+        """Direct match and fallback to AI for nuanced feedback."""
+        student_ans = student.strip().lower()
+        if correct is not None:
+            valid = ([c.strip().lower() for c in correct]
+                    if isinstance(correct, (list, tuple))
+                    else [correct.strip().lower()])
+            if student_ans in valid:
+                return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
+        # Fallback to AI
+        target = correct or word
+        prompt = (
+            f"The student answered '{student.strip()}' for the German word '{word.strip()}'. "
+            f"The expected answer is '{target.strip()}'.\n"
+            "1. Reply 'True' or 'False' on the first line if the student's answer is correct.\n"
+            "2. If False, write: 'Correct answer: {target}'.\n"
+            "3. If the student's answer is close, include 'You were close!'."
         )
-        reply = resp.choices[0].message.content.strip()
-        lines = reply.splitlines()
-        is_correct = lines[0].strip().lower().startswith("true")
-        is_close = "close" in reply.lower()
-        if is_correct:
-            prefix = "<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
-        elif is_close:
-            prefix = "<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
-        else:
-            prefix = "<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
-        feedback = prefix + "\n".join(lines[1:])
-        return feedback, is_correct, is_close
-    except Exception as e:
-        return f"<span style='color:red'>AI check failed: {e}</span>", False, False
+        try:
+            client = OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.2,
+            )
+            reply = resp.choices[0].message.content.strip()
+            lines = reply.splitlines()
+            is_correct = lines[0].strip().lower().startswith("true")
+            is_close = "close" in reply.lower()
+            if is_correct:
+                prefix = "<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
+            elif is_close:
+                prefix = "<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
+            else:
+                prefix = "<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
+            feedback = prefix + "\n".join(lines[1:])
+            return feedback, is_correct, is_close
+        except Exception as e:
+            return f"<span style='color:red'>AI check failed: {e}</span>", False, False
 
 student_code = st.session_state.get("student_code", "demo")
 student_name = st.session_state.get("student_name", "Demo")
