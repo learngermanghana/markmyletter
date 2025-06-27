@@ -13,6 +13,7 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -1811,10 +1812,6 @@ if tab == "My Results and Resources":
     # === LIVE GOOGLE SHEETS CSV LINK ===
     GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
-    import requests
-    import io
-    import pandas as pd
-    from fpdf import FPDF
 
     @st.cache_data
     def fetch_scores():
