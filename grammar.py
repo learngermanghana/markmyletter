@@ -1581,9 +1581,6 @@ if tab == "Vocab Trainer":
         else:
             st.success("🎉 All words completed for this level!")
 
-
-
-
     # =============== MY VOCAB MODE ===============
     if tab_mode == "My Vocab":
         st.header("📝 My Personal Vocabulary List")
@@ -1610,21 +1607,21 @@ if tab == "Vocab Trainer":
                 pdf.add_page()
                 pdf.set_font("Arial", size=11)
                 title = f"My Personal Vocab – {selected} ({student_name})"
-                pdf.cell(0, 8, title, ln=1)
+                pdf.cell(0, 8, ascii_only(title), ln=1)
                 pdf.ln(3)
 
                 # Table headers
                 pdf.set_font("Arial", "B", 10)
-                pdf.cell(50, 8, "German", border=1)
-                pdf.cell(60, 8, "Translation", border=1)
-                pdf.cell(30, 8, "Date", border=1)
+                pdf.cell(50, 8, ascii_only("German"), border=1)
+                pdf.cell(60, 8, ascii_only("Translation"), border=1)
+                pdf.cell(30, 8, ascii_only("Date"), border=1)
                 pdf.ln()
                 pdf.set_font("Arial", "", 10)
 
                 for row in rows:
-                    pdf.cell(50, 8, str(row[1]), border=1)
-                    pdf.cell(60, 8, str(row[2]), border=1)
-                    pdf.cell(30, 8, str(row[3]), border=1)
+                    pdf.cell(50, 8, ascii_only(row[1]), border=1)
+                    pdf.cell(60, 8, ascii_only(row[2]), border=1)
+                    pdf.cell(30, 8, ascii_only(row[3]), border=1)
                     pdf.ln()
 
                 pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
@@ -1641,6 +1638,7 @@ if tab == "Vocab Trainer":
 # ===================
 # END OF VOCAB TRAINER TAB
 # ===================
+
 
 
 
