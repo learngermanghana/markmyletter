@@ -12,6 +12,7 @@ import io
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+import unicodedata
 
 
 # ---- OpenAI Client Setup ----
@@ -146,6 +147,10 @@ def save_sprechen_submission(student_code, name, level, teil, message, score, fe
         (student_code, name, level, teil, message, score, feedback, str(date.today()))
     )
     conn.commit()
+
+def ascii_only(text):
+    # Remove accents/umlauts/etc and convert to closest ASCII
+    return unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('ascii')
 
 # ====== PERSONAL VOCAB HELPERS ======
 def get_personal_vocab_stats(student_code):
