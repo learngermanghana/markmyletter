@@ -250,6 +250,19 @@ def get_writing_stats(student_code):
     # For now, return zeros if you haven't implemented yet
     return 0, 0, 0
 
+def get_student_stats(student_code):
+    # For example, fetch summary stats per level from schreiben_backup table
+    cs.execute("""
+        SELECT level, COUNT(*) as attempted, SUM(CASE WHEN score >= 17 THEN 1 ELSE 0 END) as correct
+        FROM schreiben_backup
+        WHERE student_code = %s
+        GROUP BY level
+    """, (student_code,))
+    rows = cs.fetchall()
+    stats = {}
+    for level, attempted, correct in rows:
+        stats[level] = {"attempted": attempted, "correct": correct}
+    return stats
 
 # ====== FALOWEN USAGE & DAILY QUOTA (per student, session) ======
 FALOWEN_DAILY_LIMIT = 20  # Set your daily max attempts per student
