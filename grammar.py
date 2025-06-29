@@ -1631,7 +1631,7 @@ if tab == "Vocab Trainer":
             if submitted and w and t:
                 add_my_vocab(student_code, level, w.strip(), t.strip())
                 st.success(f"Added: {w} → {t}")
-                st.experimental_rerun()
+                st.rerun()
 
         vocab_list = get_my_vocab(student_code, level)
         if vocab_list:
