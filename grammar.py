@@ -439,6 +439,25 @@ if not st.session_state["logged_in"]:
             st.error("Student list is not available.")
     st.stop()
 
+def get_vocab_streak(student_code):
+    """Return the number of consecutive days student has done vocab practice."""
+    rows = get_vocab_progress(student_code)
+    if not rows:
+        return 0
+    # Extract dates where correct == True
+    dates = sorted({str(row[3]) for row in rows if row[2]}, reverse=True)
+    if not dates:
+        return 0
+    streak = 0
+    today = date.today()
+    for i, d in enumerate(dates):
+        day = datetime.strptime(d, "%Y-%m-%d").date()
+        if day == today - timedelta(days=streak):
+            streak += 1
+        else:
+            break
+    return streak
+
 # ====================================
 # 4. FLEXIBLE ANSWER CHECKERS
 # ====================================
