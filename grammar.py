@@ -1471,12 +1471,12 @@ if tab == "Vocab Trainer":
         st.header("🧠 Practice Words")
         if not vocab:
             st.info("No words available for this level.")
-            return
+            st.stop()
 
         pending = [i for i, w in enumerate(vocab) if w not in correct]
         st.progress(practiced / max(1, total))
 
-        # controls (reset/next) without rerun
+        # controls (reset/next) without extra reruns
         colr, coln = st.columns(2)
         with colr:
             if st.button("Reset Progress", key="reset_vocab"):
@@ -1492,7 +1492,7 @@ if tab == "Vocab Trainer":
         # show feedback if exists
         if st.session_state.vocab_feedback:
             st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
-            return
+            st.stop()
 
         if not pending:
             st.success("🎉 You've practiced all words!")
@@ -1529,7 +1529,6 @@ if tab == "Vocab Trainer":
             if st.form_submit_button("Add") and w and t:
                 add_my_vocab(student_code, level, w.strip(), t.strip())
                 st.success(f"Added: {w} → {t}")
-                # clear form state
                 st.experimental_rerun()
 
         vocab_list = get_my_vocab(student_code, level)
