@@ -1590,13 +1590,14 @@ if tab == "Vocab Trainer":
                     delete_my_vocab(student_code, row['Word'])
                     st.experimental_rerun()
 
+            # --- CSV Download ---
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "Download CSV",
+                "⬇️ Download CSV",
                 csv_data,
-                file_name="my_vocab.csv",
+                file_name=f"my_vocab_{level}_{student_code}.csv",
                 mime="text/csv",
-                key="csv_dl",
+                key="csv_dl"
             )
 
             # --- PDF Download ---
@@ -1620,21 +1621,21 @@ if tab == "Vocab Trainer":
                     pdf.ln()
                 pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
                 st.download_button(
-                    "Download PDF",
+                    "⬇️ Download PDF",
                     pdf_bytes,
-                    file_name="my_vocab.pdf",
+                    file_name=f"my_vocab_{level}_{student_code}.pdf",
                     mime="application/pdf",
-                    key="pdf_dl",
+                    key="pdf_dl"
                 )
             except Exception as e:
                 st.error(f"PDF generation failed: {e}")
         else:
             st.info("No saved vocab yet.")
 
-            
 # ===================
 # END OF VOCAB TRAINER TAB
 # ===================
+
 
 
 # ====================================
