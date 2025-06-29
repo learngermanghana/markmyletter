@@ -315,158 +315,6 @@ def inc_falowen_usage(student_code):
     st.session_state["falowen_usage"].setdefault(key, 0)
     st.session_state["falowen_usage"][key] += 1
 
-def has_falowen_quota(student_code):
-    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
-
-    
-# ====================================
-# 2. STUDENT DATA LOADING
-# ====================================
-
-STUDENTS_CSV = "students.csv"
-CODES_FILE = "student_codes.csv"
-
-@st.cache_data
-def load_student_data():
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
-    import requests, io, pandas as pd
-
-    try:
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-        df.columns = [c.strip() for c in df.columns]
-        for col in ["StudentCode", "Email"]:
-            if col in df.columns:
-                df[col] = df[col].astype(str).str.strip().str.lower()
-        return df
-    except Exception as e:
-        st.warning(f"Could not load student data from Google Sheets: {e}")
-        return pd.DataFrame()
-
-
-# ====================================
-# 3. STUDENT LOGIN LOGIC (single, clean block!)
-# ====================================
-
-# Use a secret from env or .streamlit/secrets.toml (RECOMMENDED, DO NOT HARD-CODE)
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET environment variable not set")
-
-cookie_manager = EncryptedCookieManager(
-    prefix="falowen_",
-    password=COOKIE_SECRET
-)
-cookie_manager.ready()
-
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = None
-if "student_code" not in st.session_state:
-    st.session_state["student_code"] = ""
-if "student_name" not in st.session_state:
-    st.session_state["student_name"] = ""
-
-# --- 1. Check for cookie before showing login ---
-code_from_cookie = cookie_manager.get("student_code")
-if not st.session_state.get("logged_in", False) and code_from_cookie:
-    st.session_state["student_code"] = code_from_cookie
-    st.session_state["logged_in"] = True
-    # Optional: Fill in other fields
-    df_students = load_student_data()
-    found = df_students[
-        (df_students["StudentCode"].astype(str).str.lower().str.strip() == code_from_cookie)
-    ]
-    if not found.empty:
-        st.session_state["student_row"] = found.iloc[0].to_dict()
-        st.session_state["student_name"] = found.iloc[0]["Name"]
-# --- 2. Show login if not logged in ---
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input(
-        "Enter your Student Code or Email to begin:",
-        value=code_from_cookie if code_from_cookie else ""
-    ).strip().lower()
-    if st.button("Login"):
-        df_students = load_student_data()
-        found = df_students[
-            (df_students["StudentCode"].astype(str).str.lower().str.strip() == login_input) |
-            (df_students["Email"].astype(str).str.lower().str.strip() == login_input)
-        ]
-        if not found.empty:
-            st.session_state["logged_in"] = True
-            st.session_state["student_row"] = found.iloc[0].to_dict()
-            st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-            st.session_state["student_name"] = found.iloc[0]["Name"]
-            # ← Replace .set() with dict assignment and save()
-            cookie_manager["student_code"] = st.session_state["student_code"]
-            cookie_manager.save()
-            st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
-            st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email and try again.")
-    st.stop()
-
-# --- 1. Always check if cookie manager is ready ---
-if not cookie_manager.ready():
-    st.warning("Cookies are not ready. Please refresh this page.")
-    st.stop()
-
-# --- 2. Try to load student code from cookie safely ---
-code_from_cookie = cookie_manager.get("student_code") or ""
-
-# --- 3. Check if user is logged in (via session) ---
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "student_row" not in st.session_state:
-    st.session_state["student_row"] = None
-if "student_code" not in st.session_state:
-    st.session_state["student_code"] = ""
-if "student_name" not in st.session_state:
-    st.session_state["student_name"] = ""
-
-# --- 4. Try auto-login if cookie exists ---
-if not st.session_state["logged_in"] and code_from_cookie:
-    df_students = load_student_data()
-    if not df_students.empty and "StudentCode" in df_students.columns:
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code_from_cookie]
-        if not found.empty:
-            st.session_state["student_code"] = code_from_cookie
-            st.session_state["logged_in"] = True
-            st.session_state["student_row"] = found.iloc[0].to_dict()
-            st.session_state["student_name"] = found.iloc[0]["Name"]
-
-# --- 5. If not logged in, show login UI ---
-if not st.session_state["logged_in"]:
-    st.title("🔑 Student Login")
-    login_input = st.text_input(
-        "Enter your Student Code or Email to begin:",
-        value=code_from_cookie
-    ).strip().lower()
-    if st.button("Login"):
-        df_students = load_student_data()
-        if not df_students.empty:
-            found = df_students[
-                (df_students["StudentCode"].str.lower().str.strip() == login_input) |
-                (df_students["Email"].str.lower().str.strip() == login_input)
-            ]
-            if not found.empty:
-                st.session_state["logged_in"] = True
-                st.session_state["student_row"] = found.iloc[0].to_dict()
-                st.session_state["student_code"] = found.iloc[0]["StudentCode"].lower()
-                st.session_state["student_name"] = found.iloc[0]["Name"]
-                cookie_manager["student_code"] = st.session_state["student_code"]
-                cookie_manager.save()
-                st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
-                st.rerun()
-            else:
-                st.error("Login failed. Please check your Student Code or Email and try again.")
-        else:
-            st.error("Student list is not available.")
-    st.stop()
-
 def get_vocab_streak(student_code):
     """Return the number of consecutive days student has done vocab practice."""
     rows = get_vocab_progress(student_code)
@@ -485,6 +333,133 @@ def get_vocab_streak(student_code):
         else:
             break
     return streak
+
+def has_falowen_quota(student_code):
+    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+
+    
+# =====================
+# 1. CONFIG & DATA LOAD
+# =====================
+
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    raise ValueError("COOKIE_SECRET environment variable not set!")
+
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+cookie_manager.ready()
+
+@st.cache_data
+def load_student_data():
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
+    try:
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+        response.raise_for_status()
+        df = pd.read_csv(io.StringIO(response.text), engine='python')
+        df.columns = [c.strip() for c in df.columns]
+        for col in ["StudentCode", "Email"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip().str.lower()
+        return df
+    except Exception as e:
+        st.warning(f"Could not load student data from Google Sheets: {e}")
+        return pd.DataFrame()
+
+df_students = load_student_data()
+if df_students.empty or "StudentCode" not in df_students.columns:
+    st.error("Could not load student list. Please try again later.")
+    st.stop()
+
+# =====================
+# 2. SESSION STATE DEFAULTS
+# =====================
+for k, v in {
+    "logged_in": False,
+    "student_row": None,
+    "student_code": "",
+    "student_name": ""
+}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# =====================
+# 3. LOGIN LOGIC (CLEAN FLOW)
+# =====================
+
+# -- 1. Always check if cookie manager is ready --
+if not cookie_manager.ready():
+    st.warning("Cookies are not ready. Please refresh this page.")
+    st.stop()
+
+# -- 2. Attempt auto-login from cookie --
+if not st.session_state["logged_in"]:
+    cookie_code = None
+    try:
+        cookie_code = cookie_manager.get("student_code")
+    except Exception:
+        cookie_code = None
+    if cookie_code:
+        cookie_code = cookie_code.strip().lower()
+        match = df_students[df_students["StudentCode"].str.lower().str.strip() == cookie_code]
+        if not match.empty:
+            st.session_state["student_code"] = cookie_code
+            st.session_state["student_row"] = match.iloc[0].to_dict()
+            st.session_state["student_name"] = match.iloc[0]["Name"]
+            st.session_state["logged_in"] = True
+
+# -- 3. Manual login UI if not logged in --
+if not st.session_state["logged_in"]:
+    st.title("🔑 Student Login")
+    login_input = st.text_input("Enter your Student Code or Email:").strip().lower()
+    if st.button("Login"):
+        match = df_students[
+            (df_students["StudentCode"].str.lower().str.strip() == login_input) |
+            (df_students["Email"].str.lower().str.strip() == login_input)
+        ]
+        if not match.empty:
+            st.session_state["student_code"] = match.iloc[0]["StudentCode"].strip().lower()
+            st.session_state["student_row"] = match.iloc[0].to_dict()
+            st.session_state["student_name"] = match.iloc[0]["Name"]
+            st.session_state["logged_in"] = True
+            cookie_manager["student_code"] = st.session_state["student_code"]
+            cookie_manager.save()
+            st.success(f"Welcome, {st.session_state['student_name']}! Login successful.")
+            st.rerun()
+        else:
+            st.error("Login failed. Please check your Student Code or Email and try again.")
+    st.stop()
+
+# -- 4. Final check: If logged in, but student is missing from sheet (deleted, error, etc) --
+if st.session_state["logged_in"]:
+    code = st.session_state["student_code"]
+    match = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
+    if match.empty:
+        st.warning("Your student account could not be found. Please log in again.")
+        for k in ["logged_in", "student_code", "student_name", "student_row"]:
+            st.session_state[k] = "" if "name" in k or "code" in k else False
+        cookie_manager["student_code"] = ""
+        cookie_manager.save()
+        st.rerun()
+
+# =====================
+# 4. LOGOUT BUTTON
+# =====================
+if st.session_state.get("logged_in", False):
+    col1, col2 = st.columns([2, 3])
+    with col2:
+        if st.button("🚪 Log out", key="logout_btn"):
+            for k in ["logged_in", "student_row", "student_code", "student_name"]:
+                if k in st.session_state:
+                    del st.session_state[k]
+            cookie_manager["student_code"] = ""
+            cookie_manager.save()
+            st.success("Logged out successfully.")
+            st.rerun()
+
+# ====== Now continue your app below this point, tabs, etc... ======
+
+
+
 
 # ====================================
 # 4. FLEXIBLE ANSWER CHECKERS
