@@ -1433,6 +1433,40 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
+if tab == "Vocab Trainer":
+
+    # --- Fast normalization helper (no unicodedata needed) ---
+    def fast_clean(text):
+        if not text:
+            return ""
+        return (
+            str(text)
+            .lower()
+            .replace("ä", "a")
+            .replace("ö", "o")
+            .replace("ü", "u")
+            .replace("ß", "ss")
+            .replace("-", " ")
+            .replace("  ", " ")
+            .strip()
+        )
+
+    # --- Set daily limit higher ---
+    VOCAB_DAILY_LIMIT = 40
+
+    # --- Session state defaults ---
+    st.session_state.setdefault("vocab_feedback", None)
+    st.session_state.setdefault("current_idx", None)
+    st.session_state.setdefault("completed", set())
+    st.session_state.setdefault("vocab_usage", 0)
+
+    # --- Stats helpers (DB version) ---
+    def practiced_count(code, level):
+        rows = get_vocab_progress(code)
+        # Only count for this level!
+        vocab_set = set(w for w, _, correct, _ in rows if correct and level.lower() in str(w).lower())
+        return len(vocab_set)
+
     def mastered_count(code, level):
         # Words answered correctly at least once
         rows = get_vocab_progress(code)
@@ -1630,8 +1664,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.download_button("Download PDF", pdf_bytes, file_name="my_vocab.pdf", mime="application/pdf")
         else:
             st.info("No saved vocab yet.")
-
-                
+            
 # ===================
 # END OF VOCAB TRAINER TAB
 # ===================
