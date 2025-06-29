@@ -241,6 +241,15 @@ def ai_vocab_feedback(word, student, correct):
         0.0,
     )
 
+def get_writing_stats(student_code):
+    """
+    Dummy implementation.
+    Replace with logic to count the student's total attempted,
+    passed (e.g. score >= 17), and accuracy percentage.
+    """
+    # For now, return zeros if you haven't implemented yet
+    return 0, 0, 0
+
 
 # ====== FALOWEN USAGE & DAILY QUOTA (per student, session) ======
 FALOWEN_DAILY_LIMIT = 20  # Set your daily max attempts per student
