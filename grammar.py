@@ -1434,40 +1434,21 @@ if tab == "Exams Mode & Custom Chat":
 # =========================
 
 if tab == "Vocab Trainer":
-    tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
-    selected = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
+    import random, difflib
 
-    # --- Helper for safe text comparison ---
-    def fast_clean(text):
-        if not text:
-            return ""
-        return (
-            str(text)
-            .lower()
-            .replace("ä", "a")
-            .replace("ö", "o")
-            .replace("ü", "u")
-            .replace("ß", "ss")
-            .replace("-", " ")
-            .replace("  ", " ")
-            .strip()
-        )
-
-    def safe_pdf_val(val):
-        # Handles None, float('nan'), etc.
-        if pd.isnull(val) or val is None:
-            return ""
-        return str(val)
-
-    # --- Setup ---
+    # ---- Initialize state for this tab
     st.session_state.setdefault("vocab_feedback", None)
     st.session_state.setdefault("current_idx", None)
 
+    # --- UI controls at the top ---
+    tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
-    full_list = VOCAB_LISTS.get(level, [])
-    vocab = [w for w, *_ in full_list]
 
-    # --- Fetch all progress just once ---
+    # --- Vocabulary source ---
+    full_list = VOCAB_LISTS.get(level, [])
+    vocab = [w if isinstance(w, str) else w[0] for w in full_list]
+
+    # --- Get progress from DB for this student/level
     progress = get_vocab_progress(student_code)
     attempted = {r[0] for r in progress if r[0] in vocab}
     correct_set = {r[0] for r in progress if r[2] and r[0] in vocab}
@@ -1475,13 +1456,13 @@ if tab == "Vocab Trainer":
     # --- Compute stats ---
     total = len(vocab)
     practiced = len(attempted)
-    mastered  = len(correct_set)
+    mastered = len(correct_set)
     try:
         saved = count_my_vocab(student_code, level)
     except Exception:
         saved = 0
 
-    # --- Stats UI ---
+    # --- Stats display ---
     st.subheader("📊 Your Vocabulary Stats")
     stat_cols = st.columns(4)
     stat_cols[0].metric("Total", total)
@@ -1489,10 +1470,8 @@ if tab == "Vocab Trainer":
     stat_cols[2].metric("Mastered", mastered)
     stat_cols[3].metric("Saved", saved)
 
-    mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
-
-    # ========== Practice Mode ==========
-    if mode == "Practice":
+    # ================= PRACTICE MODE =================
+    if tab_mode == "Practice":
         st.header("🧠 Practice Words")
         pending = [i for i, w in enumerate(vocab) if w not in correct_set]
         st.progress(practiced / max(1, total))
@@ -1512,12 +1491,12 @@ if tab == "Vocab Trainer":
             st.success("🎉 You've practiced all words for this level!")
             st.stop()
 
-        # Always select from only pending words
+        # Pick a new word to practice if needed
         if st.session_state.current_idx not in pending:
             st.session_state.current_idx = random.choice(pending)
         idx = st.session_state.current_idx
         word = vocab[idx]
-        answer = dict(full_list).get(word, "")
+        answer = dict(full_list).get(word, "") if isinstance(full_list[0], tuple) else ""
 
         with st.form(key=f"practice_form_{idx}"):
             st.markdown(f"**Translate:** {word}")
@@ -1526,7 +1505,7 @@ if tab == "Vocab Trainer":
             if submit:
                 cleaned_user = fast_clean(user_ans)
                 cleaned_correct = fast_clean(answer)
-                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio()
+                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio() if cleaned_correct else 0
                 correct = False
 
                 # --- SMART CHECK ---
@@ -1542,7 +1521,7 @@ if tab == "Vocab Trainer":
                     fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
                     correct = True
                 else:
-                    # --- OPTIONAL: OpenAI GPT-4o fallback ---
+                    # --- Optional OpenAI fallback ---
                     try:
                         resp = client.chat.completions.create(
                             model="gpt-4o",
@@ -1551,7 +1530,7 @@ if tab == "Vocab Trainer":
                                     "role": "user",
                                     "content": (
                                         f"Is '{user_ans}' a valid English translation of the German word '{word}' "
-                                        f"for A1-A2 learners? Reply only True or False. Best answer: {answer}"
+                                        f"for {level} learners? Reply only True or False. Best answer: {answer}"
                                     ),
                                 }
                             ],
@@ -1572,62 +1551,66 @@ if tab == "Vocab Trainer":
         if st.session_state.vocab_feedback:
             st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
 
-# =============== MY VOCAB MODE ===============
-if tab_mode == "My Vocab":
-    st.header("📝 My Personal Vocabulary List")
-    st.write("Add words you want to remember, delete any, and download your full list as PDF.")
-
-    with st.form("add_my_vocab_form", clear_on_submit=True):
-        new_word = st.text_input("German Word", key="my_vocab_word")
-        new_translation = st.text_input("Translation (English or other)", key="my_vocab_translation")
-        submitted = st.form_submit_button("Add to My Vocab")
-        if submitted and new_word.strip() and new_translation.strip():
-            add_my_vocab(student_code, selected, new_word.strip(), new_translation.strip())
-            st.success(f"Added '{new_word.strip()}' → '{new_translation.strip()}' to your list.")
-            st.experimental_rerun()
-
-    rows = get_my_vocab(student_code, selected)
-    if rows:
-        for row in rows:
-            col1, col2, col3 = st.columns([4, 4, 1])
-            col1.markdown(f"**{row[0]}**")  # Word
-            col2.markdown(f"{row[1]}")      # Translation
-            if col3.button("🗑️", key=f"del_{row[0]}"):
-                delete_my_vocab(student_code, row[0])
-                st.experimental_rerun()
-
-        if st.button("📄 Download My Vocab as PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=11)
-            title = f"My Personal Vocab – {selected} ({student_name})"
-            pdf.cell(0, 8, ascii_only(title), ln=1)
-            pdf.ln(3)
-            # Table headers
-            pdf.set_font("Arial", "B", 10)
-            pdf.cell(50, 8, ascii_only("German"), border=1)
-            pdf.cell(60, 8, ascii_only("Translation"), border=1)
-            pdf.cell(30, 8, ascii_only("Date"), border=1)
-            pdf.ln()
-            pdf.set_font("Arial", "", 10)
-
-            for row in rows:
-                word = ascii_only(row[0]) if row[0] else ""
-                trans = ascii_only(row[1]) if len(row) > 1 and row[1] else ""
-                date_ = ascii_only(row[2]) if len(row) > 2 and row[2] else ""
-                pdf.cell(50, 8, word, border=1)
-                pdf.cell(60, 8, trans, border=1)
-                pdf.cell(30, 8, date_, border=1)
-                pdf.ln()
-            pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
-            st.download_button(
-                label="Download PDF",
-                data=pdf_bytes,
-                file_name=f"{student_code}_my_vocab_{selected}.pdf",
-                mime="application/pdf"
-            )
+    # ================= MY VOCAB MODE =================
     else:
-        st.info("No personal vocab saved yet for this level.")
+        st.header("📝 My Personal Vocabulary List")
+        st.write("Add words you want to remember, delete any, and download your full list as PDF.")
+        with st.form("add_my_vocab_form", clear_on_submit=True):
+            new_word = st.text_input("German Word", key="my_vocab_word")
+            new_translation = st.text_input("Translation (English or other)", key="my_vocab_translation")
+            submitted = st.form_submit_button("Add to My Vocab")
+            if submitted and new_word.strip() and new_translation.strip():
+                add_my_vocab(student_code, level, new_word.strip(), new_translation.strip())
+                st.success(f"Added '{new_word.strip()}' → '{new_translation.strip()}' to your list.")
+                st.rerun()
+        rows = get_my_vocab(student_code, level)
+        if rows:
+            df = pd.DataFrame(rows, columns=["Word", "Translation", "Date"])
+            for _, row in df.iterrows():
+                col1, col2, col3 = st.columns([4, 4, 1])
+                col1.markdown(f"**{row['Word']}**")
+                col2.markdown(f"{row['Translation']}")
+                if col3.button("🗑️", key=f"del_{row['Word']}"):
+                    delete_my_vocab(student_code, row['Word'])
+                    st.rerun()
+            # Download as CSV
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "Download CSV",
+                csv_data,
+                file_name="my_vocab.csv",
+                mime="text/csv",
+                key="csv_dl",
+            )
+            # Download as PDF
+            if st.button("📄 Download My Vocab as PDF"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=11)
+                title = f"My Personal Vocab – {level} ({student_name})"
+                pdf.cell(0, 8, ascii_only(title), ln=1)
+                pdf.ln(3)
+                # Table headers
+                pdf.set_font("Arial", "B", 10)
+                pdf.cell(50, 8, ascii_only("German"), border=1)
+                pdf.cell(60, 8, ascii_only("Translation"), border=1)
+                pdf.cell(30, 8, ascii_only("Date"), border=1)
+                pdf.ln()
+                pdf.set_font("Arial", "", 10)
+                for _, r in df.iterrows():
+                    pdf.cell(50, 8, ascii_only(r['Word']), border=1)
+                    pdf.cell(60, 8, ascii_only(r['Translation']), border=1)
+                    pdf.cell(30, 8, ascii_only(r['Date']), border=1)
+                    pdf.ln()
+                pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"{student_code}_my_vocab_{level}.pdf",
+                    mime="application/pdf"
+                )
+        else:
+            st.info("No personal vocab saved yet for this level.")
 
 # ===================
 # END OF VOCAB TRAINER TAB
