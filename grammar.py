@@ -259,6 +259,7 @@ def fast_clean(text: str) -> str:
         .decode("ascii")
         .strip()
         .lower()
+    )
         
 # ====== WRITING STATS (fix this as needed) ======
 def get_writing_stats(student_code):
