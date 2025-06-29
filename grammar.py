@@ -1433,17 +1433,17 @@ if tab == "Vocab Trainer":
 
     # --- Level selection & cache full list ---
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
-    full_list = VOCAB_LISTS.get(level, [])  # cached per level
+    full_list = VOCAB_LISTS.get(level, [])  # cached per level for performance
     vocab = [w for w, *_ in full_list]
 
-    # --- Fetch progress once ---
+    # --- Fetch progress once to avoid multiple DB calls ---
     progress = get_vocab_progress(student_code)
     attempted = {r[0] for r in progress}
     correct_set = {r[0] for r in progress if r[2]}
 
-    # --- Compute stats ---
+    # --- Compute stats efficiently ---
     total = len(vocab)
-    practiced = len(attempted & set(vocab))
+    practiced = len(attempted & set(vocab))  # only count valid words
     mastered  = len(correct_set & set(vocab))
     saved     = count_my_vocab(student_code, level)
 
@@ -1451,7 +1451,7 @@ if tab == "Vocab Trainer":
     st.subheader("📊 Your Vocabulary Stats")
     if total == 0:
         st.info("No words available for this level yet.")
-        st.stop()
+        st.stop()  # early exit if nothing to practice
     if practiced or mastered or saved:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total", total)
@@ -1471,7 +1471,7 @@ if tab == "Vocab Trainer":
     if mode == "Practice":
         st.header("🧠 Practice Words")
         pending = [i for i, w in enumerate(vocab) if w not in correct_set]
-        st.progress(practiced / max(1, total))
+        st.progress(practiced / max(1, total))  # avoid division by zero
 
         # --- Controls ---
         colr, coln = st.columns(2)
@@ -1492,9 +1492,9 @@ if tab == "Vocab Trainer":
             st.session_state.current_idx = random.choice(pending)
         idx = st.session_state.current_idx
         word = vocab[idx]
-        answer = dict(full_list).get(word, "")
+        answer = dict(full_list).get(word, "")  # fallback to empty string
 
-        # --- Practice form ---
+        # --- Practice form: using st.form to prevent double-click issues ---
         with st.form(key=f"practice_form_{idx}"):
             st.markdown(f"**Translate:** {word}")
             user_ans = st.text_input("Your answer:", key=f"ans_{idx}")
@@ -1531,7 +1531,7 @@ if tab == "Vocab Trainer":
                     delete_my_vocab(student_code, row['Word'])
                     st.experimental_rerun()
 
-            # CSV download
+            # CSV download: always fast
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 "Download CSV",
@@ -1541,7 +1541,7 @@ if tab == "Vocab Trainer":
                 key="csv_dl",
             )
 
-            # PDF download
+            # PDF download: consider caching or offloading heavy tasks
             try:
                 pdf = FPDF()
                 pdf.add_page()
@@ -1569,6 +1569,8 @@ if tab == "Vocab Trainer":
                 )
             except Exception as e:
                 st.error(f"PDF generation failed: {e}")
+```
+
 
                 
 # ===================
