@@ -1483,15 +1483,36 @@ if tab == "Vocab Trainer":
         key = f"{code}_vocab_{str(date.today())}"
         st.session_state["vocab_usage_counter"][key] += 1
 
+
     # --- Stats UI ---
     st.subheader("📊 Your Vocabulary Stats")
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total", total_words(level))
-    col2.metric("Practiced", practiced_count(student_code, level))
-    col3.metric("Mastered", mastered_count(student_code, level))
-    col4.metric("Saved", personal_count(student_code, level))
 
+    # Calculate stats
+    total = total_words(level)
+    practiced = practiced_count(student_code, level)
+    mastered = mastered_count(student_code, level)
+    saved = personal_count(student_code, level)
+
+    if total == 0:
+        st.info("No words available for this level yet.")
+    else:
+        # Only show metrics if non-zero
+        if practiced > 0 or mastered > 0 or saved > 0:
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Total", total)
+            if practiced > 0:
+                col2.metric("Practiced", practiced)
+            if mastered > 0:
+                col3.metric("Mastered", mastered)
+            if saved > 0:
+                col4.metric("Saved", saved)
+        else:
+            # Show just total plus a friendly prompt
+            st.markdown(f"**Total Words:** {total}")
+            st.info("Start practicing to see your stats here!")
+
+    # ← And *then* your tab_mode selector goes here
     tab_mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
 
     # ========== Practice Mode ===========
