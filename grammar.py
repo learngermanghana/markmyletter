@@ -1424,20 +1424,38 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
 
-    # --- Session state defaults ---
+    # -------- 1. Session state defaults --------
     st.session_state.setdefault("vocab_feedback", None)
     st.session_state.setdefault("current_idx", None)
     st.session_state.setdefault("completed", set())
+    st.session_state.setdefault("vocab_rows", None)
 
-    # --- Stats helpers (DB version) ---
+    # -------- 2. Load all vocab progress ONCE for this session --------
+    if st.session_state["vocab_rows"] is None:
+        st.session_state["vocab_rows"] = get_vocab_progress(student_code)
+    vocab_rows = st.session_state["vocab_rows"]
+
+    # -------- 3. Build stats dictionaries for fast access --------
+    from collections import defaultdict
+
+    # Map: word -> [is_correct, date_learned, ...]
+    vocab_stats = defaultdict(lambda: {"correct": False, "dates": []})
+    for word, student_ans, is_correct, date_learned in vocab_rows:
+        vocab_stats[word]["correct"] |= bool(is_correct)
+        vocab_stats[word]["dates"].append(date_learned)
+
     def practiced_count(code, level):
-        rows = get_vocab_progress(code)
-        return len(set(r[0] for r in rows if r[2] and level in r[0]))
+        # Only count words attempted for this level
+        vocab = VOCAB_LISTS.get(level, [])
+        vocab_words = {w for w, *_ in vocab}
+        attempted = {w for w in vocab_stats if w in vocab_words}
+        return len(attempted)
 
     def mastered_count(code, level):
-        # Words answered correctly at least once
-        rows = get_vocab_progress(code)
-        return len(set(r[0] for r in rows if r[2] and level in r[0]))
+        vocab = VOCAB_LISTS.get(level, [])
+        vocab_words = {w for w, *_ in vocab}
+        correct = {w for w in vocab_stats if vocab_stats[w]["correct"] and w in vocab_words}
+        return len(correct)
 
     def personal_count(code, level):
         try:
@@ -1448,7 +1466,7 @@ if tab == "Vocab Trainer":
     def total_words(level):
         return len(VOCAB_LISTS.get(level, []))
 
-    # --- Stats UI ---
+    # -------- 4. Stats UI --------
     st.subheader("📊 Your Vocabulary Stats")
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
     col1, col2, col3, col4 = st.columns(4)
@@ -1467,10 +1485,8 @@ if tab == "Vocab Trainer":
             st.info("No words available for this level.")
             st.stop()
 
-        # Use DB progress to determine which are completed
-        completed_words = set(
-            r[0] for r in get_vocab_progress(student_code) if r[2]
-        )
+        # --- Completed words ---
+        completed_words = {w for w in vocab_stats if vocab_stats[w]["correct"]}
         pending = [i for i, entry in enumerate(vocab) if entry[0] not in completed_words]
         st.progress(len(completed_words) / max(1, total_words(level)))
 
@@ -1479,14 +1495,17 @@ if tab == "Vocab Trainer":
             st.session_state.completed.clear()
             st.session_state.vocab_feedback = None
             st.session_state.current_idx = None
+            st.session_state.vocab_rows = None  # force re-fetch
             st.success("Progress fully reset.")
             st.experimental_rerun()
 
+        # ---------- Feedback area ----------
         if st.session_state.vocab_feedback is not None:
             st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
             if st.button("Next", key="next_word"):
                 st.session_state.vocab_feedback = None
                 st.session_state.current_idx = None
+                st.session_state["ans_input_value"] = ""
             st.stop()
 
         if not pending:
@@ -1499,13 +1518,53 @@ if tab == "Vocab Trainer":
             word = entry[0]
             answer = entry[1] if len(entry) > 1 else None
 
-            st.markdown(f"**Translate:** {word}")
-            user_ans = st.text_input("Your answer:", key="ans_input")
+            st.markdown(f"**Translate:** <b style='color:#17617a'>{word}</b>", unsafe_allow_html=True)
+            user_ans = st.text_input("Your answer:", key="ans_input", value=st.session_state.get("ans_input_value", ""), on_change=lambda: st.session_state.update({"ans_input_value": ""}))
+
+            # -- LOCAL MATCH LOGIC (fast, no AI, more tolerant) --
+            def clean(text):
+                import re
+                return re.sub(r"[^a-zA-Z0-9]", "", (text or "").strip().lower())
+
+            def smart_match(a, b):
+                # allow "ü"=="u", etc., and ignore non-letters
+                a, b = clean(a), clean(b)
+                return a == b or difflib.SequenceMatcher(None, a, b).ratio() > 0.9
+
+            show_ai_button = False
             if st.button("Check", key=f"check_{idx}"):
-                feedback, correct, _ = ai_vocab_feedback(word, user_ans, answer)
-                st.session_state.vocab_feedback = feedback
-                if correct:
+                if not answer:
+                    st.session_state.vocab_feedback = "<span style='color:red'>No answer available for this word.</span>"
+                elif smart_match(user_ans, answer):
+                    st.session_state.vocab_feedback = "<span style='color:green'>✅ Correct!</span>"
                     save_vocab_submission(student_code, student_name, level, word, user_ans, True)
+                    st.session_state.vocab_rows = None  # Refresh stats
+                elif difflib.SequenceMatcher(None, clean(user_ans), clean(answer)).ratio() > 0.75:
+                    st.session_state.vocab_feedback = (
+                        f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span><br>"
+                        f"<button id='ai_check' onclick='document.getElementById(\"ai_button\").click()'>Check with AI?</button>"
+                    )
+                    show_ai_button = True
+                else:
+                    st.session_state.vocab_feedback = (
+                        f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
+                    )
+                    save_vocab_submission(student_code, student_name, level, word, user_ans, False)
+                    st.session_state.vocab_rows = None
+
+            # -- Optionally, AI check if the answer is close --
+            if show_ai_button or st.session_state.get("last_was_ai", False):
+                if st.button("Check with AI", key="ai_button"):
+                    feedback, correct, _ = ai_vocab_feedback(word, user_ans, answer)
+                    st.session_state.vocab_feedback = feedback
+                    if correct:
+                        save_vocab_submission(student_code, student_name, level, word, user_ans, True)
+                        st.session_state.vocab_rows = None
+                    st.session_state["last_was_ai"] = False
+                else:
+                    st.session_state["last_was_ai"] = True
+            else:
+                st.session_state["last_was_ai"] = False
 
     # ========= My Vocab Mode ==========
     else:
@@ -1561,13 +1620,9 @@ if tab == "Vocab Trainer":
         else:
             st.info("No saved vocab yet.")
 
-
 # ===================
 # END OF VOCAB TRAINER TAB
 # ===================
-
-
-
 
 
 # ====================================
