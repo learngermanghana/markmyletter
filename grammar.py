@@ -29,7 +29,7 @@ def get_snowflake_conn():
     return snowflake.connector.connect(
         user=st.secrets["SNOWFLAKE_USER"],
         password=st.secrets["SNOWFLAKE_PASSWORD"],
-        account=st.secrets["SNOWFLAKE_ACCOUNT"],   # e.g. 'ahtasba.gcp-west4'
+        account=st.secrets["SNOWFLAKE_ACCOUNT"],
         warehouse=st.secrets["SNOWFLAKE_WAREHOUSE"],
         database='FALOWEN_DB',
         schema='PUBLIC'
@@ -178,7 +178,6 @@ def load_progress(student_code, level, teil):
     return None, None
 
 def save_progress(student_code, level, teil, remaining, used):
-    # Upsert (update if exists, else insert)
     cs.execute(
         """
         MERGE INTO exam_progress t
@@ -198,60 +197,76 @@ def save_progress(student_code, level, teil, remaining, used):
         )
     )
 
-# --- Place this near your DB helpers ---
 def reset_vocab_progress(student_code, level):
     cs.execute(
         "DELETE FROM vocab_backup WHERE student_code=%s AND level=%s AND (status IS NULL OR status='')",
         (student_code, level)
     )
 
-def ai_vocab_feedback(word, student, correct):
-    """Returns feedback, correctness, and similarity for a vocab quiz."""
-    student_ans = (student or "").strip().lower()
-    if not correct:
-        return "<span style='color:red'>No answer available for this word.</span>", False, 0.0
-    valid = [c.strip().lower() for c in correct] if isinstance(correct, (list, tuple)) else [correct.strip().lower()]
-
-    # Direct match or fuzzy
-    for v in valid:
-        if student_ans == v:
-            return "<span style='color:green'>✅ Correct!</span>", True, 1.0
-        if is_close_answer(student_ans, v):
-            return (
-                f"<span style='color:orange'>Almost correct! The best answer: <b>{v}</b></span>",
-                True,
-                0.85
-            )
-        if is_almost(student_ans, v):
-            return (
-                f"<span style='color:orange'>Partially correct. The best answer: <b>{v}</b></span>",
-                False,
-                0.7
-            )
-
-    # Optionally, fallback to AI check for edge cases
-    is_valid = validate_translation_openai(word, student_ans)
-    if is_valid:
-        return (
-            "<span style='color:green'>✅ Acceptable translation (AI approved)!</span>", True, 0.8
-        )
-    return (
-        f"<span style='color:red'>❌ Not correct. The best answer: <b>{valid[0]}</b></span>",
-        False,
-        0.0,
+# ====== VOCAB STATS HELPERS (Snowflake, real-time) ======
+def practiced_count(student_code, level):
+    cs.execute(
+        """
+        SELECT COUNT(DISTINCT word)
+        FROM vocab_backup
+        WHERE student_code = %s AND level = %s
+        """,
+        (student_code, level)
     )
+    return cs.fetchone()[0] or 0
 
+def mastered_count(student_code, level):
+    cs.execute(
+        """
+        SELECT COUNT(DISTINCT word)
+        FROM vocab_backup
+        WHERE student_code = %s AND level = %s AND is_correct = 1
+        """,
+        (student_code, level)
+    )
+    return cs.fetchone()[0] or 0
+
+def personal_count(student_code, level=None):
+    try:
+        return count_my_vocab(student_code, level)
+    except Exception:
+        return 0
+
+# ====== VOCAB DAILY STREAK ======
+def get_vocab_streak(student_code):
+    rows = get_vocab_progress(student_code)
+    if not rows:
+        return 0
+    dates = sorted({str(row[3]) for row in rows if row[2]}, reverse=True)
+    if not dates:
+        return 0
+    streak = 0
+    today = date.today()
+    for i, d in enumerate(dates):
+        day = datetime.strptime(d, "%Y-%m-%d").date()
+        if day == today - timedelta(days=streak):
+            streak += 1
+        else:
+            break
+    return streak
+
+# ====== WRITING STATS (fix this as needed) ======
 def get_writing_stats(student_code):
-    """
-    Dummy implementation.
-    Replace with logic to count the student's total attempted,
-    passed (e.g. score >= 17), and accuracy percentage.
-    """
-    # For now, return zeros if you haven't implemented yet
-    return 0, 0, 0
+    cs.execute(
+        """
+        SELECT COUNT(*), SUM(CASE WHEN score >= 17 THEN 1 ELSE 0 END)
+        FROM schreiben_backup
+        WHERE student_code = %s
+        """,
+        (student_code,)
+    )
+    attempted, passed = cs.fetchone()
+    attempted = attempted or 0
+    passed = passed or 0
+    accuracy = round(100 * passed / attempted, 1) if attempted else 0
+    return attempted, passed, accuracy
 
 def get_student_stats(student_code):
-    # For example, fetch summary stats per level from schreiben_backup table
     cs.execute("""
         SELECT level, COUNT(*) as attempted, SUM(CASE WHEN score >= 17 THEN 1 ELSE 0 END) as correct
         FROM schreiben_backup
@@ -264,7 +279,7 @@ def get_student_stats(student_code):
         stats[level] = {"attempted": attempted, "correct": correct}
     return stats
 
-# ====== FALOWEN USAGE & DAILY QUOTA (per student, session) ======
+# ====== FALOWEN USAGE & DAILY QUOTA ======
 FALOWEN_DAILY_LIMIT = 20  # Set your daily max attempts per student
 
 def get_falowen_usage(student_code):
@@ -285,32 +300,6 @@ def inc_falowen_usage(student_code):
 
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
-
-# --- Streamlit page config ---
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
-        <div>
-            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
-            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
-            <br>
-            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
 
     
 # ====================================
