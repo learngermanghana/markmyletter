@@ -1433,161 +1433,89 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-if tab == "Vocab Trainer":
-    # --- Session state defaults ---
-    st.session_state.setdefault("vocab_feedback", None)
-    st.session_state.setdefault("current_idx", None)
+from passlib.context import CryptContext
 
-    # --- Fast clean helper (if you still need fuzzy matching) ---
-    def fast_clean(text: str) -> str:
-        return ''.join(c for c in (text or '').lower() if c.isalnum())
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    # --- Select level & prefetch vocabulary ---
-    level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
-    full_list = VOCAB_LISTS.get(level, [])
-    vocab = [w for w, *_ in full_list]  # cache the word list
+def set_password(student_code: str, raw_pw: str):
+    hash_ = pwd_ctx.hash(raw_pw)
+    cs.execute(
+        "UPDATE students SET password_hash = %s WHERE student_code = %s",
+        (hash_, student_code)
+    )
+    conn.commit()
 
-    # --- Fetch all progress once from DB ---
-    progress = get_vocab_progress(student_code)
-    attempted = {r[0] for r in progress}
-    correct   = {r[0] for r in progress if r[2]}
+def verify_password(student_code: str, raw_pw: str) -> bool:
+    cs.execute(
+        "SELECT password_hash FROM students WHERE student_code = %s",
+        (student_code,)
+    )
+    row = cs.fetchone()
+    return bool(row and pwd_ctx.verify(raw_pw, row[0]))
 
-    # --- Compute stats ---
-    total    = len(vocab)
-    practiced = len(attempted & set(vocab))
-    mastered  = len(correct & set(vocab))
-    saved     = count_my_vocab(student_code, level)
+def authenticate_user(login_input: str, raw_pw: str=None):
+    df = load_student_data()
+    login_input = login_input.lower().strip()
+    match = df[df.student_code == login_input]
+    if match.empty:
+        return None, "No such code"
+    student_code = match.student_code.iloc[0]
 
-    # --- Stats UI ---
-    st.subheader("📊 Your Vocabulary Stats")
-    if total == 0:
-        st.info("No words available for this level yet.")
+    # first‐time: no password set → ask them to create one
+    cs.execute("SELECT password_hash FROM students WHERE student_code = %s", (student_code,))
+    pw_hash = cs.fetchone()[0]
+    if pw_hash is None:
+        return {"student_code": student_code}, "create_password"
+
+    # existing: must verify
+    if raw_pw and verify_password(student_code, raw_pw):
+        row = match.iloc[0]
+        return {
+            "student_code": student_code,
+            "student_name": row.name,
+            "student_row": row.to_dict()
+        }, None
+
+    return None, "bad_password"
+
+# — in your Streamlit app —
+if not st.session_state.get("logged_in"):
+
+    code = st.text_input("Enter Student Code").lower().strip()
+
+    # try to lookup without pw to see if they need to create one
+    auth, status = authenticate_user(code)
+    if status == "create_password":
+        st.info("Looks like it’s your first time here—please set a password.")
+        pw1 = st.text_input("Choose a password", type="password")
+        pw2 = st.text_input("Confirm password", type="password")
+        if st.button("Set password") and pw1 and pw1 == pw2:
+            set_password(code, pw1)
+            st.success("Password saved! Please log in again.")
+            st.experimental_rerun()
+
     else:
-        if practiced or mastered or saved:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Total", total)
-            if practiced:
-                c2.metric("Practiced", practiced)
-            if mastered:
-                c3.metric("Mastered", mastered)
-            if saved:
-                c4.metric("Saved", saved)
-        else:
-            st.markdown(f"**Total Words:** {total}")
-            st.info("Start practicing to see your stats here!")
+        # either no such code, or existing user
+        pw = st.text_input("Password", type="password")
+        if st.button("Login"):
+            auth, status = authenticate_user(code, pw)
+            if auth:
+                st.session_state.update({
+                    "logged_in":     True,
+                    **auth
+                })
+                cookie_manager["student_code"] = auth["student_code"]
+                cookie_manager.save()
+                st.success(f"Welcome, {auth['student_name']}!")
+                st.rerun()
+            else:
+                msg = {
+                  "No such code": "Unknown student code.",
+                  "bad_password": "Incorrect password."
+                }[status]
+                st.error(msg)
 
-    mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
-
-    # ========== Practice Mode ===========
-    if mode == "Practice":
-        st.header("🧠 Practice Words")
-        if not vocab:
-            st.info("No words available for this level.")
-            st.stop()
-
-        pending = [i for i, w in enumerate(vocab) if w not in correct]
-        st.progress(practiced / max(1, total))
-
-        # Reset & Next controls
-        colr, coln = st.columns(2)
-        if colr.button("Reset Progress", key="reset_vocab"):
-            reset_vocab_progress(student_code, level)
-            st.session_state.vocab_feedback = None
-            st.session_state.current_idx = None
-            st.success("Progress reset.")
-        if coln.button("Next Word", key="next_vocab"):
-            st.session_state.vocab_feedback = None
-            st.session_state.current_idx = None
-
-        if not pending:
-            st.success("🎉 You've practiced all words!")
-            st.stop()
-
-        # Choose a random pending word
-        if st.session_state.current_idx not in pending:
-            st.session_state.current_idx = random.choice(pending)
-        idx = st.session_state.current_idx
-        word = vocab[idx]
-        answer = dict(full_list).get(word, "")
-
-        # Use a form to avoid double-click issues
-        with st.form(key=f"practice_form_{idx}"):
-            st.markdown(f"**Translate:** {word}")
-            user_ans = st.text_input("Your answer:", key=f"ans_{idx}")
-            submit = st.form_submit_button("Check")
-            if submit:
-                fb, is_cor, _ = ai_vocab_feedback(word, user_ans, answer)
-                save_vocab_submission(student_code, student_name, level, word, user_ans, bool(is_cor))
-                st.session_state.vocab_feedback = fb
-
-        # Display feedback
-        if st.session_state.vocab_feedback:
-            st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
-
-    # ========= My Vocab Mode ==========
-    else:
-        st.header("📝 My Personal Vocab")
-        # Add new personal word
-        with st.form("add_vocab", clear_on_submit=True):
-            w = st.text_input("Word")
-            t = st.text_input("Translation")
-            add = st.form_submit_button("Add")
-            if add and w and t:
-                add_my_vocab(student_code, level, w.strip(), t.strip())
-                st.success(f"Added: {w} → {t}")
-                st.experimental_rerun()
-
-        # Fetch and display personal vocab
-        vocab_list = get_my_vocab(student_code, level)
-        if vocab_list:
-            df = pd.DataFrame(vocab_list, columns=["Word", "Translation", "Date"])
-            st.table(df)
-            for _, row in df.iterrows():
-                c1, c2, c3 = st.columns([4, 4, 1])
-                c1.write(row["Word"])
-                c2.write(row["Translation"])
-                if c3.button("🗑️", key=f"del_{row['Word']}"):
-                    delete_my_vocab(student_code, row["Word"])
-                    st.experimental_rerun()
-
-            # CSV download
-            csv_data = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Download CSV",
-                csv_data,
-                file_name="my_vocab.csv",
-                mime="text/csv",
-                key="csv_dl",
-            )
-
-            # PDF download (errors caught)
-            try:
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=11)
-                pdf.cell(0, 8, f"My Vocab List ({level})", ln=1)
-                pdf.ln(2)
-                pdf.set_font("Arial", "B", 10)
-                pdf.cell(60, 8, "Word", border=1)
-                pdf.cell(80, 8, "Translation", border=1)
-                pdf.cell(30, 8, "Date", border=1)
-                pdf.ln()
-                pdf.set_font("Arial", size=10)
-                for _, r in df.iterrows():
-                    pdf.cell(60, 8, str(r["Word"]), border=1)
-                    pdf.cell(80, 8, str(r["Translation"]), border=1)
-                    pdf.cell(30, 8, str(r["Date"]), border=1)
-                    pdf.ln()
-                pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
-                st.download_button(
-                    "Download PDF",
-                    pdf_bytes,
-                    file_name="my_vocab.pdf",
-                    mime="application/pdf",
-                    key="pdf_dl",
-                )
-            except Exception as e:
-                st.error(f"PDF generation failed: {e}")
+    st.stop()
 
                 
 # ===================
