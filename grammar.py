@@ -1439,6 +1439,7 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
     import random, difflib
+    import pandas as pd
 
     # --- Helper for safe text comparison ---
     def fast_clean(text):
@@ -1456,30 +1457,29 @@ if tab == "Vocab Trainer":
             .strip()
         )
 
-    # --- Setup state ---
+    # --- Setup Session State ---
     st.session_state.setdefault("vocab_feedback", None)
     st.session_state.setdefault("current_idx", None)
 
-    # LEVEL selection
+    # --- Level selector & data ---
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
     full_list = VOCAB_LISTS.get(level, [])
-    vocab = [w for w, *_ in full_list] if isinstance(full_list[0], tuple) else full_list
+    vocab = [w for w, *_ in full_list] if full_list and isinstance(full_list[0], tuple) else full_list
 
-    # --- Fetch all progress for this user & level
+    # --- Fetch progress & compute stats ---
     progress = get_vocab_progress(student_code)
     attempted = {r[0] for r in progress if r[0] in vocab}
     correct_set = {r[0] for r in progress if r[2] and r[0] in vocab}
 
-    # --- Compute stats
     total = len(vocab)
     practiced = len(attempted)
-    mastered  = len(correct_set)
+    mastered = len(correct_set)
     try:
         saved = count_my_vocab(student_code, level)
     except Exception:
         saved = 0
 
-    # --- Stats UI
+    # --- Stats UI ---
     st.subheader("📊 Your Vocabulary Stats")
     stat_cols = st.columns(4)
     stat_cols[0].metric("Total", total)
@@ -1515,7 +1515,7 @@ if tab == "Vocab Trainer":
             st.session_state.current_idx = random.choice(pending)
         idx = st.session_state.current_idx
         word = vocab[idx]
-        answer = dict(full_list).get(word, "") if isinstance(full_list[0], tuple) else ""
+        answer = dict(full_list).get(word, "") if full_list and isinstance(full_list[0], tuple) else ""
 
         with st.form(key=f"practice_form_{idx}"):
             st.markdown(f"**Translate:** {word}")
@@ -1524,46 +1524,46 @@ if tab == "Vocab Trainer":
             if submit:
                 cleaned_user = fast_clean(user_ans)
                 cleaned_correct = fast_clean(answer)
+                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio() if cleaned_correct else 0
                 correct = False
 
+                # --- SMART CHECK ---
                 if not answer:
                     fb = "<span style='color:red'>No answer available for this word.</span>"
+                elif cleaned_user == cleaned_correct:
+                    fb = "<span style='color:green'>✅ Correct!</span>"
+                    correct = True
+                elif cleaned_user and cleaned_correct and cleaned_user in cleaned_correct:
+                    fb = f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span>"
+                    correct = True
+                elif similarity > 0.85:
+                    fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
+                    correct = True
                 else:
-                    similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio()
-                    if cleaned_user == cleaned_correct:
-                        fb = "<span style='color:green'>✅ Correct!</span>"
-                        correct = True
-                    elif cleaned_user and cleaned_correct and cleaned_user in cleaned_correct:
-                        fb = f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span>"
-                        correct = True
-                    elif similarity > 0.85:
-                        fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
-                        correct = True
-                    else:
-                        # --- Optional: OpenAI fallback for fuzzy answers ---
-                        try:
-                            resp = client.chat.completions.create(
-                                model="gpt-4o",
-                                messages=[
-                                    {
-                                        "role": "user",
-                                        "content": (
-                                            f"Is '{user_ans}' a valid English translation of the German word '{word}' "
-                                            f"for {level} learners? Reply only True or False. Best answer: {answer}"
-                                        ),
-                                    }
-                                ],
-                                max_tokens=1,
-                                temperature=0,
-                            )
-                            reply = resp.choices[0].message.content.strip().lower()
-                            if reply.startswith("true"):
-                                fb = "<span style='color:green'>✅ Acceptable (AI approved)!</span>"
-                                correct = True
-                            else:
-                                fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
-                        except Exception:
+                    # --- OPTIONAL: OpenAI fallback ---
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        f"Is '{user_ans}' a valid English translation of the German word '{word}' "
+                                        f"for A1-A2 learners? Reply only True or False. Best answer: {answer}"
+                                    ),
+                                }
+                            ],
+                            max_tokens=1,
+                            temperature=0,
+                        )
+                        reply = resp.choices[0].message.content.strip().lower()
+                        if reply.startswith("true"):
+                            fb = "<span style='color:green'>✅ Acceptable (AI approved)!</span>"
+                            correct = True
+                        else:
                             fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
+                    except Exception:
+                        fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
                 save_vocab_submission(student_code, student_name, level, word, user_ans, correct)
                 st.session_state.vocab_feedback = fb
 
@@ -1603,7 +1603,7 @@ if tab == "Vocab Trainer":
                 key="csv_dl",
             )
 
-            # --- PDF Download ---
+            # --- PDF Download (safe string handling) ---
             try:
                 from fpdf import FPDF
                 pdf = FPDF()
@@ -1618,9 +1618,12 @@ if tab == "Vocab Trainer":
                 pdf.ln()
                 pdf.set_font("Arial", size=10)
                 for _, r in df.iterrows():
-                    pdf.cell(60, 8, str(r['Word']), border=1)
-                    pdf.cell(80, 8, str(r['Translation']), border=1)
-                    pdf.cell(30, 8, str(r['Date']), border=1)
+                    word = str(r['Word']) if pd.notnull(r['Word']) else ""
+                    translation = str(r['Translation']) if pd.notnull(r['Translation']) else ""
+                    date_val = str(r['Date']) if pd.notnull(r['Date']) else ""
+                    pdf.cell(60, 8, word, border=1)
+                    pdf.cell(80, 8, translation, border=1)
+                    pdf.cell(30, 8, date_val, border=1)
                     pdf.ln()
                 pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
                 st.download_button(
@@ -1634,6 +1637,7 @@ if tab == "Vocab Trainer":
                 st.error(f"PDF generation failed: {e}")
         else:
             st.info("No saved vocab yet.")
+
 
 # ===================
 # END OF VOCAB TRAINER TAB
