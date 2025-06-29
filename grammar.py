@@ -1433,6 +1433,10 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
+# =========================================
+# VOCAB TRAINER TAB (A1–C1) + MY VOCAB
+# =========================================
+
 if tab == "Vocab Trainer":
     import random, difflib
 
@@ -1452,30 +1456,30 @@ if tab == "Vocab Trainer":
             .strip()
         )
 
-    # --- Session state defaults ---
+    # --- Setup state ---
     st.session_state.setdefault("vocab_feedback", None)
     st.session_state.setdefault("current_idx", None)
 
+    # LEVEL selection
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
     full_list = VOCAB_LISTS.get(level, [])
     vocab = [w for w, *_ in full_list] if isinstance(full_list[0], tuple) else full_list
 
-    # --- Fetch all progress just once ---
+    # --- Fetch all progress for this user & level
     progress = get_vocab_progress(student_code)
-    # For tuple vocab lists, match by first element; for str list, by item itself
     attempted = {r[0] for r in progress if r[0] in vocab}
     correct_set = {r[0] for r in progress if r[2] and r[0] in vocab}
 
-    # --- Compute stats ---
+    # --- Compute stats
     total = len(vocab)
     practiced = len(attempted)
-    mastered = len(correct_set)
+    mastered  = len(correct_set)
     try:
         saved = count_my_vocab(student_code, level)
     except Exception:
         saved = 0
 
-    # --- Stats UI ---
+    # --- Stats UI
     st.subheader("📊 Your Vocabulary Stats")
     stat_cols = st.columns(4)
     stat_cols[0].metric("Total", total)
@@ -1520,46 +1524,46 @@ if tab == "Vocab Trainer":
             if submit:
                 cleaned_user = fast_clean(user_ans)
                 cleaned_correct = fast_clean(answer)
-                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio()
                 correct = False
 
-                # --- SMART CHECK ---
                 if not answer:
                     fb = "<span style='color:red'>No answer available for this word.</span>"
-                elif cleaned_user == cleaned_correct:
-                    fb = "<span style='color:green'>✅ Correct!</span>"
-                    correct = True
-                elif cleaned_user and cleaned_correct and cleaned_user in cleaned_correct:
-                    fb = f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span>"
-                    correct = True
-                elif similarity > 0.85:
-                    fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
-                    correct = True
                 else:
-                    # --- OPTIONAL: OpenAI fallback ---
-                    try:
-                        resp = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": (
-                                        f"Is '{user_ans}' a valid English translation of the German word '{word}' "
-                                        f"for A1-A2 learners? Reply only True or False. Best answer: {answer}"
-                                    ),
-                                }
-                            ],
-                            max_tokens=1,
-                            temperature=0,
-                        )
-                        reply = resp.choices[0].message.content.strip().lower()
-                        if reply.startswith("true"):
-                            fb = "<span style='color:green'>✅ Acceptable (AI approved)!</span>"
-                            correct = True
-                        else:
+                    similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio()
+                    if cleaned_user == cleaned_correct:
+                        fb = "<span style='color:green'>✅ Correct!</span>"
+                        correct = True
+                    elif cleaned_user and cleaned_correct and cleaned_user in cleaned_correct:
+                        fb = f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span>"
+                        correct = True
+                    elif similarity > 0.85:
+                        fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
+                        correct = True
+                    else:
+                        # --- Optional: OpenAI fallback for fuzzy answers ---
+                        try:
+                            resp = client.chat.completions.create(
+                                model="gpt-4o",
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": (
+                                            f"Is '{user_ans}' a valid English translation of the German word '{word}' "
+                                            f"for {level} learners? Reply only True or False. Best answer: {answer}"
+                                        ),
+                                    }
+                                ],
+                                max_tokens=1,
+                                temperature=0,
+                            )
+                            reply = resp.choices[0].message.content.strip().lower()
+                            if reply.startswith("true"):
+                                fb = "<span style='color:green'>✅ Acceptable (AI approved)!</span>"
+                                correct = True
+                            else:
+                                fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
+                        except Exception:
                             fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
-                    except Exception:
-                        fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
                 save_vocab_submission(student_code, student_name, level, word, user_ans, correct)
                 st.session_state.vocab_feedback = fb
 
@@ -1613,13 +1617,10 @@ if tab == "Vocab Trainer":
                 pdf.cell(30, 8, "Date", border=1)
                 pdf.ln()
                 pdf.set_font("Arial", size=10)
-
-                def safe_txt(x):
-                    return str(x) if pd.notnull(x) else ""
                 for _, r in df.iterrows():
-                    pdf.cell(60, 8, safe_txt(r['Word']), border=1)
-                    pdf.cell(80, 8, safe_txt(r['Translation']), border=1)
-                    pdf.cell(30, 8, safe_txt(r['Date']), border=1)
+                    pdf.cell(60, 8, str(r['Word']), border=1)
+                    pdf.cell(80, 8, str(r['Translation']), border=1)
+                    pdf.cell(30, 8, str(r['Date']), border=1)
                     pdf.ln()
                 pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
                 st.download_button(
@@ -1627,7 +1628,7 @@ if tab == "Vocab Trainer":
                     pdf_bytes,
                     file_name="my_vocab.pdf",
                     mime="application/pdf",
-                    key="pdf_dl"
+                    key="pdf_dl",
                 )
             except Exception as e:
                 st.error(f"PDF generation failed: {e}")
