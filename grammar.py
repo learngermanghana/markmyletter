@@ -37,16 +37,12 @@ def get_snowflake_conn():
 conn = get_snowflake_conn()
 cs = conn.cursor()
 
-# ====== DB HELPERS (SNOWFLAKE VERSION) ======
+def safe_pdf_val(val):
+    # Converts any value to a string, replacing None/nan with ""
+    if pd.isnull(val) or val is None:
+        return ""
+    return str(val)
 
-def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
-    cs.execute(
-        """
-        INSERT INTO vocab_backup (student_code, name, level, word, student_answer, is_correct, date_learned)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """,
-        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
-    )
 
 def get_vocab_progress(student_code):
     cs.execute(
@@ -1439,7 +1435,6 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
     import random, difflib
-    import pandas as pd
 
     # --- Helper for safe text comparison ---
     def fast_clean(text):
@@ -1457,23 +1452,29 @@ if tab == "Vocab Trainer":
             .strip()
         )
 
-    # --- Setup Session State ---
+    def safe_pdf_val(val):
+        # Handles None, float('nan'), etc.
+        if pd.isnull(val) or val is None:
+            return ""
+        return str(val)
+
+    # --- Setup ---
     st.session_state.setdefault("vocab_feedback", None)
     st.session_state.setdefault("current_idx", None)
 
-    # --- Level selector & data ---
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
     full_list = VOCAB_LISTS.get(level, [])
-    vocab = [w for w, *_ in full_list] if full_list and isinstance(full_list[0], tuple) else full_list
+    vocab = [w for w, *_ in full_list]
 
-    # --- Fetch progress & compute stats ---
+    # --- Fetch all progress just once ---
     progress = get_vocab_progress(student_code)
     attempted = {r[0] for r in progress if r[0] in vocab}
     correct_set = {r[0] for r in progress if r[2] and r[0] in vocab}
 
+    # --- Compute stats ---
     total = len(vocab)
     practiced = len(attempted)
-    mastered = len(correct_set)
+    mastered  = len(correct_set)
     try:
         saved = count_my_vocab(student_code, level)
     except Exception:
@@ -1515,7 +1516,7 @@ if tab == "Vocab Trainer":
             st.session_state.current_idx = random.choice(pending)
         idx = st.session_state.current_idx
         word = vocab[idx]
-        answer = dict(full_list).get(word, "") if full_list and isinstance(full_list[0], tuple) else ""
+        answer = dict(full_list).get(word, "")
 
         with st.form(key=f"practice_form_{idx}"):
             st.markdown(f"**Translate:** {word}")
@@ -1524,7 +1525,7 @@ if tab == "Vocab Trainer":
             if submit:
                 cleaned_user = fast_clean(user_ans)
                 cleaned_correct = fast_clean(answer)
-                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio() if cleaned_correct else 0
+                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio()
                 correct = False
 
                 # --- SMART CHECK ---
@@ -1540,7 +1541,7 @@ if tab == "Vocab Trainer":
                     fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
                     correct = True
                 else:
-                    # --- OPTIONAL: OpenAI fallback ---
+                    # --- OPTIONAL: OpenAI GPT-4o fallback ---
                     try:
                         resp = client.chat.completions.create(
                             model="gpt-4o",
@@ -1603,7 +1604,7 @@ if tab == "Vocab Trainer":
                 key="csv_dl",
             )
 
-            # --- PDF Download (safe string handling) ---
+            # --- PDF Download (safe for all values) ---
             try:
                 from fpdf import FPDF
                 pdf = FPDF()
@@ -1618,9 +1619,9 @@ if tab == "Vocab Trainer":
                 pdf.ln()
                 pdf.set_font("Arial", size=10)
                 for _, r in df.iterrows():
-                    word = str(r['Word']) if pd.notnull(r['Word']) else ""
-                    translation = str(r['Translation']) if pd.notnull(r['Translation']) else ""
-                    date_val = str(r['Date']) if pd.notnull(r['Date']) else ""
+                    word = safe_pdf_val(r.get('Word', ''))
+                    translation = safe_pdf_val(r.get('Translation', ''))
+                    date_val = safe_pdf_val(r.get('Date', ''))
                     pdf.cell(60, 8, word, border=1)
                     pdf.cell(80, 8, translation, border=1)
                     pdf.cell(30, 8, date_val, border=1)
@@ -1637,6 +1638,11 @@ if tab == "Vocab Trainer":
                 st.error(f"PDF generation failed: {e}")
         else:
             st.info("No saved vocab yet.")
+
+# ===================
+# END OF VOCAB TRAINER TAB
+# ===================
+
 
 
 # ===================
