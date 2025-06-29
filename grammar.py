@@ -1423,152 +1423,142 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 if tab == "Vocab Trainer":
-    # --- Session state defaults ---
-    st.session_state.setdefault("vocab_feedback", None)
-    st.session_state.setdefault("current_idx", None)
-
-    # --- Fast clean helper ---
-    def fast_clean(text: str) -> str:
-        return ''.join(c for c in (text or '').lower() if c.isalnum())  # cleans for exact matches
-
-    # --- Level selection & cache full list ---
-    level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
-    full_list = VOCAB_LISTS.get(level, [])  # cached per level for performance
-    vocab = [w for w, *_ in full_list]
-
-    # --- Fetch progress once to avoid multiple DB calls ---
-    progress = get_vocab_progress(student_code)
-    attempted = {r[0] for r in progress}
-    correct_set = {r[0] for r in progress if r[2]}
-
-    # --- Compute stats efficiently ---
-    total = len(vocab)
-    practiced = len(attempted & set(vocab))
-    mastered  = len(correct_set & set(vocab))
-    saved     = count_my_vocab(student_code, level)
-
-    # --- Stats UI ---
     st.subheader("📊 Your Vocabulary Stats")
+
+    # 1) Choose level
+    level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
+
+    # 2) Load vocab once and progress once
+    vocab_list = VOCAB_LISTS.get(level, [])
+    progress = get_vocab_progress(student_code)  # cached DB call
+    practiced_words = {r[0] for r in progress if r[2] and r[0] in dict(vocab_list)}
+    mastered_words = practiced_words  # same here; adapt if different logic
+    saved = count_my_vocab(student_code, level)
+
+    total = len(vocab_list)
+    practiced = len(practiced_words)
+    mastered = len(mastered_words)
+
+    # 3) Display stats (only non-zero beyond total)
     if total == 0:
         st.info("No words available for this level yet.")
-        st.stop()
-    if practiced or mastered or saved:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total", total)
-        if practiced:
-            c2.metric("Practiced", practiced)
-        if mastered:
-            c3.metric("Mastered", mastered)
-        if saved:
-            c4.metric("Saved", saved)
-    else:
+    elif practiced == 0 and mastered == 0 and saved == 0:
         st.markdown(f"**Total Words:** {total}")
-        st.info("Start practicing to see your stats here!")  # encourages action
-
-    mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
-
-    # ========== Practice Mode ==========
-    if mode == "Practice":
-        st.header("🧠 Practice Words")
-        pending = [i for i, w in enumerate(vocab) if w not in correct_set]
-        st.progress(practiced / max(1, total))
-
-        # --- Controls ---
-        colr, coln = st.columns(2)
-        if colr.button("Reset Progress", key="reset_vocab"):
-            reset_vocab_progress(student_code, level)
-            st.session_state.vocab_feedback = None
-            st.session_state.current_idx = None
-            st.success("Progress reset.")
-        if coln.button("Next Word", key="next_vocab"):
-            st.session_state.vocab_feedback = None
-            st.session_state.current_idx = None
-
-        if not pending:
-            st.success("🎉 You've practiced all words!")
-            st.stop()
-
-        if st.session_state.current_idx not in pending:
-            st.session_state.current_idx = random.choice(pending)
-        idx = st.session_state.current_idx
-        word = vocab[idx]
-        answer = dict(full_list).get(word, "")  # direct dict lookup avoids extra loops
-
-        # --- Practice form: single submission to avoid double-click issues ---
-        with st.form(key=f"practice_form_{idx}"):
-            st.markdown(f"**Translate:** {word}")
-            user_ans = st.text_input("Your answer:", key=f"ans_{idx}")
-            submit = st.form_submit_button("Check")
-            if submit:
-                fb, is_cor, _ = ai_vocab_feedback(word, user_ans, answer)
-                save_vocab_submission(student_code, student_name, level, word, user_ans, bool(is_cor))
-                st.session_state.vocab_feedback = fb
-
-        if st.session_state.vocab_feedback:
-            st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
-
-    # ========= My Vocab Mode ==========
+        st.info("Start practicing to see your stats here!")
     else:
-        st.header("📝 My Personal Vocab")
-        with st.form("add_vocab", clear_on_submit=True):  # form for reliability
-            w = st.text_input("Word")
-            t = st.text_input("Translation")
-            add = st.form_submit_button("Add")
-            if add and w and t:
-                add_my_vocab(student_code, level, w.strip(), t.strip())
-                st.success(f"Added: {w} → {t}")
+        cols = st.columns(4)
+        cols[0].metric("Total", total)
+        if practiced > 0:
+            cols[1].metric("Practiced", practiced)
+        if mastered > 0:
+            cols[2].metric("Mastered", mastered)
+        if saved > 0:
+            cols[3].metric("Saved", saved)
+
+    st.write("---")
+
+    # === Practice Mode ===
+    st.header("🧠 Practice Words")
+    if not vocab_list:
+        st.info("No words to practice.")
+    else:
+        # Determine pending indices
+        pending = [i for i, (w, _) in enumerate(vocab_list) if w not in practiced_words]
+        progress_pct = practiced / total
+        st.progress(progress_pct)
+
+        # Use a form so Check only fires on submit
+        with st.form("vocab_practice_form"):
+            if not pending:
+                st.success("🎉 You've practiced all words!")
+                submitted = st.form_submit_button("Reset Progress")
+                if submitted:
+                    reset_vocab_progress(student_code, level)
+                    st.experimental_rerun()
+            else:
+                # Pick or reuse current index
+                if "current_idx" not in st.session_state or st.session_state.current_idx not in pending:
+                    st.session_state.current_idx = random.choice(pending)
+                idx = st.session_state.current_idx
+                word, correct_answer = vocab_list[idx]
+
+                st.markdown(f"**Translate:** `{word}`")
+                user_input = st.text_input("Your answer:", key="vocab_input")
+
+                submitted = st.form_submit_button("Check")
+
+                if submitted:
+                    clean_user = fast_clean(user_input)
+                    clean_corr = fast_clean(correct_answer or "")
+                    if not correct_answer:
+                        fb = "<span style='color:red'>No answer available.</span>"
+                    elif clean_user == clean_corr:
+                        fb = "<span style='color:green'>✅ Correct!</span>"
+                        save_vocab_submission(student_code, student_name, level, word, user_input, True)
+                    elif clean_user and clean_user in clean_corr:
+                        fb = (
+                            f"<span style='color:orange'>Almost correct! The best answer: "
+                            f"<b>{correct_answer}</b></span>"
+                        )
+                    else:
+                        fb = (
+                            f"<span style='color:red'>❌ Not correct. The best answer: "
+                            f"<b>{correct_answer}</b></span>"
+                        )
+                        save_vocab_submission(student_code, student_name, level, word, user_input, False)
+
+                    st.markdown(fb, unsafe_allow_html=True)
+                    # clear for next word
+                    st.session_state.current_idx = None
+
+    # === My Vocab Mode ===
+    st.write("---")
+    st.header("📝 My Personal Vocab")
+    with st.form("add_vocab", clear_on_submit=True):
+        w = st.text_input("Word")
+        t = st.text_input("Translation")
+        add = st.form_submit_button("Add")
+        if add and w and t:
+            add_my_vocab(student_code, level, w, t)
+            st.success(f"Added: {w} → {t}")
+            st.experimental_rerun()
+
+    personal = get_my_vocab(student_code, level)
+    if personal:
+        df_personal = pd.DataFrame(personal, columns=["Word","Translation","Date"])
+        st.table(df_personal)
+        for _, row in df_personal.iterrows():
+            c1, c2, c3 = st.columns([4,4,1])
+            c1.write(row["Word"])
+            c2.write(row["Translation"])
+            if c3.button("🗑️", key=f"del_{row['Word']}"):
+                delete_my_vocab(student_code, row["Word"])
                 st.experimental_rerun()
 
-        vocab_list = get_my_vocab(student_code, level)
-        if vocab_list:
-            df = pd.DataFrame(vocab_list, columns=["Word", "Translation", "Date"])
-            st.table(df)
-            for _, row in df.iterrows():  # iterating small lists is acceptable
-                c1, c2, c3 = st.columns([4, 4, 1])
-                c1.write(row['Word'])
-                c2.write(row['Translation'])
-                if c3.button("🗑️", key=f"del_{row['Word']}"):
-                    delete_my_vocab(student_code, row['Word'])
-                    st.experimental_rerun()
-
-            # CSV download: fast, no heavy processing
-            csv_data = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "Download CSV",
-                csv_data,
-                file_name="my_vocab.csv",
-                mime="text/csv",
-                key="csv_dl",
-            )
-
-            # PDF download: offload or cache if large
-            try:
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=11)
-                pdf.cell(0, 8, f"My Vocab List ({level})", ln=1)
-                pdf.ln(2)
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(60, 8, "Word", border=1)
-                pdf.cell(80, 8, "Translation", border=1)
-                pdf.cell(30, 8, "Date", border=1)
-                pdf.ln()
-                pdf.set_font("Arial", size=10)
-                for _, r in df.iterrows():
-                    pdf.cell(60, 8, str(r['Word']), border=1)
-                    pdf.cell(80, 8, str(r['Translation']), border=1)
-                    pdf.cell(30, 8, str(r['Date']), border=1)
-                    pdf.ln()
-                pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-                st.download_button(
-                    "Download PDF",
-                    pdf_bytes,
-                    file_name="my_vocab.pdf",
-                    mime="application/pdf",
-                    key="pdf_dl",
-                )
-            except Exception as e:
-                st.error(f"PDF generation failed: {e}")
+        # CSV + PDF downloads
+        csv_data = df_personal.to_csv(index=False)
+        st.download_button("Download CSV", csv_data, file_name="my_vocab.csv")
+        # PDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=11)
+        pdf.cell(0,8,f"My Vocab List ({level})", ln=1)
+        pdf.ln(2)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(60,8,"Word",1)
+        pdf.cell(80,8,"Translation",1)
+        pdf.cell(30,8,"Date",1)
+        pdf.ln()
+        pdf.set_font("Arial", size=10)
+        for _, row in df_personal.iterrows():
+            pdf.cell(60,8,row["Word"],1)
+            pdf.cell(80,8,row["Translation"],1)
+            pdf.cell(30,8,str(row["Date"]),1)
+            pdf.ln()
+        pdf_bytes = pdf.output(dest="S").encode("latin1")
+        st.download_button("Download PDF", pdf_bytes, file_name="my_vocab.pdf", mime="application/pdf")
+    else:
+        st.info("No saved vocab yet.")
                 
 # ===================
 # END OF VOCAB TRAINER TAB
