@@ -1429,7 +1429,7 @@ if tab == "Vocab Trainer":
 
     # --- Fast clean helper ---
     def fast_clean(text: str) -> str:
-        return ''.join(c for c in (text or '').lower() if c.isalnum())
+        return ''.join(c for c in (text or '').lower() if c.isalnum())  # cleans for exact matches
 
     # --- Level selection & cache full list ---
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
@@ -1443,7 +1443,7 @@ if tab == "Vocab Trainer":
 
     # --- Compute stats efficiently ---
     total = len(vocab)
-    practiced = len(attempted & set(vocab))  # only count valid words
+    practiced = len(attempted & set(vocab))
     mastered  = len(correct_set & set(vocab))
     saved     = count_my_vocab(student_code, level)
 
@@ -1451,7 +1451,7 @@ if tab == "Vocab Trainer":
     st.subheader("📊 Your Vocabulary Stats")
     if total == 0:
         st.info("No words available for this level yet.")
-        st.stop()  # early exit if nothing to practice
+        st.stop()
     if practiced or mastered or saved:
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Total", total)
@@ -1463,7 +1463,7 @@ if tab == "Vocab Trainer":
             c4.metric("Saved", saved)
     else:
         st.markdown(f"**Total Words:** {total}")
-        st.info("Start practicing to see your stats here!")
+        st.info("Start practicing to see your stats here!")  # encourages action
 
     mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
 
@@ -1471,7 +1471,7 @@ if tab == "Vocab Trainer":
     if mode == "Practice":
         st.header("🧠 Practice Words")
         pending = [i for i, w in enumerate(vocab) if w not in correct_set]
-        st.progress(practiced / max(1, total))  # avoid division by zero
+        st.progress(practiced / max(1, total))
 
         # --- Controls ---
         colr, coln = st.columns(2)
@@ -1492,9 +1492,9 @@ if tab == "Vocab Trainer":
             st.session_state.current_idx = random.choice(pending)
         idx = st.session_state.current_idx
         word = vocab[idx]
-        answer = dict(full_list).get(word, "")  # fallback to empty string
+        answer = dict(full_list).get(word, "")  # direct dict lookup avoids extra loops
 
-        # --- Practice form: using st.form to prevent double-click issues ---
+        # --- Practice form: single submission to avoid double-click issues ---
         with st.form(key=f"practice_form_{idx}"):
             st.markdown(f"**Translate:** {word}")
             user_ans = st.text_input("Your answer:", key=f"ans_{idx}")
@@ -1510,7 +1510,7 @@ if tab == "Vocab Trainer":
     # ========= My Vocab Mode ==========
     else:
         st.header("📝 My Personal Vocab")
-        with st.form("add_vocab", clear_on_submit=True):
+        with st.form("add_vocab", clear_on_submit=True):  # form for reliability
             w = st.text_input("Word")
             t = st.text_input("Translation")
             add = st.form_submit_button("Add")
@@ -1523,7 +1523,7 @@ if tab == "Vocab Trainer":
         if vocab_list:
             df = pd.DataFrame(vocab_list, columns=["Word", "Translation", "Date"])
             st.table(df)
-            for _, row in df.iterrows():
+            for _, row in df.iterrows():  # iterating small lists is acceptable
                 c1, c2, c3 = st.columns([4, 4, 1])
                 c1.write(row['Word'])
                 c2.write(row['Translation'])
@@ -1531,7 +1531,7 @@ if tab == "Vocab Trainer":
                     delete_my_vocab(student_code, row['Word'])
                     st.experimental_rerun()
 
-            # CSV download: always fast
+            # CSV download: fast, no heavy processing
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 "Download CSV",
@@ -1541,7 +1541,7 @@ if tab == "Vocab Trainer":
                 key="csv_dl",
             )
 
-            # PDF download: consider caching or offloading heavy tasks
+            # PDF download: offload or cache if large
             try:
                 pdf = FPDF()
                 pdf.add_page()
@@ -1569,7 +1569,6 @@ if tab == "Vocab Trainer":
                 )
             except Exception as e:
                 st.error(f"PDF generation failed: {e}")
-
                 
 # ===================
 # END OF VOCAB TRAINER TAB
