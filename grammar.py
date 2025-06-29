@@ -1451,30 +1451,25 @@ if tab == "Vocab Trainer":
     st.subheader("📊 Your Vocabulary Stats")
     if total == 0:
         st.info("No words available for this level yet.")
+        st.stop()
+    if practiced or mastered or saved:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total", total)
+        if practiced:
+            c2.metric("Practiced", practiced)
+        if mastered:
+            c3.metric("Mastered", mastered)
+        if saved:
+            c4.metric("Saved", saved)
     else:
-        # display only non-zero metrics
-        if practiced or mastered or saved:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Total", total)
-            if practiced:
-                c2.metric("Practiced", practiced)
-            if mastered:
-                c3.metric("Mastered", mastered)
-            if saved:
-                c4.metric("Saved", saved)
-        else:
-            st.markdown(f"**Total Words:** {total}")
-            st.info("Start practicing to see your stats here!")
+        st.markdown(f"**Total Words:** {total}")
+        st.info("Start practicing to see your stats here!")
 
     mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
 
     # ========== Practice Mode ==========
     if mode == "Practice":
         st.header("🧠 Practice Words")
-        if not vocab:
-            st.info("No words available for this level.")
-            return
-
         pending = [i for i, w in enumerate(vocab) if w not in correct_set]
         st.progress(practiced / max(1, total))
 
@@ -1491,7 +1486,7 @@ if tab == "Vocab Trainer":
 
         if not pending:
             st.success("🎉 You've practiced all words!")
-            return
+            st.stop()
 
         if st.session_state.current_idx not in pending:
             st.session_state.current_idx = random.choice(pending)
@@ -1574,7 +1569,6 @@ if tab == "Vocab Trainer":
                 )
             except Exception as e:
                 st.error(f"PDF generation failed: {e}")
-
 
                 
 # ===================
