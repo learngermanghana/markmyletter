@@ -1433,89 +1433,203 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-from passlib.context import CryptContext
+    def mastered_count(code, level):
+        # Words answered correctly at least once
+        rows = get_vocab_progress(code)
+        vocab_set = set(w for w, _, correct, _ in rows if correct and level.lower() in str(w).lower())
+        return len(vocab_set)
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    def personal_count(code, level):
+        try:
+            return count_my_vocab(code, level)
+        except Exception:
+            return 0
 
-def set_password(student_code: str, raw_pw: str):
-    hash_ = pwd_ctx.hash(raw_pw)
-    cs.execute(
-        "UPDATE students SET password_hash = %s WHERE student_code = %s",
-        (hash_, student_code)
-    )
-    conn.commit()
+    def total_words(level):
+        return len(VOCAB_LISTS.get(level, []))
 
-def verify_password(student_code: str, raw_pw: str) -> bool:
-    cs.execute(
-        "SELECT password_hash FROM students WHERE student_code = %s",
-        (student_code,)
-    )
-    row = cs.fetchone()
-    return bool(row and pwd_ctx.verify(raw_pw, row[0]))
+    # --- Usage limit (per day, per student) ---
+    def vocab_usage_today(code):
+        key = f"{code}_vocab_{str(date.today())}"
+        if "vocab_usage_counter" not in st.session_state:
+            st.session_state["vocab_usage_counter"] = {}
+        st.session_state["vocab_usage_counter"].setdefault(key, 0)
+        return st.session_state["vocab_usage_counter"][key]
 
-def authenticate_user(login_input: str, raw_pw: str=None):
-    df = load_student_data()
-    login_input = login_input.lower().strip()
-    match = df[df.student_code == login_input]
-    if match.empty:
-        return None, "No such code"
-    student_code = match.student_code.iloc[0]
+    def inc_vocab_usage(code):
+        key = f"{code}_vocab_{str(date.today())}"
+        st.session_state["vocab_usage_counter"][key] += 1
 
-    # first‐time: no password set → ask them to create one
-    cs.execute("SELECT password_hash FROM students WHERE student_code = %s", (student_code,))
-    pw_hash = cs.fetchone()[0]
-    if pw_hash is None:
-        return {"student_code": student_code}, "create_password"
+    # --- Stats UI ---
+    st.subheader("📊 Your Vocabulary Stats")
+    level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total", total_words(level))
+    col2.metric("Practiced", practiced_count(student_code, level))
+    col3.metric("Mastered", mastered_count(student_code, level))
+    col4.metric("Saved", personal_count(student_code, level))
 
-    # existing: must verify
-    if raw_pw and verify_password(student_code, raw_pw):
-        row = match.iloc[0]
-        return {
-            "student_code": student_code,
-            "student_name": row.name,
-            "student_row": row.to_dict()
-        }, None
+    tab_mode = st.radio("Mode:", ["Practice", "My Vocab"], horizontal=True)
 
-    return None, "bad_password"
+    # ========== Practice Mode ===========
+    if tab_mode == "Practice":
+        st.header("🧠 Practice Words")
+        vocab = VOCAB_LISTS.get(level, [])
+        if not vocab:
+            st.info("No words available for this level.")
+            st.stop()
 
-# — in your Streamlit app —
-if not st.session_state.get("logged_in"):
+        used_today = vocab_usage_today(student_code)
+        st.info(f"Today: {used_today} / {VOCAB_DAILY_LIMIT} words checked.")
+        if used_today >= VOCAB_DAILY_LIMIT:
+            st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
+            st.stop()
 
-    code = st.text_input("Enter Student Code").lower().strip()
+        # Use DB progress to determine which are completed
+        completed_words = set(
+            w for w, _, correct, _ in get_vocab_progress(student_code) if correct
+        )
+        pending = [i for i, entry in enumerate(vocab) if entry[0] not in completed_words]
+        st.progress(len(completed_words) / max(1, total_words(level)))
 
-    # try to lookup without pw to see if they need to create one
-    auth, status = authenticate_user(code)
-    if status == "create_password":
-        st.info("Looks like it’s your first time here—please set a password.")
-        pw1 = st.text_input("Choose a password", type="password")
-        pw2 = st.text_input("Confirm password", type="password")
-        if st.button("Set password") and pw1 and pw1 == pw2:
-            set_password(code, pw1)
-            st.success("Password saved! Please log in again.")
+        if st.button("Reset Progress", key="reset_vocab"):
+            reset_vocab_progress(student_code, level)
+            st.session_state.completed.clear()
+            st.session_state.vocab_feedback = None
+            st.session_state.current_idx = None
+            st.success("Progress fully reset.")
             st.experimental_rerun()
 
-    else:
-        # either no such code, or existing user
-        pw = st.text_input("Password", type="password")
-        if st.button("Login"):
-            auth, status = authenticate_user(code, pw)
-            if auth:
-                st.session_state.update({
-                    "logged_in":     True,
-                    **auth
-                })
-                cookie_manager["student_code"] = auth["student_code"]
-                cookie_manager.save()
-                st.success(f"Welcome, {auth['student_name']}!")
-                st.rerun()
-            else:
-                msg = {
-                  "No such code": "Unknown student code.",
-                  "bad_password": "Incorrect password."
-                }[status]
-                st.error(msg)
+        if st.session_state.vocab_feedback is not None:
+            st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
+            if st.button("Next", key="next_word"):
+                st.session_state.vocab_feedback = None
+                st.session_state.current_idx = None
+            st.stop()
 
-    st.stop()
+        if not pending:
+            st.success("🎉 You've practiced all words!")
+        else:
+            if st.session_state.current_idx not in pending:
+                st.session_state.current_idx = random.choice(pending)
+            idx = st.session_state.current_idx
+            entry = vocab[idx]
+            word = entry[0]
+            answer = entry[1] if len(entry) > 1 else None
+
+            st.markdown(f"**Translate:** {word}")
+            user_ans = st.text_input("Your answer:", key="ans_input")
+
+            def check_vocab(user_ans, answer):
+                cleaned_user = fast_clean(user_ans)
+                cleaned_correct = fast_clean(answer)
+                # 1. Exact match
+                if not answer:
+                    return "<span style='color:red'>No answer available for this word.</span>", False
+                elif cleaned_user == cleaned_correct:
+                    return "<span style='color:green'>✅ Correct!</span>", True
+                # 2. Substring or almost match (partial)
+                elif len(cleaned_user) > 2 and cleaned_correct and cleaned_user in cleaned_correct:
+                    return (
+                        f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span>", True
+                    )
+                # 3. Try fuzzy match
+                else:
+                    import difflib
+                    similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio()
+                    if similarity > 0.85:
+                        return (
+                            f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>", True
+                        )
+                    # 4. Last fallback: GPT-4o smart check (slow but smarter)
+                    if cleaned_user and cleaned_correct and len(cleaned_user) > 3:
+                        try:
+                            resp = client.chat.completions.create(
+                                model="gpt-4o",
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": (
+                                            f"Is '{user_ans}' a valid English translation of the German word '{word}' "
+                                            f"for A1-A2 learners? Reply only True or False. Best answer: {answer}"
+                                        ),
+                                    }
+                                ],
+                                max_tokens=1,
+                                temperature=0,
+                            )
+                            reply = resp.choices[0].message.content.strip().lower()
+                            if reply.startswith("true"):
+                                return (
+                                    "<span style='color:green'>✅ Acceptable (AI approved)!</span>", True
+                                )
+                        except Exception:
+                            pass
+                    return (
+                        f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>", False
+                    )
+
+            if st.button("Check", key=f"check_{idx}"):
+                feedback, correct = check_vocab(user_ans, answer)
+                st.session_state.vocab_feedback = feedback
+                inc_vocab_usage(student_code)
+                save_vocab_submission(
+                    student_code, student_name, level, word, user_ans, bool(correct)
+                )
+
+    # ========= My Vocab Mode ==========
+    else:
+        st.header("📝 My Personal Vocab")
+        with st.form("add_vocab", clear_on_submit=True):
+            w = st.text_input("Word")
+            t = st.text_input("Translation")
+            submitted = st.form_submit_button("Add")
+            if submitted and w and t:
+                add_my_vocab(student_code, level, w.strip(), t.strip())
+                st.success(f"Added: {w} → {t}")
+                st.experimental_rerun()
+
+        vocab_list = get_my_vocab(student_code, level)
+        if vocab_list:
+            rows = [{"Word": w, "Translation": t, "Date": date_added} for w, t, date_added in vocab_list]
+            st.table(pd.DataFrame(rows))
+
+            # Delete buttons
+            for row in rows:
+                col1, col2, col3 = st.columns([4, 4, 1])
+                col1.write(row["Word"])
+                col2.write(row["Translation"])
+                if col3.button("🗑️", key=f"del_{row['Word']}"):
+                    delete_my_vocab(student_code, row["Word"])
+                    st.experimental_rerun()
+
+            # Download CSV
+            if st.button("Download CSV"):
+                df = pd.DataFrame(rows)
+                st.download_button("Download CSV", df.to_csv(index=False), file_name="my_vocab.csv")
+
+            # Download PDF
+            if st.button("Download PDF"):
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=11)
+                pdf.cell(0, 8, f"My Vocab List ({level})", ln=1)
+                pdf.ln(2)
+                pdf.set_font("Arial", 'B', 10)
+                pdf.cell(60, 8, "Word", border=1)
+                pdf.cell(80, 8, "Translation", border=1)
+                pdf.cell(30, 8, "Date", border=1)
+                pdf.ln()
+                pdf.set_font("Arial", size=10)
+                for row in rows:
+                    pdf.cell(60, 8, row["Word"], border=1)
+                    pdf.cell(80, 8, row["Translation"], border=1)
+                    pdf.cell(30, 8, row["Date"], border=1)
+                    pdf.ln()
+                pdf_bytes = pdf.output(dest='S').encode('latin1')
+                st.download_button("Download PDF", pdf_bytes, file_name="my_vocab.pdf", mime="application/pdf")
+        else:
+            st.info("No saved vocab yet.")
 
                 
 # ===================
