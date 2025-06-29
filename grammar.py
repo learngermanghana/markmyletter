@@ -1452,23 +1452,24 @@ if tab == "Vocab Trainer":
             .strip()
         )
 
-    # --- Setup ---
+    # --- Session state defaults ---
     st.session_state.setdefault("vocab_feedback", None)
     st.session_state.setdefault("current_idx", None)
 
     level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
     full_list = VOCAB_LISTS.get(level, [])
-    vocab = [w for w, *_ in full_list]
+    vocab = [w for w, *_ in full_list] if isinstance(full_list[0], tuple) else full_list
 
     # --- Fetch all progress just once ---
     progress = get_vocab_progress(student_code)
+    # For tuple vocab lists, match by first element; for str list, by item itself
     attempted = {r[0] for r in progress if r[0] in vocab}
     correct_set = {r[0] for r in progress if r[2] and r[0] in vocab}
 
     # --- Compute stats ---
     total = len(vocab)
     practiced = len(attempted)
-    mastered  = len(correct_set)
+    mastered = len(correct_set)
     try:
         saved = count_my_vocab(student_code, level)
     except Exception:
@@ -1510,7 +1511,7 @@ if tab == "Vocab Trainer":
             st.session_state.current_idx = random.choice(pending)
         idx = st.session_state.current_idx
         word = vocab[idx]
-        answer = dict(full_list).get(word, "")
+        answer = dict(full_list).get(word, "") if isinstance(full_list[0], tuple) else ""
 
         with st.form(key=f"practice_form_{idx}"):
             st.markdown(f"**Translate:** {word}")
@@ -1535,8 +1536,7 @@ if tab == "Vocab Trainer":
                     fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
                     correct = True
                 else:
-                    # --- OPTIONAL: OpenAI GPT-4o fallback ---
-                    # Comment out this block if you want only fuzzy/local checks!
+                    # --- OPTIONAL: OpenAI fallback ---
                     try:
                         resp = client.chat.completions.create(
                             model="gpt-4o",
@@ -1590,14 +1590,13 @@ if tab == "Vocab Trainer":
                     delete_my_vocab(student_code, row['Word'])
                     st.experimental_rerun()
 
-            # --- CSV Download ---
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "⬇️ Download CSV",
+                "Download CSV",
                 csv_data,
-                file_name=f"my_vocab_{level}_{student_code}.csv",
+                file_name="my_vocab.csv",
                 mime="text/csv",
-                key="csv_dl"
+                key="csv_dl",
             )
 
             # --- PDF Download ---
@@ -1614,16 +1613,19 @@ if tab == "Vocab Trainer":
                 pdf.cell(30, 8, "Date", border=1)
                 pdf.ln()
                 pdf.set_font("Arial", size=10)
+
+                def safe_txt(x):
+                    return str(x) if pd.notnull(x) else ""
                 for _, r in df.iterrows():
-                    pdf.cell(60, 8, str(r['Word']), border=1)
-                    pdf.cell(80, 8, str(r['Translation']), border=1)
-                    pdf.cell(30, 8, str(r['Date']), border=1)
+                    pdf.cell(60, 8, safe_txt(r['Word']), border=1)
+                    pdf.cell(80, 8, safe_txt(r['Translation']), border=1)
+                    pdf.cell(30, 8, safe_txt(r['Date']), border=1)
                     pdf.ln()
                 pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
                 st.download_button(
-                    "⬇️ Download PDF",
+                    "Download PDF",
                     pdf_bytes,
-                    file_name=f"my_vocab_{level}_{student_code}.pdf",
+                    file_name="my_vocab.pdf",
                     mime="application/pdf",
                     key="pdf_dl"
                 )
