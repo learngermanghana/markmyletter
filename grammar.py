@@ -199,6 +199,16 @@ def reset_vocab_progress(student_code, level):
         (student_code, level)
     )
 
+def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
+    cs.execute(
+        """
+        INSERT INTO vocab_backup (student_code, name, level, word, student_answer, is_correct, date_learned)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
+    )
+
+
 # ====== VOCAB STATS HELPERS (Snowflake, real-time) ======
 def practiced_count(student_code, level):
     cs.execute(
