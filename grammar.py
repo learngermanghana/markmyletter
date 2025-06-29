@@ -1429,12 +1429,13 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-# =========================================
+# =========================
 # VOCAB TRAINER TAB (A1–C1) + MY VOCAB
-# =========================================
+# =========================
 
 if tab == "Vocab Trainer":
-    import random, difflib
+    tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
+    selected = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
 
     # --- Helper for safe text comparison ---
     def fast_clean(text):
