@@ -1484,11 +1484,11 @@ if tab == "Vocab Trainer":
                 st.session_state.vocab_feedback = None
                 st.session_state.current_idx = None
                 st.success("Progress has been reset.")
-                st.experimental_rerun()
+                st.rerun()
             if next_word:
                 st.session_state.vocab_feedback = None
                 st.session_state.current_idx = None
-                st.experimental_rerun()
+                st.rerun()
 
         if st.session_state.vocab_feedback is not None:
             st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
@@ -1545,29 +1545,28 @@ if tab == "Vocab Trainer":
                 if c3.button("🗑️", key=f"del_{row['Word']}"):
                     delete_my_vocab(student_code, row['Word'])
                     st.experimental_rerun()
-
-            if st.button("Download CSV"):
-                st.download_button("Download CSV", df.to_csv(index=False), file_name="my_vocab.csv")
-            if st.button("Download PDF"):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=11)
-                pdf.cell(0, 8, f"My Vocab List ({level})", ln=1)
-                pdf.ln(2)
-                pdf.set_font("Arial", "B", 10)
-                pdf.cell(60, 8, "Word", border=1)
-                pdf.cell(80, 8, "Translation", border=1)
-                pdf.cell(30, 8, "Date", border=1)
+            # Download CSV and PDF without extra button clicks
+            csv_bytes = df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download CSV", csv_bytes, file_name="my_vocab.csv", mime="text/csv")
+            # Build PDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=11)
+            pdf.cell(0, 8, f"My Vocab List ({level})", ln=1)
+            pdf.ln(2)
+            pdf.set_font("Arial", "B", 10)
+            pdf.cell(60, 8, "Word", border=1)
+            pdf.cell(80, 8, "Translation", border=1)
+            pdf.cell(30, 8, "Date", border=1)
+            pdf.ln()
+            pdf.set_font("Arial", size=10)
+            for _, r in df.iterrows():
+                pdf.cell(60, 8, str(r['Word']), border=1)
+                pdf.cell(80, 8, str(r['Translation']), border=1)
+                pdf.cell(30, 8, str(r['Date']), border=1)
                 pdf.ln()
-                pdf.set_font("Arial", size=10)
-                for _, r in df.iterrows():
-                    pdf.cell(60, 8, str(r['Word']), border=1)
-                    pdf.cell(80, 8, str(r['Translation']), border=1)
-                    pdf.cell(30, 8, str(r['Date']), border=1)
-                    pdf.ln()
-                bytes_data = pdf.output(dest='S').encode('latin1')
-                st.download_button("Download PDF", bytes_data, file_name="my_vocab.pdf", mime="application/pdf")
-
+            pdf_bytes = pdf.output(dest='S').encode('latin1')
+            st.download_button("Download PDF", pdf_bytes, file_name="my_vocab.pdf", mime="application/pdf")
 
 # ===================
 # END OF VOCAB TRAINER TAB
