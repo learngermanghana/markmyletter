@@ -1569,8 +1569,6 @@ if tab == "Vocab Trainer":
                 )
             except Exception as e:
                 st.error(f"PDF generation failed: {e}")
-```
-
 
                 
 # ===================
