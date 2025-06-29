@@ -250,6 +250,16 @@ def get_vocab_streak(student_code):
             break
     return streak
 
+
+def fast_clean(text: str) -> str:
+    """Normalize to ASCII, lowercase, trim."""
+    return (
+        unicodedata.normalize("NFKD", str(text))
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .strip()
+        .lower()
+        
 # ====== WRITING STATS (fix this as needed) ======
 def get_writing_stats(student_code):
     cs.execute(
