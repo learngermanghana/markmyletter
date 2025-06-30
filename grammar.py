@@ -1,8 +1,10 @@
 import os
 import random
 import difflib
+import sqlite3
+import atexit
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 import requests
@@ -10,8 +12,6 @@ import io
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
-import unicodedata
-import snowflake.connector
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -20,284 +20,216 @@ if not OPENAI_API_KEY:
         "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
     )
     st.stop()
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
+client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
 
-# ---- SNOWFLAKE DB CONNECTION ----
-@st.cache_resource(show_spinner=False)
-def get_snowflake_conn():
-    return snowflake.connector.connect(
-        user=st.secrets["SNOWFLAKE_USER"],
-        password=st.secrets["SNOWFLAKE_PASSWORD"],
-        account=st.secrets["SNOWFLAKE_ACCOUNT"],
-        warehouse=st.secrets["SNOWFLAKE_WAREHOUSE"],
-        database='FALOWEN_DB',
-        schema='PUBLIC'
-    )
-conn = get_snowflake_conn()
-cs = conn.cursor()
+# ---- DB connection helper ----
+def get_connection():
+    if "conn" not in st.session_state:
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
+        atexit.register(st.session_state["conn"].close)
+    return st.session_state["conn"]
 
-def safe_pdf_val(val):
-    # Converts any value to a string, replacing None/nan with ""
-    if pd.isnull(val) or val is None:
-        return ""
-    return str(val)
+conn = get_connection()
+c = conn.cursor()
 
-
-def get_vocab_progress(student_code):
-    cs.execute(
-        """
-        SELECT word, student_answer, is_correct, date_learned
-        FROM vocab_backup
-        WHERE student_code = %s
-        ORDER BY date_learned DESC
-        """,
-        (student_code,)
-    )
-    return cs.fetchall()
-
-def save_schreiben_submission(student_code, name, level, essay, score, feedback):
-    cs.execute(
-        """
-        INSERT INTO schreiben_backup (student_code, name, level, text, score, feedback, date_submitted)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """,
-        (student_code, name, level, essay, score, feedback, str(date.today()))
-    )
-
-def get_schreiben_progress(student_code):
-    cs.execute(
-        """
-        SELECT text, score, feedback, date_submitted
-        FROM schreiben_backup
-        WHERE student_code = %s
-        ORDER BY date_submitted DESC
-        """,
-        (student_code,)
-    )
-    return cs.fetchall()
-
-def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
-    cs.execute(
-        """
-        INSERT INTO sprechen_backup (student_code, name, level, task, response, score, feedback, date_submitted)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (student_code, name, level, teil, message, score, feedback, str(date.today()))
-    )
-
-def get_sprechen_progress(student_code):
-    cs.execute(
-        """
-        SELECT task, response, score, feedback, date_submitted
-        FROM sprechen_backup
-        WHERE student_code = %s
-        ORDER BY date_submitted DESC
-        """,
-        (student_code,)
-    )
-    return cs.fetchall()
-
-def ascii_only(text):
-    return unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('ascii')
-
-# ====== PERSONAL VOCAB HELPERS ======
-def add_my_vocab(student_code, level, word, translation):
-    cs.execute(
-        """
-        INSERT INTO vocab_backup (student_code, level, word, meaning, status, date_learned)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """,
-        (student_code, level, word, translation, 'personal', str(date.today()))
-    )
-
-def get_my_vocab(student_code, level=None):
-    if level:
-        cs.execute(
-            """
-            SELECT word, meaning, date_learned FROM vocab_backup
-            WHERE student_code=%s AND level=%s AND status='personal'
-            ORDER BY date_learned DESC
-            """,
-            (student_code, level)
+# --- Create/verify tables if not exist (run once per app startup) ---
+def init_db():
+    conn = get_connection()
+    c = conn.cursor()
+    # Vocab Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS vocab_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            word TEXT,
+            student_answer TEXT,
+            is_correct INTEGER,
+            date TEXT
         )
-    else:
-        cs.execute(
-            """
-            SELECT word, meaning, date_learned FROM vocab_backup
-            WHERE student_code=%s AND status='personal'
-            ORDER BY date_learned DESC
-            """,
-            (student_code,)
+    """)
+    # Schreiben Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            essay TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
         )
-    return cs.fetchall()
-
-def delete_my_vocab(student_code, word):
-    cs.execute(
-        """
-        DELETE FROM vocab_backup WHERE student_code=%s AND word=%s AND status='personal'
-        """,
-        (student_code, word)
-    )
-
-def count_my_vocab(student_code, level=None):
-    if level:
-        cs.execute(
-            """
-            SELECT COUNT(*) FROM vocab_backup
-            WHERE student_code=%s AND level=%s AND status='personal'
-            """,
-            (student_code, level)
+    """)
+    # Sprechen Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            level TEXT,
+            teil TEXT,
+            message TEXT,
+            score INTEGER,
+            feedback TEXT,
+            date TEXT
         )
-    else:
-        cs.execute(
-            """
-            SELECT COUNT(*) FROM vocab_backup
-            WHERE student_code=%s AND status='personal'
-            """,
-            (student_code,)
+    """)
+    # Scores Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            name TEXT,
+            assignment TEXT,
+            score REAL,
+            comments TEXT,
+            date TEXT,
+            level TEXT
         )
-    return cs.fetchone()[0]
-
-# ====== EXAM PROGRESS (LOAD & SAVE) ======
-def load_progress(student_code, level, teil):
-    cs.execute(
-        """
-        SELECT remaining, used FROM exam_progress
-        WHERE student_code=%s AND level=%s AND teil=%s
-        """,
-        (student_code, level, teil)
-    )
-    row = cs.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
-
-def save_progress(student_code, level, teil, remaining, used):
-    cs.execute(
-        """
-        MERGE INTO exam_progress t
-        USING (SELECT %s AS student_code, %s AS level, %s AS teil) s
-        ON t.student_code=s.student_code AND t.level=s.level AND t.teil=s.teil
-        WHEN MATCHED THEN
-            UPDATE SET remaining=%s, used=%s
-        WHEN NOT MATCHED THEN
-            INSERT (student_code, level, teil, remaining, used)
-            VALUES (%s, %s, %s, %s, %s)
-        """,
-        (
-            student_code, level, teil,
-            json.dumps(remaining), json.dumps(used),
-            student_code, level, teil,
-            json.dumps(remaining), json.dumps(used)
+    """)
+    # Exam Progress Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS exam_progress (
+            student_code TEXT,
+            level        TEXT,
+            teil         TEXT,
+            remaining    TEXT,    -- JSON list of topics still to do
+            used         TEXT,    -- JSON list of already done
+            PRIMARY KEY (student_code, level, teil)
         )
-    )
+    """)
+    # My Vocab Table (STUDENT PERSONAL VOCAB)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS my_vocab (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_code TEXT,
+            level TEXT,
+            word TEXT,
+            translation TEXT,
+            date_added TEXT
+        )
+    """)
+    conn.commit()
 
-def reset_vocab_progress(student_code, level):
-    cs.execute(
-        "DELETE FROM vocab_backup WHERE student_code=%s AND level=%s AND (status IS NULL OR status='')",
-        (student_code, level)
-    )
+# Call DB initialization ONCE after imports
+init_db()
+
+# ====== DB HELPERS (for all tables) ======
 
 def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
-    cs.execute(
-        """
-        INSERT INTO vocab_backup (student_code, name, level, word, student_answer, is_correct, date_learned)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """,
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
     )
+    conn.commit()
 
-
-# ====== VOCAB STATS HELPERS (Snowflake, real-time) ======
-def practiced_count(student_code, level):
-    cs.execute(
-        """
-        SELECT COUNT(DISTINCT word)
-        FROM vocab_backup
-        WHERE student_code = %s AND level = %s
-        """,
-        (student_code, level)
+def save_schreiben_submission(student_code, name, level, essay, score, feedback):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, essay, score, feedback, str(date.today()))
     )
-    return cs.fetchone()[0] or 0
+    conn.commit()
 
-def mastered_count(student_code, level):
-    cs.execute(
-        """
-        SELECT COUNT(DISTINCT word)
-        FROM vocab_backup
-        WHERE student_code = %s AND level = %s AND is_correct = 1
-        """,
-        (student_code, level)
+def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, teil, message, score, feedback, str(date.today()))
     )
-    return cs.fetchone()[0] or 0
+    conn.commit()
 
-def personal_count(student_code, level=None):
-    try:
-        return count_my_vocab(student_code, level)
-    except Exception:
-        return 0
-
-# ====== VOCAB DAILY STREAK ======
-def get_vocab_streak(student_code):
-    rows = get_vocab_progress(student_code)
-    if not rows:
-        return 0
-    dates = sorted({str(row[3]) for row in rows if row[2]}, reverse=True)
-    if not dates:
-        return 0
-    streak = 0
-    today = date.today()
-    for i, d in enumerate(dates):
-        day = datetime.strptime(d, "%Y-%m-%d").date()
-        if day == today - timedelta(days=streak):
-            streak += 1
-        else:
-            break
-    return streak
-
-
-def fast_clean(text: str) -> str:
-    """Normalize to ASCII, lowercase, trim."""
-    return (
-        unicodedata.normalize("NFKD", str(text))
-        .encode("ascii", "ignore")
-        .decode("ascii")
-        .strip()
-        .lower()
-    )
-        
-# ====== WRITING STATS (fix this as needed) ======
-def get_writing_stats(student_code):
-    cs.execute(
-        """
-        SELECT COUNT(*), SUM(CASE WHEN score >= 17 THEN 1 ELSE 0 END)
-        FROM schreiben_backup
-        WHERE student_code = %s
-        """,
+# ====== PERSONAL VOCAB HELPERS ======
+def get_personal_vocab_stats(student_code):
+    """
+    Returns a dict: {level: count} for all levels where this student has personal vocab,
+    and total.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
         (student_code,)
     )
-    attempted, passed = cs.fetchone()
-    attempted = attempted or 0
-    passed = passed or 0
-    accuracy = round(100 * passed / attempted, 1) if attempted else 0
+    rows = c.fetchall()
+    stats = {row[0]: row[1] for row in rows}
+    stats['total'] = sum(stats.values())
+    return stats
+
+def add_my_vocab(student_code, level, word, translation):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
+        (student_code, level, word, translation, str(date.today()))
+    )
+    conn.commit()
+
+def get_my_vocab(student_code, level=None):
+    conn = get_connection()
+    c = conn.cursor()
+    if level:
+        c.execute(
+            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
+            (student_code, level)
+        )
+    else:
+        c.execute(
+            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
+            (student_code,)
+        )
+    return c.fetchall()
+
+def delete_my_vocab(vocab_id, student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
+    conn.commit()
+
+def count_my_vocab(student_code, level=None):
+    conn = get_connection()
+    c = conn.cursor()
+    if level:
+        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
+    else:
+        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
+    return c.fetchone()[0]
+
+# ====== OTHER HELPERS (existing, no change) ======
+
+def get_writing_stats(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
+    """, (student_code,))
+    result = c.fetchone()
+    attempted = result[0] or 0
+    passed = result[1] if result[1] is not None else 0
+    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
     return attempted, passed, accuracy
 
 def get_student_stats(student_code):
-    cs.execute("""
-        SELECT level, COUNT(*) as attempted, SUM(CASE WHEN score >= 17 THEN 1 ELSE 0 END) as correct
-        FROM schreiben_backup
-        WHERE student_code = %s
+    """Return writing stats per level for a student."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT level, SUM(score >= 17), COUNT(*) 
+        FROM schreiben_progress 
+        WHERE student_code=?
         GROUP BY level
     """, (student_code,))
-    rows = cs.fetchall()
     stats = {}
-    for level, attempted, correct in rows:
-        stats[level] = {"attempted": attempted, "correct": correct}
+    for level, correct, attempted in c.fetchall():
+        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
-
-# ====== FALOWEN USAGE & DAILY QUOTA ======
-FALOWEN_DAILY_LIMIT = 20  # Set your daily max attempts per student
 
 def get_falowen_usage(student_code):
     today_str = str(date.today())
@@ -318,6 +250,72 @@ def inc_falowen_usage(student_code):
 def has_falowen_quota(student_code):
     return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
 
+def get_vocab_streak(student_code):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
+        (student_code,),
+    )
+    rows = c.fetchall()
+    if not rows:
+        return 0
+    dates = [date.fromisoformat(r[0]) for r in rows]
+    if (date.today() - dates[0]).days > 1:
+        return 0
+    streak = 1
+    prev = dates[0]
+    for d in dates[1:]:
+        if (prev - d).days == 1:
+            streak += 1
+            prev = d
+        else:
+            break
+    return streak
+
+# --- Streamlit page config ---
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
+
+# ---- Falowen Header ----
+st.markdown(
+    """
+    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
+        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
+        <div>
+            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
+            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
+            <br>
+            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
+            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
+                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+            </span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# ==== 2) Helpers to load & save progress ====
+def load_progress(student_code, level, teil):
+    c.execute(
+        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
+        (student_code, level, teil)
+    )
+    row = c.fetchone()
+    if row:
+        return json.loads(row[0]), json.loads(row[1])
+    return None, None
+
+def save_progress(student_code, level, teil, remaining, used):
+    c.execute(
+        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
+        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
+    )
+    conn.commit()
     
 # ====================================
 # 2. STUDENT DATA LOADING
@@ -466,25 +464,6 @@ if not st.session_state["logged_in"]:
         else:
             st.error("Student list is not available.")
     st.stop()
-
-def get_vocab_streak(student_code):
-    """Return the number of consecutive days student has done vocab practice."""
-    rows = get_vocab_progress(student_code)
-    if not rows:
-        return 0
-    # Extract dates where correct == True
-    dates = sorted({str(row[3]) for row in rows if row[2]}, reverse=True)
-    if not dates:
-        return 0
-    streak = 0
-    today = date.today()
-    for i, d in enumerate(dates):
-        day = datetime.strptime(d, "%Y-%m-%d").date()
-        if day == today - timedelta(days=streak):
-            streak += 1
-        else:
-            break
-    return streak
 
 # ====================================
 # 4. FLEXIBLE ANSWER CHECKERS
@@ -1439,130 +1418,173 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-# =========================
+
+# =========================================
 # VOCAB TRAINER TAB (A1–C1) + MY VOCAB
-# =========================
+# =========================================
 
 if tab == "Vocab Trainer":
-    import random, difflib
-
-    # ---- Initialize state for this tab
-    st.session_state.setdefault("vocab_feedback", None)
-    st.session_state.setdefault("current_idx", None)
-
-    # --- UI controls at the top ---
+    # Always define tab_mode at the top!
     tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
-    level = st.selectbox("Select level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level")
+    
+    # ---- SAFE INITIALIZATION of session state keys ----
+    st.session_state.setdefault("vocab_feedback", "")
+    st.session_state.setdefault("show_next_button", False)
+    st.session_state.setdefault("last_was_correct", False)
+    st.session_state.setdefault("current_vocab_idx", None)
+    st.session_state.setdefault("vocab_completed", set())
+    
+    def ai_vocab_feedback(word, student, correct):
+        """Direct match and fallback to AI for nuanced feedback."""
+        student_ans = student.strip().lower()
+        if correct is not None:
+            valid = ([c.strip().lower() for c in correct]
+                    if isinstance(correct, (list, tuple))
+                    else [correct.strip().lower()])
+            if student_ans in valid:
+                return "<span style='color:green;font-weight:bold'>✅ Correct!</span>", True, False
+        # Fallback to AI
+        target = correct or word
+        prompt = (
+            f"The student answered '{student.strip()}' for the German word '{word.strip()}'. "
+            f"The expected answer is '{target.strip()}'.\n"
+            "1. Reply 'True' or 'False' on the first line if the student's answer is correct.\n"
+            "2. If False, write: 'Correct answer: {target}'.\n"
+            "3. If the student's answer is close, include 'You were close!'."
+        )
+        try:
+            client = OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0.2,
+            )
+            reply = resp.choices[0].message.content.strip()
+            lines = reply.splitlines()
+            is_correct = lines[0].strip().lower().startswith("true")
+            is_close = "close" in reply.lower()
+            if is_correct:
+                prefix = "<span style='color:green;font-weight:bold'>✅ Correct!</span>\n\n"
+            elif is_close:
+                prefix = "<span style='color:orange;font-weight:bold'>⚠️ You were close!</span>\n\n"
+            else:
+                prefix = "<span style='color:red;font-weight:bold'>❌ Not quite.</span>\n\n"
+            feedback = prefix + "\n".join(lines[1:])
+            return feedback, is_correct, is_close
+        except Exception as e:
+            return f"<span style='color:red'>AI check failed: {e}</span>", False, False
 
-    # --- Vocabulary source ---
-    full_list = VOCAB_LISTS.get(level, [])
-    vocab = [w if isinstance(w, str) else w[0] for w in full_list]
+    student_code = st.session_state.get("student_code", "demo")
+    student_name = st.session_state.get("student_name", "Demo")
+    today_str = date.today().isoformat()
 
-    # --- Get progress from DB for this student/level
-    progress = get_vocab_progress(student_code)
-    attempted = {r[0] for r in progress if r[0] in vocab}
-    correct_set = {r[0] for r in progress if r[2] and r[0] in vocab}
+    level_opts = ["A1", "A2", "B1", "B2", "C1"]
+    selected = st.selectbox("Choose level", level_opts, key="vocab_level_select")
+    if selected != st.session_state.get("vocab_level", "A1"):
+        st.session_state["vocab_level"] = selected
+        st.session_state["vocab_feedback"] = ""
+        st.session_state["show_next_button"] = False
+        st.session_state["vocab_completed"] = set()
+        st.session_state["current_vocab_idx"] = None
 
-    # --- Compute stats ---
-    total = len(vocab)
-    practiced = len(attempted)
-    mastered = len(correct_set)
-    try:
-        saved = count_my_vocab(student_code, level)
-    except Exception:
-        saved = 0
+    def count_level_vocab(level):
+        return len(VOCAB_LISTS.get(level, []))
 
-    # --- Stats display ---
+    def count_practiced(level):
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(DISTINCT word) FROM vocab_progress WHERE student_code=? AND level=?", (student_code, level))
+        return c.fetchone()[0]
+
+    def count_completed(level):
+        practiced = set()
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute("SELECT word FROM vocab_progress WHERE student_code=? AND level=? AND is_correct=1", (student_code, level))
+        for row in c.fetchall():
+            practiced.add(row[0])
+        return len(practiced)
+
+    personal_stats = get_personal_vocab_stats(student_code)
     st.subheader("📊 Your Vocabulary Stats")
-    stat_cols = st.columns(4)
-    stat_cols[0].metric("Total", total)
-    stat_cols[1].metric("Practiced", practiced)
-    stat_cols[2].metric("Mastered", mastered)
-    stat_cols[3].metric("Saved", saved)
+    cols = st.columns(4)
+    cols[0].info(f"**Masterlist ({selected})**\n\n{count_level_vocab(selected)} words")
+    cols[1].success(f"**Practiced**\n\n{count_practiced(selected)} words")
+    cols[2].warning(f"**Completed**\n\n{count_completed(selected)} words")
+    cols[3].info(f"**My Vocab ({selected})**\n\n{personal_stats.get(selected,0)} saved")
+    # =============== PRACTICE MODE ===============
 
-    # ================= PRACTICE MODE =================
     if tab_mode == "Practice":
-        st.header("🧠 Practice Words")
-        pending = [i for i, w in enumerate(vocab) if w not in correct_set]
-        st.progress(practiced / max(1, total))
+        st.header("🧠 Vocabulary Practice")
+        vocab_list = VOCAB_LISTS.get(selected, [])
+        is_tuple = bool(vocab_list and isinstance(vocab_list[0], (list, tuple)))
+        completed = st.session_state.get("vocab_completed", set())
+        if not isinstance(completed, set):
+            completed = set(completed)
+            st.session_state["vocab_completed"] = completed
+        pending_idxs = [i for i in range(len(vocab_list)) if i not in completed]
 
-        colr, coln = st.columns(2)
-        if colr.button("Reset Progress", key="reset_vocab"):
-            reset_vocab_progress(student_code, level)
-            st.session_state.vocab_feedback = None
-            st.session_state.current_idx = None
-            st.success("Progress reset.")
-            st.experimental_rerun()
-        if coln.button("Next Word", key="next_vocab"):
-            st.session_state.vocab_feedback = None
-            st.session_state.current_idx = None
+        st.progress(
+            min(count_practiced(selected), len(vocab_list))/max(1, len(vocab_list)),
+            text=f"{count_practiced(selected)}/{len(vocab_list)} practiced today"
+        )
 
-        if not pending:
-            st.success("🎉 You've practiced all words for this level!")
-            st.stop()
+        if st.button("🔄 Reset Progress"):
+            st.session_state["vocab_completed"] = set()
+            st.session_state["vocab_feedback"] = ""
+            st.session_state["show_next_button"] = False
+            st.session_state["current_vocab_idx"] = None
+            st.session_state["last_was_correct"] = False
+            st.session_state.pop("vocab_answer_box", None)
+            st.rerun()
 
-        # Pick a new word to practice if needed
-        if st.session_state.current_idx not in pending:
-            st.session_state.current_idx = random.choice(pending)
-        idx = st.session_state.current_idx
-        word = vocab[idx]
-        answer = dict(full_list).get(word, "") if isinstance(full_list[0], tuple) else ""
+        # If feedback exists and waiting for Next:
+        if st.session_state["vocab_feedback"] and st.session_state["show_next_button"]:
+            st.markdown(st.session_state["vocab_feedback"], unsafe_allow_html=True)
+            if st.button("➡️ Next"):
+                if st.session_state["last_was_correct"]:
+                    st.session_state["vocab_completed"].add(st.session_state["current_vocab_idx"])
+                # Reset for next round
+                st.session_state["vocab_feedback"] = ""
+                st.session_state["show_next_button"] = False
+                st.session_state["current_vocab_idx"] = None
+                st.session_state["last_was_correct"] = False
+                st.session_state.pop("vocab_answer_box", None)
+                st.rerun()
+            st.stop()  # Don't show input again until Next is pressed
 
-        with st.form(key=f"practice_form_{idx}"):
+        if pending_idxs:
+            idx = st.session_state.get("current_vocab_idx")
+            if idx is None or idx not in pending_idxs:
+                idx = random.choice(pending_idxs)
+                st.session_state["current_vocab_idx"] = idx
+                st.session_state.pop("vocab_answer_box", None)
+            word = vocab_list[idx][0] if is_tuple else vocab_list[idx]
+            corr = vocab_list[idx][1] if is_tuple else None
+
             st.markdown(f"**Translate:** {word}")
-            user_ans = st.text_input("Your answer:", key=f"ans_{idx}")
-            submit = st.form_submit_button("Check")
-            if submit:
-                cleaned_user = fast_clean(user_ans)
-                cleaned_correct = fast_clean(answer)
-                similarity = difflib.SequenceMatcher(None, cleaned_user, cleaned_correct).ratio() if cleaned_correct else 0
-                correct = False
-
-                # --- SMART CHECK ---
-                if not answer:
-                    fb = "<span style='color:red'>No answer available for this word.</span>"
-                elif cleaned_user == cleaned_correct:
-                    fb = "<span style='color:green'>✅ Correct!</span>"
-                    correct = True
-                elif cleaned_user and cleaned_correct and cleaned_user in cleaned_correct:
-                    fb = f"<span style='color:orange'>Almost correct! The best answer: <b>{answer}</b></span>"
-                    correct = True
-                elif similarity > 0.85:
-                    fb = f"<span style='color:orange'>Almost correct (spelling)! The best answer: <b>{answer}</b></span>"
-                    correct = True
-                else:
-                    # --- Optional OpenAI fallback ---
-                    try:
-                        resp = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": (
-                                        f"Is '{user_ans}' a valid English translation of the German word '{word}' "
-                                        f"for {level} learners? Reply only True or False. Best answer: {answer}"
-                                    ),
-                                }
-                            ],
-                            max_tokens=1,
-                            temperature=0,
+            ans = st.text_input("Your answer:", key="vocab_answer_box")
+            # Show "Check" only if no feedback is waiting
+            if not st.session_state["show_next_button"]:
+                if st.button("Check", key=f"check_{idx}_{selected}"):
+                    fb, correct, close = ai_vocab_feedback(word, ans, corr)
+                    st.session_state["vocab_feedback"] = fb
+                    st.session_state["show_next_button"] = True
+                    st.session_state["last_was_correct"] = correct
+                    if correct or close:
+                        save_vocab_submission(
+                            student_code, student_name, selected, word, ans, correct
                         )
-                        reply = resp.choices[0].message.content.strip().lower()
-                        if reply.startswith("true"):
-                            fb = "<span style='color:green'>✅ Acceptable (AI approved)!</span>"
-                            correct = True
-                        else:
-                            fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
-                    except Exception:
-                        fb = f"<span style='color:red'>❌ Not correct. The best answer: <b>{answer}</b></span>"
-                save_vocab_submission(student_code, student_name, level, word, user_ans, correct)
-                st.session_state.vocab_feedback = fb
+                    st.rerun()
+        else:
+            st.success("🎉 All words completed for this level!")
 
-        if st.session_state.vocab_feedback:
-            st.markdown(st.session_state.vocab_feedback, unsafe_allow_html=True)
 
-    # ================= MY VOCAB MODE =================
-    else:
+
+
+    # =============== MY VOCAB MODE ===============
+    if tab_mode == "My Vocab":
         st.header("📝 My Personal Vocabulary List")
         st.write("Add words you want to remember, delete any, and download your full list as PDF.")
         with st.form("add_my_vocab_form", clear_on_submit=True):
@@ -1570,61 +1592,55 @@ if tab == "Vocab Trainer":
             new_translation = st.text_input("Translation (English or other)", key="my_vocab_translation")
             submitted = st.form_submit_button("Add to My Vocab")
             if submitted and new_word.strip() and new_translation.strip():
-                add_my_vocab(student_code, level, new_word.strip(), new_translation.strip())
+                add_my_vocab(student_code, selected, new_word.strip(), new_translation.strip())
                 st.success(f"Added '{new_word.strip()}' → '{new_translation.strip()}' to your list.")
                 st.rerun()
-        rows = get_my_vocab(student_code, level)
+        rows = get_my_vocab(student_code, selected)
         if rows:
-            df = pd.DataFrame(rows, columns=["Word", "Translation", "Date"])
-            for _, row in df.iterrows():
-                col1, col2, col3 = st.columns([4, 4, 1])
-                col1.markdown(f"**{row['Word']}**")
-                col2.markdown(f"{row['Translation']}")
-                if col3.button("🗑️", key=f"del_{row['Word']}"):
-                    delete_my_vocab(student_code, row['Word'])
+            for row in rows:
+                col1, col2, col3 = st.columns([4,4,1])
+                col1.markdown(f"**{row[1]}**")
+                col2.markdown(f"{row[2]}")
+                if col3.button("🗑️", key=f"del_{row[0]}"):
+                    delete_my_vocab(row[0], student_code)
                     st.rerun()
-            # Download as CSV
-            csv_data = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "Download CSV",
-                csv_data,
-                file_name="my_vocab.csv",
-                mime="text/csv",
-                key="csv_dl",
-            )
-            # Download as PDF
             if st.button("📄 Download My Vocab as PDF"):
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Arial", size=11)
-                title = f"My Personal Vocab – {level} ({student_name})"
-                pdf.cell(0, 8, ascii_only(title), ln=1)
+                title = f"My Personal Vocab – {selected} ({student_name})"
+                pdf.cell(0, 8, title, ln=1)
                 pdf.ln(3)
+
                 # Table headers
                 pdf.set_font("Arial", "B", 10)
-                pdf.cell(50, 8, ascii_only("German"), border=1)
-                pdf.cell(60, 8, ascii_only("Translation"), border=1)
-                pdf.cell(30, 8, ascii_only("Date"), border=1)
+                pdf.cell(50, 8, "German", border=1)
+                pdf.cell(60, 8, "Translation", border=1)
+                pdf.cell(30, 8, "Date", border=1)
                 pdf.ln()
                 pdf.set_font("Arial", "", 10)
-                for _, r in df.iterrows():
-                    pdf.cell(50, 8, ascii_only(r['Word']), border=1)
-                    pdf.cell(60, 8, ascii_only(r['Translation']), border=1)
-                    pdf.cell(30, 8, ascii_only(r['Date']), border=1)
+
+                for row in rows:
+                    pdf.cell(50, 8, str(row[1]), border=1)
+                    pdf.cell(60, 8, str(row[2]), border=1)
+                    pdf.cell(30, 8, str(row[3]), border=1)
                     pdf.ln()
+
                 pdf_bytes = pdf.output(dest="S").encode("latin1", "replace")
                 st.download_button(
                     label="Download PDF",
                     data=pdf_bytes,
-                    file_name=f"{student_code}_my_vocab_{level}.pdf",
+                    file_name=f"{student_code}_my_vocab_{selected}.pdf",
                     mime="application/pdf"
                 )
         else:
             st.info("No personal vocab saved yet for this level.")
 
+
 # ===================
 # END OF VOCAB TRAINER TAB
 # ===================
+
 
 
 # ====================================
@@ -1795,6 +1811,10 @@ if tab == "My Results and Resources":
     # === LIVE GOOGLE SHEETS CSV LINK ===
     GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
+    import requests
+    import io
+    import pandas as pd
+    from fpdf import FPDF
 
     @st.cache_data
     def fetch_scores():
@@ -1910,67 +1930,100 @@ if tab == "Admin":
             st.success("Cache cleared! Reloading…")
             st.rerun()
 
-        # --- Logout Button ---
-        if st.button("🚪 Logout Admin"):
-            st.session_state["is_admin"] = False
-            st.success("Logged out successfully.")
-            st.rerun()
+        st.subheader("Student Data Backup & Restore")
 
-        # --- Student Overview Table ---
-        st.subheader("All Registered Students")
+        # ===== Download/Backup Section =====
+        import pandas as pd
+
+        # --- Student Scores Backup ---
+        st.markdown("### 📥 Download Backups")
+
+        # Scores (assignment marking) backup
+        try:
+            conn_scores = sqlite3.connect('scores.db')
+            df_scores = pd.read_sql_query("SELECT * FROM scores", conn_scores)
+            csv_scores = df_scores.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Scores Backup", csv_scores, file_name="scores_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.warning(f"Could not load scores: {e}")
+
+        # Vocab Progress backup
+        try:
+            conn_vocab = sqlite3.connect('vocab_progress.db')
+            df_vocab = pd.read_sql_query("SELECT * FROM vocab_progress", conn_vocab)
+            csv_vocab = df_vocab.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Vocab Progress", csv_vocab, file_name="vocab_progress_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.warning(f"Could not load vocab progress: {e}")
+
+        # Schreiben Progress backup
+        try:
+            conn_schreiben = sqlite3.connect('vocab_progress.db')
+            df_schreiben = pd.read_sql_query("SELECT * FROM schreiben_progress", conn_schreiben)
+            csv_schreiben = df_schreiben.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Schreiben Progress", csv_schreiben, file_name="schreiben_progress_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.warning(f"Could not load schreiben progress: {e}")
+
+        # Sprechen Progress backup (if table exists)
+        try:
+            conn_sprechen = sqlite3.connect('vocab_progress.db')
+            df_sprechen = pd.read_sql_query("SELECT * FROM sprechen_progress", conn_sprechen)
+            csv_sprechen = df_sprechen.to_csv(index=False).encode('utf-8')
+            st.download_button("⬇️ Download Sprechen Progress", csv_sprechen, file_name="sprechen_progress_backup.csv", mime="text/csv")
+        except Exception as e:
+            st.info("No Sprechen Progress table found. (If not used, ignore this warning.)")
+
+        # ===== Upload/Restore Section =====
+        st.markdown("### 📤 Restore from Backup (Upload, overwrites current data)")
+
+        # --- Scores Upload ---
+        uploaded_scores = st.file_uploader("Upload Scores CSV", type="csv", key="up_scores")
+        if uploaded_scores:
+            try:
+                df_new = pd.read_csv(uploaded_scores)
+                conn_scores = sqlite3.connect('scores.db')
+                df_new.to_sql('scores', conn_scores, if_exists='replace', index=False)
+                st.success("Scores data uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Vocab Progress Upload ---
+        uploaded_vocab = st.file_uploader("Upload Vocab Progress CSV", type="csv", key="up_vocab")
+        if uploaded_vocab:
+            try:
+                df_new = pd.read_csv(uploaded_vocab)
+                conn_vocab = sqlite3.connect('vocab_progress.db')
+                df_new.to_sql('vocab_progress', conn_vocab, if_exists='replace', index=False)
+                st.success("Vocab Progress uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Schreiben Progress Upload ---
+        uploaded_schreiben = st.file_uploader("Upload Schreiben Progress CSV", type="csv", key="up_schreiben")
+        if uploaded_schreiben:
+            try:
+                df_new = pd.read_csv(uploaded_schreiben)
+                conn_schreiben = sqlite3.connect('vocab_progress.db')
+                df_new.to_sql('schreiben_progress', conn_schreiben, if_exists='replace', index=False)
+                st.success("Schreiben Progress uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Sprechen Progress Upload ---
+        uploaded_sprechen = st.file_uploader("Upload Sprechen Progress CSV", type="csv", key="up_sprechen")
+        if uploaded_sprechen:
+            try:
+                df_new = pd.read_csv(uploaded_sprechen)
+                conn_sprechen = sqlite3.connect('vocab_progress.db')
+                df_new.to_sql('sprechen_progress', conn_sprechen, if_exists='replace', index=False)
+                st.success("Sprechen Progress uploaded & replaced.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
+
+        # --- Show all students table (as before) ---
+        st.markdown("---")
+        st.markdown("### 👀 View All Student Records")
         df_students = load_student_data()
         st.dataframe(df_students)
-
-        # --- Stats: total/active/inactive ---
-        total_students = len(df_students)
-        status_counts = df_students['Status'].value_counts() if 'Status' in df_students.columns else {}
-        st.write(f"**Total Students:** {total_students}")
-        if status_counts is not {}:
-            for k, v in status_counts.items():
-                st.write(f"**{k}:** {v}")
-
-        # --- Download students as CSV or PDF ---
-        st.markdown("### 📥 Download Student Records")
-        if st.button("Download Students (CSV)"):
-            st.download_button("Download CSV", df_students.to_csv(index=False), file_name="students.csv")
-        if st.button("Download Students (PDF)"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(0, 10, "Student Records", ln=1, align='C')
-            pdf.ln(5)
-            for _, row in df_students.iterrows():
-                line = ', '.join([f"{col}: {row[col]}" for col in df_students.columns])
-                pdf.multi_cell(0, 8, line)
-                pdf.ln(1)
-            pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-            st.download_button("Download PDF", pdf_bytes, file_name="students.pdf", mime="application/pdf")
-
-        # --- Download All Practice Data for Backup ---
-        st.markdown("### 🗄️ Download Practice Data Backup (CSV)")
-
-        def dump_table(table_name):
-            cs.execute(f"SELECT * FROM {table_name}")
-            rows = cs.fetchall()
-            columns = [desc[0] for desc in cs.description]
-            df = pd.DataFrame(rows, columns=columns)
-            return df
-
-        # Vocab Backup
-        df_vocab = dump_table("vocab_backup")
-        if st.button("Download All Vocab Data (CSV)"):
-            st.download_button("Download Vocab Backup", df_vocab.to_csv(index=False), file_name="vocab_backup.csv")
-
-        # Schreiben Backup
-        df_schreiben = dump_table("schreiben_backup")
-        if st.button("Download Schreiben Data (CSV)"):
-            st.download_button("Download Schreiben Backup", df_schreiben.to_csv(index=False), file_name="schreiben_backup.csv")
-
-        # Sprechen Backup
-        df_sprechen = dump_table("sprechen_backup")
-        if st.button("Download Sprechen Data (CSV)"):
-            st.download_button("Download Sprechen Backup", df_sprechen.to_csv(index=False), file_name="sprechen_backup.csv")
-
-
-
 
