@@ -2811,6 +2811,7 @@ if tab == "Course Book":
     }
     </style>
     """, unsafe_allow_html=True)
+    answer = st.text_area("✍️ Your Answer", height=180)
 
 
     # 1. Pick schedule based on student
