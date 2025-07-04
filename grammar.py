@@ -1379,112 +1379,131 @@ if tab == "Exams Mode & Custom Chat":
 
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1) + MY VOCAB
+# VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-import random
-
 if tab == "Vocab Trainer":
-    st.header("🧠 Vocabulary Practice (AI Chat Style)")
+    import random
 
-    # Level selection
-    level_options = ["A1", "A2", "B1", "B2", "C1"]
-    level = st.selectbox("Choose level:", level_options, key="vocab_level_select")
-    VOCAB = VOCAB_LISTS.get(level, [])
+    # --------- Your Vocab Lists ---------
+    # (Assuming VOCAB_LISTS is already defined above!)
+
+    # ----- State setup -----
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "practice_num" not in st.session_state:
+        st.session_state.practice_num = None
+    if "practice_list" not in st.session_state:
+        st.session_state.practice_list = []
+    if "chat_idx" not in st.session_state:
+        st.session_state.chat_idx = 0
+    if "chat_score" not in st.session_state:
+        st.session_state.chat_score = 0
+    if "vocab_level" not in st.session_state:
+        st.session_state.vocab_level = "A1"
+
+    def chat_add(role, msg):
+        st.session_state.chat_history.append((role, msg))
+
+    # -------- UI --------
+    st.title("🗨️ Vocabulary Trainer (Chat Style)")
+    level = st.selectbox(
+        "Choose level:",
+        list(VOCAB_LISTS.keys()),
+        index=list(VOCAB_LISTS.keys()).index(st.session_state.vocab_level)
+    )
+    if level != st.session_state.vocab_level:
+        st.session_state.vocab_level = level
+        # Reset state if level changes
+        st.session_state.practice_num = None
+        st.session_state.practice_list = []
+        st.session_state.chat_idx = 0
+        st.session_state.chat_score = 0
+        st.session_state.chat_history = []
+
+    VOCAB = VOCAB_LISTS[level]
     total_words = len(VOCAB)
 
-    # Chat and practice session state
-    if "chat_messages" not in st.session_state:
-        st.session_state["chat_messages"] = []
-    if "practice_list" not in st.session_state:
-        st.session_state["practice_list"] = []
-    if "practice_num" not in st.session_state:
-        st.session_state["practice_num"] = None
-    if "chat_idx" not in st.session_state:
-        st.session_state["chat_idx"] = 0
-    if "chat_score" not in st.session_state:
-        st.session_state["chat_score"] = 0
-    if "waiting_for_input" not in st.session_state:
-        st.session_state["waiting_for_input"] = False
+    # ---- Chat Logic ----
+    if not st.session_state.practice_list:
+        # First: ask how many to practice
+        if not st.session_state.chat_history:
+            chat_add("AI", f"👋 Welcome! I have **{total_words}** {level} words. How many do you want to practice today?")
+        count = st.number_input(
+            "How many words to practice?",
+            min_value=1, max_value=total_words,
+            value=min(7, total_words), key="vocab_num"
+        )
+        if st.button("Start Practice", key="start_btn"):
+            chosen = random.sample(VOCAB, k=int(count))
+            st.session_state.practice_num = int(count)
+            st.session_state.practice_list = chosen
+            st.session_state.chat_idx = 0
+            st.session_state.chat_score = 0
+            st.session_state.chat_history = []
+            chat_add("AI", f"Let's start! 🎉 Here is your first word:")
 
-    def add_chat(role, msg):
-        st.session_state["chat_messages"].append((role, msg))
-
-    # Start a new practice session
-    if not st.session_state["practice_list"]:
-        if not st.session_state["chat_messages"]:
-            add_chat("AI", f"👋 Welcome! I have **{total_words}** words for {level}. How many do you want to practice?")
-        num = st.number_input("How many words?", min_value=1, max_value=total_words, value=min(7, total_words), key="chat_word_num")
-        if st.button("Start Practice", key="start_practice_btn"):
-            chosen = random.sample(VOCAB, k=int(num))
-            st.session_state["practice_list"] = chosen
-            st.session_state["practice_num"] = int(num)
-            st.session_state["chat_idx"] = 0
-            st.session_state["chat_score"] = 0
-            st.session_state["chat_messages"] = []
-            add_chat("AI", f"Let's go! 🎉 I'll ask you {num} words. Ready?")
-            word = chosen[0][0]
-            add_chat("AI", f"❓ What is the English meaning of **'{word}'**?")
-            st.session_state["waiting_for_input"] = True
-
-    elif st.session_state["chat_idx"] < st.session_state["practice_num"]:
-        idx = st.session_state["chat_idx"]
-        word, answer = st.session_state["practice_list"][idx]
-
-        # Only show input if last message was AI
-        if st.session_state.get("waiting_for_input", True):
-            user_input = st.text_input("Your answer:", key=f"chat_ans_{idx}")
-            if st.button("Send", key=f"chat_send_{idx}"):
-                add_chat("You", user_input)
-                user = user_input.strip().lower()
-                correct = answer.strip().lower()
-
+    elif (
+        st.session_state.practice_list
+        and st.session_state.practice_num is not None
+        and st.session_state.chat_idx < st.session_state.practice_num
+    ):
+        idx = st.session_state.chat_idx
+        word, answer = st.session_state.practice_list[idx]
+        if not st.session_state.chat_history or st.session_state.chat_history[-1][0] != "AI":
+            chat_add("AI", f"❓ What is the English meaning of **'{word}'**?")
+        # Display chat so far
+        for role, msg in st.session_state.chat_history:
+            align = "left" if role == "AI" else "right"
+            color = "#eaf4ff" if role == "AI" else "#fffbe0"
+            st.markdown(
+                f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;border-radius:14px;max-width:97%;text-align:{align};'>"
+                f"<b>{'AI 🤖' if role == 'AI' else 'You'}:</b> {msg}</div>",
+                unsafe_allow_html=True
+            )
+        # Answer input for this word only once!
+        if f"answered_{idx}" not in st.session_state:
+            user_ans = st.text_input("Your answer:", key=f"chat_answer_{idx}")
+            if st.button("Check", key=f"chat_check_{idx}"):
+                st.session_state[f"answered_{idx}"] = True
+                chat_add("You", user_ans)
+                correct = answer.lower().strip()
+                user = user_ans.strip().lower()
                 if user == correct:
-                    add_chat("AI", f"✅ Correct! 🎉 '{word}' means '{answer}'. 👍")
-                    st.session_state["chat_score"] += 1
+                    chat_add("AI", f"✅ Correct! 🎉 '{word}' means '{answer}'. Awesome! 👍")
+                    st.session_state.chat_score += 1
                 else:
-                    # Helpful feedback for wrong answers
-                    add_chat("AI", f"❌ Not quite. The correct answer is '{answer}'.\n\n"
+                    chat_add("AI", f"❌ Not quite. The correct answer is '{answer}'.\n"
                                    f"Remember: '{word}' means '{answer}'.\n"
-                                   f"Example: 'Das ist ein {word}.' = 'That is a {answer}.' 😃")
-
-                st.session_state["chat_idx"] += 1
-                if st.session_state["chat_idx"] < st.session_state["practice_num"]:
-                    next_word = st.session_state["practice_list"][st.session_state["chat_idx"]][0]
-                    add_chat("AI", f"❓ What is the English meaning of **'{next_word}'**?")
-                    st.session_state["waiting_for_input"] = True
-                else:
-                    score = st.session_state["chat_score"]
-                    total = st.session_state["practice_num"]
-                    add_chat("AI", f"🏁 Finished! You got {score} out of {total} correct. {'🎉' if score == total else '👏'}")
-                    st.session_state["waiting_for_input"] = False
+                                   f"Example: 'Ich habe ein {word} bekommen.' = 'I got a {answer}.'")
+                st.session_state.chat_idx += 1
         else:
-            st.info("Scroll down to view your results or restart the practice.")
+            st.button("Next", key=f"chat_next_{idx}", on_click=lambda: None)
 
     else:
-        # Practice session over
-        score = st.session_state["chat_score"]
-        total = st.session_state["practice_num"]
-        if not st.session_state["chat_messages"] or st.session_state["chat_messages"][-1][1].startswith("🏁 Finished"):
-            add_chat("AI", f"🏁 Finished! You got {score} out of {total} correct. {'🎉' if score == total else '👏'}")
-        if st.button("Practice Again", key="chat_again"):
-            st.session_state["practice_list"] = []
-            st.session_state["practice_num"] = None
-            st.session_state["chat_idx"] = 0
-            st.session_state["chat_score"] = 0
-            st.session_state["chat_messages"] = []
-            st.session_state["waiting_for_input"] = False
-
-    st.markdown("---")
-    st.markdown("### 🗨️ Practice Chat")
-    for role, msg in st.session_state["chat_messages"]:
-        align = "left" if role == "AI" else "right"
-        color = "#eaf4ff" if role == "AI" else "#fffbe0"
-        st.markdown(
-            f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;border-radius:14px;max-width:97%;text-align:{align};'>"
-            f"<b>{'AI 🤖' if role == 'AI' else 'You'}:</b> {msg}</div>",
-            unsafe_allow_html=True
-        )
+        # Done!
+        total = st.session_state.practice_num or 0
+        score = st.session_state.chat_score
+        emoji = "🎉" if score == total else "👏"
+        chat_add("AI", f"🏁 Finished! You got {score} out of {total} correct. {emoji}")
+        for role, msg in st.session_state.chat_history:
+            align = "left" if role == "AI" else "right"
+            color = "#eaf4ff" if role == "AI" else "#fffbe0"
+            st.markdown(
+                f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;border-radius:14px;max-width:97%;text-align:{align};'>"
+                f"<b>{'AI 🤖' if role == 'AI' else 'You'}:</b> {msg}</div>",
+                unsafe_allow_html=True
+            )
+        if st.button("Practice Again", key="restart_btn"):
+            st.session_state.practice_num = None
+            st.session_state.practice_list = []
+            st.session_state.chat_idx = 0
+            st.session_state.chat_score = 0
+            st.session_state.chat_history = []
+            # Also reset all 'answered_X' keys
+            for k in list(st.session_state.keys()):
+                if str(k).startswith("answered_"):
+                    del st.session_state[k]
 
 
 # ===================
