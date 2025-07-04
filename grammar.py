@@ -1413,7 +1413,7 @@ if tab == "Vocab Trainer":
     vocab = VOCAB_LISTS[level]
     max_words = len(vocab)
 
-    # Reset practice
+    # Reset practice: clear all state including total count
     if st.button("🔁 Start New Practice", key="vt_reset"):
         st.session_state.vt_history.clear()
         st.session_state.vt_list.clear()
@@ -1429,12 +1429,13 @@ if tab == "Vocab Trainer":
         )
         if st.button("Start Practice", key="vt_start"):
             st.session_state.vt_total = int(count)
-            # Use shuffle + slice instead of random.sample for performance with large lists
+            # Use shuffle + slice for efficient random selection
             temp_list = vocab.copy()
             random.shuffle(temp_list)
             st.session_state.vt_list = temp_list[:st.session_state.vt_total]
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
+            # Initialize history with greeting
             st.session_state.vt_history = [
                 ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's begin with {st.session_state.vt_total} words!")
             ]
@@ -1445,7 +1446,7 @@ if tab == "Vocab Trainer":
         for role, msg in st.session_state.vt_history:
             render_message(role, msg)
 
-    # Practice loop
+    # Practice loop: ask current word
     if st.session_state.vt_total is not None and st.session_state.vt_index < st.session_state.vt_total:
         word, answer = st.session_state.vt_list[st.session_state.vt_index]
         user_ans = st.text_input(
@@ -1465,17 +1466,19 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", feedback))
             st.session_state.vt_index += 1
 
-    # Show results
+    # Show results when done
     if st.session_state.vt_total is not None and st.session_state.vt_index >= st.session_state.vt_total:
         score = st.session_state.vt_score
         total = st.session_state.vt_total
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
         if st.button("Practice Again", key="vt_again"):
+            # Reset for new session
             st.session_state.vt_history.clear()
             st.session_state.vt_list.clear()
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
             st.session_state.vt_total = None
+
 
 
 
