@@ -1384,11 +1384,17 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
     import random
-    import openai  # Only if you use AI feedback
-    import time
 
     # --------- Your Vocab Lists ---------
     # VOCAB_LISTS assumed defined above
+
+    # --- Herr Felix persona prompt (for future AI/LangChain use) ---
+    HERR_FELIX_PROMPT = (
+        "You are Herr Felix, a friendly German language teacher. "
+        "When a student makes a mistake, always explain the correct answer, give a short example, "
+        "and add a little encouragement. Respond simply, with emojis. Never be negative. "
+        "Greet and praise students when they do well."
+    )
 
     # -- Session state setup --
     if "chat_history" not in st.session_state:
@@ -1409,7 +1415,6 @@ if tab == "Vocab Trainer":
     level = st.selectbox("Choose your level:", levels, key="vocab_level")
     vocab = VOCAB_LISTS[level]
     total_words = len(vocab)
-    # Do NOT do: st.session_state.vocab_level = level
 
     # --- Chat add helper ---
     def chat_add(role, msg):
@@ -1417,9 +1422,9 @@ if tab == "Vocab Trainer":
 
     # --- Start or continue practice session ---
     if st.session_state.practice_num is None:
-        # Welcome and ask for practice count
         if not st.session_state.chat_history:
-            chat_add("AI", f"👋 Welcome! I have **{total_words}** {level} words. How many do you want to practice today?")
+            chat_add("Herr Felix 👨‍🏫", f"👋 Hallo! I have <b>{total_words}</b> <b>{level}</b> words. "
+                      "How many would you like to practice today?")
         count = st.number_input("How many words?", min_value=1, max_value=total_words, value=7, key="chat_practice_count")
         if st.button("Start Practice", key="chat_start_btn"):
             chosen = random.sample(vocab, k=int(count))
@@ -1428,29 +1433,35 @@ if tab == "Vocab Trainer":
             st.session_state.chat_idx = 0
             st.session_state.chat_score = 0
             st.session_state.chat_history = []
-            chat_add("AI", f"Let's start! 🎉 Here is your first word:\n\n**{chosen[0][0]}**")
+            chat_add("Herr Felix 👨‍🏫", f"Los geht's! 🎉 Here is your first word:<br><b>{chosen[0][0]}</b>")
             st.rerun()
 
     elif st.session_state.chat_idx < st.session_state.practice_num:
         idx = st.session_state.chat_idx
         word, answer = st.session_state.practice_list[idx]
-        # Only ask question if last message wasn't AI's
-        if not st.session_state.chat_history or st.session_state.chat_history[-1][0] != "AI":
-            chat_add("AI", f"❓ What is the English meaning of **'{word}'**?")
+        if not st.session_state.chat_history or st.session_state.chat_history[-1][0] == "Herr Felix 👨‍🏫":
+            chat_add("Herr Felix 👨‍🏫", f"❓ What is the English meaning of <b>{word}</b>?")
         user_ans = st.text_input("Your answer:", key=f"chat_ans_{idx}")
         if st.button("Check", key=f"chat_check_{idx}"):
+            chat_add("You", user_ans)
             correct = answer.lower().strip()
             user = user_ans.strip().lower()
-            # Accept also partial and 'the garden' vs 'garden' etc.
+            # Accept partial/extra (e.g., "the garden" vs "garden")
             user_clean = user.replace('the ', '').replace('a ', '').strip()
             correct_clean = correct.replace('the ', '').replace('a ', '').strip()
             if user_clean == correct_clean or user in correct or correct in user:
-                chat_add("AI", f"✅ Correct! 🎉 '{word}' means '{answer}'. 👍")
+                chat_add("Herr Felix 👨‍🏫", f"✅ Super! '<b>{word}</b>' means '<b>{answer}</b>'. 👍\n\n"
+                                            "Well done! 🎉")
                 st.session_state.chat_score += 1
             else:
-                # Optionally add AI explanation here
-                chat_add("AI", f"❌ Not quite. The correct answer is '{answer}'. Remember: '{word}' means '{answer}'.\n"
-                                f"Example: 'Ich habe einen {word}.' means 'I have a {answer}.'")
+                chat_add(
+                    "Herr Felix 👨‍🏫",
+                    f"❌ Not quite right.<br>"
+                    f"The correct answer is '<b>{answer}</b>'.<br>"
+                    f"<span style='color:#357ae8'>Remember: '<b>{word}</b>' means '<b>{answer}</b>'.</span><br>"
+                    f"<i>Example: Ich habe einen <b>{word}</b>. (I have a {answer}.)</i><br>"
+                    f"Don't worry, you'll get it next time! 🌟"
+                )
             st.session_state.chat_idx += 1
             st.rerun()
 
@@ -1458,32 +1469,67 @@ if tab == "Vocab Trainer":
         total = st.session_state.practice_num
         score = st.session_state.chat_score
         emoji = "🎉" if score == total else "👏"
-        chat_add("AI", f"🏁 Finished! You got {score} out of {total} correct. {emoji}")
+        chat_add("Herr Felix 👨‍🏫", f"🏁 Finished! You got <b>{score}</b> out of <b>{total}</b> correct. {emoji} "
+                                    "Would you like to practice again?")
         if st.button("Practice Again", key="chat_again_btn"):
             st.session_state.practice_num = None
             st.session_state.practice_list = []
             st.session_state.chat_idx = 0
             st.session_state.chat_score = 0
             st.session_state.chat_history = []
-            st.experimental_rerun()
+            st.rerun()
 
-    # --- Display Chat-like History ---
+    # --- Custom Chat Bubble Style ---
+    st.markdown("""
+    <style>
+    .custom-chat-bubble {
+        padding: 16px 22px;
+        border-radius: 20px;
+        margin: 10px 0;
+        max-width: 90%;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        font-size: 1.08em;
+        line-height: 1.65;
+        word-break: break-word;
+    }
+    .bubble-left {
+        background: #eaf4ff;
+        color: #1a2633;
+        border-bottom-left-radius: 7px;
+        margin-right: auto;
+        margin-left: 0;
+        text-align: left;
+    }
+    .bubble-right {
+        background: #fffbe0;
+        color: #2b2222;
+        border-bottom-right-radius: 7px;
+        margin-left: auto;
+        margin-right: 0;
+        text-align: right;
+    }
+    .bubble-label {
+        font-weight: bold;
+        font-size: 0.93em;
+        color: #357ae8;
+        margin-bottom: 1px;
+        letter-spacing: 0.04em;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("---")
     st.markdown("### 🗨️ Practice Chat")
+
     for role, msg in st.session_state.chat_history:
-        align = "left" if role == "AI" else "right"
-        color = "#eaf4ff" if role == "AI" else "#fffbe0"
+        side = "left" if role == "Herr Felix 👨‍🏫" else "right"
+        color_class = "bubble-left" if role == "Herr Felix 👨‍🏫" else "bubble-right"
+        name = role
         st.markdown(
-            f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;border-radius:14px;max-width:97%;text-align:{align};'>"
-            f"<b>{'AI 🤖' if role == 'AI' else 'You'}:</b> {msg}</div>",
+            f"<div class='custom-chat-bubble {color_class}'>"
+            f"<div class='bubble-label'>{name}</div>{msg}</div>",
             unsafe_allow_html=True
         )
-
-# ===================
-# END OF VOCAB TRAINER TAB
-# ===================
-
-
 
 
 # ====================================
