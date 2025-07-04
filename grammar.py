@@ -1384,7 +1384,7 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
     import random
-    import openai  # or from openai import OpenAI, if using openai>=1.x
+    import openai  # Only if you use AI feedback
     import time
 
     # --------- Your Vocab Lists ---------
@@ -1404,114 +1404,70 @@ if tab == "Vocab Trainer":
     if "vocab_level" not in st.session_state:
         st.session_state.vocab_level = "A1"
 
-    # --- Vocab Level Selection ---
+    # --- LEVEL PICKER ---
     levels = list(VOCAB_LISTS.keys())
     level = st.selectbox("Choose your level:", levels, key="vocab_level")
     vocab = VOCAB_LISTS[level]
     total_words = len(vocab)
-    st.session_state.vocab_level = level
+    # Do NOT do: st.session_state.vocab_level = level
 
+    # --- Chat add helper ---
     def chat_add(role, msg):
         st.session_state.chat_history.append((role, msg))
 
-    # --- Smarter AI Feedback (or fallback logic) ---
-    def get_feedback(word, expected, user):
-        user = user.strip().lower()
-        expected = expected.strip().lower()
-        # Simple logic first
-        if user == expected:
-            return "✅ **Correct!** 🎉", True
-        elif user.replace("the ", "") == expected or user == ("the " + expected):
-            return f"⚠️ Almost! You added 'the'. Just write: '{expected}'.", False
-        elif user in expected or expected in user:
-            return f"⚠️ Almost! You were close. Correct answer: '{expected}'.", False
-
-        # Otherwise, try GPT for a smart answer (with example)
-        try:
-            # Uses your OpenAI key from environment
-            client = openai.OpenAI()
-            prompt = (
-                f"You are a friendly German vocab tutor. "
-                f"The word is: '{word}'. The correct English meaning is '{expected}'. "
-                f"The student answered: '{user}'.\n"
-                "1. Tell if correct, almost correct, or incorrect.\n"
-                "2. If not exact, explain what was missing/extra (e.g., article, plural, typo).\n"
-                "3. Give a simple English example sentence using the word.\n"
-                "4. Add encouragement with an emoji.\n"
-                "Reply in 2-3 short lines."
-            )
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",  # or "gpt-4" if available
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": f"Student's answer: {user}"},
-                ],
-                temperature=0.4,
-                max_tokens=70
-            )
-            msg = response.choices[0].message.content.strip()
-            # Basic correct check
-            if "correct" in msg.lower():
-                is_correct = "correct!" in msg.lower()
-            else:
-                is_correct = False
-            return msg, is_correct
-        except Exception as e:
-            return f"❌ Not quite. The correct answer is '{expected}'.", False
-
-    # --- INITIAL PROMPT: How many words? ---
+    # --- Start or continue practice session ---
     if st.session_state.practice_num is None:
+        # Welcome and ask for practice count
         if not st.session_state.chat_history:
-            chat_add("AI", f"👋 Welcome! I have **{total_words}** words for level {level}. How many do you want to practice today?")
-        count = st.number_input("How many words?", min_value=1, max_value=total_words, value=min(7, total_words), key="practice_num_input")
-        if st.button("Start Practice"):
+            chat_add("AI", f"👋 Welcome! I have **{total_words}** {level} words. How many do you want to practice today?")
+        count = st.number_input("How many words?", min_value=1, max_value=total_words, value=7, key="chat_practice_count")
+        if st.button("Start Practice", key="chat_start_btn"):
             chosen = random.sample(vocab, k=int(count))
             st.session_state.practice_num = int(count)
             st.session_state.practice_list = chosen
             st.session_state.chat_idx = 0
             st.session_state.chat_score = 0
             st.session_state.chat_history = []
-            chat_add("AI", f"Let's start! 🎉 Here's your first word: **{chosen[0][0]}** – what is the English meaning?")
-            st.rerun()
+            chat_add("AI", f"Let's start! 🎉 Here is your first word:\n\n**{chosen[0][0]}**")
+            st.experimental_rerun()
 
-    # --- PRACTICE CHAT: Main Loop ---
     elif st.session_state.chat_idx < st.session_state.practice_num:
         idx = st.session_state.chat_idx
         word, answer = st.session_state.practice_list[idx]
-
-        # Show last AI prompt if user just started
+        # Only ask question if last message wasn't AI's
         if not st.session_state.chat_history or st.session_state.chat_history[-1][0] != "AI":
             chat_add("AI", f"❓ What is the English meaning of **'{word}'**?")
-
-        user_ans = st.text_input("Your answer:", key=f"ans_{idx}")
-        if st.button("Check", key=f"check_{idx}"):
-            feedback, correct = get_feedback(word, answer, user_ans)
-            chat_add("You", user_ans or "(no answer)")
-            chat_add("AI", feedback)
-            if correct:
+        user_ans = st.text_input("Your answer:", key=f"chat_ans_{idx}")
+        if st.button("Check", key=f"chat_check_{idx}"):
+            correct = answer.lower().strip()
+            user = user_ans.strip().lower()
+            # Accept also partial and 'the garden' vs 'garden' etc.
+            user_clean = user.replace('the ', '').replace('a ', '').strip()
+            correct_clean = correct.replace('the ', '').replace('a ', '').strip()
+            if user_clean == correct_clean or user in correct or correct in user:
+                chat_add("AI", f"✅ Correct! 🎉 '{word}' means '{answer}'. 👍")
                 st.session_state.chat_score += 1
+            else:
+                # Optionally add AI explanation here
+                chat_add("AI", f"❌ Not quite. The correct answer is '{answer}'. Remember: '{word}' means '{answer}'.\n"
+                                f"Example: 'Ich habe einen {word}.' means 'I have a {answer}.'")
             st.session_state.chat_idx += 1
-            # Ask next question if any left
-            if st.session_state.chat_idx < st.session_state.practice_num:
-                next_word = st.session_state.practice_list[st.session_state.chat_idx][0]
-                chat_add("AI", f"👉 Next word: **{next_word}** – what is the English meaning?")
-            st.rerun()
+            st.experimental_rerun()
 
-    # --- END OF PRACTICE ---
     else:
         total = st.session_state.practice_num
         score = st.session_state.chat_score
         emoji = "🎉" if score == total else "👏"
-        chat_add("AI", f"🏁 Finished! You got {score} out of {total} correct. {emoji} Well done!")
-        if st.button("Practice Again", key="practice_again"):
+        chat_add("AI", f"🏁 Finished! You got {score} out of {total} correct. {emoji}")
+        if st.button("Practice Again", key="chat_again_btn"):
             st.session_state.practice_num = None
             st.session_state.practice_list = []
             st.session_state.chat_idx = 0
             st.session_state.chat_score = 0
             st.session_state.chat_history = []
-            st.rerun()
+            st.experimental_rerun()
 
-    # --- CHAT DISPLAY (Simple bubbles) ---
+    # --- Display Chat-like History ---
     st.markdown("---")
     st.markdown("### 🗨️ Practice Chat")
     for role, msg in st.session_state.chat_history:
