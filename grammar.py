@@ -1410,7 +1410,7 @@ if tab == "Vocab Trainer":
     if st.button("🔁 Start New Practice"):
         for key in ["chat_history","practice_num","practice_list","chat_idx","chat_score","chat_complete","second_chance"]:
             st.session_state[key] = None if key=="practice_num" else [] if key=="chat_history" else False if key in ("chat_complete","second_chance") else 0
-        st.experimental_rerun()
+        st.rerun()
 
     # — step 1: how many words? —
     if st.session_state.practice_num is None:
@@ -1501,7 +1501,7 @@ if tab == "Vocab Trainer":
                     )
                     st.session_state.chat_complete = True
 
-            st.experimental_rerun()
+            st.rerun()
 
     # — optional progress bar / halfway shout-out —
     if n:
