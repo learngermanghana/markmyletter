@@ -2955,7 +2955,7 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
                 f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
                 unsafe_allow_html=True
             )
-            st.text_area("📋 Copy this message if needed:", wa_message, height=90, label_visibility="visible")
+            st.text_area("📋 Copy this message if needed:", wa_message, height=200, label_visibility="visible")
 
     st.info("""
     - Tap the links above to open books in a new tab (no in-app preview).
