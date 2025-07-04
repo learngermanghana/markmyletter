@@ -1991,10 +1991,10 @@ def get_a1_schedule():
                     "video": "https://youtu.be/MrB3BPtQN6A",
                     "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
-            },
+                 },
                 "chapter_10": {
                     "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
-            }
+                 }
         },
         # DAY 17
         {
