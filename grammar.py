@@ -2018,17 +2018,26 @@ def get_a1_schedule():
         {
             "day": 18,
             "topic": "Lesen & Hören and Schreiben & Sprechen (including 5.8)",
-            "chapter": "12.1",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            },
+            "chapter": "12.1_12.2",
+            "goal": "Learn about German professions and how to use two-way prepositions",
+            "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8)",
+            "lesen_hören": [
+                {
+                    "chapter": "12.1",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
+                },
+                {
+                    "chapter": "12.2",
+                    "video": "",
+                    "grammarbook_link": "",
+                    "workbook_link": "https://drive.google.com/file/d/1xojH7Tgb5LeJj3nzNSATUVppWnJgJLEF/view?usp=sharing"
+                }
+            ],
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
         },
         # DAY 19
@@ -2036,11 +2045,11 @@ def get_a1_schedule():
             "day": 19,
             "topic": "Schreiben & Sprechen",
             "chapter": "5.9",
-            "goal": "",
+            "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1-bbY9zoos62U5jUAFrYCyxay_cvbk65N/view?usp=sharing"
             }
         },
         # DAY 20
@@ -2048,11 +2057,11 @@ def get_a1_schedule():
             "day": 20,
             "topic": "Schreiben & Sprechen (Intro to letter writing)",
             "chapter": "6.10",
-            "goal": "",
-            "instruction": "",
+            "goal": "Practice how to write both formal and informal letters",
+            "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
         # DAY 21
@@ -2130,7 +2139,7 @@ def get_a1_schedule():
                 "workbook_link": ""
             }
         }
-    ]
+
 
 def get_a2_schedule():
     return [
