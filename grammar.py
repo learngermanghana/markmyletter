@@ -2894,20 +2894,23 @@ if tab == "Course Book":
         if day_info.get("grammarbook_link"):
             st.markdown(
                 f"<a href='{day_info['grammarbook_link']}' target='_blank' "
-                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                f"style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
                 unsafe_allow_html=True)
         if day_info.get("workbook_link"):
             st.markdown(
                 f"<a href='{day_info['workbook_link']}' target='_blank' "
-                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                f"style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
                 unsafe_allow_html=True)
-        extras = day_info.get('extra_resources')
+        
+        extras = day_info.get("extra_resources")
         if extras:
+            st.markdown("**🔍 Extra Resources:**", unsafe_allow_html=True)
             if isinstance(extras, list):
                 for link in extras:
                     st.markdown(f"- [🔗 Extra Resource]({link})")
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
+
 
 # --- Assignment Submission Section (WhatsApp) ---
 st.divider()
