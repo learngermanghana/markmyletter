@@ -1521,7 +1521,7 @@ if tab == "Vocab Trainer":
                          f"Well done, keep practicing every day!")
                     )
                     st.session_state.chat_complete = True
-                st.experimental_rerun()
+                st.rerun()
 
 
 
