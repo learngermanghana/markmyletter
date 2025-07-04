@@ -2902,17 +2902,13 @@ if tab == "Course Book":
 
 # --- Assignment Submission Section (WhatsApp) ---
 st.divider()
-st.markdown("## 📲 Submit Assignment (WhatsApp)")
+st.markdown("### 📲 Submit Assignment (WhatsApp)", unsafe_allow_html=True)
 
-with st.container():
-    student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
-    student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
+student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+answer = st.text_area("✍️ Your Answer", height=120)
 
-    # Mobile-optimized answer field
-    st.markdown("#### ✍️ Your Answer")
-    answer = st.text_area("Type your answer here (or leave blank if sending photo on WhatsApp)", label_visibility="collapsed")
-
-    wa_message = f"""Learn Language Education Academy – Assignment Submission
+wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
 Level: {student_level}
@@ -2921,20 +2917,35 @@ Chapter: {day_info['chapter']}
 Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
-    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
+wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-    if st.button("📤 Submit via WhatsApp"):
-        st.success("✅ Tap below to open WhatsApp and send your assignment.")
-        st.link_button("📨 Open WhatsApp", wa_url, use_container_width=True)
-        st.text_area("📋 Copy message (if WhatsApp fails):", wa_message, height=100)
+if st.button("📤 Submit via WhatsApp"):
+    st.success("✅ Tap below to open WhatsApp and send your assignment.")
 
-st.markdown("""
-<small>
-📘 Make sure to use your correct name and code.<br>
-📎 If submitting more than one task, mention it clearly.<br>
-📲 All resource links open in a new tab.
-</small>
-""", unsafe_allow_html=True)
+    # Better WhatsApp Button Styling for Mobile
+    st.markdown(
+        f"""<a href="{wa_url}" target="_blank" 
+        style="display:block; text-align:center; font-size:1.2em; font-weight:700; 
+        background:#25D366; color:white; padding:14px 0; border-radius:8px; margin:12px 0;">
+        🟢 Open WhatsApp
+        </a>""",
+        unsafe_allow_html=True
+    )
+
+    # Copy fallback
+    st.markdown("📋 Copy message (if WhatsApp fails):", unsafe_allow_html=True)
+    st.text_area(label="", value=wa_message, height=90)
+
+# Final tips
+st.info("""
+- 📚 Tap the links above to open books or videos.
+- ✅ Submit only your main assignment. If you do more than one, mention it in your message.
+- ℹ️ Use your real name and code so we can track your progress.
+""")
+
+# Add spacing below the last section (mobile spacing)
+st.markdown("<br>", unsafe_allow_html=True)
+
 
 
 #Myresults
