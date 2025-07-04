@@ -1818,10 +1818,9 @@ def get_a1_schedule():
             "lesen_hören": [
                 {
                     "chapter": "1.2",
-                    "video": "",
+                    "video": "https://youtu.be/NVCN4fZXEk0",
                     "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
-                    "extra_resources": "https://www.youtube.com/watch?v=qdTEFPqjfkY&authuser=0"
                 }
             ]
         },
@@ -1949,11 +1948,11 @@ def get_a1_schedule():
             "day": 13,
             "topic": "Schreiben & Sprechen",
             "chapter": "3.5",
-            "goal": "",
-            "instruction": "",
+            "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
+            "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
         },
         # DAY 14
@@ -1965,7 +1964,7 @@ def get_a1_schedule():
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
             }
         },
         # DAY 15
