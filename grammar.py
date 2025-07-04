@@ -1896,7 +1896,7 @@ def get_a1_schedule():
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "https://www.youtube.com/watch?v=Yi5ZA-XD-GY&feature=youtu.be",
+                "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
             }
@@ -1926,7 +1926,7 @@ def get_a1_schedule():
             "goal": "Understand the 12 hour clock system",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/Yi5ZA-XD-GY",
                 "grammarbook_link": "",
                 "workbook_link": ""
             }
