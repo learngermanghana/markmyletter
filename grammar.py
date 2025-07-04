@@ -2933,6 +2933,12 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 #Myresults
 
 if tab == "My Results and Resources":
+    # --- Refresh Button ---
+    if st.button("🔄 Refresh for your latest results"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Reloading…")
+        st.rerun()
+
     # Always define these at the top
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
@@ -2946,6 +2952,7 @@ if tab == "My Results and Resources":
     import io
     import pandas as pd
     from fpdf import FPDF
+
 
     @st.cache_data
     def fetch_scores():
