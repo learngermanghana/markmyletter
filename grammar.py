@@ -1869,7 +1869,7 @@ def get_a1_schedule():
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/dGIj1GbK4sI",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
             }
@@ -1925,7 +1925,7 @@ def get_a1_schedule():
             "goal": "Understand the 12 hour clock system",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "https://youtu.be/Yi5ZA-XD-GY",
+                "video": "https://youtu.be/uyvXoCoqjiE",
                 "grammarbook_link": "",
                 "workbook_link": ""
             }
@@ -1984,25 +1984,27 @@ def get_a1_schedule():
             "day": 16,
             "topic": "Lesen & Hören",
             "chapter": "9_10",
-            "goal": "",
-            "instruction": "",
-            "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
-            }
+            "goal": "Understand how to negate statements using nicht,kein and nein",
+            "instruction": "This chapter has two assignments. Do chapter 9 and after chapter 10. Chapter 10 has no grammar",
+            "chapter_9": {
+                "video": "https://youtu.be/MrB3BPtQN6A",
+                "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
+            },
+            "chapter_10": {
+                "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
         },
         # DAY 17
         {
             "day": 17,
             "topic": "Lesen & Hören",
             "chapter": "11",
-            "goal": "",
+            "goal": "Understand instructions and request in German using the Imperative rule",
             "instruction": "",
             "lesen_hören": {
-                "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "video": "https://youtu.be/k2ZC3rXPe1k",
+                "grammarbook_link": "https://drive.google.com/file/d/1lMzZrM4aAItO8bBmehODvT6gG7dz8I9s/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/17FNSfHBxyga9sKxzicT_qkP7PA4vB5-A/view?usp=sharing"
             }
         },
         # DAY 18
