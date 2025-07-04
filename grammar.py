@@ -658,7 +658,6 @@ b1_vocab = [
     ("Einladung", "invitation"),
 ]
 
-]
 b2_vocab = [
     ("Umwelt", "environment"),
     ("Entwicklung", "development"),
@@ -711,8 +710,6 @@ b2_vocab = [
     ("Erklärung", "explanation"),
     ("Einstellung", "attitude, employment"),
     ("Bewusstsein", "awareness, consciousness"),
-]
-
 ]
 
 c1_vocab = [
@@ -769,7 +766,6 @@ c1_vocab = [
     ("Gegensatz", "contrast, opposite"),
 ]
 
-]
 
 # --- Vocab list dictionary for your app ---
 VOCAB_LISTS = {
