@@ -1429,7 +1429,7 @@ if tab == "Vocab Trainer":
             st.session_state.chat_score = 0
             st.session_state.chat_history = []
             chat_add("AI", f"Let's start! 🎉 Here is your first word:\n\n**{chosen[0][0]}**")
-            st.experimental_rerun()
+            st.rerun()
 
     elif st.session_state.chat_idx < st.session_state.practice_num:
         idx = st.session_state.chat_idx
@@ -1452,7 +1452,7 @@ if tab == "Vocab Trainer":
                 chat_add("AI", f"❌ Not quite. The correct answer is '{answer}'. Remember: '{word}' means '{answer}'.\n"
                                 f"Example: 'Ich habe einen {word}.' means 'I have a {answer}.'")
             st.session_state.chat_idx += 1
-            st.experimental_rerun()
+            st.rerun()
 
     else:
         total = st.session_state.practice_num
