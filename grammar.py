@@ -1428,7 +1428,7 @@ if tab == "Vocab Trainer":
             # First question
             word, _ = st.session_state.practice_list[0]
             st.session_state.chat_history.append(("assistant", f"❓ What is the English meaning of **'{word}'**?"))
-            st.experimental_rerun()
+            st.rerun()
         st.stop()
 
     # Display chat history
