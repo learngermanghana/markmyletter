@@ -1985,7 +1985,7 @@ def get_a1_schedule():
             "topic": "Lesen & Hören",
             "chapter": "9_10",
             "goal": "Understand how to negate statements using nicht,kein and nein",
-            "instruction": "This chapter has two assignments. Do chapter 9 and after chapter 10. Chapter 10 has no grammar",
+            "instruction": "This chapter has two assignments. Do the assignements for  chapter 9 and after chapter 10. Chapter 10 has no grammar",
             "lesen_hören": {
                 "chapter_9": {
                     "video": "https://youtu.be/MrB3BPtQN6A",
