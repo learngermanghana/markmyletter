@@ -2798,8 +2798,12 @@ student_level = student_row.get('Level', 'A1').upper()
 
 if tab == "Course Book":
 
+    import streamlit as st
     import datetime, urllib.parse
 
+    # 1. Pick schedule based on student
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
     level_map = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -2812,135 +2816,103 @@ if tab == "Course Book":
         st.stop()
 
     selected_day_idx = st.selectbox(
-        "\ud83d\uddd3\ufe0f Choose your lesson/day:",
+        "Choose your lesson/day:",
         range(len(schedule)),
-        format_func=lambda i: f"Day {schedule[i]['day']} \u2013 {schedule[i]['topic']}"
+        format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
     )
     day_info = schedule[selected_day_idx]
 
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
 
     if day_info.get("goal"):
-        st.markdown(f"**\ud83c\udf1f Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
+        st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
-        st.markdown(f"**\ud83d\udcdd Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+        st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
 
+    # --------- Show Lesen & Hören ----------
     def render_lh_section(lh, idx=None, total=None):
         if idx is not None and total is not None:
             st.markdown(
-                f"#### \ud83d\udcda Assignment {idx+1} of {total}: Lesen & H\u00f6ren \u2013 Chapter {lh.get('chapter','')}")
+                f"#### 📚 Assignment {idx+1} of {total}: Lesen & Hören – Chapter {lh.get('chapter','')}")
         if lh.get("video"):
             st.video(lh["video"])
         if lh.get("grammarbook_link"):
             st.markdown(
-                f"<a href='{lh['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>\ud83d\udcd8 Open Grammar Book</a>",
+                f"<a href='{lh['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
                 unsafe_allow_html=True)
         if lh.get("workbook_link"):
             st.markdown(
-                f"<a href='{lh['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>\ud83d\udcd2 Open Workbook</a>",
+                f"<a href='{lh['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
                 unsafe_allow_html=True)
         extras = lh.get('extra_resources')
         if extras:
             if isinstance(extras, list):
                 for link in extras:
-                    st.markdown(f"- [\ud83d\udd17 Extra Resource]({link})")
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
             else:
-                st.markdown(f"- [\ud83d\udd17 Extra Resource]({extras})")
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
 
-    if "lesen_h\u00f6ren" in day_info:
-        lh_section = day_info["lesen_h\u00f6ren"]
+    # Multi assignment note (clean, mobile-friendly)
+    if "lesen_hören" in day_info:
+        lh_section = day_info["lesen_hören"]
         if isinstance(lh_section, list):
-            st.markdown("""
-            <div style='padding:8px 12px; background:#eaf4ff; border-radius:7px; 
-            border-left:5px solid #357ae8; margin-bottom:12px; font-size:1.03em; line-height:1.3;'>
-                <span style="font-weight:600; color:#357ae8;">\u2139\ufe0f This lesson has more than one Lesen & H\u00f6ren assignment.<br>
-                Do <u>all parts below</u> before you submit.</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                """
+                <div style='padding:8px 12px; background:#eaf4ff; border-radius:7px; 
+                border-left:5px solid #357ae8; margin-bottom:12px; font-size:1.03em; line-height:1.3;'>
+                    <span style="font-weight:600; color:#357ae8;">ℹ️ This lesson has more than one Lesen & Hören assignment.<br>
+                    Do <u>all parts below</u> before you submit.</span>
+                </div>
+                """, unsafe_allow_html=True
+            )
             for idx, chapter_lh in enumerate(lh_section):
                 render_lh_section(chapter_lh, idx, len(lh_section))
         elif isinstance(lh_section, dict):
             render_lh_section(lh_section)
 
+    # --- Show Schreiben & Sprechen (if present) ---
     if "schreiben_sprechen" in day_info:
         ss = day_info["schreiben_sprechen"]
-        st.markdown("#### \ud83d\udcdd Schreiben & Sprechen")
+        st.markdown("#### 📝 Schreiben & Sprechen")
         if ss.get("video"):
             st.video(ss["video"])
         if ss.get("grammarbook_link"):
             st.markdown(
-                f"<a href='{ss['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>\ud83d\udcd8 Open Grammar Book</a>",
+                f"<a href='{ss['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
                 unsafe_allow_html=True)
         if ss.get("workbook_link"):
             st.markdown(
-                f"<a href='{ss['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>\ud83d\udcd2 Open Workbook</a>",
+                f"<a href='{ss['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
                 unsafe_allow_html=True)
         extras = ss.get('extra_resources')
         if extras:
             if isinstance(extras, list):
                 for link in extras:
-                    st.markdown(f"- [\ud83d\udd17 Extra Resource]({link})")
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
             else:
-                st.markdown(f"- [\ud83d\udd17 Extra Resource]({extras})")
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
 
+    # ---------- For A2/B1/B2: Show all at top level ----------
     if student_level in ["A2", "B1", "B2"]:
         if day_info.get("video"):
             st.video(day_info["video"])
         if day_info.get("grammarbook_link"):
             st.markdown(
                 f"<a href='{day_info['grammarbook_link']}' target='_blank' "
-                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>\ud83d\udcd8 Open Grammar Book</a>",
+                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
                 unsafe_allow_html=True)
         if day_info.get("workbook_link"):
             st.markdown(
                 f"<a href='{day_info['workbook_link']}' target='_blank' "
-                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>\ud83d\udcd2 Open Workbook</a>",
+                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
                 unsafe_allow_html=True)
         extras = day_info.get('extra_resources')
         if extras:
             if isinstance(extras, list):
                 for link in extras:
-                    st.markdown(f"- [\ud83d\udd17 Extra Resource]({link})")
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
             else:
-                st.markdown(f"- [\ud83d\udd17 Extra Resource]({extras})")
-
-    # WhatsApp Submission
-    st.divider()
-    st.markdown("## \ud83d\udcf2 Submit Assignment (WhatsApp)")
-
-    with st.container():
-        student_name = st.text_input("\ud83d\udc64 Your Name", value=student_row.get('Name', ''))
-        student_code = st.text_input("\ud83c\udd94 Student Code", value=student_row.get('StudentCode', ''))
-
-        st.markdown("#### \u270d\ufe0f Your Answer")
-        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=160, label_visibility="collapsed")
-
-        wa_message = f"""Learn Language Education Academy \u2013 Assignment Submission
-Name: {student_name}
-Code: {student_code}
-Level: {student_level}
-Day: {day_info['day']}
-Chapter: {day_info['chapter']}
-Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
-Answer: {answer if answer.strip() else '[See attached file/photo]'}
-"""
-        wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
-
-        if st.button("\ud83d\udce4 Submit via WhatsApp"):
-            st.success("\u2705 Now click the button below to open WhatsApp and send your assignment.")
-            st.markdown(
-                f"""<a href=\"{wa_url}\" target=\"_blank\" style=\"display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;\">\ud83d\udce8 Open WhatsApp</a>""",
-                unsafe_allow_html=True
-            )
-            st.text_area("\ud83d\udccb Copy this message if needed:", wa_message, height=90, label_visibility="visible")
-
-    st.info("""
-- Tap the links above to open books in a new tab (no in-app preview).
-- If multiple tasks are assigned, mention which one you're submitting.
-- Always use your correct name and student code!
-""")
-
-
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
 #Myresults
 
 if tab == "My Results and Resources":
