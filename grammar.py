@@ -1391,12 +1391,16 @@ You are Herr Felix, a friendly, supportive German teacher.
 - Always be warm, positive, and supportive!
 """
 
-HERR_FELIX_NAME = "Herr Felix 👨‍🏫"
+# =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
 
 if tab == "Vocab Trainer":
     import random
 
-    # --- State setup ---
+    HERR_FELIX_NAME = "Herr Felix 👨‍🏫"
+
+    # --- State setup (no experimental rerun needed) ---
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "practice_num" not in st.session_state:
@@ -1424,8 +1428,9 @@ if tab == "Vocab Trainer":
         st.session_state.chat_score = 0
         st.session_state.chat_complete = False
 
-    # --- Step 1: How many words? ---
+    # --- Step 1: How many words to practice? ---
     if st.session_state.practice_num is None and not st.session_state.chat_complete:
+        st.session_state.chat_history = []
         with st.chat_message("assistant"):
             st.markdown(
                 f"Hallo! Ich bin {HERR_FELIX_NAME}.\n\n"
@@ -1446,72 +1451,78 @@ if tab == "Vocab Trainer":
             st.session_state.chat_history = []
             word, _ = st.session_state.practice_list[0]
             st.session_state.chat_history.append(
-                ("assistant", f"{HERR_FELIX_NAME}❓ What is the English meaning of **'{word}'**?")
+                ("assistant", f"{HERR_FELIX_NAME}<br><b>Los geht's!</b> 🎉 Here is your first word:<br><br>"
+                              f"❓ What is the English meaning of <b>{word}</b>?")
             )
+        # Only show the form for new session
         st.stop()
 
-    # --- Display Chat History ---
+    # --- Display Chat History ABOVE the input box ---
+    st.markdown("### 🗨️ Practice Chat")
     for who, msg in st.session_state.chat_history:
-        with st.chat_message("assistant" if who == "assistant" else "user"):
-            st.markdown(msg, unsafe_allow_html=True)
+        align = "left" if who == "assistant" else "right"
+        color = "#eaf4ff" if who == "assistant" else "#fffbe0"
+        st.markdown(
+            f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;"
+            f"border-radius:14px;max-width:97%;text-align:{align};'>"
+            f"{msg}</div>",
+            unsafe_allow_html=True
+        )
 
     idx = st.session_state.chat_idx
     n = st.session_state.practice_num
 
     # --- Step 2: Practice Chat! ---
     if not st.session_state.chat_complete and idx is not None and n is not None and idx < n:
-        user_ans = st.chat_input("Type your answer and press Enter:")
+        # Only allow new input if last answer was for the last word
+        # (Or first turn after the chat is shown)
+        expected_chat_len = 1 + 2 * idx  # 1: initial question, 2 per Q&A
+        if len(st.session_state.chat_history) == expected_chat_len or idx == 0:
+            user_ans = st.text_input("Your answer:", key=f"chat_{idx}", label_visibility="visible")
+            if st.button("Check", key=f"check_{idx}"):
+                word, answer = st.session_state.practice_list[idx]
+                st.session_state.chat_history.append(("user", user_ans))
 
-        if user_ans is not None and user_ans.strip() != "":
-            word, answer = st.session_state.practice_list[idx]
-            st.session_state.chat_history.append(("user", user_ans))
+                def clean(s):
+                    return s.replace("the ", "").replace(".", "").replace(",", "").strip().lower()
 
-            def clean(s):
-                return s.replace("the ", "").replace(".", "").replace(",", "").strip().lower()
+                user = clean(user_ans)
+                correct = clean(answer)
+                correct_variants = [clean(v) for v in answer.replace("/", ",").split(",")]
 
-            user = clean(user_ans)
-            correct = clean(answer)
-            correct_variants = [clean(v) for v in answer.replace("/", ",").split(",")]
+                is_correct = user == correct or user in correct_variants
 
-            is_correct = user == correct or user in correct_variants
-
-            if is_correct:
-                feedback = (
-                    f"✅ Correct! 🎉 **{word}** means **{answer}**. "
-                    f"\n_Great job!_ \n\n"
-                    f"**{HERR_FELIX_NAME}**: Super gemacht! 👍"
-                )
-                st.session_state.chat_score += 1
-            else:
-                feedback = (
-                    f"❌ Not quite. The correct answer is **{answer}**. "
-                    f"\nExample: _Ich habe ein(e) **{word}** zu Hause._"
-                    f"\n\n**{HERR_FELIX_NAME}**: Don't worry, you'll improve! 🌟"
-                )
-            st.session_state.chat_history.append(("assistant", feedback))
-
-            # Next word or finish
-            st.session_state.chat_idx += 1
-            if st.session_state.chat_idx < n:
-                next_word, _ = st.session_state.practice_list[st.session_state.chat_idx]
-                st.session_state.chat_history.append(
-                    ("assistant", f"{HERR_FELIX_NAME}❓ Next: What is the English meaning of **'{next_word}'**?")
-                )
-            else:
-                score = st.session_state.chat_score
-                emoji = "🎉" if score == n else "👏"
-                st.session_state.chat_history.append(
-                    ("assistant",
-                     f"🏁 Finished! You got **{score}** out of **{n}** correct. {emoji}\n"
-                     f"**{HERR_FELIX_NAME}**: Well done, keep practicing every day!"
+                if is_correct:
+                    feedback = (
+                        f"{HERR_FELIX_NAME}<br>✅ <b>Super!</b> '<b>{word}</b>' means '<b>{answer}</b>'. 👍<br><br>Well done! 🎉"
                     )
-                )
-                st.session_state.chat_complete = True
-            st.rerun()
+                    st.session_state.chat_score += 1
+                else:
+                    feedback = (
+                        f"{HERR_FELIX_NAME}<br>❌ Not quite. The correct answer is '<b>{answer}</b>'. "
+                        f"<br>Example: <i>Ich habe ein(e) <b>{word}</b> zu Hause.</i>"
+                        f"<br>Don't worry, you'll improve! 🌟"
+                    )
+                st.session_state.chat_history.append(("assistant", feedback))
 
-# ===================
-# END OF VOCAB TRAINER TAB
-# ===================
+                # Next word or finish
+                st.session_state.chat_idx += 1
+                if st.session_state.chat_idx < n:
+                    next_word, _ = st.session_state.practice_list[st.session_state.chat_idx]
+                    st.session_state.chat_history.append(
+                        ("assistant", f"{HERR_FELIX_NAME}<br>❓ What is the English meaning of <b>{next_word}</b>?")
+                    )
+                else:
+                    score = st.session_state.chat_score
+                    emoji = "🎉" if score == n else "👏"
+                    st.session_state.chat_history.append(
+                        ("assistant",
+                         f"{HERR_FELIX_NAME}<br>🏁 Finished! You got <b>{score}</b> out of <b>{n}</b> correct. {emoji}<br>"
+                         f"Well done, keep practicing every day!")
+                    )
+                    st.session_state.chat_complete = True
+                st.experimental_rerun()
+
 
 
 # ====================================
