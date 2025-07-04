@@ -2796,6 +2796,8 @@ student_level = student_row.get('Level', 'A1').upper()
 
 # --------------------------------------
 
+# --------------------------------------
+
 if tab == "Course Book":
 
     import streamlit as st
@@ -2816,9 +2818,9 @@ if tab == "Course Book":
         st.stop()
 
     selected_day_idx = st.selectbox(
-        "Choose your lesson/day:",
+        "📅 Choose your lesson/day:",
         range(len(schedule)),
-        format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+        format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
     )
     day_info = schedule[selected_day_idx]
 
@@ -2913,6 +2915,45 @@ if tab == "Course Book":
                     st.markdown(f"- [🔗 Extra Resource]({link})")
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+    # --- Assignment Submission Section (WhatsApp) ---
+    st.divider()
+    st.markdown("## 📲 Submit Assignment (WhatsApp)")
+
+    with st.container():
+        student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
+        student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+
+        # Wider mobile-friendly text area
+        st.markdown("#### ✍️ Your Answer")
+        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=160, label_visibility="collapsed")
+
+        wa_message = f"""Learn Language Education Academy – Assignment Submission
+Name: {student_name}
+Code: {student_code}
+Level: {student_level}
+Day: {day_info['day']}
+Chapter: {day_info['chapter']}
+Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
+Answer: {answer if answer.strip() else '[See attached file/photo]'}
+"""
+        wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
+
+        if st.button("📤 Submit via WhatsApp"):
+            st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
+            st.markdown(
+                f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
+                unsafe_allow_html=True
+            )
+            st.text_area("📋 Copy this message if needed:", wa_message, height=90, label_visibility="visible")
+
+    st.info("""
+    - Tap the links above to open books in a new tab (no in-app preview).
+    - If multiple tasks are assigned, mention which one you're submitting.
+    - Always use your correct name and student code!
+    """)
+
+
 #Myresults
 
 if tab == "My Results and Resources":
