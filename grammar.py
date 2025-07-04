@@ -1386,98 +1386,83 @@ if tab == "Vocab Trainer":
 
     HERR_FELIX = "Herr Felix 👨‍🏫"
 
-    # Utility: normalize text for comparison
+    # Normalize for checking
     def clean_text(text):
         return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-    # Helper: render chat messages with consistent styling
+    # Render message: simple, readable, consistent
     def render_message(role, msg):
         align = "left" if role == "assistant" else "right"
-        color = "#f0f0f0" if role == "assistant" else "#e8ffe8"
         label = "Herr Felix" if role == "assistant" else "You"
         st.markdown(
-            f"<div style='background:{color};padding:10px;border-radius:8px;max-width:90%;text-align:{align};margin:5px 0;'>"
+            f"<div style='padding:8px;border-radius:7px;background:#f9f9f9;margin:2px 0;text-align:{align};font-size:1.07em;'>"
             f"<b>{label}:</b> {msg}</div>",
             unsafe_allow_html=True
         )
 
-    # --- State setup ---
+    # State setup
     st.session_state.setdefault("vt_history", [])
     st.session_state.setdefault("vt_list", [])
     st.session_state.setdefault("vt_index", 0)
     st.session_state.setdefault("vt_score", 0)
     st.session_state.setdefault("vt_total", None)
 
-    # --- Level selection ---
-    level = st.selectbox("Choose level:", list(VOCAB_LISTS.keys()), key="vt_level")
+    # Level selection
+    level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab = VOCAB_LISTS[level]
     max_words = len(vocab)
 
-    # Reset practice: clear all state including total count
-    if st.button("🔁 Start New Practice", key="vt_reset"):
+    # New practice resets
+    if st.button("Start New", key="vt_reset"):
         st.session_state.vt_history.clear()
         st.session_state.vt_list.clear()
         st.session_state.vt_index = 0
         st.session_state.vt_score = 0
         st.session_state.vt_total = None
 
-    # Ask how many to practice
+    # Step 1: ask how many words
     if st.session_state.vt_total is None:
-        count = st.number_input(
-            "How many words to practice?", min_value=1, max_value=max_words,
-            value=min(7, max_words), key="vt_count"
-        )
+        count = st.number_input("How many words?", min_value=1, max_value=max_words, value=min(7, max_words), key="vt_count")
         if st.button("Start Practice", key="vt_start"):
-            st.session_state.vt_total = int(count)
-            # Use shuffle + slice for efficient random selection
             temp_list = vocab.copy()
             random.shuffle(temp_list)
-            st.session_state.vt_list = temp_list[:st.session_state.vt_total]
+            st.session_state.vt_list = temp_list[:int(count)]
+            st.session_state.vt_total = int(count)
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
-            # Initialize history with greeting
-            st.session_state.vt_history = [
-                ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's begin with {st.session_state.vt_total} words!")
-            ]
-
-    # Display chat history
+            st.session_state.vt_history = [("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start!")]
+    # Show chat history
     if st.session_state.vt_history:
-        st.markdown("### 🗨️ Practice Chat")
         for role, msg in st.session_state.vt_history:
             render_message(role, msg)
 
-    # Practice loop: ask current word
-    if st.session_state.vt_total is not None and st.session_state.vt_index < st.session_state.vt_total:
+    # Step 2: practice loop
+    if st.session_state.vt_total and st.session_state.vt_index < st.session_state.vt_total:
         word, answer = st.session_state.vt_list[st.session_state.vt_index]
-        user_ans = st.text_input(
-            f"Translation of '{word}'?", key=f"vt_input_{st.session_state.vt_index}"
-        )
-        if user_ans.strip() and st.button("Check Answer", key=f"vt_check_{st.session_state.vt_index}"):
+        user_ans = st.text_input(f"{word} = ?", key=f"vt_input_{st.session_state.vt_index}")
+        if user_ans and st.button("Check", key=f"vt_check_{st.session_state.vt_index}"):
             st.session_state.vt_history.append(("user", user_ans))
             ok = clean_text(user_ans) == clean_text(answer)
             if ok:
                 st.session_state.vt_score += 1
-                feedback = f"✅ Correct! '{word}' = '{answer}'. Good job! 🎉"
+                feedback = f"✅ Correct! {word} = {answer}"
             else:
-                feedback = (
-                    f"❌ Not quite. '{word}' = '{answer}'. "
-                    f"Example: Ich habe ein(e) {word} zu Hause."
-                )
+                feedback = f"❌ {word} = {answer}"
             st.session_state.vt_history.append(("assistant", feedback))
             st.session_state.vt_index += 1
 
-    # Show results when done
-    if st.session_state.vt_total is not None and st.session_state.vt_index >= st.session_state.vt_total:
+    # Step 3: results
+    if st.session_state.vt_total and st.session_state.vt_index >= st.session_state.vt_total:
         score = st.session_state.vt_score
         total = st.session_state.vt_total
-        st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
+        st.markdown(f"**Done!** Score: {score}/{total}")
         if st.button("Practice Again", key="vt_again"):
-            # Reset for new session
             st.session_state.vt_history.clear()
             st.session_state.vt_list.clear()
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
             st.session_state.vt_total = None
+
 
 
 
