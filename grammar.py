@@ -1425,7 +1425,7 @@ if tab == "Vocab Trainer":
             st.session_state.score = 0
             st.session_state[chat_key] = []
             chat_add("AI", f"Let's start! 🎉 Here is your first word:")
-            st.experimental_rerun()
+            st.rerun()
 
     elif st.session_state.current_idx < st.session_state.practice_count:
         idx = st.session_state.current_idx
