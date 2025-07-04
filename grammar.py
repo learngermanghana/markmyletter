@@ -821,6 +821,7 @@ if st.session_state["logged_in"]:
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
+            "Course Book",
             "My Results and Resources",
             "Admin"
         ],
@@ -1798,6 +1799,1175 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
+
+def get_a1_schedule():
+    return [
+        # DAY 1
+        {
+            "day": 1,
+            "topic": "Lesen & Hören",
+            "chapter": "0.1",
+            "goal": "You will learn to introduce yourself and greet others in German.",
+            "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
+            }
+        },
+        # DAY 2 – Multi chapter
+        {
+            "day": 2,
+            "topic": "Lesen & Hören",
+            "chapter": "0.2_1.1",
+            "goal": "Understand the German alphabets and know the special characters called Umlaut.",
+            "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "lesen_hören": [
+                {
+                    "chapter": "0.2",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/wpBPaDI5IgI"
+                },
+                {
+                    "chapter": "1.1",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
+                    "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
+                }
+            ]
+        },
+        # DAY 3
+        {
+            "day": 3,
+            "topic": "Schreiben & Sprechen and Lesen & Hören",
+            "chapter": "1.1_1.2",
+            "goal": "Introduce others and talk about your family.",
+            "instruction": (
+                "Begin with the practicals at **Schreiben & Sprechen** (writing & speaking). "
+                "Then, move to **Lesen & Hören** (reading & listening). "
+                "**Do assignments only at Lesen & Hören.**\n\n"
+                "Schreiben & Sprechen activities are for self-practice and have answers provided for self-check. "
+                "Main assignment to be marked is under Lesen & Hören below."
+            ),
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
+            },
+            "lesen_hören": [
+                {
+                    "chapter": "1.2",
+                    "video": "",
+                    "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
+                    "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
+                    "extra_resources": "https://www.youtube.com/watch?v=qdTEFPqjfkY&authuser=0"
+                }
+            ]
+        },
+        # DAY 4
+        {
+            "day": 4,
+            "topic": "Lesen & Hören",
+            "chapter": "2",
+            "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing"
+            }
+        },
+        # DAY 5
+        {
+            "day": 5,
+            "topic": "Schreiben & Sprechen (Recap)",
+            "chapter": "1.2",
+            "goal": "Consolidate your understanding of introductions.",
+            "instruction": "Use self-practice workbook and review answers for self-check.",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
+            }
+        },
+        # DAY 6
+        {
+            "day": 6,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "2.3",
+            "goal": "Learn about family and expressing your hobby",
+            "instruction": "Use self-practice workbook and review answers for self-check.",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": "https://drive.google.com/file/d/1x_u_tyICY-8xFuxsuOW2tqTzs7g8TquM/view?usp=sharing"
+            }
+        },
+        # DAY 7
+        {
+            "day": 7,
+            "topic": "Lesen & Hören",
+            "chapter": "3",
+            "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
+            "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
+            }
+        },
+        # DAY 8
+        {
+            "day": 8,
+            "topic": "Lesen & Hören",
+            "chapter": "4",
+            "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "lesen_hören": {
+                "video": "https://youtu.be/JfTc1G9mubs",
+                "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
+            }
+        },
+        # DAY 9
+        {
+            "day": 9,
+            "topic": "Lesen & Hören",
+            "chapter": "5",
+            "goal": "Learn about the German articles and cases",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
+            }
+        },
+        # DAY 10
+        {
+            "day": 10,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "6_2.4",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "https://drive.google.com/file/d/1_qwG-6dSckoNt7G69_gGfwBH4o9HhETJ/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 11
+        {
+            "day": 11,
+            "topic": "Lesen & Hören",
+            "chapter": "7",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 12
+        {
+            "day": 12,
+            "topic": "Lesen & Hören",
+            "chapter": "8",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 13
+        {
+            "day": 13,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "3.5",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 14
+        {
+            "day": 14,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "3.6",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 15
+        {
+            "day": 15,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "4.7",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 16
+        {
+            "day": 16,
+            "topic": "Lesen & Hören",
+            "chapter": "9_10",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 17
+        {
+            "day": 17,
+            "topic": "Lesen & Hören",
+            "chapter": "11",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 18
+        {
+            "day": 18,
+            "topic": "Lesen & Hören and Schreiben & Sprechen (including 5.8)",
+            "chapter": "12.1",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 19
+        {
+            "day": 19,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "5.9",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 20
+        {
+            "day": 20,
+            "topic": "Schreiben & Sprechen (Intro to letter writing)",
+            "chapter": "6.10",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 21
+        {
+            "day": 21,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "13_6.11",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 22
+        {
+            "day": 22,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "14.1_7.12",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 23
+        {
+            "day": 23,
+            "topic": "Lesen & Hören and Schreiben & Sprechen",
+            "chapter": "14.2_7.12",
+            "goal": "",
+            "instruction": "",
+            "lesen_hören": {
+                "video": "",
+                "grammarbook_link": "",
+                "workbook_link": ""
+            },
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 24
+        {
+            "day": 24,
+            "topic": "Schreiben & Sprechen",
+            "chapter": "8.13",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        },
+        # DAY 25
+        {
+            "day": 25,
+            "topic": "Exam tips - Schreiben & Sprechen recap",
+            "chapter": "final",
+            "goal": "",
+            "instruction": "",
+            "schreiben_sprechen": {
+                "video": "",
+                "workbook_link": ""
+            }
+        }
+    ]
+
+
+def get_a2_schedule():
+    return [
+        # DAY 1
+        {
+            "day": 1,
+            "topic": "Small Talk (Exercise)",
+            "chapter": "1.1",
+            "goal": "Practice basic greetings and small talk.",
+            "instruction": (
+                "Today's lesson has 4 parts:\n\n"
+                "**1. Sprechen (Group Practice):** Practice the daily question using the brain map provided. Use the chat feature in the Falowen app to speak for at least 1 minute.\n\n"
+                "**2. Schreiben:** Reframe your group practice as a short letter (assignment).\n\n"
+                "**3. Lesen:** Complete the reading exercise (7 questions).\n\n"
+                "**4. Hören:** Do the listening exercise (5 questions).\n\n"
+                "**Assignments to be submitted:** Schreiben, Lesen, and Hören.\n\n"
+                "Finish all sections before submitting your answers."
+            ),
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
+        },
+        # DAY 2
+        {
+            "day": 2,
+            "topic": "Personen Beschreiben (Exercise)",
+            "chapter": "1.2",
+            "goal": "Describe people and their appearance.",
+            "instruction": (
+                "Today's lesson has 4 parts:\n\n"
+                "**1. Sprechen (Group Practice):** Practice describing people using the brain map and discuss in the Falowen chat for at least 1 minute.\n\n"
+                "**2. Schreiben:** Write a short letter about a person.\n\n"
+                "**3. Lesen:** Do the reading exercise (7 questions).\n\n"
+                "**4. Hören:** Complete the listening exercise (5 questions).\n\n"
+                "**Assignments to be submitted:** Schreiben, Lesen, and Hören.\n\n"
+                "Finish all sections before submitting your answers."
+            ),
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1VB_nXEfdeTgkzCYjh0tvE75zFJleMlyU/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
+        },
+        # DAY 3
+        {
+            "day": 3,
+            "topic": "Dinge und Personen vergleichen",
+            "chapter": "1.3",
+            "goal": "Learn to compare things and people.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
+        },
+        # DAY 4
+        {
+            "day": 4,
+            "topic": "Wo möchten wir uns treffen?",
+            "chapter": "2.4",
+            "goal": "Arrange and discuss meeting places.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
+        },
+        # DAY 5
+        {
+            "day": 5,
+            "topic": "Was machst du in deiner Freizeit?",
+            "chapter": "2.5",
+            "goal": "Talk about free time activities.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
+        },
+        # DAY 6
+        {
+            "day": 6,
+            "topic": "Möbel und Räume kennenlernen",
+            "chapter": "3.6",
+            "goal": "Identify furniture and rooms.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
+        },
+        # DAY 7
+        {
+            "day": 7,
+            "topic": "Eine Wohnung suchen (Übung)",
+            "chapter": "3.7",
+            "goal": "Practice searching for an apartment.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
+        },
+        # DAY 8
+        {
+            "day": 8,
+            "topic": "Rezepte und Essen (Exercise)",
+            "chapter": "3.8",
+            "goal": "Learn about recipes and food.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1Ax6owMx-5MPvCk_m-QRhARY8nuDQjDsK/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
+        },
+        # DAY 9
+        {
+            "day": 9,
+            "topic": "Urlaub",
+            "chapter": "4.9",
+            "goal": "Discuss vacation plans.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
+        },
+        # DAY 10
+        {
+            "day": 10,
+            "topic": "Tourismus und Traditionelle Feste",
+            "chapter": "4.10",
+            "goal": "Learn about tourism and festivals.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
+        },
+        # DAY 11
+        {
+            "day": 11,
+            "topic": "Unterwegs: Verkehrsmittel vergleichen",
+            "chapter": "4.11",
+            "goal": "Compare means of transportation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1Vl9UPeM2RaATafT8t539aOPrxnSkfr9A/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing"
+        },
+        # DAY 12
+        {
+            "day": 12,
+            "topic": "Ein Tag im Leben (Übung)",
+            "chapter": "5.12",
+            "goal": "Describe a typical day.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1ayExWDJ8rTEL8hsuMgbil5_ddDPO8z29/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
+        },
+        # DAY 13
+        {
+            "day": 13,
+            "topic": "Ein Vorstellungsgespräch (Exercise)",
+            "chapter": "5.13",
+            "goal": "Prepare for a job interview.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 14
+        {
+            "day": 14,
+            "topic": "Beruf und Karriere (Exercise)",
+            "chapter": "5.14",
+            "goal": "Discuss jobs and careers.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 15
+        {
+            "day": 15,
+            "topic": "Mein Lieblingssport",
+            "chapter": "6.15",
+            "goal": "Talk about your favorite sport.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 16
+        {
+            "day": 16,
+            "topic": "Wohlbefinden und Entspannung",
+            "chapter": "6.16",
+            "goal": "Express well-being and relaxation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 17
+        {
+            "day": 17,
+            "topic": "In die Apotheke gehen",
+            "chapter": "6.17",
+            "goal": "Learn phrases for the pharmacy.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 18
+        {
+            "day": 18,
+            "topic": "Die Bank anrufen",
+            "chapter": "7.18",
+            "goal": "Practice calling the bank.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 19
+        {
+            "day": 19,
+            "topic": "Einkaufen? Wo und wie? (Exercise)",
+            "chapter": "7.19",
+            "goal": "Shop and ask about locations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 20
+        {
+            "day": 20,
+            "topic": "Typische Reklamationssituationen üben",
+            "chapter": "7.20",
+            "goal": "Handle typical complaints.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1-72wZuNJE4Y92Luy0h5ygWooDnBd9PQW/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1_GTumT1II0E1PRoh6hMDwWsTPEInGeed/view?usp=sharing"
+        },
+        # DAY 21
+        {
+            "day": 21,
+            "topic": "Ein Wochenende planen",
+            "chapter": "8.21",
+            "goal": "Plan a weekend.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1FcCg7orEizna4rAkX3_FCyd3lh_Bb3IT/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1mMtZza34QoJO_lfUiEX3kwTa-vsTN_RK/view?usp=sharing"
+        },
+        # DAY 22
+        {
+            "day": 22,
+            "topic": "Die Woche Planung",
+            "chapter": "8.22",
+            "goal": "Make a weekly plan.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1dWr4QHw8zT1RPbuIEr_X13cPLYpH-mms/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1mg_2ytNAYF00_j-TFQelajAxgQpmgrhW/view?usp=sharing"
+        },
+        # DAY 23
+        {
+            "day": 23,
+            "topic": "Wie kommst du zur Schule / zur Arbeit?",
+            "chapter": "9.23",
+            "goal": "Talk about your route to school or work.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1Ialg19GIE_KKHiLBDMm1aHbrzfNdb7L_/view?usp=sharing"
+        },
+        # DAY 24
+        {
+            "day": 24,
+            "topic": "Einen Urlaub planen",
+            "chapter": "9.24",
+            "goal": "Plan a vacation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1tFXs-DNKvt97Q4dsyXsYvKVQvT5Qqt0y/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1t3xqddDJp3-1XeJ6SesnsYsTO5xSm9vG/view?usp=sharing"
+        },
+        # DAY 25
+        {
+            "day": 25,
+            "topic": "Tagesablauf (Exercise)",
+            "chapter": "9.25",
+            "goal": "Describe a daily routine.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "workbook_link": "https://drive.google.com/file/d/1jfWDzGfXrzhfGZ1bQe1u5MXVQkR5Et43/view?usp=sharing"
+        },
+        # DAY 26
+        {
+            "day": 26,
+            "topic": "Gefühle in verschiedenen Situationen beschreiben",
+            "chapter": "10.26",
+            "goal": "Express feelings in various situations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "workbook_link": "https://drive.google.com/file/d/126MQiti-lpcovP1TdyUKQAK6KjqBaoTx/view?usp=sharing"
+        },
+        # DAY 27
+        {
+            "day": 27,
+            "topic": "Digitale Kommunikation",
+            "chapter": "10.27",
+            "goal": "Talk about digital communication.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "workbook_link": "https://drive.google.com/file/d/1UdBu6O2AMQ2g6Ot_abTsFwLvT87LHHwY/view?usp=sharing"
+        },
+        # DAY 28
+        {
+            "day": 28,
+            "topic": "Über die Zukunft sprechen",
+            "chapter": "10.28",
+            "goal": "Discuss the future.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
+        },
+    ]
+
+def get_b1_schedule():
+    return [
+        # DAY 1
+        {
+            "day": 1,
+            "topic": "Traumwelten (Übung)",
+            "chapter": "1.1",
+            "goal": "Talk about dream worlds and imagination.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 2
+        {
+            "day": 2,
+            "topic": "Freunde fürs Leben (Übung)",
+            "chapter": "1.2",
+            "goal": "Discuss friendships and important qualities.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 3
+        {
+            "day": 3,
+            "topic": "Vergangenheit erzählen",
+            "chapter": "1.3",
+            "goal": "Tell stories about the past.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 4
+        {
+            "day": 4,
+            "topic": "Wohnen und Zusammenleben",
+            "chapter": "2.1",
+            "goal": "Discuss housing and living together.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 5
+        {
+            "day": 5,
+            "topic": "Feste feiern",
+            "chapter": "2.2",
+            "goal": "Talk about festivals and celebrations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 6
+        {
+            "day": 6,
+            "topic": "Mein Traumjob",
+            "chapter": "2.3",
+            "goal": "Describe your dream job.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 7
+        {
+            "day": 7,
+            "topic": "Gesund bleiben",
+            "chapter": "3.1",
+            "goal": "Learn how to talk about health and fitness.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 8
+        {
+            "day": 8,
+            "topic": "Arztbesuch und Gesundheitstipps",
+            "chapter": "3.2",
+            "goal": "Communicate with a doctor and give health tips.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 9
+        {
+            "day": 9,
+            "topic": "Erinnerungen und Kindheit",
+            "chapter": "3.3",
+            "goal": "Talk about childhood memories.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 10
+        {
+            "day": 10,
+            "topic": "Typisch deutsch? Kultur und Alltag",
+            "chapter": "4.1",
+            "goal": "Discuss cultural habits and everyday life.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 11
+        {
+            "day": 11,
+            "topic": "Wünsche und Träume",
+            "chapter": "4.2",
+            "goal": "Express wishes and dreams.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 12
+        {
+            "day": 12,
+            "topic": "Medien und Kommunikation",
+            "chapter": "4.3",
+            "goal": "Talk about media and communication.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 13
+        {
+            "day": 13,
+            "topic": "Reisen und Verkehr",
+            "chapter": "5.1",
+            "goal": "Discuss travel and transportation.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 14
+        {
+            "day": 14,
+            "topic": "Stadt oder Land",
+            "chapter": "5.2",
+            "goal": "Compare life in the city and the countryside.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 15
+        {
+            "day": 15,
+            "topic": "Wohnungssuche und Umzug",
+            "chapter": "5.3",
+            "goal": "Talk about searching for an apartment and moving.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 16
+        {
+            "day": 16,
+            "topic": "Natur und Umwelt",
+            "chapter": "6.1",
+            "goal": "Learn to discuss nature and the environment.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 17
+        {
+            "day": 17,
+            "topic": "Probleme und Lösungen",
+            "chapter": "6.2",
+            "goal": "Describe problems and find solutions.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 18
+        {
+            "day": 18,
+            "topic": "Arbeit und Finanzen",
+            "chapter": "6.3",
+            "goal": "Talk about work and finances.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 19
+        {
+            "day": 19,
+            "topic": "Berufliche Zukunft",
+            "chapter": "7.1",
+            "goal": "Discuss future career plans.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 20
+        {
+            "day": 20,
+            "topic": "Bildung und Weiterbildung",
+            "chapter": "7.2",
+            "goal": "Talk about education and further studies.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 21
+        {
+            "day": 21,
+            "topic": "Familie und Gesellschaft",
+            "chapter": "7.3",
+            "goal": "Discuss family and society.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 22
+        {
+            "day": 22,
+            "topic": "Konsum und Werbung",
+            "chapter": "8.1",
+            "goal": "Talk about consumption and advertising.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 23
+        {
+            "day": 23,
+            "topic": "Globalisierung",
+            "chapter": "8.2",
+            "goal": "Discuss globalization and its effects.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 24
+        {
+            "day": 24,
+            "topic": "Kulturelle Unterschiede",
+            "chapter": "8.3",
+            "goal": "Talk about cultural differences.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 25
+        {
+            "day": 25,
+            "topic": "Lebenslauf schreiben",
+            "chapter": "9.1",
+            "goal": "Write a CV and cover letter.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 26
+        {
+            "day": 26,
+            "topic": "Präsentationen halten",
+            "chapter": "9.2",
+            "goal": "Learn to give presentations.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 27
+        {
+            "day": 27,
+            "topic": "Zusammenfassen und Berichten",
+            "chapter": "9.3",
+            "goal": "Practice summarizing and reporting.",
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+        # DAY 28
+        {
+            "day": 28,
+            "topic": "Abschlussprüfungsvorbereitung",
+            "chapter": "10.1",
+            "goal": "Prepare for the final exam.",
+            "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": ""
+        },
+    ]
+
+
+
+# --------------------------------------
+
+# --- FORCE A MOCK LOGIN FOR TESTING ---
+if "student_row" not in st.session_state:
+    st.session_state["student_row"] = {
+        "Name": "Test Student",
+        "Level": "A1",
+        "StudentCode": "demo001"
+    }
+# --------------------------------------
+
+if tab == "Course Book":
+
+    import streamlit as st
+    import datetime, urllib.parse
+
+    # 1. Pick schedule based on student
+    student_row = st.session_state.get('student_row', {})
+    student_level = student_row.get('Level', 'A1').upper()
+    level_map = {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+    }
+    schedule = level_map.get(student_level, get_a1_schedule())
+
+    if not schedule:
+        st.warning("No schedule found for your level. Please contact the admin.")
+        st.stop()
+
+
+    selected_day_idx = st.selectbox(
+        "📅 Choose your lesson/day:",
+        range(len(schedule)),
+        format_func=lambda i: f"Day {schedule[i]['day']} – {schedule[i]['topic']}"
+    )
+    day_info = schedule[selected_day_idx]
+
+    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+
+    if day_info.get("goal"):
+        st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
+    if day_info.get("instruction"):
+        st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+
+    # --------- Show Lesen & Hören ----------
+    def render_lh_section(lh, idx=None, total=None):
+        if idx is not None and total is not None:
+            st.markdown(
+                f"#### 📚 Assignment {idx+1} of {total}: Lesen & Hören – Chapter {lh.get('chapter','')}")
+        if lh.get("video"):
+            st.video(lh["video"])
+        if lh.get("grammarbook_link"):
+            st.markdown(
+                f"<a href='{lh['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if lh.get("workbook_link"):
+            st.markdown(
+                f"<a href='{lh['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = lh.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+    # Multi assignment note (clean, mobile-friendly)
+    if "lesen_hören" in day_info:
+        lh_section = day_info["lesen_hören"]
+        if isinstance(lh_section, list):
+            st.markdown(
+                """
+                <div style='padding:8px 12px; background:#eaf4ff; border-radius:7px; 
+                border-left:5px solid #357ae8; margin-bottom:12px; font-size:1.03em; line-height:1.3;'>
+                    <span style="font-weight:600; color:#357ae8;">ℹ️ This lesson has more than one Lesen & Hören assignment.<br>
+                    Do <u>all parts below</u> before you submit.</span>
+                </div>
+                """, unsafe_allow_html=True
+            )
+            for idx, chapter_lh in enumerate(lh_section):
+                render_lh_section(chapter_lh, idx, len(lh_section))
+        elif isinstance(lh_section, dict):
+            render_lh_section(lh_section)
+
+    # --- Show Schreiben & Sprechen (if present) ---
+    if "schreiben_sprechen" in day_info:
+        ss = day_info["schreiben_sprechen"]
+        st.markdown("#### 📝 Schreiben & Sprechen")
+        if ss.get("video"):
+            st.video(ss["video"])
+        if ss.get("grammarbook_link"):
+            st.markdown(
+                f"<a href='{ss['grammarbook_link']}' target='_blank' style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if ss.get("workbook_link"):
+            st.markdown(
+                f"<a href='{ss['workbook_link']}' target='_blank' style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = ss.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+    # ---------- For A2/B1/B2: Show all at top level ----------
+    if student_level in ["A2", "B1", "B2"]:
+        if day_info.get("video"):
+            st.video(day_info["video"])
+        if day_info.get("grammarbook_link"):
+            st.markdown(
+                f"<a href='{day_info['grammarbook_link']}' target='_blank' "
+                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                unsafe_allow_html=True)
+        if day_info.get("workbook_link"):
+            st.markdown(
+                f"<a href='{day_info['workbook_link']}' target='_blank' "
+                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                unsafe_allow_html=True)
+        extras = day_info.get('extra_resources')
+        if extras:
+            if isinstance(extras, list):
+                for link in extras:
+                    st.markdown(f"- [🔗 Extra Resource]({link})")
+            else:
+                st.markdown(f"- [🔗 Extra Resource]({extras})")
+
+
+    # --- Assignment Submission Section (WhatsApp) ---
+    st.divider()
+    st.subheader("📲 Submit Assignment (WhatsApp)")
+    student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
+    student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
+    answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=90)
+
+    wa_message = f"""Learn Language Education Academy – Assignment Submission
+Name: {student_name}
+Code: {student_code}
+Level: {student_level}
+Day: {day_info['day']}
+Chapter: {day_info['chapter']}
+Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
+Answer: {answer if answer.strip() else '[See attached file/photo]'}
+"""
+    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
+
+    if st.button("📤 Submit via WhatsApp"):
+        st.success("Click the link below to open WhatsApp and send your assignment!")
+        st.markdown(
+            f"""<a href="{wa_url}" target="_blank" style="font-size:1.15em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:12px 24px;border-radius:8px;margin:10px 0;">Open WhatsApp</a>""",
+            unsafe_allow_html=True
+        )
+        st.text_area("Message to Copy (if needed):", wa_message, height=70)
+
+    st.info("""
+- Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
+- Submit only your main assignment below (if more than one, mention which).
+- Always use your real name and code for tracking!
+""")
+
 
 #Myresults
 
