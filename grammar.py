@@ -1460,7 +1460,7 @@ if tab == "Vocab Trainer":
                 # B1+ - skip correctness (no answer to compare)
                 chat_add("AI", f"✔️ Your answer: {user_ans}")
             st.session_state.current_idx += 1
-            st.experimental_rerun()
+            st.rerun()
     else:
         total = st.session_state.practice_count
         score = st.session_state.score
