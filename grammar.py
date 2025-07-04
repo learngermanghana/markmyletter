@@ -2139,7 +2139,7 @@ def get_a1_schedule():
                 "workbook_link": ""
             }
         }
-
+    ]
 
 def get_a2_schedule():
     return [
