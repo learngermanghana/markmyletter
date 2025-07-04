@@ -2894,17 +2894,15 @@ if tab == "Course Book":
         if day_info.get("grammarbook_link"):
             st.markdown(
                 f"<a href='{day_info['grammarbook_link']}' target='_blank' "
-                f"style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
+                "style='font-size:1.1em; color:#357ae8; font-weight:bold;'>📘 Open Grammar Book</a>",
                 unsafe_allow_html=True)
         if day_info.get("workbook_link"):
             st.markdown(
                 f"<a href='{day_info['workbook_link']}' target='_blank' "
-                f"style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
+                "style='font-size:1.1em; color:#34a853; font-weight:bold;'>📒 Open Workbook</a>",
                 unsafe_allow_html=True)
-        
-        extras = day_info.get("extra_resources")
+        extras = day_info.get('extra_resources')
         if extras:
-            st.markdown("**🔍 Extra Resources:**", unsafe_allow_html=True)
             if isinstance(extras, list):
                 for link in extras:
                     st.markdown(f"- [🔗 Extra Resource]({link})")
@@ -2914,13 +2912,17 @@ if tab == "Course Book":
 
 # --- Assignment Submission Section (WhatsApp) ---
 st.divider()
-st.subheader("📲 Submit Assignment (WhatsApp)")
+st.markdown("## 📲 Submit Assignment (WhatsApp)")
 
-student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
-student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
-answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=120)
+with st.container():
+    student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
+    student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
 
-wa_message = f"""Learn Language Education Academy – Assignment Submission
+    # Wider mobile-friendly text area
+    st.markdown("#### ✍️ Your Answer")
+    answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=160, label_visibility="collapsed")
+
+    wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
 Code: {student_code}
 Level: {student_level}
@@ -2929,22 +2931,21 @@ Chapter: {day_info['chapter']}
 Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
 Answer: {answer if answer.strip() else '[See attached file/photo]'}
 """
-wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
+    wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
-if st.button("📤 Submit via WhatsApp"):
-    st.success("Click the link below to open WhatsApp and send your assignment!")
-    st.markdown(
-        f"""<a href="{wa_url}" target="_blank" style="font-size:1.15em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:12px 24px;border-radius:8px;margin:10px 0;">Open WhatsApp</a>""",
-        unsafe_allow_html=True
-    )
-    st.text_area("Message to Copy (if needed):", wa_message, height=70)
+    if st.button("📤 Submit via WhatsApp"):
+        st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
+        st.markdown(
+            f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
+            unsafe_allow_html=True
+        )
+        st.text_area("📋 Copy this message if needed:", wa_message, height=90, label_visibility="visible")
 
 st.info("""
-- Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
-- Submit only your main assignment below (if more than one, mention which).
-- Always use your real name and code for tracking!
+- Tap the links above to open books in a new tab (no in-app preview).
+- If multiple tasks are assigned, mention which one you're submitting.
+- Always use your correct name and student code!
 """)
-
 
 
 #Myresults
