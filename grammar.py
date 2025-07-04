@@ -1382,25 +1382,20 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-# --- Herr Felix Prompt (for dev clarity or future AI use) ---
-HERR_FELIX_PROMPT = """
-You are Herr Felix, a friendly, supportive German teacher.
-- Encourage students with emojis after every answer (🎉, 👏, 👍).
-- If the answer is wrong, gently give the correct answer, explain, and give a simple example sentence.
-- Motivate students to keep going. Use a little German sometimes.
-- Always be warm, positive, and supportive!
-"""
-
-# =========================================
-# VOCAB TRAINER TAB (A1–C1)
-# =========================================
-
 if tab == "Vocab Trainer":
     import random
 
     HERR_FELIX_NAME = "Herr Felix 👨‍🏫"
 
-    # --- State setup (no experimental rerun needed) ---
+    HERR_FELIX_PROMPT = """
+    You are Herr Felix, a friendly, supportive German teacher.
+    - Always encourage with emojis after every answer (🎉, 👏, 👍).
+    - If the answer is wrong, gently give the correct answer, a short explanation, and a simple German example sentence.
+    - Motivate students to keep going, use a little German sometimes.
+    - Always be warm, positive, and supportive!
+    """
+
+    # --- State setup (NO experimental rerun needed!) ---
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "practice_num" not in st.session_state:
@@ -1414,7 +1409,7 @@ if tab == "Vocab Trainer":
     if "chat_complete" not in st.session_state:
         st.session_state.chat_complete = False
 
-    # --- Level selection ---
+    # --- Level selection (do not reset other session states!) ---
     level = st.selectbox("Choose level:", ["A1", "A2", "B1", "B2", "C1"], key="chat_vocab_level")
     vocab = VOCAB_LISTS[level]
     total_words = len(vocab)
@@ -1454,7 +1449,6 @@ if tab == "Vocab Trainer":
                 ("assistant", f"{HERR_FELIX_NAME}<br><b>Los geht's!</b> 🎉 Here is your first word:<br><br>"
                               f"❓ What is the English meaning of <b>{word}</b>?")
             )
-        # Only show the form for new session
         st.stop()
 
     # --- Display Chat History ABOVE the input box ---
@@ -1498,9 +1492,10 @@ if tab == "Vocab Trainer":
                     )
                     st.session_state.chat_score += 1
                 else:
+                    example = f"Ich habe ein(e) <b>{word}</b> zu Hause."
                     feedback = (
                         f"{HERR_FELIX_NAME}<br>❌ Not quite. The correct answer is '<b>{answer}</b>'. "
-                        f"<br>Example: <i>Ich habe ein(e) <b>{word}</b> zu Hause.</i>"
+                        f"<br>Example: <i>{example}</i>"
                         f"<br>Don't worry, you'll improve! 🌟"
                     )
                 st.session_state.chat_history.append(("assistant", feedback))
@@ -1522,6 +1517,20 @@ if tab == "Vocab Trainer":
                     )
                     st.session_state.chat_complete = True
                 st.rerun()
+
+    # --- Motivation and Progress Tracking (optional below chat) ---
+    score = st.session_state.chat_score
+    total = st.session_state.practice_num
+    if total and score is not None:
+        st.info(f"Words practiced: {score}/{total}")
+        if score and score == total // 2:
+            st.success("👏 You're halfway there! Keep going!")
+
+    # --- Auto-scroll to bottom (works in web, not perfect in all browsers) ---
+    st.markdown(
+        "<script>window.scrollTo(0, document.body.scrollHeight);</script>",
+        unsafe_allow_html=True
+    )
 
 
 
