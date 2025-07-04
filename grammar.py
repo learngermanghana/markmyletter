@@ -1896,7 +1896,7 @@ def get_a1_schedule():
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://www.youtube.com/watch?v=Yi5ZA-XD-GY&feature=youtu.be",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
             }
@@ -1906,8 +1906,8 @@ def get_a1_schedule():
             "day": 10,
             "topic": "Lesen & Hören and Schreiben & Sprechen",
             "chapter": "6_2.4",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand Possessive Determiners and its usage in connection with nouns",
+            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understand",
             "lesen_hören": {
                 "video": "",
                 "grammarbook_link": "https://drive.google.com/file/d/1_qwG-6dSckoNt7G69_gGfwBH4o9HhETJ/view?usp=sharing",
@@ -1923,8 +1923,8 @@ def get_a1_schedule():
             "day": 11,
             "topic": "Lesen & Hören",
             "chapter": "7",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand the 12 hour clock system",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
                 "video": "",
                 "grammarbook_link": "",
