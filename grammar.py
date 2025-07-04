@@ -2900,7 +2900,6 @@ if tab == "Course Book":
             else:
                 st.markdown(f"- [🔗 Extra Resource]({extras})")
 
-
 # --- Assignment Submission Section (WhatsApp) ---
 st.divider()
 st.markdown("## 📲 Submit Assignment (WhatsApp)")
@@ -2909,9 +2908,9 @@ with st.container():
     student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
     student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
 
-    # Wider mobile-friendly text area
+    # Mobile-optimized answer field
     st.markdown("#### ✍️ Your Answer")
-    answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=160, label_visibility="collapsed")
+    answer = st.text_area("Type your answer here (or leave blank if sending photo on WhatsApp)", label_visibility="collapsed")
 
     wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
@@ -2925,18 +2924,17 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
     wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
     if st.button("📤 Submit via WhatsApp"):
-        st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
-        st.markdown(
-            f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
-            unsafe_allow_html=True
-        )
-        st.text_area("📋 Copy this message if needed:", wa_message, height=90, label_visibility="visible")
+        st.success("✅ Tap below to open WhatsApp and send your assignment.")
+        st.link_button("📨 Open WhatsApp", wa_url, use_container_width=True)
+        st.text_area("📋 Copy message (if WhatsApp fails):", wa_message, height=100)
 
-st.info("""
-- Tap the links above to open books in a new tab (no in-app preview).
-- If multiple tasks are assigned, mention which one you're submitting.
-- Always use your correct name and student code!
-""")
+st.markdown("""
+<small>
+📘 Make sure to use your correct name and code.<br>
+📎 If submitting more than one task, mention it clearly.<br>
+📲 All resource links open in a new tab.
+</small>
+""", unsafe_allow_html=True)
 
 
 #Myresults
