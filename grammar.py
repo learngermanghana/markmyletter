@@ -1936,10 +1936,10 @@ def get_a1_schedule():
             "day": 12,
             "topic": "Lesen & Hören",
             "chapter": "8",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand the 24 hour clock and date system in German",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/aWvIHjV3e_I",
                 "grammarbook_link": "",
                 "workbook_link": ""
             }
