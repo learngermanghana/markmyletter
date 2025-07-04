@@ -1382,18 +1382,20 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
+# =========================================
+# VOCAB TRAINER TAB (A1–C1) — Chat Style
+# =========================================
+
 if tab == "Vocab Trainer":
     import random
 
-    # --------- Your Vocab Lists ---------
-    # VOCAB_LISTS is assumed to be defined above
-
-    level_options = list(VOCAB_LISTS.keys())
-    selected_level = st.selectbox("Choose your level:", level_options, key="vocab_level_select")
+    # 1. --- Level Selection & Word List ---
+    level_opts = ["A1", "A2", "B1", "B2", "C1"]
+    selected_level = st.selectbox("Choose level:", level_opts, key="chat_vocab_level")
     VOCAB = VOCAB_LISTS[selected_level]
     total_words = len(VOCAB)
 
-    # ----- State setup -----
+    # 2. --- Session State Setup ---
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
     if "practice_num" not in st.session_state:
@@ -1404,11 +1406,10 @@ if tab == "Vocab Trainer":
         st.session_state.chat_idx = 0
     if "chat_score" not in st.session_state:
         st.session_state.chat_score = 0
-    if "vocab_level" not in st.session_state:
-        st.session_state.vocab_level = selected_level
 
     def chat_add(role, msg):
         st.session_state.chat_history.append((role, msg))
+
 
     # Reset logic if user changes level or presses "Practice Again"
     if selected_level != st.session_state.vocab_level:
