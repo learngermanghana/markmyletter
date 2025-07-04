@@ -2916,6 +2916,9 @@ if tab == "Course Book":
 st.divider()
 st.markdown("### 📲 Submit Assignment (WhatsApp)", unsafe_allow_html=True)
 
+# Make sure student_row exists before using it
+student_row = st.session_state.get('student_row', {})
+
 student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
 student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
 answer = st.text_area("✍️ Your Answer", height=120)
