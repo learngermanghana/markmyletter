@@ -1985,14 +1985,16 @@ def get_a1_schedule():
             "topic": "Lesen & Hören",
             "chapter": "9_10",
             "goal": "Understand how to negate statements using nicht,kein and nein",
-            "instruction": "This chapter has two assignments. Do the assignements for  chapter 9 and after chapter 10. Chapter 10 has no grammar",
-            "lesen_hören": {
-                "chapter_9": {
+            "instruction": "This chapter has two assignments. Do the assignments for chapter 9 and after chapter 10. Chapter 10 has no grammar",
+            "lesen_hören": [
+                {
+                    "chapter": "9",
                     "video": "https://youtu.be/MrB3BPtQN6A",
                     "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
                 },
-                "chapter_10": {
+                {
+                    "chapter": "10",
                     "video": "",
                     "grammarbook_link": "",
                     "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
@@ -2129,7 +2131,6 @@ def get_a1_schedule():
             }
         }
     ]
-
 
 def get_a2_schedule():
     return [
