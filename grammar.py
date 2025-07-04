@@ -1993,6 +1993,7 @@ def get_a1_schedule():
             },
             "chapter_10": {
                 "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
+            }
         },
         # DAY 17
         {
