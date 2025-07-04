@@ -2797,9 +2797,21 @@ student_level = student_row.get('Level', 'A1').upper()
 # --------------------------------------
 
 if tab == "Course Book":
-
     import streamlit as st
     import datetime, urllib.parse
+
+    # --- Place your CSS at the TOP, only once ---
+    st.markdown("""
+    <style>
+    textarea {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        font-size: 1.08em;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 
     # 1. Pick schedule based on student
     student_row = st.session_state.get('student_row', {})
