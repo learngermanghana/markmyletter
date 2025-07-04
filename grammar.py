@@ -1471,7 +1471,7 @@ if tab == "Vocab Trainer":
                     ("assistant", f"🏁 Finished! You got **{score}** out of **{n}** correct. {emoji}")
                 )
                 st.session_state.chat_complete = True
-            st.experimental_rerun()
+            st.rerun()
 
 # ===================
 # END OF VOCAB TRAINER TAB
