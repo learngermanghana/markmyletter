@@ -2914,14 +2914,11 @@ if tab == "Course Book":
 
 # --- Assignment Submission Section (WhatsApp) ---
 st.divider()
-st.markdown("### 📲 Submit Assignment (WhatsApp)", unsafe_allow_html=True)
+st.subheader("📲 Submit Assignment (WhatsApp)")
 
-# Make sure student_row exists before using it
-student_row = st.session_state.get('student_row', {})
-
-student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
-student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
-answer = st.text_area("✍️ Your Answer", height=120)
+student_name = st.text_input("Your Name", value=student_row.get('Name', ''))
+student_code = st.text_input("Student Code", value=student_row.get('StudentCode', ''))
+answer = st.text_area("Your Answer (leave blank if sending file/photo on WhatsApp)", height=120)
 
 wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
@@ -2935,31 +2932,18 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
 
 if st.button("📤 Submit via WhatsApp"):
-    st.success("✅ Tap below to open WhatsApp and send your assignment.")
-
-    # Better WhatsApp Button Styling for Mobile
+    st.success("Click the link below to open WhatsApp and send your assignment!")
     st.markdown(
-        f"""<a href="{wa_url}" target="_blank" 
-        style="display:block; text-align:center; font-size:1.2em; font-weight:700; 
-        background:#25D366; color:white; padding:14px 0; border-radius:8px; margin:12px 0;">
-        🟢 Open WhatsApp
-        </a>""",
+        f"""<a href="{wa_url}" target="_blank" style="font-size:1.15em;font-weight:600;display:inline-block;background:#25D366;color:white;padding:12px 24px;border-radius:8px;margin:10px 0;">Open WhatsApp</a>""",
         unsafe_allow_html=True
     )
+    st.text_area("Message to Copy (if needed):", wa_message, height=70)
 
-    # Copy fallback
-    st.markdown("📋 Copy message (if WhatsApp fails):", unsafe_allow_html=True)
-    st.text_area(label="", value=wa_message, height=90)
-
-# Final tips
 st.info("""
-- 📚 Tap the links above to open books or videos.
-- ✅ Submit only your main assignment. If you do more than one, mention it in your message.
-- ℹ️ Use your real name and code so we can track your progress.
+- Tap the links above to open books on your phone. No PDF preview, all links open in a new tab.
+- Submit only your main assignment below (if more than one, mention which).
+- Always use your real name and code for tracking!
 """)
-
-# Add spacing below the last section (mobile spacing)
-st.markdown("<br>", unsafe_allow_html=True)
 
 
 
