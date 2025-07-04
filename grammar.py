@@ -2936,7 +2936,7 @@ if tab == "Course Book":
 
         # Wider mobile-friendly text area
         st.markdown("#### ✍️ Your Answer")
-        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=160, label_visibility="collapsed")
+        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=300, label_visibility="collapsed")
 
         wa_message = f"""Learn Language Education Academy – Assignment Submission
 Name: {student_name}
