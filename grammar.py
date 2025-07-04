@@ -1410,7 +1410,7 @@ if tab == "Vocab Trainer":
     if st.button("Start Over"):
         for k in ["chat_history","practice_num","practice_list","chat_idx","chat_score","chat_complete","second_chance"]:
             st.session_state[k] = None if k=="practice_num" else [] if k=="chat_history" else 0 if k in ("chat_idx","chat_score") else False
-        st.experimental_rerun()
+        st.rerun()
 
     # — step 1: how many? —
     if st.session_state.practice_num is None:
