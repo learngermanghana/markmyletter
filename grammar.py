@@ -2931,6 +2931,13 @@ Answer: {answer if answer.strip() else '[See attached file/photo]'}
 #Myresults
 
 if tab == "My Results and Resources":
+
+        # --- Force Refresh Button ---
+        if st.button("🔄 Refresh for latest scores"):
+            st.cache_data.clear()
+            st.success("Cache cleared! Reloading…")
+            st.rerun()
+
     # Always define these at the top
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
@@ -3058,6 +3065,8 @@ if tab == "Admin":
             st.cache_data.clear()
             st.success("Cache cleared! Reloading…")
             st.rerun()
+
+#
 
         st.subheader("Student Data Backup & Restore")
 
