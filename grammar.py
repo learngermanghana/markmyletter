@@ -1382,77 +1382,108 @@ if tab == "Exams Mode & Custom Chat":
 # VOCAB TRAINER TAB (A1–C1) + MY VOCAB
 # =========================================
 
+
 if tab == "Vocab Trainer":
-    # Always define tab_mode at the top!
     tab_mode = st.radio("Choose mode:", ["Practice", "My Vocab"], horizontal=True)
     
-if "a1_chat_history" not in st.session_state:
-    st.session_state.a1_chat_history = []
-if "practice_count" not in st.session_state:
-    st.session_state.practice_count = None
-if "practice_list" not in st.session_state:
-    st.session_state.practice_list = []
-if "current_idx" not in st.session_state:
-    st.session_state.current_idx = 0
-if "score" not in st.session_state:
-    st.session_state.score = 0
+    # Detect level from session (default to A1 if not found)
+    selected_level = st.session_state.get("vocab_level", "A1")
+    if tab_mode == "Practice":
+        selected_level = st.selectbox("Choose level:", ["A1", "A2", "B1", "B2", "C1"], key="vocab_level_select")
+        st.session_state["vocab_level"] = selected_level
 
-def chat_add(role, msg):
-    st.session_state.a1_chat_history.append((role, msg))
+    # Load vocab for selected level
+    VOCAB = VOCAB_LISTS.get(selected_level, [])
+    total_words = len(VOCAB)
 
-if st.session_state.practice_count is None:
-    if not st.session_state.a1_chat_history:
-        chat_add("AI", f"👋 Welcome! I have **{total_words}** A1 words. How many do you want to practice?")
-    count = st.number_input("How many words?", min_value=1, max_value=total_words, value=7, key="a1_practice_num")
-    if st.button("Start Practice", key="a1_start_btn"):
-        chosen = random.sample(VOCAB, k=int(count))
-        st.session_state.practice_count = int(count)
-        st.session_state.practice_list = chosen
-        st.session_state.current_idx = 0
-        st.session_state.score = 0
-        st.session_state.a1_chat_history = []
-        chat_add("AI", f"Let's start! 🎉 Here is your first word:")
-        st.experimental_rerun()
-
-elif st.session_state.current_idx < st.session_state.practice_count:
-    idx = st.session_state.current_idx
-    word, answer = st.session_state.practice_list[idx]
-    if not st.session_state.a1_chat_history or st.session_state.a1_chat_history[-1][0] != "AI":
-        chat_add("AI", f"❓ What is the English meaning of **'{word}'**?")
-    user_ans = st.text_input("Your answer:", key=f"a1_answer_{idx}")
-    if st.button("Check", key=f"a1_check_{idx}"):
-        correct = answer.lower().strip()
-        user = user_ans.strip().lower()
-        if user == correct:
-            chat_add("AI", f"✅ Correct! 🎉 '{word}' means '{answer}'. 👍")
-            st.session_state.score += 1
-        else:
-            chat_add("AI", f"❌ Not quite. The correct answer is '{answer}'. Remember: '{word}' means '{answer}'.")
-        st.session_state.current_idx += 1
-        st.experimental_rerun()
-else:
-    total = st.session_state.practice_count
-    score = st.session_state.score
-    emoji = "🎉" if score == total else "👏"
-    chat_add("AI", f"🏁 Finished! You got {score} out of {total} correct. {emoji}")
-    if st.button("Practice Again", key="a1_again_btn"):
+    # --- Session state for chat mode ---
+    chat_key = f"{selected_level.lower()}_chat_history"
+    if chat_key not in st.session_state:
+        st.session_state[chat_key] = []
+    if "practice_count" not in st.session_state:
         st.session_state.practice_count = None
+    if "practice_list" not in st.session_state:
         st.session_state.practice_list = []
+    if "current_idx" not in st.session_state:
         st.session_state.current_idx = 0
+    if "score" not in st.session_state:
         st.session_state.score = 0
-        st.session_state.a1_chat_history = []
-        st.experimental_rerun()
 
-st.markdown("---")
-st.markdown("### 🗨️ Practice Chat")
-for role, msg in st.session_state.a1_chat_history:
-    align = "left" if role == "AI" else "right"
-    color = "#eaf4ff" if role == "AI" else "#fffbe0"
-    st.markdown(
-        f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;border-radius:14px;max-width:97%;text-align:{align};'>"
-        f"<b>{'AI 🤖' if role == 'AI' else 'You'}:</b> {msg}</div>",
-        unsafe_allow_html=True
-    )
+    def chat_add(role, msg):
+        st.session_state[chat_key].append((role, msg))
+
+    # Start/Restart logic
+    if st.session_state.practice_count is None:
+        if not st.session_state[chat_key]:
+            chat_add("AI", f"👋 Welcome! I have **{total_words}** words for level {selected_level}. How many do you want to practice?")
+        count = st.number_input("How many words?", min_value=1, max_value=total_words, value=min(7, total_words), key="practice_num")
+        if st.button("Start Practice", key="start_btn"):
+            chosen = random.sample(VOCAB, k=int(count))
+            st.session_state.practice_count = int(count)
+            st.session_state.practice_list = chosen
+            st.session_state.current_idx = 0
+            st.session_state.score = 0
+            st.session_state[chat_key] = []
+            chat_add("AI", f"Let's start! 🎉 Here is your first word:")
+            st.experimental_rerun()
+
+    elif st.session_state.current_idx < st.session_state.practice_count:
+        idx = st.session_state.current_idx
+        entry = st.session_state.practice_list[idx]
+        # For tuple vocab (A1/A2), otherwise just word (B1+)
+        if isinstance(entry, (tuple, list)) and len(entry) == 2:
+            word, answer = entry
+        else:
+            word, answer = entry, None
+
+        # Ask the question
+        if not st.session_state[chat_key] or st.session_state[chat_key][-1][0] != "AI":
+            if answer:
+                # A1/A2: Ask for English
+                chat_add("AI", f"❓ What is the English meaning of **'{word}'**?")
+            else:
+                # B1+: Just prompt to translate
+                chat_add("AI", f"❓ What is the meaning of **'{word}'** in English?")
+        user_ans = st.text_input("Your answer:", key=f"answer_{selected_level}_{idx}")
+        if st.button("Check", key=f"check_{selected_level}_{idx}"):
+            correct = answer.lower().strip() if answer else None
+            user = user_ans.strip().lower()
+            if answer:
+                # A1/A2 style check
+                if user == correct:
+                    chat_add("AI", f"✅ Correct! 🎉 '{word}' means '{answer}'. 👍")
+                    st.session_state.score += 1
+                else:
+                    # Give helpful feedback and example
+                    chat_add("AI", f"❌ Not quite. The correct answer is '{answer}'. For example: 'Das ist ein Geschenk.' means 'That is a present.'")
+            else:
+                # B1+ - skip correctness (no answer to compare)
+                chat_add("AI", f"✔️ Your answer: {user_ans}")
+            st.session_state.current_idx += 1
+            st.experimental_rerun()
+    else:
+        total = st.session_state.practice_count
+        score = st.session_state.score
+        emoji = "🎉" if score == total else "👏"
+        chat_add("AI", f"🏁 Finished! You got {score} out of {total} correct. {emoji}")
+        if st.button("Practice Again", key="again_btn"):
+            st.session_state.practice_count = None
+            st.session_state.practice_list = []
+            st.session_state.current_idx = 0
+            st.session_state.score = 0
+            st.session_state[chat_key] = []
+            st.experimental_rerun()
+
+    st.markdown("---")
+    st.markdown("### 🗨️ Practice Chat")
+    for role, msg in st.session_state[chat_key]:
+        align = "left" if role == "AI" else "right"
+        color = "#eaf4ff" if role == "AI" else "#fffbe0"
+        st.markdown(
+            f"<div style='background:{color};padding:12px 18px;margin:8px 0 0 0;border-radius:14px;max-width:97%;text-align:{align};'>"
+            f"<b>{'AI 🤖' if role == 'AI' else 'You'}:</b> {msg}</div>",
+            unsafe_allow_html=True
+        )
 
 
 # ===================
