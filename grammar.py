@@ -1383,107 +1383,99 @@ if tab == "Exams Mode & Custom Chat":
 
 if tab == "Vocab Trainer":
     import random
-    from difflib import SequenceMatcher
 
-    st.title("Vocabulary Trainer Chat")
+    HERR_FELIX = "Herr Felix 👨‍🏫"
 
-    HERR = "Herr Felix"
+    # Utility: normalize text for comparison
+    def clean_text(text):
+        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-    # — session state setup —
-    for key, default in {
-        "chat_history": [],
-        "practice_num": None,
-        "practice_list": [],
-        "chat_idx": 0,
-        "chat_score": 0,
-        "chat_complete": False,
-        "second_chance": False
-    }.items():
-        st.session_state.setdefault(key, default)
+    # Helper: render chat messages with consistent styling
+    def render_message(role, msg):
+        align = "left" if role == "assistant" else "right"
+        color = "#f0f0f0" if role == "assistant" else "#e8ffe8"
+        label = "Herr Felix" if role == "assistant" else "You"
+        st.markdown(
+            f"<div style='background:{color};padding:10px;border-radius:8px;max-width:90%;text-align:{align};margin:5px 0;'>"
+            f"<b>{label}:</b> {msg}</div>",
+            unsafe_allow_html=True
+        )
 
-    # — choose level & words —
-    level = st.selectbox("Level:", list(VOCAB_LISTS), key="chat_level")
+    # --- State setup ---
+    st.session_state.setdefault("vt_history", [])
+    st.session_state.setdefault("vt_list", [])
+    st.session_state.setdefault("vt_index", 0)
+    st.session_state.setdefault("vt_score", 0)
+    st.session_state.setdefault("vt_total", None)
+
+    # --- Level selection ---
+    level = st.selectbox("Choose level:", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab = VOCAB_LISTS[level]
-    total = len(vocab)
+    max_words = len(vocab)
 
-    # — reset button —
-    if st.button("Start Over"):
-        for k in ["chat_history","practice_num","practice_list","chat_idx","chat_score","chat_complete","second_chance"]:
-            st.session_state[k] = None if k=="practice_num" else [] if k=="chat_history" else 0 if k in ("chat_idx","chat_score") else False
-        st.rerun()
+    # Reset practice
+    if st.button("🔁 Start New Practice", key="vt_reset"):
+        st.session_state.vt_history.clear()
+        st.session_state.vt_list.clear()
+        st.session_state.vt_index = 0
+        st.session_state.vt_score = 0
+        st.session_state.vt_total = None
 
-    # — step 1: how many? —
-    if st.session_state.practice_num is None:
-        st.write(f"Hi, I’m {HERR}. I have {total} words for {level}.")
-        num = st.number_input("How many to practice?", 1, total, min(7, total), key="num_words")
-        if st.button("Go"):
-            st.session_state.practice_num = num
-            st.session_state.practice_list = random.sample(vocab, k=num)
-            first = st.session_state.practice_list[0][0]
-            st.session_state.chat_history = [(HERR, f"First word: {first}. What’s the English meaning?")]
-        st.stop()
+    # Ask how many to practice
+    if st.session_state.vt_total is None:
+        count = st.number_input(
+            "How many words to practice?", min_value=1, max_value=max_words,
+            value=min(7, max_words), key="vt_count"
+        )
+        if st.button("Start Practice", key="vt_start"):
+            st.session_state.vt_total = int(count)
+            # Use shuffle + slice instead of random.sample for performance with large lists
+            temp_list = vocab.copy()
+            random.shuffle(temp_list)
+            st.session_state.vt_list = temp_list[:st.session_state.vt_total]
+            st.session_state.vt_index = 0
+            st.session_state.vt_score = 0
+            st.session_state.vt_history = [
+                ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's begin with {st.session_state.vt_total} words!")
+            ]
 
-    # — helpers —
-    def clean(s):
-        return "".join(c for c in s.lower() if c.isalnum() or c==" ").strip()
+    # Display chat history
+    if st.session_state.vt_history:
+        st.markdown("### 🗨️ Practice Chat")
+        for role, msg in st.session_state.vt_history:
+            render_message(role, msg)
 
-    def is_exact(u, a):
-        u, a = clean(u), clean(a)
-        if u == a: return True
-        for v in a.split("/"):
-            if u == clean(v): return True
-        return False
-
-    def is_close(u, a):
-        return SequenceMatcher(None, clean(u), clean(a)).ratio() > 0.8
-
-    # — show chat —
-    for speaker, text in st.session_state.chat_history:
-        if speaker == HERR:
-            st.markdown(f"**{HERR}:** {text}")
-        else:
-            st.markdown(f"**You:** {text}")
-
-    idx = st.session_state.chat_idx
-    n   = st.session_state.practice_num
-
-    # — Q&A loop —
-    if idx < n:
-        word, answer = st.session_state.practice_list[idx]
-        user = st.text_input("Your answer:", key=f"inp_{idx}")
-        if st.button("Check", key=f"chk_{idx}"):
-            st.session_state.chat_history.append(("You", user))
-
-            if is_exact(user, answer):
-                fb = f"✅ Correct! {word} = {answer}"
-                st.session_state.chat_score += 1
-                st.session_state.second_chance = False
-            elif not st.session_state.second_chance and is_close(user, answer):
-                fb = "⚠️ Almost right! Try again or type `hint`."
-                st.session_state.second_chance = True
-            elif user.strip().lower() == "hint":
-                fb = f"💡 Hint: it’s {answer}"
-                st.session_state.second_chance = False
+    # Practice loop
+    if st.session_state.vt_total is not None and st.session_state.vt_index < st.session_state.vt_total:
+        word, answer = st.session_state.vt_list[st.session_state.vt_index]
+        user_ans = st.text_input(
+            f"Translation of '{word}'?", key=f"vt_input_{st.session_state.vt_index}"
+        )
+        if user_ans.strip() and st.button("Check Answer", key=f"vt_check_{st.session_state.vt_index}"):
+            st.session_state.vt_history.append(("user", user_ans))
+            ok = clean_text(user_ans) == clean_text(answer)
+            if ok:
+                st.session_state.vt_score += 1
+                feedback = f"✅ Correct! '{word}' = '{answer}'. Good job! 🎉"
             else:
-                fb = f"❌ Not quite. Answer: {answer}"
-                st.session_state.second_chance = False
+                feedback = (
+                    f"❌ Not quite. '{word}' = '{answer}'. "
+                    f"Example: Ich habe ein(e) {word} zu Hause."
+                )
+            st.session_state.vt_history.append(("assistant", feedback))
+            st.session_state.vt_index += 1
 
-            st.session_state.chat_history.append((HERR, fb))
-
-            # advance when exact or after hint or final wrong
-            if is_exact(user, answer) or user.strip().lower()=="hint" or not is_close(user, answer):
-                st.session_state.chat_idx += 1
-                if st.session_state.chat_idx < n:
-                    nxt = st.session_state.practice_list[st.session_state.chat_idx][0]
-                    st.session_state.chat_history.append((HERR, f"Next: what does {nxt} mean?"))
-                else:
-                    score = st.session_state.chat_score
-                    st.session_state.chat_history.append(
-                        (HERR, f"Done! You got {score}/{n}."))
-                    st.session_state.chat_complete = True
-
-            st.rerun()
-
+    # Show results
+    if st.session_state.vt_total is not None and st.session_state.vt_index >= st.session_state.vt_total:
+        score = st.session_state.vt_score
+        total = st.session_state.vt_total
+        st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
+        if st.button("Practice Again", key="vt_again"):
+            st.session_state.vt_history.clear()
+            st.session_state.vt_list.clear()
+            st.session_state.vt_index = 0
+            st.session_state.vt_score = 0
+            st.session_state.vt_total = None
 
 
 
