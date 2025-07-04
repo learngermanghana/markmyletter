@@ -1377,108 +1377,138 @@ if tab == "Exams Mode & Custom Chat":
 #End
 # =========================================
 
-
-import streamlit as st
-import random
-
-VOCAB_LISTS = {
-    "A1": [("Geschenk", "present"), ("Heizung", "heating"), ("die Wohnung", "apartment")],
-    "A2": [("die Verantwortung", "responsibility"), ("laufen", "to run")],
-    "B1": [("Fortschritt", "progress"), ("Eindruck", "impression")],
-    "B2": [("Umwelt", "environment")],
-    "C1": [("Ausdruck", "expression")]
-}
+# =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
 
 if tab == "Vocab Trainer":
+    import random
+    from difflib import SequenceMatcher
+
     st.title("🗨️ Vocabulary Trainer (Chat)")
 
-    # State setup
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    if "practice_num" not in st.session_state:
-        st.session_state.practice_num = None
-    if "practice_list" not in st.session_state:
-        st.session_state.practice_list = []
-    if "chat_idx" not in st.session_state:
-        st.session_state.chat_idx = 0
-    if "chat_score" not in st.session_state:
-        st.session_state.chat_score = 0
-    if "chat_complete" not in st.session_state:
-        st.session_state.chat_complete = False
+    HERR = "Herr Felix 👨‍🏫"
 
-    level = st.selectbox("Choose level:", ["A1", "A2", "B1", "B2", "C1"], key="chat_vocab_level")
+    # — session state setup —
+    for key, val in {
+        "chat_history": [],
+        "practice_num": None,
+        "practice_list": [],
+        "chat_idx": 0,
+        "chat_score": 0,
+        "chat_complete": False,
+        "second_chance": False
+    }.items():
+        st.session_state.setdefault(key, val)
+
+    # — choose level & vocab —
+    level = st.selectbox("Choose level:", list(VOCAB_LISTS), key="chat_vocab_level")
     vocab = VOCAB_LISTS[level]
-    total_words = len(vocab)
+    total = len(vocab)
 
-    # Start/reset
-    if st.session_state.practice_num is None or st.button("🔁 Start New Practice"):
-        st.session_state.chat_history = []
-        st.session_state.practice_num = None
-        st.session_state.practice_list = []
-        st.session_state.chat_idx = 0
-        st.session_state.chat_score = 0
-        st.session_state.chat_complete = False
+    # — reset button —
+    if st.button("🔁 Start New Practice"):
+        for key in ["chat_history","practice_num","practice_list","chat_idx","chat_score","chat_complete","second_chance"]:
+            st.session_state[key] = None if key=="practice_num" else [] if key=="chat_history" else False if key in ("chat_complete","second_chance") else 0
+        st.experimental_rerun()
 
-    # Select how many words
-    if st.session_state.practice_num is None and not st.session_state.chat_complete:
+    # — step 1: how many words? —
+    if st.session_state.practice_num is None:
         with st.chat_message("assistant"):
-            st.markdown(f"👋 Welcome! I have **{total_words}** words for {level}. How many do you want to practice today?")
-        num = st.number_input("Number of words:", min_value=1, max_value=total_words, value=min(7, total_words), key="num_words")
-        if st.button("Start Practice", key="start_chat_practice"):
-            chosen = random.sample(vocab, k=int(num))
-            st.session_state.practice_num = int(num)
-            st.session_state.practice_list = chosen
-            st.session_state.chat_idx = 0
-            st.session_state.chat_score = 0
-            st.session_state.chat_complete = False
-            st.session_state.chat_history = []
-            # First question
-            word, _ = st.session_state.practice_list[0]
-            st.session_state.chat_history.append(("assistant", f"❓ What is the English meaning of **'{word}'**?"))
-            st.rerun()
+            st.markdown(f"👋 Hi! I’m {HERR}. I have **{total}** words for {level}. How many shall we practice?")
+        num = st.number_input("Number of words:", 1, total, min(7, total), key="num_words")
+        if st.button("Start Practice"):
+            st.session_state.practice_num = num
+            st.session_state.practice_list = random.sample(vocab, k=num)
+            st.session_state.chat_history = [
+                ("assistant", f"Los geht's! 🎉 First word: **{st.session_state.practice_list[0][0]}**. What’s the English meaning?")
+            ]
         st.stop()
 
-    # Display chat history
+    # — utility to clean & compare —
+    def clean(s):
+        return "".join(ch for ch in s.lower() if ch.isalnum() or ch.isspace()).replace(" the ", " ").strip()
+
+    def is_direct(user, correct):
+        u, c = clean(user), clean(correct)
+        if u == c: return True
+        for variant in correct.split("/"):
+            if u == clean(variant): return True
+        return False
+
+    def is_close(user, correct):
+        # fuzzy similarity > 0.8
+        ratio = SequenceMatcher(None, clean(user), clean(correct)).ratio()
+        return ratio > 0.8
+
+    # — render chat history —
+    st.markdown("### 🗨️ Practice Chat")
     for who, msg in st.session_state.chat_history:
-        with st.chat_message(who):
-            st.markdown(msg)
+        align, color = ("left","#eaf4ff") if who=="assistant" else ("right","#fffbe0")
+        st.markdown(
+            f"<div style='background:{color};padding:12px;border-radius:10px;text-align:{align};'>"
+            f"{msg}</div>", unsafe_allow_html=True
+        )
 
     idx = st.session_state.chat_idx
-    n = st.session_state.practice_num
+    n   = st.session_state.practice_num
 
-    # Only allow chat if not complete
-    if not st.session_state.chat_complete and idx < n:
-        # Student answers
-        user_ans = st.chat_input("Type your answer and press Enter:")
-        if user_ans is not None:
-            word, answer = st.session_state.practice_list[idx]
-            st.session_state.chat_history.append(("user", user_ans))
-            # Check correctness
-            user = user_ans.strip().lower()
-            correct = answer.strip().lower()
-            if user == correct:
-                feedback = f"✅ Correct! 🎉 **{word}** means **{answer}**. 👍"
+    # — step 2: Q&A loop —
+    if idx < n:
+        word, answer = st.session_state.practice_list[idx]
+        prompt_key = f"input_{idx}"
+        user = st.text_input("Your answer:", key=prompt_key)
+
+        if st.button("Check", key=f"check_{idx}"):
+            if is_direct(user, answer):
+                fb = f"✅ Correct! **{word}** = **{answer}**. 👍🎉"
                 st.session_state.chat_score += 1
+                st.session_state.second_chance = False
+            elif not st.session_state.second_chance and is_close(user, answer):
+                fb = (
+                    f"⚠️ Almost! You wrote `{user}`. "
+                    f"Try again or type `hint` for the answer."
+                )
+                st.session_state.second_chance = True
+            elif user.strip().lower() == "hint":
+                fb = f"💡 Hint: it’s **{answer}**."
+                st.session_state.second_chance = False
             else:
-                feedback = (f"❌ Not quite. The correct answer is **{answer}**. "
-                            f"\nExample: 'Die {word} ist neu.' Remember: **{word}** = **{answer}**.")
-            st.session_state.chat_history.append(("assistant", feedback))
+                fb = (
+                    f"❌ Not quite. The correct answer is **{answer}**.\n\n"
+                    f"Example: _Ich habe ein(e) **{word}** zu Hause._\n"
+                    f"Keep going! 🌟"
+                )
+                st.session_state.second_chance = False
 
-            # Next word or finish
-            st.session_state.chat_idx += 1
-            if st.session_state.chat_idx < n:
-                next_word, _ = st.session_state.practice_list[st.session_state.chat_idx]
-                st.session_state.chat_history.append(
-                    ("assistant", f"❓ Next: What is the English meaning of **'{next_word}'**?")
-                )
-            else:
-                score = st.session_state.chat_score
-                emoji = "🎉" if score == n else "👏"
-                st.session_state.chat_history.append(
-                    ("assistant", f"🏁 Finished! You got **{score}** out of **{n}** correct. {emoji}")
-                )
-                st.session_state.chat_complete = True
-            st.rerun()
+            st.session_state.chat_history.append(("user", user))
+            st.session_state.chat_history.append(("assistant", fb))
+
+            # move on if final or direct correct or hint used
+            if is_direct(user, answer) or user.strip().lower()=="hint" or not is_close(user, answer):
+                st.session_state.chat_idx += 1
+
+                if st.session_state.chat_idx < n:
+                    nxt = st.session_state.practice_list[st.session_state.chat_idx][0]
+                    st.session_state.chat_history.append(
+                        ("assistant", f"❓ Next: what does **{nxt}** mean?")
+                    )
+                else:
+                    score = st.session_state.chat_score
+                    emoji = "🎉" if score==n else "👏"
+                    st.session_state.chat_history.append(
+                        ("assistant", f"🏁 You scored **{score}/{n}**. {emoji}")
+                    )
+                    st.session_state.chat_complete = True
+
+            st.experimental_rerun()
+
+    # — optional progress bar / halfway shout-out —
+    if n:
+        st.progress((st.session_state.chat_score)/(n))
+        if st.session_state.chat_idx==n//2:
+            st.success("👏 Halfway there – super! Keep going!")
+
 
 
 # ====================================
