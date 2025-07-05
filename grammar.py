@@ -475,192 +475,7 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-# Exam topic lists
-# --- A1 Exam Topic Lists (Teil 1, 2, 3) ---
 
-A1_TEIL1 = [
-    "Name", "Alter", "Wohnort", "Land", "Sprache", "Familie", "Beruf", "Hobby"
-]
-
-A1_TEIL2 = [
-    ("Geschäft", "schließen"),
-    ("Uhr", "Uhrzeit"),
-    ("Arbeit", "Kollege"),
-    ("Hausaufgabe", "machen"),
-    ("Küche", "kochen"),
-    ("Freizeit", "lesen"),
-    ("Telefon", "anrufen"),
-    ("Reise", "Hotel"),
-    ("Auto", "fahren"),
-    ("Einkaufen", "Obst"),
-    ("Schule", "Lehrer"),
-    ("Geburtstag", "Geschenk"),
-    ("Essen", "Frühstück"),
-    ("Arzt", "Termin"),
-    ("Zug", "Abfahrt"),
-    ("Wetter", "Regen"),
-    ("Buch", "lesen"),
-    ("Computer", "E-Mail"),
-    ("Kind", "spielen"),
-    ("Wochenende", "Plan"),
-    ("Bank", "Geld"),
-    ("Sport", "laufen"),
-    ("Abend", "Fernsehen"),
-    ("Freunde", "Besuch"),
-    ("Bahn", "Fahrkarte"),
-    ("Straße", "Stau"),
-    ("Essen gehen", "Restaurant"),
-    ("Hund", "Futter"),
-    ("Familie", "Kinder"),
-    ("Post", "Brief"),
-    ("Nachbarn", "laut"),
-    ("Kleid", "kaufen"),
-    ("Büro", "Chef"),
-    ("Urlaub", "Strand"),
-    ("Kino", "Film"),
-    ("Internet", "Seite"),
-    ("Bus", "Abfahrt"),
-    ("Arztpraxis", "Wartezeit"),
-    ("Kuchen", "backen"),
-    ("Park", "spazieren"),
-    ("Bäckerei", "Brötchen"),
-    ("Geldautomat", "Karte"),
-    ("Buchladen", "Roman"),
-    ("Fernseher", "Programm"),
-    ("Tasche", "vergessen"),
-    ("Stadtplan", "finden"),
-    ("Ticket", "bezahlen"),
-    ("Zahnarzt", "Schmerzen"),
-    ("Museum", "Öffnungszeiten"),
-    ("Handy", "Akku leer"),
-]
-
-A1_TEIL3 = [
-    "Radio anmachen",
-    "Fenster zumachen",
-    "Licht anschalten",
-    "Tür aufmachen",
-    "Tisch sauber machen",
-    "Hausaufgaben schicken",
-    "Buch bringen",
-    "Handy ausmachen",
-    "Stuhl nehmen",
-    "Wasser holen",
-    "Fenster öffnen",
-    "Musik leiser machen",
-    "Tafel sauber wischen",
-    "Kaffee kochen",
-    "Deutsch üben",
-    "Auto waschen",
-    "Kind abholen",
-    "Tisch decken",
-    "Termin machen",
-    "Nachricht schreiben",
-]
-
-A2_TEIL1 = [
-    "Wohnort", "Tagesablauf", "Freizeit", "Sprachen", "Essen & Trinken", "Haustiere",
-    "Lieblingsmonat", "Jahreszeit", "Sport", "Kleidung (Sommer)", "Familie", "Beruf",
-    "Hobbys", "Feiertage", "Reisen", "Lieblingsessen", "Schule", "Wetter", "Auto oder Fahrrad", "Perfekter Tag"
-]
-A2_TEIL2 = [
-    "Was machen Sie mit Ihrem Geld?",
-    "Was machen Sie am Wochenende?",
-    "Wie verbringen Sie Ihren Urlaub?",
-    "Wie oft gehen Sie einkaufen und was kaufen Sie?",
-    "Was für Musik hören Sie gern?",
-    "Wie feiern Sie Ihren Geburtstag?",
-    "Welche Verkehrsmittel nutzen Sie?",
-    "Wie bleiben Sie gesund?",
-    "Was machen Sie gern mit Ihrer Familie?",
-    "Wie sieht Ihr Traumhaus aus?",
-    "Welche Filme oder Serien mögen Sie?",
-    "Wie oft gehen Sie ins Restaurant?",
-    "Was ist Ihr Lieblingsfeiertag?",
-    "Was machen Sie morgens als Erstes?",
-    "Wie lange schlafen Sie normalerweise?",
-    "Welche Hobbys hatten Sie als Kind?",
-    "Machen Sie lieber Urlaub am Meer oder in den Bergen?",
-    "Wie sieht Ihr Lieblingszimmer aus?",
-    "Was ist Ihr Lieblingsgeschäft?",
-    "Wie sieht ein perfekter Tag für Sie aus?"
-]
-A2_TEIL3 = [
-    "Zusammen ins Kino gehen", "Ein Café besuchen", "Gemeinsam einkaufen gehen",
-    "Ein Picknick im Park organisieren", "Eine Fahrradtour planen",
-    "Zusammen in die Stadt gehen", "Einen Ausflug ins Schwimmbad machen",
-    "Eine Party organisieren", "Zusammen Abendessen gehen",
-    "Gemeinsam einen Freund/eine Freundin besuchen", "Zusammen ins Museum gehen",
-    "Einen Spaziergang im Park machen", "Ein Konzert besuchen",
-    "Zusammen eine Ausstellung besuchen", "Einen Wochenendausflug planen",
-    "Ein Theaterstück ansehen", "Ein neues Restaurant ausprobieren",
-    "Einen Kochabend organisieren", "Einen Sportevent besuchen", "Eine Wanderung machen"
-]
-
-B1_TEIL1 = [
-    "Mithilfe beim Sommerfest", "Eine Reise nach Köln planen",
-    "Überraschungsparty organisieren", "Kulturelles Ereignis (Konzert, Ausstellung) planen",
-    "Museumsbesuch organisieren"
-]
-B1_TEIL2 = [
-    "Ausbildung", "Auslandsaufenthalt", "Behinderten-Sport", "Berufstätige Eltern",
-    "Berufswahl", "Bio-Essen", "Chatten", "Computer für jeden Kursraum", "Das Internet",
-    "Einkaufen in Einkaufszentren", "Einkaufen im Internet", "Extremsport", "Facebook",
-    "Fertigessen", "Freiwillige Arbeit", "Freundschaft", "Gebrauchte Kleidung",
-    "Getrennter Unterricht für Jungen und Mädchen", "Haushalt", "Haustiere", "Heiraten",
-    "Hotel Mama", "Ich bin reich genug", "Informationen im Internet", "Kinder und Fernsehen",
-    "Kinder und Handys", "Kinos sterben", "Kreditkarten", "Leben auf dem Land oder in der Stadt",
-    "Makeup für Kinder", "Marken-Kleidung", "Mode", "Musikinstrument lernen",
-    "Musik im Zeitalter des Internets", "Rauchen", "Reisen", "Schokolade macht glücklich",
-    "Sport treiben", "Sprachenlernen", "Sprachenlernen mit dem Internet",
-    "Stadtzentrum ohne Autos", "Studenten und Arbeit in den Ferien", "Studium", "Tattoos",
-    "Teilzeitarbeit", "Unsere Idole", "Umweltschutz", "Vegetarische Ernährung", "Zeitungslesen"
-]
-B1_TEIL3 = [
-    "Fragen stellen zu einer Präsentation", "Positives Feedback geben",
-    "Etwas überraschend finden oder planen", "Weitere Details erfragen"
-]
-b2_teil1_topics = [
-    "Sollten Smartphones in der Schule erlaubt sein?",
-    "Wie wichtig ist Umweltschutz in unserem Alltag?",
-    "Wie beeinflusst Social Media unser Leben?",
-    "Welche Rolle spielt Sport für die Gesundheit?",
-]
-
-b2_teil2_presentations = [
-    "Die Bedeutung von Ehrenamt",
-    "Vorteile und Nachteile von Homeoffice",
-    "Auswirkungen der Digitalisierung auf die Arbeitswelt",
-    "Mein schönstes Reiseerlebnis",
-]
-
-b2_teil3_arguments = [
-    "Sollte man in der Stadt oder auf dem Land leben?",
-    "Sind E-Autos die Zukunft?",
-    "Brauchen wir mehr Urlaubstage?",
-    "Muss Schule mehr praktische Fächer anbieten?",
-]
-
-c1_teil1_lectures = [
-    "Die Zukunft der künstlichen Intelligenz",
-    "Internationale Migration: Herausforderungen und Chancen",
-    "Wandel der Arbeitswelt im 21. Jahrhundert",
-    "Digitalisierung und Datenschutz",
-]
-
-c1_teil2_discussions = [
-    "Sollten Universitäten Studiengebühren verlangen?",
-    "Welchen Einfluss haben soziale Medien auf die Demokratie?",
-    "Ist lebenslanges Lernen notwendig?",
-    "Die Bedeutung von Nachhaltigkeit in der Wirtschaft",
-]
-
-c1_teil3_evaluations = [
-    "Die wichtigsten Kompetenzen für die Zukunft",
-    "Vor- und Nachteile globaler Zusammenarbeit",
-    "Welchen Einfluss hat Technik auf unser Leben?",
-    "Wie verändert sich die Familie?",
-]
 
 if st.session_state["logged_in"]:
     # === Context: Always define at the top ===
@@ -791,6 +606,22 @@ SWIFT: **ECOCGHAC**
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
+
+# --- CONFIG ---
+exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
+exam_sheet_name = "exam_topics"   # <-- update if your tab is named differently
+exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
+
+@st.cache_data
+def load_exam_topics():
+    df = pd.read_csv(exam_csv_url)
+    # Fill missing columns for Teil 3 if you only have a prompt
+    for col in ['Level', 'Teil', 'Topic', 'Keyword']:
+        if col not in df.columns:
+            df[col] = ""
+    return df
+
+df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
     # --- Daily Limit Check ---
@@ -1078,9 +909,13 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
         st.stop()
 
+
+
     # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
         level = st.session_state["falowen_level"]
+
+        # Dynamically build teil_options from your app logic
         teil_options = {
             "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request"],
             "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen"],
@@ -1088,57 +923,61 @@ if tab == "Exams Mode & Custom Chat":
             "B2": ["Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation"],
             "C1": ["Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung"]
         }
-
-        # build exam_topics list
-        exam_topics = []
-        if level == "A2":
-            exam_topics = A2_TEIL1 + A2_TEIL2 + A2_TEIL3
-        elif level == "B1":
-            exam_topics = B1_TEIL1 + B1_TEIL2 + B1_TEIL3
-        elif level == "B2":
-            exam_topics = b2_teil1_topics + b2_teil2_presentations + b2_teil3_arguments
-        elif level == "C1":
-            exam_topics = c1_teil1_lectures + c1_teil2_discussions + c1_teil3_evaluations
-
         st.subheader("Step 3: Choose Exam Part")
         teil = st.radio("Which exam part?", teil_options[level], key="falowen_teil_center")
 
-        # optional topic picker
-        if level != "A1" and exam_topics:
-            picked = st.selectbox("Choose a topic (optional):", ["(random)"] + exam_topics)
-            st.session_state["falowen_exam_topic"] = None if picked == "(random)" else picked
+        # Parse Teil for lookup (e.g., "Teil 2" from "Teil 2 – Question and Answer")
+        teil_number = teil.split()[1]
+
+        # Filter exam topics by level and teil
+        exam_topics = df_exam[(df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")]
+
+        # Some Teils (like Teil 3) may just have a prompt, not a topic+keyword
+        topics_list = []
+        if not exam_topics.empty:
+            # If both Topic & Keyword: show as "Topic – Keyword", else just Topic
+            for _, row in exam_topics.iterrows():
+                if row['Keyword'] and not pd.isna(row['Keyword']):
+                    topics_list.append(f"{row['Topic']} – {row['Keyword']}")
+                else:
+                    topics_list.append(row['Topic'])
+        else:
+            topics_list = []
+
+        # Optional topic picker
+        picked = None
+        if topics_list:
+            picked = st.selectbox("Choose a topic (optional):", ["(random)"] + topics_list)
+            if picked == "(random)":
+                st.session_state["falowen_exam_topic"] = None
+            else:
+                # If picked includes ' – ', split out topic & keyword
+                if " – " in picked:
+                    topic, keyword = picked.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = picked
+                    st.session_state["falowen_exam_keyword"] = None
         else:
             st.session_state["falowen_exam_topic"] = None
+            st.session_state["falowen_exam_keyword"] = None
 
         if st.button("⬅️ Back", key="falowen_back2"):
             st.session_state["falowen_stage"] = 2
             st.stop()
 
         if st.button("Start Practice", key="falowen_start_practice"):
-            # initialize exam part
             st.session_state["falowen_teil"] = teil
             st.session_state["falowen_stage"] = 4
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
 
-            # initialize or load shuffled deck
-            rem, used = load_progress(student_code, level, teil)
-            if rem is None:
-                deck = exam_topics.copy()
-                random.shuffle(deck)
-                st.session_state["remaining_topics"] = deck
-                st.session_state["used_topics"] = []
-            else:
-                st.session_state["remaining_topics"] = rem
-                st.session_state["used_topics"] = used
+            # Shuffle or save deck if needed (optional)
+            st.session_state["remaining_topics"] = topics_list.copy()
+            random.shuffle(st.session_state["remaining_topics"])
+            st.session_state["used_topics"] = []
 
-            # persist initial state
-            save_progress(
-                student_code, level, teil,
-                st.session_state["remaining_topics"],
-                st.session_state["used_topics"]
-            )
-        st.stop()
 
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
