@@ -1969,12 +1969,12 @@ def get_a1_schedule():
             "goal": "Understand Possessive Determiners and its usage in connection with nouns",
             "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/5qnB2Gocp8s",
                 "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing"
             }
         },
