@@ -475,307 +475,6 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-# --- Vocab lists for all levels ---
-
-a1_vocab = [
-    ("Südseite", "south side"), ("3. Stock", "third floor"), ("Geschenk", "present/gift"),
-    ("Buslinie", "bus line"), ("Ruhetag", "rest day (closed)"), ("Heizung", "heating"),
-    ("Hälfte", "half"), ("die Wohnung", "apartment"), ("das Zimmer", "room"), ("die Miete", "rent"),
-    ("der Balkon", "balcony"), ("der Garten", "garden"), ("das Schlafzimmer", "bedroom"),
-    ("das Wohnzimmer", "living room"), ("das Badezimmer", "bathroom"), ("die Garage", "garage"),
-    ("der Tisch", "table"), ("der Stuhl", "chair"), ("der Schrank", "cupboard"), ("die Tür", "door"),
-    ("das Fenster", "window"), ("der Boden", "floor"), ("die Wand", "wall"), ("die Lampe", "lamp"),
-    ("der Fernseher", "television"), ("das Bett", "bed"), ("die Küche", "kitchen"), ("die Toilette", "toilet"),
-    ("die Dusche", "shower"), ("das Waschbecken", "sink"), ("der Ofen", "oven"),
-    ("der Kühlschrank", "refrigerator"), ("die Mikrowelle", "microwave"), ("die Waschmaschine", "washing machine"),
-    ("die Spülmaschine", "dishwasher"), ("das Haus", "house"), ("die Stadt", "city"), ("das Land", "country"),
-    ("die Straße", "street"), ("der Weg", "way"), ("der Park", "park"), ("die Ecke", "corner"),
-    ("die Bank", "bank"), ("der Supermarkt", "supermarket"), ("die Apotheke", "pharmacy"),
-    ("die Schule", "school"), ("die Universität", "university"), ("das Geschäft", "store"),
-    ("der Markt", "market"), ("der Flughafen", "airport"), ("der Bahnhof", "train station"),
-    ("die Haltestelle", "bus stop"), ("die Fahrt", "ride"), ("das Ticket", "ticket"), ("der Zug", "train"),
-    ("der Bus", "bus"), ("das Taxi", "taxi"), ("das Auto", "car"), ("die Ampel", "traffic light"),
-    ("die Kreuzung", "intersection"), ("der Parkplatz", "parking lot"), ("der Fahrplan", "schedule"),
-    ("zumachen", "to close"), ("aufmachen", "to open"), ("ausmachen", "to turn off"),
-    ("übernachten", "to stay overnight"), ("anfangen", "to begin"), ("vereinbaren", "to arrange"),
-    ("einsteigen", "to get in / board"), ("umsteigen", "to change (trains)"), ("aussteigen", "to get out / exit"),
-    ("anschalten", "to switch on"), ("ausschalten", "to switch off"), ("Anreisen", "to arrive"), ("Ankommen", "to arrive"),
-    ("Abreisen", "to depart"), ("Absagen", "to cancel"), ("Zusagen", "to agree"), ("günstig", "cheap"),
-    ("billig", "inexpensive")
-]
-
-a2_vocab = [
-    ("die Verantwortung", "responsibility"), ("die Besprechung", "meeting"), ("die Überstunden", "overtime"),
-    ("laufen", "to run"), ("das Fitnessstudio", "gym"), ("die Entspannung", "relaxation"),
-    ("der Müll", "waste, garbage"), ("trennen", "to separate"), ("der Umweltschutz", "environmental protection"),
-    ("der Abfall", "waste, rubbish"), ("der Restmüll", "residual waste"), ("die Anweisung", "instruction"),
-    ("die Gemeinschaft", "community"), ("der Anzug", "suit"), ("die Beförderung", "promotion"),
-    ("die Abteilung", "department"), ("drinnen", "indoors"), ("die Vorsorgeuntersuchung", "preventive examination"),
-    ("die Mahlzeit", "meal"), ("behandeln", "to treat"), ("Hausmittel", "home remedies"),
-    ("Salbe", "ointment"), ("Tropfen", "drops"), ("nachhaltig", "sustainable"),
-    ("berühmt / bekannt", "famous / well-known"), ("einleben", "to settle in"), ("sich stören", "to be bothered"),
-    ("liefern", "to deliver"), ("zum Mitnehmen", "to take away"), ("erreichbar", "reachable"),
-    ("bedecken", "to cover"), ("schwanger", "pregnant"), ("die Impfung", "vaccination"),
-    ("am Fluss", "by the river"), ("das Guthaben", "balance / credit"), ("kostenlos", "free of charge"),
-    ("kündigen", "to cancel / to terminate"), ("der Anbieter", "provider"), ("die Bescheinigung", "certificate / confirmation"),
-    ("retten", "rescue"), ("die Falle", "trap"), ("die Feuerwehr", "fire department"),
-    ("der Schreck", "shock, fright"), ("schwach", "weak"), ("verletzt", "injured"),
-    ("der Wildpark", "wildlife park"), ("die Akrobatik", "acrobatics"), ("bauen", "to build"),
-    ("extra", "especially"), ("der Feriengruß", "holiday greeting"), ("die Pyramide", "pyramid"),
-    ("regnen", "to rain"), ("schicken", "to send"), ("das Souvenir", "souvenir"),
-    ("wahrscheinlich", "probably"), ("das Chaos", "chaos"), ("deutlich", "clearly"),
-    ("der Ohrring", "earring"), ("verlieren", "to lose"), ("der Ärger", "trouble"),
-    ("besorgt", "worried"), ("deprimiert", "depressed"), ("der Streit", "argument"),
-    ("sich streiten", "to argue"), ("dagegen sein", "to be against"), ("egal", "doesn't matter"),
-    ("egoistisch", "selfish"), ("kennenlernen", "to get to know"), ("nicht leiden können", "to dislike"),
-    ("der Mädchentag", "girls' day"), ("der Ratschlag", "advice"), ("tun", "to do"),
-    ("zufällig", "by chance"), ("ansprechen", "to approach"), ("plötzlich", "suddenly"),
-    ("untrennbar", "inseparable"), ("sich verabreden", "to make an appointment"),
-    ("versprechen", "to promise"), ("weglaufen", "to run away"), ("ab (+ Dativ)", "from, starting from"),
-    ("das Aquarium", "aquarium"), ("der Flohmarkt", "flea market"), ("der Jungentag", "boys' day"),
-    ("kaputt", "broken"), ("kostenlos", "free"), ("präsentieren", "to present"),
-    ("das Quiz", "quiz"), ("schwitzen", "to sweat"), ("das Straßenfest", "street festival"),
-    ("täglich", "daily"), ("vorschlagen", "to suggest"), ("wenn", "if, when"),
-    ("die Bühne", "stage"), ("dringend", "urgently"), ("die Reaktion", "reaction"),
-    ("unterwegs", "on the way"), ("vorbei", "over, past"), ("die Bauchschmerzen", "stomach ache"),
-    ("der Busfahrer", "bus driver"), ("die Busfahrerin", "female bus driver"),
-    ("der Fahrplan", "schedule"), ("der Platten", "flat tire"), ("die Straßenbahn", "tram"),
-    ("streiken", "to strike"), ("der Unfall", "accident"), ("die Ausrede", "excuse"),
-    ("baden", "to bathe"), ("die Grillwurst", "grilled sausage"), ("klingeln", "to ring"),
-    ("die Mitternacht", "midnight"), ("der Nachbarhund", "neighbor's dog"),
-    ("verbieten", "to forbid"), ("wach", "awake"), ("der Wecker", "alarm clock"),
-    ("die Wirklichkeit", "reality"), ("zuletzt", "lastly, finally"), ("das Bandmitglied", "band member"),
-    ("loslassen", "to let go"), ("der Strumpf", "stocking"), ("anprobieren", "to try on"),
-    ("aufdecken", "to uncover / flip over"), ("behalten", "to keep"), ("der Wettbewerb", "competition"),
-    ("schmutzig", "dirty"), ("die Absperrung", "barricade"), ("böse", "angry, evil"),
-    ("trocken", "dry"), ("aufbleiben", "to stay up"), ("hässlich", "ugly"),
-    ("ausweisen", "to identify"), ("erfahren", "to learn, find out"), ("entdecken", "to discover"),
-    ("verbessern", "to improve"), ("aufstellen", "to set up"), ("die Notaufnahme", "emergency department"),
-    ("das Arzneimittel", "medication"), ("die Diagnose", "diagnosis"), ("die Therapie", "therapy"),
-    ("die Rehabilitation", "rehabilitation"), ("der Chirurg", "surgeon"), ("die Anästhesie", "anesthesia"),
-    ("die Infektion", "infection"), ("die Entzündung", "inflammation"), ("die Unterkunft", "accommodation"),
-    ("die Sehenswürdigkeit", "tourist attraction"), ("die Ermäßigung", "discount"), ("die Verspätung", "delay"),
-    ("die Quittung", "receipt"), ("die Veranstaltung", "event"), ("die Bewerbung", "application")
-]
-
-b1_vocab = [
-    ("Fortschritt", "progress"),
-    ("Eindruck", "impression"),
-    ("Unterschied", "difference"),
-    ("Vorschlag", "suggestion"),
-    ("Erfahrung", "experience"),
-    ("Ansicht", "view, opinion"),
-    ("Abschluss", "graduation, conclusion"),
-    ("Entscheidung", "decision"),
-    ("Verantwortung", "responsibility"),
-    ("Verhalten", "behavior"),
-    ("Beziehung", "relationship"),
-    ("Bestätigung", "confirmation"),
-    ("Veränderung", "change"),
-    ("Leistung", "achievement, performance"),
-    ("Rücksicht", "consideration"),
-    ("Verbindung", "connection"),
-    ("Vorstellung", "introduction, idea"),
-    ("Erlaubnis", "permission"),
-    ("Vergleich", "comparison"),
-    ("Bedeutung", "meaning"),
-    ("Versuch", "attempt, try"),
-    ("Erfolg", "success"),
-    ("Vorteil", "advantage"),
-    ("Nachteil", "disadvantage"),
-    ("Gewohnheit", "habit"),
-    ("Entwicklung", "development"),
-    ("Fähigkeit", "ability"),
-    ("Möglichkeit", "possibility"),
-    ("Wirklichkeit", "reality"),
-    ("Sorge", "worry, concern"),
-    ("Gedanke", "thought"),
-    ("Zweifel", "doubt"),
-    ("Herausforderung", "challenge"),
-    ("Vergangenheit", "past"),
-    ("Zukunft", "future"),
-    ("Beweis", "proof"),
-    ("Einfluss", "influence"),
-    ("Teilnahme", "participation"),
-    ("Verlust", "loss"),
-    ("Ziel", "goal"),
-    ("Ergebnis", "result"),
-    ("Anforderung", "requirement"),
-    ("Stellungnahme", "statement, position"),
-    ("Beitrag", "contribution"),
-    ("Aussage", "statement"),
-    ("Vermutung", "assumption"),
-    ("Vereinbarung", "agreement"),
-    ("Angebot", "offer"),
-    ("Anfrage", "inquiry, request"),
-    ("Empfehlung", "recommendation"),
-    ("Bedarf", "need, demand"),
-    ("Bedingung", "condition, requirement"),
-    ("Hoffnung", "hope"),
-    ("Erlebnis", "experience, event"),
-    ("Mitglied", "member"),
-    ("Schwierigkeit", "difficulty"),
-    ("Abhängigkeit", "dependence"),
-    ("Unfall", "accident"),
-    ("Erlaubnis", "permission"),
-    ("Verantwortung", "responsibility"),
-    ("Vergnügen", "pleasure, enjoyment"),
-    ("Berufserfahrung", "work experience"),
-    ("Streit", "argument"),
-    ("Angst", "fear"),
-    ("Vorteil", "advantage"),
-    ("Nachteil", "disadvantage"),
-    ("Verein", "club, association"),
-    ("Teilzeit", "part-time"),
-    ("Vollzeit", "full-time"),
-    ("Gehalt", "salary"),
-    ("Fortbildung", "further education"),
-    ("Arbeitsstelle", "workplace"),
-    ("Bewerbung", "application"),
-    ("Praktikum", "internship"),
-    ("Ausbildung", "training, apprenticeship"),
-    ("Kündigung", "termination, notice"),
-    ("Teamarbeit", "teamwork"),
-    ("Zusammenarbeit", "collaboration"),
-    ("Besprechung", "meeting"),
-    ("Termin", "appointment"),
-    ("Absage", "rejection"),
-    ("Zusammenfassung", "summary"),
-    ("Umwelt", "environment"),
-    ("Verkehr", "traffic"),
-    ("Klimawandel", "climate change"),
-    ("Energie", "energy"),
-    ("Gesellschaft", "society"),
-    ("Kultur", "culture"),
-    ("Freiwillige", "volunteer"),
-    ("Unterschied", "difference"),
-    ("Gemeinschaft", "community"),
-    ("Mitteilung", "message"),
-    ("Ratschlag", "advice"),
-    ("Nachricht", "news, message"),
-    ("Gebrauchsanweisung", "instructions, manual"),
-    ("Unterstützung", "support"),
-    ("Einladung", "invitation"),
-]
-
-b2_vocab = [
-    ("Umwelt", "environment"),
-    ("Entwicklung", "development"),
-    ("Auswirkung", "effect, impact"),
-    ("Verhalten", "behavior"),
-    ("Verhältnis", "relationship, ratio"),
-    ("Struktur", "structure"),
-    ("Einfluss", "influence"),
-    ("Kritik", "criticism"),
-    ("Herausforderung", "challenge"),
-    ("Zielsetzung", "goal setting"),
-    ("Bedingung", "condition, requirement"),
-    ("Erkenntnis", "insight, realization"),
-    ("Überzeugung", "conviction, belief"),
-    ("Voraussetzung", "prerequisite"),
-    ("Begründung", "justification"),
-    ("Vorteil", "advantage"),
-    ("Nachteil", "disadvantage"),
-    ("Ausdruck", "expression"),
-    ("Vermittlung", "mediation, communication"),
-    ("Zusammenhang", "context, connection"),
-    ("Anforderung", "requirement"),
-    ("Auseinandersetzung", "argument, debate"),
-    ("Stellungnahme", "statement, opinion"),
-    ("Bewertung", "evaluation"),
-    ("Vermutung", "assumption"),
-    ("Bestätigung", "confirmation"),
-    ("Beitrag", "contribution"),
-    ("Erweiterung", "expansion, extension"),
-    ("Vertretung", "representation"),
-    ("Verantwortung", "responsibility"),
-    ("Wahrnehmung", "perception"),
-    ("Veröffentlichung", "publication"),
-    ("Anwendung", "application (use)"),
-    ("Genehmigung", "approval, permission"),
-    ("Unterschied", "difference"),
-    ("Beziehung", "relationship"),
-    ("Maßnahme", "measure, action"),
-    ("Einschränkung", "restriction"),
-    ("Vereinbarung", "agreement"),
-    ("Erfahrung", "experience"),
-    ("Angelegenheit", "matter, issue"),
-    ("Betreuung", "care, supervision"),
-    ("Teilnahme", "participation"),
-    ("Einrichtung", "institution, facility"),
-    ("Leistung", "achievement, performance"),
-    ("Rückmeldung", "feedback"),
-    ("Voraussetzung", "requirement, condition"),
-    ("Umsetzung", "implementation"),
-    ("Erklärung", "explanation"),
-    ("Einstellung", "attitude, employment"),
-    ("Bewusstsein", "awareness, consciousness"),
-]
-
-c1_vocab = [
-    ("Ausdruck", "expression"),
-    ("Beziehung", "relationship"),
-    ("Erkenntnis", "insight, realization"),
-    ("Verfügbarkeit", "availability"),
-    ("Bereich", "field, area"),
-    ("Perspektive", "perspective"),
-    ("Relevanz", "relevance"),
-    ("Effizienz", "efficiency"),
-    ("Umsetzung", "implementation"),
-    ("Zusammenhang", "context, connection"),
-    ("Widerspruch", "contradiction"),
-    ("Verhältnis", "relation, ratio"),
-    ("Schlussfolgerung", "conclusion"),
-    ("Beständigkeit", "consistency"),
-    ("Auseinandersetzung", "debate, dispute"),
-    ("Verlagerung", "shift, relocation"),
-    ("Vorbereitung", "preparation"),
-    ("Eigenverantwortung", "self-responsibility"),
-    ("Begründung", "reasoning, justification"),
-    ("Kompetenz", "competence, skill"),
-    ("Erweiterung", "extension, expansion"),
-    ("Anerkennung", "recognition, appreciation"),
-    ("Verabschiedung", "farewell, adoption (law)"),
-    ("Herangehensweise", "approach, method"),
-    ("Überwindung", "overcoming"),
-    ("Bewältigung", "coping, handling"),
-    ("Abschätzung", "estimation"),
-    ("Wertschätzung", "appreciation, esteem"),
-    ("Entscheidungsträger", "decision-maker"),
-    ("Verallgemeinerung", "generalization"),
-    ("Schwerpunkt", "focus, emphasis"),
-    ("Verlust", "loss"),
-    ("Erfassung", "recording, capture"),
-    ("Übertragung", "transfer, transmission"),
-    ("Beurteilung", "assessment"),
-    ("Darstellung", "representation, portrayal"),
-    ("Verzicht", "waiver, renunciation"),
-    ("Eigeninitiative", "self-initiative"),
-    ("Einschätzung", "evaluation, estimation"),
-    ("Begrenzung", "limitation, restriction"),
-    ("Entwicklung", "development"),
-    ("Verpflichtung", "commitment, obligation"),
-    ("Unterscheidung", "distinction"),
-    ("Zusicherung", "assurance"),
-    ("Vermeidung", "avoidance"),
-    ("Abwägung", "weighing, consideration"),
-    ("Ausschluss", "exclusion"),
-    ("Zuspruch", "encouragement, support"),
-    ("Vorlage", "template, draft"),
-    ("Veranlassung", "occasion, cause"),
-    ("Gegensatz", "contrast, opposite"),
-]
-
-
-# --- Vocab list dictionary for your app ---
-VOCAB_LISTS = {
-    "A1": a1_vocab,
-    "A2": a2_vocab,
-    "B1": b1_vocab,
-    "B2": b2_vocab,
-    "C1": c1_vocab
-}
-
 # Exam topic lists
 # --- A1 Exam Topic Lists (Teil 1, 2, 3) ---
 
@@ -1574,93 +1273,145 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 # =========================================
-# VOCAB TRAINER TAB (A1–C1)
+# VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
 # =========================================
 
+# Your Google Sheets link
+sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+sheet_name = "Sheet1"
+
+# Get export CSV link
+csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
+
+# ========== Mobile-friendly message bubble ==========
+BUBBLE_STYLE = (
+    "padding:6px 10px; border-radius:6px; max-width:98vw; "
+    "margin-bottom:8px; text-align:{align}; background:{bgcolor}; "
+    "font-size:1em; word-break:break-word;"
+)
+
+def render_message(role, msg):
+    # Improved style for mobile readability!
+    align = "left" if role == "assistant" else "right"
+    # High-contrast light bubble for both themes
+    bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
+    textcolor = "#222"  # nearly black text
+    bordcol = "#cccccc"
+    label = "Herr Felix" if role == "assistant" else "You"
+    style = (
+        f"padding:14px 14px 12px 14px; border-radius:12px; max-width:96vw; "
+        f"margin:7px 0 7px 0; text-align:{align}; background:{bgcolor}; "
+        f"border:1px solid {bordcol}; color:{textcolor}; font-size:1.12em;"
+        "box-shadow: 0 2px 8px rgba(40,40,40,0.06);"
+        "word-break:break-word;"
+    )
+    st.markdown(
+        f"<div style='{style}'><b>{label}:</b> {msg}</div>",
+        unsafe_allow_html=True
+    )
+
+# ====================================================
+
+# Helper to normalize user input
+def clean_text(text):
+    return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
+
+# Load vocab lists once (cached)
+@st.cache_data
+def load_vocab_lists():
+    df = pd.read_csv(csv_url)
+    lists = {}
+    for lvl in df['Level'].unique():
+        sub = df[df['Level'] == lvl]
+        lists[lvl] = list(zip(sub['German'], sub['English']))
+    return lists
+
+VOCAB_LISTS = load_vocab_lists()
+
+# --------- Main Vocab Trainer Tab logic -------------
 if tab == "Vocab Trainer":
-    import random
-
     HERR_FELIX = "Herr Felix 👨‍🏫"
+    defaults = {
+        "vt_history": [],
+        "vt_list": [],
+        "vt_index": 0,
+        "vt_score": 0,
+        "vt_total": None,
+    }
+    for key, val in defaults.items():
+        st.session_state.setdefault(key, val)
 
-    # Normalize for checking
-    def clean_text(text):
-        return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
-
-    # Render message: simple, readable, consistent
-    def render_message(role, msg):
-        align = "left" if role == "assistant" else "right"
-        label = "Herr Felix" if role == "assistant" else "You"
-        st.markdown(
-            f"<div style='padding:8px;border-radius:7px;background:#f9f9f9;margin:2px 0;text-align:{align};font-size:1.07em;'>"
-            f"<b>{label}:</b> {msg}</div>",
-            unsafe_allow_html=True
-        )
-
-    # State setup
-    st.session_state.setdefault("vt_history", [])
-    st.session_state.setdefault("vt_list", [])
-    st.session_state.setdefault("vt_index", 0)
-    st.session_state.setdefault("vt_score", 0)
-    st.session_state.setdefault("vt_total", None)
-
-    # Level selection
+    # Choose level
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
-    vocab = VOCAB_LISTS[level]
-    max_words = len(vocab)
+    vocab_items = VOCAB_LISTS.get(level, [])
+    max_words = len(vocab_items)
 
-    # New practice resets
-    if st.button("Start New", key="vt_reset"):
-        st.session_state.vt_history.clear()
-        st.session_state.vt_list.clear()
-        st.session_state.vt_index = 0
-        st.session_state.vt_score = 0
-        st.session_state.vt_total = None
+    if max_words == 0:
+        st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
+        st.stop()
 
-    # Step 1: ask how many words
+    # Start new practice resets
+    if st.button("🔁 Start New Practice", key="vt_reset"):
+        for k in defaults:
+            st.session_state[k] = defaults[k]
+
+    
+    # Show number of available words for the selected level
+    st.info(f"There are {max_words} words available in {level}.")
+
+    # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
-        count = st.number_input("How many words?", min_value=1, max_value=max_words, value=min(7, max_words), key="vt_count")
+        count = st.number_input(
+            "How many words can you practice today. You can also type the number?",
+            min_value=1,
+            max_value=max_words,
+            value=min(7, max_words),
+            key="vt_count"
+        )
         if st.button("Start Practice", key="vt_start"):
-            temp_list = vocab.copy()
-            random.shuffle(temp_list)
-            st.session_state.vt_list = temp_list[:int(count)]
+            shuffled = vocab_items.copy()
+            random.shuffle(shuffled)
+            st.session_state.vt_list = shuffled[:int(count)]
             st.session_state.vt_total = int(count)
             st.session_state.vt_index = 0
             st.session_state.vt_score = 0
-            st.session_state.vt_history = [("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start!")]
-    # Show chat history
-    if st.session_state.vt_history:
-        for role, msg in st.session_state.vt_history:
-            render_message(role, msg)
+            st.session_state.vt_history = [
+                ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
+            ]
 
-    # Step 2: practice loop
-    if st.session_state.vt_total and st.session_state.vt_index < st.session_state.vt_total:
-        word, answer = st.session_state.vt_list[st.session_state.vt_index]
-        user_ans = st.text_input(f"{word} = ?", key=f"vt_input_{st.session_state.vt_index}")
-        if user_ans and st.button("Check", key=f"vt_check_{st.session_state.vt_index}"):
-            st.session_state.vt_history.append(("user", user_ans))
-            ok = clean_text(user_ans) == clean_text(answer)
-            if ok:
+    # Display chat history
+    if st.session_state.vt_history:
+        st.markdown("### 🗨️ Practice Chat")
+        for who, message in st.session_state.vt_history:
+            render_message(who, message)
+
+    # Practice loop
+    total = st.session_state.vt_total
+    idx = st.session_state.vt_index
+    if isinstance(total, int) and idx < total:
+        word, answer = st.session_state.vt_list[idx]
+        user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+        if user_input and st.button("Check", key=f"vt_check_{idx}"):
+            st.session_state.vt_history.append(("user", user_input))
+            given = clean_text(user_input)
+            correct = clean_text(answer)
+            if given == correct:
                 st.session_state.vt_score += 1
-                feedback = f"✅ Correct! {word} = {answer}"
+                fb = f"✅ Correct! '{word}' = '{answer}'"
             else:
-                feedback = f"❌ {word} = {answer}"
-            st.session_state.vt_history.append(("assistant", feedback))
+                fb = f"❌ Not quite. '{word}' = '{answer}'"
+            st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
-    # Step 3: results
-    if st.session_state.vt_total and st.session_state.vt_index >= st.session_state.vt_total:
+    # Show results when done
+    if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
-        total = st.session_state.vt_total
-        st.markdown(f"**Done!** Score: {score}/{total}")
+        st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
         if st.button("Practice Again", key="vt_again"):
-            st.session_state.vt_history.clear()
-            st.session_state.vt_list.clear()
-            st.session_state.vt_index = 0
-            st.session_state.vt_score = 0
-            st.session_state.vt_total = None
+            for k in defaults:
+                st.session_state[k] = defaults[k]
 
-
-
+#
 
 
 # ====================================
