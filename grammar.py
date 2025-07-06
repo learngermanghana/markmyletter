@@ -619,7 +619,7 @@ if st.session_state.get("logged_in"):
             st.session_state["ad_last_time"] = now
             st.rerun()
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], use_container_width=True)
+        st.image(ad_images[idx], caption=ad_captions[idx], use_container_width=220)
 
         # === Upcoming Goethe Exams ===
         with st.expander("📅 Upcoming Goethe Exams & Registration", expanded=True):
