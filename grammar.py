@@ -6,12 +6,14 @@ import atexit
 import json
 from datetime import date, datetime
 import pandas as pd
+import matplotlib.pyplot as plt
 import streamlit as st
 import requests
 import io
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+
 
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
@@ -477,12 +479,19 @@ max_turns = 25
 
 
 
+@st.cache_data
+def load_stats_data():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    SHEET_NAME = "Sheet1"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
 if st.session_state["logged_in"]:
-    # === Context: Always define at the top ===
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
 
-    # === MAIN TAB SELECTOR ===
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -492,32 +501,18 @@ if st.session_state["logged_in"]:
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
-            
-            
         ],
         key="main_tab_select"
     )
 
-    # --- DASHBOARD TAB ---
+    # --- Always get these for Dashboard ---
+    df_students = load_student_data()
+    code = student_code.strip().lower()
+    found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
+    student_row = found.iloc[0].to_dict() if not found.empty else {}
+
     if tab == "Dashboard":
         st.header("📊 Student Dashboard")
-        
-        # Always fetch latest student data
-        df_students = load_student_data()
-        code = student_code
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
-        student_row = found.iloc[0].to_dict() if not found.empty else {}
-
-        streak = get_vocab_streak(code)
-        total_attempted, total_passed, accuracy = get_writing_stats(code)
-
-        # --- Usage calculation
-        today_str = str(date.today())
-        limit_key = f"{code}_schreiben_{today_str}"
-        if "schreiben_usage" not in st.session_state:
-            st.session_state["schreiben_usage"] = {}
-        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
-        daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
         # --- Student Info ---
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
@@ -554,52 +549,51 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-    # === New Progress Stats Section ===
-    df_stats = load_stats_data()
-    code = student_code.strip().lower()
+        # === New Progress Stats Section ===
+        df_stats = load_stats_data()
+        code = student_code.strip().lower()
+        df_stats['studentcode'] = df_stats['studentcode'].astype(str).str.lower()
+        student_stats = df_stats[df_stats["studentcode"] == code]
+        total_submitted = len(student_stats)
 
-    student_stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == code]
-    total_submitted = len(student_stats)
+        # 1. Completion Rate (assume 12 assignments in course)
+        TOTAL_ASSIGNMENTS = 12  # Change as needed
+        completion_rate = (total_submitted / TOTAL_ASSIGNMENTS) * 100 if TOTAL_ASSIGNMENTS else 0
 
-    # 1. Completion Rate (assume 12 assignments in course)
-    TOTAL_ASSIGNMENTS = 12  # Change to your real value if needed
-    completion_rate = (total_submitted / TOTAL_ASSIGNMENTS) * 100
+        # 2. Most Recent Assignment & Score
+        if not student_stats.empty:
+            student_stats_sorted = student_stats.sort_values("date", ascending=False)
+            last_row = student_stats_sorted.iloc[0]
+            last_assignment = last_row["assignment"]
+            last_score = last_row["score"]
+        else:
+            last_assignment, last_score = "-", "-"
 
-    # 2. Most Recent Assignment & Score
-    if not student_stats.empty:
-        student_stats_sorted = student_stats.sort_values("date", ascending=False)
-        last_row = student_stats_sorted.iloc[0]
-        last_assignment = last_row["assignment"]
-        last_score = last_row["score"]
-    else:
-        last_assignment, last_score = "-", "-"
+        # 3. Number of Assignments Passed (score >= 80)
+        num_passed = (student_stats["score"].astype(float) >= 80).sum() if not student_stats.empty else 0
 
-    # 3. Number of Assignments Passed (score >= 80)
-    num_passed = (student_stats["score"].astype(float) >= 80).sum()
+        # 4. Improvement Trend (last 10)
+        last_scores = student_stats_sorted.head(10)[["assignment", "score"]][::-1] if not student_stats.empty else pd.DataFrame()
 
-    # 4. Improvement Trend (last 10)
-    last_scores = student_stats_sorted.head(10)[["assignment", "score"]][::-1] if not student_stats.empty else pd.DataFrame()
-
-    # === Show Stats ===
-    st.markdown("### 📈 Progress Stats")
-    st.markdown(
-        f"- **Assignments Submitted:** {total_submitted} / {TOTAL_ASSIGNMENTS} ({completion_rate:.0f}%)\n"
-        f"- **Most Recent Assignment:** {last_assignment} (Score: {last_score})\n"
-        f"- **Number Passed (≥80):** {num_passed}\n"
-    )
-
-    # 5. Improvement Trend Chart
-    if not last_scores.empty:
-        st.markdown("**Improvement Trend (Last 10):**")
-        fig, ax = plt.subplots()
-        ax.plot(last_scores["assignment"], last_scores["score"], marker="o")
-        ax.set_xlabel("Assignment")
-        ax.set_ylabel("Score")
-        ax.set_title("Last 10 Assignment Scores")
-        ax.set_ylim(0, 100)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+        # === Show Stats ===
+        st.markdown("### 📈 Progress Stats")
+        st.markdown(
+            f"- **Assignments Submitted:** {total_submitted} / {TOTAL_ASSIGNMENTS} ({completion_rate:.0f}%)\n"
+            f"- **Most Recent Assignment:** {last_assignment} (Score: {last_score})\n"
+            f"- **Number Passed (≥80):** {num_passed}\n"
         )
+
+        # 5. Improvement Trend Chart
+        if not last_scores.empty:
+            st.markdown("**Improvement Trend (Last 10):**")
+            fig, ax = plt.subplots()
+            ax.plot(last_scores["assignment"], last_scores["score"], marker="o")
+            ax.set_xlabel("Assignment")
+            ax.set_ylabel("Score")
+            ax.set_title("Last 10 Assignment Scores")
+            ax.set_ylim(0, 100)
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
         # --- UPCOMING EXAMS (dashboard only) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
@@ -637,6 +631,7 @@ SWIFT: **ECOCGHAC**
                 """,
                 unsafe_allow_html=True,
             )
+
 
 
 def get_a1_schedule():
