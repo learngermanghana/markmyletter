@@ -530,34 +530,28 @@ if st.session_state.get("logged_in"):
 
 import time
 
-from datetime import datetime
-
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
 
-    display_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
-    hour = datetime.now().hour
+    # --- Get student_row first ---
+    df_students = load_student_data()
+    code = student_code.strip().lower()
+    matches = df_students[df_students["StudentCode"].str.lower() == code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # English greetings based on time of day
-    if hour < 12:
-        greeting = "Good morning"
-    elif 12 <= hour < 18:
-        greeting = "Good afternoon"
+    # --- Friendly welcome logic ---
+    display_name = student_row.get('Name') or student_name or "Student"
+    display_name = str(display_name).strip()
+    if display_name:
+        first_name = display_name.split()[0].title()
     else:
-        greeting = "Good evening"
-
-    # First-time user check (no submissions yet)
-    is_first_time = not student_row.get('EnrollDate')  # Or your own logic
-
-    if is_first_time:
-        welcome_message = f"{greeting}, {display_name}! Welcome to your dashboard. Let's get started with your first practice! 🚀"
-    else:
-        welcome_message = f"{greeting}, {display_name}! Welcome back to your dashboard. Keep up the great work! 🌟"
+        first_name = "Student"
 
     st.markdown(
         f"""
-        <div style='padding: 14px; background-color: #e3f5ff; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
-            👋 <b>{welcome_message}</b>
+        <div style='padding: 14px; background-color: #d0f5e8; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
+            👋 <b>Welcome back, {first_name}!</b><br>
+            Every step counts—keep moving forward!
         </div>
         """,
         unsafe_allow_html=True
@@ -682,7 +676,6 @@ if tab == "Dashboard":
             f"> — **{r['student_name']}**  \n"
             f"> {stars}"
         )
-
 
 def get_a1_schedule():
     return [
