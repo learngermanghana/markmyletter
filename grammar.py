@@ -476,7 +476,8 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-
+import pandas as pd
+import matplotlib.pyplot as plt
 
 @st.cache_data
 def load_stats_data():
