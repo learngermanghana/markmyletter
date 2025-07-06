@@ -475,34 +475,9 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-import streamlit as st
-import pandas as pd
-from datetime import datetime, date
 
-# --- Util: Load Google Sheet as DataFrame ---
-@st.cache_data(ttl=3600)
-def load_assignment_stats():
-    url = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/export?format=csv"
-    df = pd.read_csv(url)
-    df.columns = [c.strip().lower() for c in df.columns]
-    return df
 
-import streamlit as st
-from datetime import datetime, date
-import pandas as pd
-
-# -- Helpers --
-def load_student_data():
-    # Your existing loader for dashboard info
-    return pd.read_csv("students.csv")  # or however you load it
-
-def load_stats_data():
-    # New loader for the results/statistics sheet
-    # Replace with your Google Sheet loader if using gspread, etc.
-    url = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/export?format=csv"
-    return pd.read_csv(url)
-
-if st.session_state.get("logged_in"):
+if st.session_state["logged_in"]:
     # === Context: Always define at the top ===
     student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
@@ -511,47 +486,54 @@ if st.session_state.get("logged_in"):
     tab = st.radio(
         "How do you want to practice?",
         [
-            "dashboard",
-            "Course book",
-            "My results and resources",
-            "Exams mode & custom chat",
-            "Vocab trainer",
-            "Schreiben trainer",
+            "Dashboard",
+            "Course Book",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            
+            
         ],
         key="main_tab_select"
     )
 
     # --- DASHBOARD TAB ---
-    if tab == "dashboard":
+    if tab == "Dashboard":
         st.header("📊 Student Dashboard")
-
-        # === Load and clean data ===
+        
+        # Always fetch latest student data
         df_students = load_student_data()
-        df_students.columns = [c.strip().lower() for c in df_students.columns]
-
-        df_stats = load_stats_data()
-        df_stats.columns = [c.strip().lower() for c in df_stats.columns]
-
-        # -- Fetch Student Info --
-        code = student_code.lower().strip()
-        found = df_students[df_students["studentcode"].astype(str).str.lower().str.strip() == code]
+        code = student_code
+        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
         student_row = found.iloc[0].to_dict() if not found.empty else {}
 
-        # --- Student Info Display ---
-        st.markdown(f"### 👤 {student_row.get('name', '')}")
+        streak = get_vocab_streak(code)
+        total_attempted, total_passed, accuracy = get_writing_stats(code)
+
+        # --- Usage calculation
+        today_str = str(date.today())
+        limit_key = f"{code}_schreiben_{today_str}"
+        if "schreiben_usage" not in st.session_state:
+            st.session_state["schreiben_usage"] = {}
+        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
+        daily_so_far = st.session_state["schreiben_usage"][limit_key]
+
+        # --- Student Info ---
+        st.markdown(f"### 👤 {student_row.get('Name', '')}")
         st.markdown(
-            f"**Level:** {student_row.get('level', '')}  \n"
-            f"**Code:** `{student_row.get('studentcode', '')}`  \n"
-            f"**Email:** {student_row.get('email', '')}  \n"
-            f"**Phone:** {student_row.get('phone', '')}  \n"
-            f"**Location:** {student_row.get('location', '')}  \n"
-            f"**Contract:** {student_row.get('contractstart', '')} ➔ {student_row.get('contractend', '')}  \n"
-            f"**Enroll Date:** {student_row.get('enrolldate', '')}  \n"
-            f"**Status:** {student_row.get('status', '')}"
+            f"**Level:** {student_row.get('Level', '')}  \n"
+            f"**Code:** `{student_row.get('StudentCode', '')}`  \n"
+            f"**Email:** {student_row.get('Email', '')}  \n"
+            f"**Phone:** {student_row.get('Phone', '')}  \n"
+            f"**Location:** {student_row.get('Location', '')}  \n"
+            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}  \n"
+            f"**Enroll Date:** {student_row.get('EnrollDate', '')}  \n"
+            f"**Status:** {student_row.get('Status', '')}"
         )
 
         # --- Payment info ---
-        balance = student_row.get('balance', '0.0')
+        balance = student_row.get('Balance', '0.0')
         try:
             balance_float = float(balance)
         except Exception:
@@ -560,7 +542,7 @@ if st.session_state.get("logged_in"):
             st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
 
         # --- Contract End reminder ---
-        contract_end = student_row.get('contractend')
+        contract_end = student_row.get('ContractEnd')
         if contract_end:
             try:
                 contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
@@ -572,20 +554,19 @@ if st.session_state.get("logged_in"):
             except Exception:
                 pass
 
-        # --- Fetch STATS from stats sheet ---
-        student_results = df_stats[df_stats["studentcode"].astype(str).str.lower().str.strip() == code]
-        total_submitted = len(student_results)
-        avg_score = student_results["score"].mean() if not student_results.empty else 0
-        last_5_scores = student_results.sort_values("date", ascending=False).head(5)[["assignment", "score", "date"]]
-
-        # -- Show Progress Stats (customize these as you want!) --
-        st.markdown("### 📈 Progress Stats")
+        # --- Progress stats ---
+        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
+        goal_remain = max(0, 2 - (total_attempted or 0))
+        if goal_remain > 0:
+            st.success(f"🎯 Your next goal: Write {goal_remain} more letter(s) this week!")
+        else:
+            st.success("🎉 Weekly goal reached! Keep practicing!")
         st.markdown(
-            f"**Assignments Submitted:** {total_submitted}  \n"
-            f"**Average Score:** {avg_score:.1f}  \n"
+            f"**📝 Letters submitted:** {total_attempted}  \n"
+            f"**✅ Passed (score ≥17):** {total_passed}  \n"
+            f"**🏅 Pass rate:** {accuracy}%  \n"
+            f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
         )
-        st.write("**Last 5 Assignments:**")
-        st.dataframe(last_5_scores, use_container_width=True)
 
         # --- UPCOMING EXAMS (dashboard only) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
