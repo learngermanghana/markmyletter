@@ -487,9 +487,24 @@ def load_assignment_stats():
     df.columns = [c.strip().lower() for c in df.columns]
     return df
 
-if st.session_state["logged_in"]:
+import streamlit as st
+from datetime import datetime, date
+import pandas as pd
+
+# -- Helpers --
+def load_student_data():
+    # Your existing loader for dashboard info
+    return pd.read_csv("students.csv")  # or however you load it
+
+def load_stats_data():
+    # New loader for the results/statistics sheet
+    # Replace with your Google Sheet loader if using gspread, etc.
+    url = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/export?format=csv"
+    return pd.read_csv(url)
+
+if st.session_state.get("logged_in"):
     # === Context: Always define at the top ===
-    student_code = st.session_state.get("student_code", "").strip().lower()
+    student_code = st.session_state.get("student_code", "")
     student_name = st.session_state.get("student_name", "")
 
     # === MAIN TAB SELECTOR ===
@@ -510,13 +525,19 @@ if st.session_state["logged_in"]:
     if tab == "dashboard":
         st.header("📊 Student Dashboard")
 
-        # --- Old Dashboard Info (unchanged) ---
-        df_students = load_student_data()  # This should load your student personal/contact info sheet as before
-        code = student_code
-        found = df_students[df_students["studentcode"].str.lower().str.strip() == code]
+        # === Load and clean data ===
+        df_students = load_student_data()
+        df_students.columns = [c.strip().lower() for c in df_students.columns]
+
+        df_stats = load_stats_data()
+        df_stats.columns = [c.strip().lower() for c in df_stats.columns]
+
+        # -- Fetch Student Info --
+        code = student_code.lower().strip()
+        found = df_students[df_students["studentcode"].astype(str).str.lower().str.strip() == code]
         student_row = found.iloc[0].to_dict() if not found.empty else {}
 
-        # Student info, payment, contract, etc. (your original dashboard code)
+        # --- Student Info Display ---
         st.markdown(f"### 👤 {student_row.get('name', '')}")
         st.markdown(
             f"**Level:** {student_row.get('level', '')}  \n"
@@ -528,6 +549,8 @@ if st.session_state["logged_in"]:
             f"**Enroll Date:** {student_row.get('enrolldate', '')}  \n"
             f"**Status:** {student_row.get('status', '')}"
         )
+
+        # --- Payment info ---
         balance = student_row.get('balance', '0.0')
         try:
             balance_float = float(balance)
@@ -535,6 +558,8 @@ if st.session_state["logged_in"]:
             balance_float = 0.0
         if balance_float > 0:
             st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
+
+        # --- Contract End reminder ---
         contract_end = student_row.get('contractend')
         if contract_end:
             try:
@@ -547,72 +572,57 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-        # --- NEW: Assignment/Score stats from Google Sheet ---
-        df_stats = load_assignment_stats()
-        df_stats.columns = [c.strip().lower() for c in df_stats.columns]
-        my_stats = df_stats[df_stats["studentcode"].str.strip().str.lower() == code]
+        # --- Fetch STATS from stats sheet ---
+        student_results = df_stats[df_stats["studentcode"].astype(str).str.lower().str.strip() == code]
+        total_submitted = len(student_results)
+        avg_score = student_results["score"].mean() if not student_results.empty else 0
+        last_5_scores = student_results.sort_values("date", ascending=False).head(5)[["assignment", "score", "date"]]
 
-        st.markdown("---")
-        st.subheader("📈 Recent Assignments & Scores")
-        if my_stats.empty:
-            st.info("No assignment records yet.")
-        else:
-            # Clean/parse date for sorting if possible
-            if "date" in my_stats.columns:
-                my_stats["date"] = pd.to_datetime(my_stats["date"], errors="coerce")
-                my_stats = my_stats.sort_values("date", ascending=False)
+        # -- Show Progress Stats (customize these as you want!) --
+        st.markdown("### 📈 Progress Stats")
+        st.markdown(
+            f"**Assignments Submitted:** {total_submitted}  \n"
+            f"**Average Score:** {avg_score:.1f}  \n"
+        )
+        st.write("**Last 5 Assignments:**")
+        st.dataframe(last_5_scores, use_container_width=True)
 
-            latest_entry = my_stats.iloc[0]
-            avg_score = my_stats["score"].mean() if "score" in my_stats else None
-            total_assignments = len(my_stats)
-            last_five = my_stats.head(5)
-
-            st.markdown(
-                f"""
-                **📅 Last Assignment:** {latest_entry['assignment']}  
-                **🕒 Date:** {latest_entry['date'].strftime('%Y-%m-%d') if pd.notna(latest_entry['date']) else ''}  
-                **💯 Last Score:** {latest_entry['score']}  
-                **📝 Comment:** {latest_entry['comments']}  
-                **📊 Average Score:** {avg_score:.1f}  
-                **📚 Total Assignments:** {total_assignments}  
-                """
-            )
-            st.markdown("#### Last 5 assignments")
-            st.dataframe(last_five[["assignment", "score", "date", "comments"]])
-
-        # --- (The rest of your dashboard: exams info etc.) ---
+        # --- UPCOMING EXAMS (dashboard only) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
             st.markdown(
                 """
-                **Registration for Aug./Sept. 2025 Exams:**
+**Registration for Aug./Sept. 2025 Exams:**
 
-                | Level | Date       | Fee (GHS) | Per Module (GHS) |
-                |-------|------------|-----------|------------------|
-                | A1    | 21.07.2025 | 2,850     | —                |
-                | A2    | 22.07.2025 | 2,400     | —                |
-                | B1    | 23.07.2025 | 2,750     | 880              |
-                | B2    | 24.07.2025 | 2,500     | 840              |
-                | C1    | 25.07.2025 | 2,450     | 700              |
+| Level | Date       | Fee (GHS) | Per Module (GHS) |
+|-------|------------|-----------|------------------|
+| A1    | 21.07.2025 | 2,850     | —                |
+| A2    | 22.07.2025 | 2,400     | —                |
+| B1    | 23.07.2025 | 2,750     | 880              |
+| B2    | 24.07.2025 | 2,500     | 840              |
+| C1    | 25.07.2025 | 2,450     | 700              |
 
-                ---
-                ### 📝 Registration Steps
-                1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
-                2. Fill the form and choose **extern**
-                3. Submit and get payment confirmation
-                4. Pay by Mobile Money or Ecobank (**use full name as reference**)
-                    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
-                5. Wait for response. If not, send polite reminders by email.
-                ---
-                **Payment Details:**  
-                **Ecobank Ghana**  
-                Account Name: **GOETHE-INSTITUT GHANA**  
-                Account No.: **1441 001 701 903**  
-                Branch: **Ring Road Central**  
-                SWIFT: **ECOCGHAC**
+---
+
+### 📝 Registration Steps
+
+1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
+2. Fill the form and choose **extern**
+3. Submit and get payment confirmation
+4. Pay by Mobile Money or Ecobank (**use full name as reference**)
+    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
+5. Wait for response. If not, send polite reminders by email.
+
+---
+
+**Payment Details:**  
+**Ecobank Ghana**  
+Account Name: **GOETHE-INSTITUT GHANA**  
+Account No.: **1441 001 701 903**  
+Branch: **Ring Road Central**  
+SWIFT: **ECOCGHAC**
                 """,
                 unsafe_allow_html=True,
             )
-
 
 
 def get_a1_schedule():
