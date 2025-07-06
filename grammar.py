@@ -621,19 +621,20 @@ if st.session_state.get("logged_in"):
         idx = st.session_state["ad_idx"]
         st.image(ad_images[idx], caption=ad_captions[idx], use_container_width=220)
 
-        # === Upcoming Goethe Exams ===
-        with st.expander("📅 Upcoming Goethe Exams & Registration", expanded=True):
-            st.markdown(
+    # --- Upcoming Goethe Exams ---
+    with st.expander("📅 Upcoming Goethe Exams & Registration", expanded=True):
+        st.markdown(
+            """
+| Level | Date | Fee (GHS) |
+|-------|------|-----------|
+| A1    | 21.07.25 | 2,850 |
+| A2    | 22.07.25 | 2,400 |
+| B1    | 23.07.25 | 2,750 |
+| B2    | 24.07.25 | 2,500 |
+| C1    | 25.07.25 | 2,450 |
+
+[Register](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
                 """
-| Level | Date       |
-|-------|------------|
-| A1    | 21.07.2025 |
-| A2    | 22.07.2025 |
-| B1    | 23.07.2025 |
-| B2    | 24.07.2025 |
-| C1    | 25.07.2025 |
-                """,
-                unsafe_allow_html=True
             )
 
         # === Auto-Rotating Student Reviews ===
