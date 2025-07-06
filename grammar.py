@@ -541,32 +541,32 @@ if tab == "Dashboard":
 
     display_name = student_row.get('Name') or student_name or "Student"
     display_name = str(display_name).strip()
-    if display_name:
-        first_name = display_name.split()[0].title()
-    else:
-        first_name = "Student"
+    first_name = display_name.split()[0].title() if display_name else "Student"
 
-    # --- Minimal, super-visible greeting for mobile ---
+    # --- Simple, visible greeting for mobile ---
     st.success(f"Hello, {first_name}! 👋")
     st.info("Great to see you. Let's keep learning!")
 
-    # --- Student Info & Balance ---
-    df_students = load_student_data()
-    row = df_students[df_students["StudentCode"].str.lower().str.strip() == student_code]
-    student = row.iloc[0].to_dict() if not row.empty else {}
-    st.markdown(f"### 👤 {student.get('Name','')}")
-    st.markdown(
-        f"- **Level:** {student.get('Level','')}\n"
-        f"- **Code:** `{student.get('StudentCode','')}`\n"
-        f"- **Email:** {student.get('Email','')}\n"
-        f"- **Phone:** {student.get('Phone','')}"
-    )
+    # --- Student info (contract, contact, etc) ---
+    st.markdown("#### Your Info")
+    st.write(f"**Level:** {student_row.get('Level', '')}")
+    st.write(f"**Student Code:** {student_row.get('StudentCode', '')}")
+    st.write(f"**Email:** {student_row.get('Email', '')}")
+    st.write(f"**Phone:** {student_row.get('Phone', '')}")
+    st.write(f"**Location:** {student_row.get('Location', '')}")
+    st.write(f"**Contract:** {student_row.get('ContractStart', '')} → {student_row.get('ContractEnd', '')}")
+    st.write(f"**Enroll Date:** {student_row.get('EnrollDate', '')}")
+    st.write(f"**Status:** {student_row.get('Status', '')}")
+
+    # --- Payment info ---
+    balance = student_row.get('Balance', 0.0)
     try:
-        bal = float(student.get("Balance", 0))
+        bal = float(balance)
         if bal > 0:
-            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+            st.warning(f"💸 Balance to pay: **₵{bal:.2f}**")
     except:
         pass
+
 
     # --- Progress Stats ---
     df_stats = load_stats_data()
