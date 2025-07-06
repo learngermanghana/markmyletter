@@ -492,8 +492,6 @@ if st.session_state["logged_in"]:
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
-            
-            
         ],
         key="main_tab_select"
     )
@@ -507,17 +505,6 @@ if st.session_state["logged_in"]:
         code = student_code
         found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
         student_row = found.iloc[0].to_dict() if not found.empty else {}
-
-        streak = get_vocab_streak(code)
-        total_attempted, total_passed, accuracy = get_writing_stats(code)
-
-        # --- Usage calculation
-        today_str = str(date.today())
-        limit_key = f"{code}_schreiben_{today_str}"
-        if "schreiben_usage" not in st.session_state:
-            st.session_state["schreiben_usage"] = {}
-        st.session_state["schreiben_usage"].setdefault(limit_key, 0)
-        daily_so_far = st.session_state["schreiben_usage"][limit_key]
 
         # --- Student Info ---
         st.markdown(f"### 👤 {student_row.get('Name', '')}")
@@ -554,19 +541,52 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-        # --- Progress stats ---
-        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-        goal_remain = max(0, 2 - (total_attempted or 0))
-        if goal_remain > 0:
-            st.success(f"🎯 Your next goal: Write {goal_remain} more letter(s) this week!")
+        # --- Progress stats (from assignment records) ---
+        # Load your results sheet (should contain: StudentCode, Assignment, Date, Score)
+        df_results = load_student_data()  # Change to load_results_data() if using a different sheet
+
+        code_stripped = code.strip().lower()
+        student_results = df_results[df_results["StudentCode"].str.lower().str.strip() == code_stripped]
+
+        # 1. Last Activity
+        if not student_results.empty:
+            latest_entry = student_results.sort_values("Date", ascending=False).iloc[0]
+            last_activity = latest_entry["Assignment"]
+            last_activity_date = latest_entry["Date"]
+            st.markdown(f"**Last Activity:** {last_activity} ({last_activity_date})")
         else:
-            st.success("🎉 Weekly goal reached! Keep practicing!")
-        st.markdown(
-            f"**📝 Letters submitted:** {total_attempted}  \n"
-            f"**✅ Passed (score ≥17):** {total_passed}  \n"
-            f"**🏅 Pass rate:** {accuracy}%  \n"
-            f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
-        )
+            st.markdown("**Last Activity:** None")
+
+        # 2. Active Days in Past 30 Days
+        if not student_results.empty:
+            last_30_days = (pd.to_datetime(student_results["Date"]) >= pd.Timestamp.today() - pd.Timedelta(days=30))
+            recent_days = student_results[last_30_days]["Date"].nunique()
+            st.markdown(f"**Active Days (last 30):** {recent_days}")
+        else:
+            st.markdown("**Active Days (last 30):** 0")
+
+        # 3. Weekly Goal Progress
+        if not student_results.empty:
+            week_start = date.today() - timedelta(days=date.today().weekday())  # Monday of this week
+            this_week = (pd.to_datetime(student_results["Date"]) >= pd.Timestamp(week_start))
+            weekly_count = student_results[this_week].shape[0]
+            st.markdown(f"**Assignments this week:** {weekly_count}")
+        else:
+            st.markdown("**Assignments this week:** 0")
+
+        # 4. Best Score
+        if not student_results.empty:
+            best_score = student_results["Score"].max()
+            st.markdown(f"**Best Score:** {best_score}")
+        else:
+            st.markdown("**Best Score:** N/A")
+
+        # 5. Assignment Variety
+        if not student_results.empty:
+            assignment_variety = student_results["Assignment"].nunique()
+            st.markdown(f"**Assignment Types Done:** {assignment_variety}")
+        else:
+            st.markdown("**Assignment Types Done:** 0")
 
         # --- UPCOMING EXAMS (dashboard only) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
@@ -604,6 +624,7 @@ SWIFT: **ECOCGHAC**
                 """,
                 unsafe_allow_html=True,
             )
+
 
 
 def get_a1_schedule():
