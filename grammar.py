@@ -488,7 +488,7 @@ if st.session_state["logged_in"]:
         [
             "Dashboard",
             "Course Book",
-            "My Results and Resources"
+            "My Results and Resources",
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
