@@ -530,8 +530,38 @@ if st.session_state.get("logged_in"):
 
 import time
 
+from datetime import datetime
+
 if tab == "Dashboard":
     st.header("📊 Student Dashboard")
+
+    display_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
+    hour = datetime.now().hour
+
+    # English greetings based on time of day
+    if hour < 12:
+        greeting = "Good morning"
+    elif 12 <= hour < 18:
+        greeting = "Good afternoon"
+    else:
+        greeting = "Good evening"
+
+    # First-time user check (no submissions yet)
+    is_first_time = not student_row.get('EnrollDate')  # Or your own logic
+
+    if is_first_time:
+        welcome_message = f"{greeting}, {display_name}! Welcome to your dashboard. Let's get started with your first practice! 🚀"
+    else:
+        welcome_message = f"{greeting}, {display_name}! Welcome back to your dashboard. Keep up the great work! 🌟"
+
+    st.markdown(
+        f"""
+        <div style='padding: 14px; background-color: #e3f5ff; border-radius: 10px; margin-bottom: 18px; font-size: 1.1em;'>
+            👋 <b>{welcome_message}</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     # --- Student Info & Balance ---
     df_students = load_student_data()
