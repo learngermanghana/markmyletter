@@ -554,18 +554,51 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-        # --- Progress stats ---
-        st.markdown(f"🔥 **Vocab Streak:** {streak} days")
-        goal_remain = max(0, 2 - (total_attempted or 0))
-        if goal_remain > 0:
-            st.success(f"🎯 Your next goal: Write {goal_remain} more letter(s) this week!")
-        else:
-            st.success("🎉 Weekly goal reached! Keep practicing!")
-        st.markdown(
-            f"**📝 Letters submitted:** {total_attempted}  \n"
-            f"**✅ Passed (score ≥17):** {total_passed}  \n"
-            f"**🏅 Pass rate:** {accuracy}%  \n"
-            f"**Today:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT} used"
+    # === New Progress Stats Section ===
+    df_stats = load_stats_data()
+    code = student_code.strip().lower()
+
+    student_stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == code]
+    total_submitted = len(student_stats)
+
+    # 1. Completion Rate (assume 12 assignments in course)
+    TOTAL_ASSIGNMENTS = 12  # Change to your real value if needed
+    completion_rate = (total_submitted / TOTAL_ASSIGNMENTS) * 100
+
+    # 2. Most Recent Assignment & Score
+    if not student_stats.empty:
+        student_stats_sorted = student_stats.sort_values("date", ascending=False)
+        last_row = student_stats_sorted.iloc[0]
+        last_assignment = last_row["assignment"]
+        last_score = last_row["score"]
+    else:
+        last_assignment, last_score = "-", "-"
+
+    # 3. Number of Assignments Passed (score >= 80)
+    num_passed = (student_stats["score"].astype(float) >= 80).sum()
+
+    # 4. Improvement Trend (last 10)
+    last_scores = student_stats_sorted.head(10)[["assignment", "score"]][::-1] if not student_stats.empty else pd.DataFrame()
+
+    # === Show Stats ===
+    st.markdown("### 📈 Progress Stats")
+    st.markdown(
+        f"- **Assignments Submitted:** {total_submitted} / {TOTAL_ASSIGNMENTS} ({completion_rate:.0f}%)\n"
+        f"- **Most Recent Assignment:** {last_assignment} (Score: {last_score})\n"
+        f"- **Number Passed (≥80):** {num_passed}\n"
+    )
+
+    # 5. Improvement Trend Chart
+    if not last_scores.empty:
+        st.markdown("**Improvement Trend (Last 10):**")
+        fig, ax = plt.subplots()
+        ax.plot(last_scores["assignment"], last_scores["score"], marker="o")
+        ax.set_xlabel("Assignment")
+        ax.set_ylabel("Score")
+        ax.set_title("Last 10 Assignment Scores")
+        ax.set_ylim(0, 100)
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
         )
 
         # --- UPCOMING EXAMS (dashboard only) ---
