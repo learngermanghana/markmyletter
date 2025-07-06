@@ -475,8 +475,6 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
-
-
 if st.session_state["logged_in"]:
     # === Context: Always define at the top ===
     student_code = st.session_state.get("student_code", "")
@@ -486,41 +484,58 @@ if st.session_state["logged_in"]:
     tab = st.radio(
         "How do you want to practice?",
         [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
+            "dashboard",
+            "course book",
+            "my results and resources",
+            "exams mode & custom chat",
+            "vocab trainer",
+            "schreiben trainer",
         ],
         key="main_tab_select"
     )
 
     # --- DASHBOARD TAB ---
-    if tab == "Dashboard":
+    if tab == "dashboard":
         st.header("📊 Student Dashboard")
         
         # Always fetch latest student data
-        df_students = load_student_data()
-        code = student_code
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == code]
+        df_students = load_student_data()  # Your DataFrame, all columns lower case
+        code = student_code.strip().lower()
+        found = df_students[df_students["studentcode"].str.lower().str.strip() == code]
         student_row = found.iloc[0].to_dict() if not found.empty else {}
 
+        # Progress & recent activity from results/resources sheet
+        df_results = load_results_data()  # Load your "results" sheet, columns lower case
+
+        # Filter for this student
+        student_results = df_results[df_results["studentcode"].str.lower().str.strip() == code]
+
+        # Latest entry summary (if any)
+        if not student_results.empty:
+            latest_entry = student_results.sort_values("date", ascending=False).iloc[0]
+            latest_score = latest_entry.get("score", "-")
+            latest_type = latest_entry.get("type", "-")
+            latest_date = latest_entry.get("date", "-")
+        else:
+            latest_score = "-"
+            latest_type = "-"
+            latest_date = "-"
+
         # --- Student Info ---
-        st.markdown(f"### 👤 {student_row.get('Name', '')}")
+        st.markdown(f"### 👤 {student_row.get('name', '')}")
         st.markdown(
-            f"**Level:** {student_row.get('Level', '')}  \n"
-            f"**Code:** `{student_row.get('StudentCode', '')}`  \n"
-            f"**Email:** {student_row.get('Email', '')}  \n"
-            f"**Phone:** {student_row.get('Phone', '')}  \n"
-            f"**Location:** {student_row.get('Location', '')}  \n"
-            f"**Contract:** {student_row.get('ContractStart', '')} ➔ {student_row.get('ContractEnd', '')}  \n"
-            f"**Enroll Date:** {student_row.get('EnrollDate', '')}  \n"
-            f"**Status:** {student_row.get('Status', '')}"
+            f"**Level:** {student_row.get('level', '')}  \n"
+            f"**Code:** `{student_row.get('studentcode', '')}`  \n"
+            f"**Email:** {student_row.get('email', '')}  \n"
+            f"**Phone:** {student_row.get('phone', '')}  \n"
+            f"**Location:** {student_row.get('location', '')}  \n"
+            f"**Contract:** {student_row.get('contractstart', '')} ➔ {student_row.get('contractend', '')}  \n"
+            f"**Enroll Date:** {student_row.get('enrolldate', '')}  \n"
+            f"**Status:** {student_row.get('status', '')}"
         )
 
         # --- Payment info ---
-        balance = student_row.get('Balance', '0.0')
+        balance = student_row.get('balance', '0.0')
         try:
             balance_float = float(balance)
         except Exception:
@@ -529,7 +544,7 @@ if st.session_state["logged_in"]:
             st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
 
         # --- Contract End reminder ---
-        contract_end = student_row.get('ContractEnd')
+        contract_end = student_row.get('contractend')
         if contract_end:
             try:
                 contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
@@ -541,54 +556,24 @@ if st.session_state["logged_in"]:
             except Exception:
                 pass
 
-        # --- Progress stats (from assignment records) ---
-        # Load your results sheet (should contain: StudentCode, Assignment, Date, Score)
-        df_results = load_student_data()  # Change to load_results_data() if using a different sheet
+        # --- Dashboard stats from your results sheet ---
+        total_attempted = student_results.shape[0]
+        total_passed = student_results[student_results["score"].astype(float) >= 17].shape[0] if not student_results.empty else 0
+        accuracy = int((total_passed / total_attempted) * 100) if total_attempted > 0 else 0
 
-        code_stripped = code.strip().lower()
-        student_results = df_results[df_results["StudentCode"].str.lower().str.strip() == code_stripped]
+        st.markdown(f"**📝 Total attempts:** {total_attempted}")
+        st.markdown(f"**✅ Passed (score ≥17):** {total_passed}")
+        st.markdown(f"**🏅 Pass rate:** {accuracy}%")
+        st.markdown(f"**🕓 Latest activity:** {latest_type} ({latest_score}) on {latest_date}")
 
-        # 1. Last Activity
-        if not student_results.empty:
-            latest_entry = student_results.sort_values("Date", ascending=False).iloc[0]
-            last_activity = latest_entry["Assignment"]
-            last_activity_date = latest_entry["Date"]
-            st.markdown(f"**Last Activity:** {last_activity} ({last_activity_date})")
+        # --- GOALS and REMINDERS (customize as needed) ---
+        goal_remain = max(0, 2 - (total_attempted or 0))
+        if goal_remain > 0:
+            st.success(f"🎯 Your next goal: Submit {goal_remain} more result(s) this week!")
         else:
-            st.markdown("**Last Activity:** None")
+            st.success("🎉 Weekly goal reached! Keep practicing!")
 
-        # 2. Active Days in Past 30 Days
-        if not student_results.empty:
-            last_30_days = (pd.to_datetime(student_results["Date"]) >= pd.Timestamp.today() - pd.Timedelta(days=30))
-            recent_days = student_results[last_30_days]["Date"].nunique()
-            st.markdown(f"**Active Days (last 30):** {recent_days}")
-        else:
-            st.markdown("**Active Days (last 30):** 0")
-
-        # 3. Weekly Goal Progress
-        if not student_results.empty:
-            week_start = date.today() - timedelta(days=date.today().weekday())  # Monday of this week
-            this_week = (pd.to_datetime(student_results["Date"]) >= pd.Timestamp(week_start))
-            weekly_count = student_results[this_week].shape[0]
-            st.markdown(f"**Assignments this week:** {weekly_count}")
-        else:
-            st.markdown("**Assignments this week:** 0")
-
-        # 4. Best Score
-        if not student_results.empty:
-            best_score = student_results["Score"].max()
-            st.markdown(f"**Best Score:** {best_score}")
-        else:
-            st.markdown("**Best Score:** N/A")
-
-        # 5. Assignment Variety
-        if not student_results.empty:
-            assignment_variety = student_results["Assignment"].nunique()
-            st.markdown(f"**Assignment Types Done:** {assignment_variety}")
-        else:
-            st.markdown("**Assignment Types Done:** 0")
-
-        # --- UPCOMING EXAMS (dashboard only) ---
+        # --- UPCOMING EXAMS ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
             st.markdown(
                 """
