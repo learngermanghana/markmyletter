@@ -598,7 +598,7 @@ if st.session_state.get("logged_in"):
             st.session_state["ad_last_time"] = time.time()
             st.rerun()
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=180)
+        st.image(ad_images[idx], caption=ad_captions[idx], width=220)
 
         # --- Goethe Exams (short, with prices) ---
         with st.expander("Goethe Exams & Registration"):
