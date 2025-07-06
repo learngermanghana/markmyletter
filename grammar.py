@@ -605,6 +605,7 @@ SWIFT: **ECOCGHAC**
                 unsafe_allow_html=True,
             )
 
+
 def get_a1_schedule():
     return [
         # DAY 1
