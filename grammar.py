@@ -512,11 +512,11 @@ if st.session_state.get("logged_in"):
         "How do you want to practice?",
         [
             "dashboard",
-            "course book",
-            "my results and resources",
-            "exams mode & custom chat",
-            "vocab trainer",
-            "schreiben trainer",
+            "Course book",
+            "My results and resources",
+            "Exams mode & custom chat",
+            "Vocab trainer",
+            "Schreiben trainer",
         ],
         key="main_tab_select"
     )
