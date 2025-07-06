@@ -475,9 +475,21 @@ SCHREIBEN_DAILY_LIMIT = 5
 max_turns = 25
 
 
+import streamlit as st
+import pandas as pd
+from datetime import datetime, date
+
+# --- Util: Load Google Sheet as DataFrame ---
+@st.cache_data(ttl=3600)
+def load_assignment_stats():
+    url = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/export?format=csv"
+    df = pd.read_csv(url)
+    df.columns = [c.strip().lower() for c in df.columns]
+    return df
+
 if st.session_state["logged_in"]:
     # === Context: Always define at the top ===
-    student_code = st.session_state.get("student_code", "")
+    student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
 
     # === MAIN TAB SELECTOR ===
@@ -498,80 +510,109 @@ if st.session_state["logged_in"]:
     if tab == "dashboard":
         st.header("📊 Student Dashboard")
 
-        # Always fetch latest student data (from your scores sheet)
-        df_students = load_student_data()  # <- Make sure this loads the Google Sheet
-        # Normalize column names just in case
-        df_students.columns = df_students.columns.str.strip().str.lower().str.replace(' ', '')
+        # --- Old Dashboard Info (unchanged) ---
+        df_students = load_student_data()  # This should load your student personal/contact info sheet as before
+        code = student_code
+        found = df_students[df_students["studentcode"].str.lower().str.strip() == code]
+        student_row = found.iloc[0].to_dict() if not found.empty else {}
 
-        code = student_code.strip().lower()
-        student_results = df_students[df_students["studentcode"] == code]
+        # Student info, payment, contract, etc. (your original dashboard code)
+        st.markdown(f"### 👤 {student_row.get('name', '')}")
+        st.markdown(
+            f"**Level:** {student_row.get('level', '')}  \n"
+            f"**Code:** `{student_row.get('studentcode', '')}`  \n"
+            f"**Email:** {student_row.get('email', '')}  \n"
+            f"**Phone:** {student_row.get('phone', '')}  \n"
+            f"**Location:** {student_row.get('location', '')}  \n"
+            f"**Contract:** {student_row.get('contractstart', '')} ➔ {student_row.get('contractend', '')}  \n"
+            f"**Enroll Date:** {student_row.get('enrolldate', '')}  \n"
+            f"**Status:** {student_row.get('status', '')}"
+        )
+        balance = student_row.get('balance', '0.0')
+        try:
+            balance_float = float(balance)
+        except Exception:
+            balance_float = 0.0
+        if balance_float > 0:
+            st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
+        contract_end = student_row.get('contractend')
+        if contract_end:
+            try:
+                contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
+                days_left = (contract_end_date - datetime.now()).days
+                if 0 < days_left <= 30:
+                    st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
+                elif days_left < 0:
+                    st.error("⏰ Contract expired. Contact the office to renew.")
+            except Exception:
+                pass
 
-        # --- Student Info ---
-        st.markdown(f"### 👤 {student_name or code.upper()}")
+        # --- NEW: Assignment/Score stats from Google Sheet ---
+        df_stats = load_assignment_stats()
+        df_stats.columns = [c.strip().lower() for c in df_stats.columns]
+        my_stats = df_stats[df_stats["studentcode"].str.strip().str.lower() == code]
 
-        if not student_results.empty:
-            # Sort by date (descending)
-            student_results = student_results.sort_values("date", ascending=False)
-            latest_entry = student_results.iloc[0]
-
-            # Extract progress stats
-            last_assignment = latest_entry["assignment"]
-            last_score = latest_entry["score"]
-            last_date = latest_entry["date"]
-            latest_comment = latest_entry.get("comments", "")
-
-            best_score = student_results["score"].max()
-            avg_score = student_results["score"].mean()
-            total_submitted = len(student_results)
-
-            st.markdown(f"""
-            ### 📈 Progress Overview
-            - **Last Assignment:** {last_assignment} ({last_date})
-            - **Latest Score:** {last_score}
-            - **Best Score:** {best_score}
-            - **Average Score:** {avg_score:.1f}
-            - **Total Submitted:** {total_submitted}
-            - **Latest Comment:** {latest_comment if latest_comment else 'No comment'}
-            """)
+        st.markdown("---")
+        st.subheader("📈 Recent Assignments & Scores")
+        if my_stats.empty:
+            st.info("No assignment records yet.")
         else:
-            st.info("No assignments found for this student yet.")
+            # Clean/parse date for sorting if possible
+            if "date" in my_stats.columns:
+                my_stats["date"] = pd.to_datetime(my_stats["date"], errors="coerce")
+                my_stats = my_stats.sort_values("date", ascending=False)
 
-        # --- UPCOMING EXAMS (dashboard only) ---
+            latest_entry = my_stats.iloc[0]
+            avg_score = my_stats["score"].mean() if "score" in my_stats else None
+            total_assignments = len(my_stats)
+            last_five = my_stats.head(5)
+
+            st.markdown(
+                f"""
+                **📅 Last Assignment:** {latest_entry['assignment']}  
+                **🕒 Date:** {latest_entry['date'].strftime('%Y-%m-%d') if pd.notna(latest_entry['date']) else ''}  
+                **💯 Last Score:** {latest_entry['score']}  
+                **📝 Comment:** {latest_entry['comments']}  
+                **📊 Average Score:** {avg_score:.1f}  
+                **📚 Total Assignments:** {total_assignments}  
+                """
+            )
+            st.markdown("#### Last 5 assignments")
+            st.dataframe(last_five[["assignment", "score", "date", "comments"]])
+
+        # --- (The rest of your dashboard: exams info etc.) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
             st.markdown(
                 """
-**Registration for Aug./Sept. 2025 Exams:**
+                **Registration for Aug./Sept. 2025 Exams:**
 
-| Level | Date       | Fee (GHS) | Per Module (GHS) |
-|-------|------------|-----------|------------------|
-| A1    | 21.07.2025 | 2,850     | —                |
-| A2    | 22.07.2025 | 2,400     | —                |
-| B1    | 23.07.2025 | 2,750     | 880              |
-| B2    | 24.07.2025 | 2,500     | 840              |
-| C1    | 25.07.2025 | 2,450     | 700              |
+                | Level | Date       | Fee (GHS) | Per Module (GHS) |
+                |-------|------------|-----------|------------------|
+                | A1    | 21.07.2025 | 2,850     | —                |
+                | A2    | 22.07.2025 | 2,400     | —                |
+                | B1    | 23.07.2025 | 2,750     | 880              |
+                | B2    | 24.07.2025 | 2,500     | 840              |
+                | C1    | 25.07.2025 | 2,450     | 700              |
 
----
-
-### 📝 Registration Steps
-
-1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
-2. Fill the form and choose **extern**
-3. Submit and get payment confirmation
-4. Pay by Mobile Money or Ecobank (**use full name as reference**)
-    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
-5. Wait for response. If not, send polite reminders by email.
-
----
-
-**Payment Details:**  
-**Ecobank Ghana**  
-Account Name: **GOETHE-INSTITUT GHANA**  
-Account No.: **1441 001 701 903**  
-Branch: **Ring Road Central**  
-SWIFT: **ECOCGHAC**
+                ---
+                ### 📝 Registration Steps
+                1. [**Register Here (9–10am, keep checking!)**](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
+                2. Fill the form and choose **extern**
+                3. Submit and get payment confirmation
+                4. Pay by Mobile Money or Ecobank (**use full name as reference**)
+                    - Email proof to: [registrations-accra@goethe.de](mailto:registrations-accra@goethe.de)
+                5. Wait for response. If not, send polite reminders by email.
+                ---
+                **Payment Details:**  
+                **Ecobank Ghana**  
+                Account Name: **GOETHE-INSTITUT GHANA**  
+                Account No.: **1441 001 701 903**  
+                Branch: **Ring Road Central**  
+                SWIFT: **ECOCGHAC**
                 """,
                 unsafe_allow_html=True,
             )
+
 
 
 def get_a1_schedule():
