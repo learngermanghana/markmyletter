@@ -497,83 +497,46 @@ if st.session_state["logged_in"]:
     # --- DASHBOARD TAB ---
     if tab == "dashboard":
         st.header("📊 Student Dashboard")
-        
-        # Always fetch latest student data
-        df_students = load_student_data()  # Your DataFrame, all columns lower case
+
+        # Always fetch latest student data (from your scores sheet)
+        df_students = load_student_data()  # <- Make sure this loads the Google Sheet
+        # Normalize column names just in case
+        df_students.columns = df_students.columns.str.strip().str.lower().str.replace(' ', '')
+
         code = student_code.strip().lower()
-        found = df_students[df_students["studentcode"].str.lower().str.strip() == code]
-        student_row = found.iloc[0].to_dict() if not found.empty else {}
-
-        # Progress & recent activity from results/resources sheet
-        df_results = load_results_data()  # Load your "results" sheet, columns lower case
-
-        # Filter for this student
-        student_results = df_results[df_results["studentcode"].str.lower().str.strip() == code]
-
-        # Latest entry summary (if any)
-        if not student_results.empty:
-            latest_entry = student_results.sort_values("date", ascending=False).iloc[0]
-            latest_score = latest_entry.get("score", "-")
-            latest_type = latest_entry.get("type", "-")
-            latest_date = latest_entry.get("date", "-")
-        else:
-            latest_score = "-"
-            latest_type = "-"
-            latest_date = "-"
+        student_results = df_students[df_students["studentcode"] == code]
 
         # --- Student Info ---
-        st.markdown(f"### 👤 {student_row.get('name', '')}")
-        st.markdown(
-            f"**Level:** {student_row.get('level', '')}  \n"
-            f"**Code:** `{student_row.get('studentcode', '')}`  \n"
-            f"**Email:** {student_row.get('email', '')}  \n"
-            f"**Phone:** {student_row.get('phone', '')}  \n"
-            f"**Location:** {student_row.get('location', '')}  \n"
-            f"**Contract:** {student_row.get('contractstart', '')} ➔ {student_row.get('contractend', '')}  \n"
-            f"**Enroll Date:** {student_row.get('enrolldate', '')}  \n"
-            f"**Status:** {student_row.get('status', '')}"
-        )
+        st.markdown(f"### 👤 {student_name or code.upper()}")
 
-        # --- Payment info ---
-        balance = student_row.get('balance', '0.0')
-        try:
-            balance_float = float(balance)
-        except Exception:
-            balance_float = 0.0
-        if balance_float > 0:
-            st.warning(f"💸 Balance to pay: **₵{balance_float:.2f}** (update when paid)")
+        if not student_results.empty:
+            # Sort by date (descending)
+            student_results = student_results.sort_values("date", ascending=False)
+            latest_entry = student_results.iloc[0]
 
-        # --- Contract End reminder ---
-        contract_end = student_row.get('contractend')
-        if contract_end:
-            try:
-                contract_end_date = datetime.strptime(str(contract_end), "%Y-%m-%d")
-                days_left = (contract_end_date - datetime.now()).days
-                if 0 < days_left <= 30:
-                    st.info(f"⚠️ Contract ends in {days_left} days. Please renew soon.")
-                elif days_left < 0:
-                    st.error("⏰ Contract expired. Contact the office to renew.")
-            except Exception:
-                pass
+            # Extract progress stats
+            last_assignment = latest_entry["assignment"]
+            last_score = latest_entry["score"]
+            last_date = latest_entry["date"]
+            latest_comment = latest_entry.get("comments", "")
 
-        # --- Dashboard stats from your results sheet ---
-        total_attempted = student_results.shape[0]
-        total_passed = student_results[student_results["score"].astype(float) >= 17].shape[0] if not student_results.empty else 0
-        accuracy = int((total_passed / total_attempted) * 100) if total_attempted > 0 else 0
+            best_score = student_results["score"].max()
+            avg_score = student_results["score"].mean()
+            total_submitted = len(student_results)
 
-        st.markdown(f"**📝 Total attempts:** {total_attempted}")
-        st.markdown(f"**✅ Passed (score ≥17):** {total_passed}")
-        st.markdown(f"**🏅 Pass rate:** {accuracy}%")
-        st.markdown(f"**🕓 Latest activity:** {latest_type} ({latest_score}) on {latest_date}")
-
-        # --- GOALS and REMINDERS (customize as needed) ---
-        goal_remain = max(0, 2 - (total_attempted or 0))
-        if goal_remain > 0:
-            st.success(f"🎯 Your next goal: Submit {goal_remain} more result(s) this week!")
+            st.markdown(f"""
+            ### 📈 Progress Overview
+            - **Last Assignment:** {last_assignment} ({last_date})
+            - **Latest Score:** {last_score}
+            - **Best Score:** {best_score}
+            - **Average Score:** {avg_score:.1f}
+            - **Total Submitted:** {total_submitted}
+            - **Latest Comment:** {latest_comment if latest_comment else 'No comment'}
+            """)
         else:
-            st.success("🎉 Weekly goal reached! Keep practicing!")
+            st.info("No assignments found for this student yet.")
 
-        # --- UPCOMING EXAMS ---
+        # --- UPCOMING EXAMS (dashboard only) ---
         with st.expander("📅 Upcoming Goethe Exams & Registration (Tap for details)", expanded=True):
             st.markdown(
                 """
@@ -609,7 +572,6 @@ SWIFT: **ECOCGHAC**
                 """,
                 unsafe_allow_html=True,
             )
-
 
 
 def get_a1_schedule():
