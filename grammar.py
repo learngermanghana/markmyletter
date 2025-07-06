@@ -6,7 +6,6 @@ import atexit
 import json
 from datetime import date, datetime
 import pandas as pd
-import matplotlib.pyplot as plt
 import streamlit as st
 import requests
 import io
