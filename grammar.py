@@ -568,7 +568,7 @@ if st.session_state.get("logged_in"):
         df_stats = load_stats_data()
         stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
         level = student_row.get("Level","").upper()
-        TOTALS = {"A1":18, "A2":28, "B1":29}
+        TOTALS = {"A1":18, "A2":28, "B1":28}
         total_assign = TOTALS.get(level, 18)
 
         submitted = len(stats)
@@ -1640,7 +1640,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1x8IM6xcjR2hv3jbnnNudjyxLWPiT0-VL/view?usp=sharing"
         },
         # DAY 25
         {
@@ -1651,7 +1651,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1If0R3cIT8KwjeXjouWlQ-VT03QGYOSZz/view?usp=sharing"
         },
         # DAY 26
         {
@@ -1662,7 +1662,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1BMwDDkfPJVEhL3wHNYqGMAvjOts9tv24/view?usp=sharing"
         },
         # DAY 27
         {
@@ -1673,7 +1673,7 @@ def get_b1_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
         # DAY 28
         {
@@ -1684,7 +1684,7 @@ def get_b1_schedule():
             "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
 
@@ -1939,7 +1939,7 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     # Summary metrics
-    totals = {"A1": 18, "A2": 28, "B1": 26, "B2": 24}
+    totals = {"A1": 18, "A2": 28, "B1": 28, "B2": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
