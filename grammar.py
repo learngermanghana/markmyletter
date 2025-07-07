@@ -692,7 +692,7 @@ def get_a1_schedule():
             "day": 2,
             "topic": "Lesen & Hören",
             "chapter": "0.2_1.1",
-            "goal": "Understand the German alphabets and know the special characters called Umlaut.",
+            "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
             "lesen_hören": [
                 {
@@ -700,14 +700,12 @@ def get_a1_schedule():
                     "video": "",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/wpBPaDI5IgI"
                 },
                 {
                     "chapter": "1.1",
                     "video": "",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
-                    "extra_resources": "https://youtu.be/_Hy9_tDhgtc?si=xbfW31T4aUHeJNa_"
                 }
             ]
         },
