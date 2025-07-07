@@ -743,7 +743,7 @@ def get_a1_schedule():
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/BzI2n4A8Oak",
                 "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing"
             }
