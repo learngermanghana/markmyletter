@@ -1707,11 +1707,7 @@ if "student_row" not in st.session_state:
 student_row = st.session_state.get('student_row', {})
 student_level = student_row.get('Level', 'A1').upper()
 
-# --------------------------------------
-
 if tab == "Course Book":
-
-    import streamlit as st
     import datetime, urllib.parse
 
     # --------------------------------------
@@ -1723,20 +1719,43 @@ if tab == "Course Book":
         "B1": get_b1_schedule(),
     }
 
-    # 1. Pick schedule based on student (cache avoids repeated calls)
     student_row = st.session_state.get('student_row', {})
     student_level = student_row.get('Level', 'A1').upper()
     schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
 
-    if not schedule:
-        st.warning("No schedule found for your level. Please contact the admin.")
-        st.stop()
+    # 1️⃣ SEARCH BAR
+    search_query = st.text_input("🔍 Search for a topic, chapter, or keyword:")
+    selected_day_idx = 0
 
-    selected_day_idx = st.selectbox(
-        "Choose your lesson/day:",
-        range(len(schedule)),
-        format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
-    )
+    if search_query:
+        sq = search_query.strip().lower()
+        results = [
+            (i, d)
+            for i, d in enumerate(schedule)
+            if sq in str(d.get("topic", "")).lower()
+            or sq in str(d.get("chapter", "")).lower()
+            or sq in str(d.get("goal", "")).lower()
+            or sq in str(d.get("instruction", "")).lower()
+            or sq in f"day {d.get('day','')}".lower()
+            or sq == str(d.get("day", "")).strip()
+        ]
+        if results:
+            st.info(f"Found {len(results)} result(s). Click to view lesson:")
+            result_labels = [
+                f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for i, d in results
+            ]
+            idx = st.selectbox("Select a lesson:", list(range(len(results))), format_func=lambda i: result_labels[i])
+            selected_day_idx = results[idx][0]
+        else:
+            st.warning("No matching lessons found.")
+            st.stop()  # Stop here so you don't try to access non-existent result
+    else:
+        selected_day_idx = st.selectbox(
+            "Choose your lesson/day:",
+            range(len(schedule)),
+            format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+        )
+
     day_info = schedule[selected_day_idx]
 
     st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
@@ -1746,6 +1765,7 @@ if tab == "Course Book":
         st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
     if day_info.get("instruction"):
         st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+
 
     # --------- Show Lesen & Hören ----------
     def render_lh_section(item, idx=None, total=None):
