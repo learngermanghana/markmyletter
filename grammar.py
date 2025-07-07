@@ -703,7 +703,7 @@ def get_a1_schedule():
                 },
                 {
                     "chapter": "1.1",
-                    "video": "",
+                    "video": "https://youtu.be/rNxu2uQZ_lc",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
                 }
