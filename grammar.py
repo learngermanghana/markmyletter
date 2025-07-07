@@ -625,7 +625,7 @@ if st.session_state.get("logged_in"):
             st.rerun()
 
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=250)  # change width if needed
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
 
         # --- Simple Goethe Exam Section ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
