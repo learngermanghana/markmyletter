@@ -873,10 +873,10 @@ def get_a1_schedule():
             "day": 14,
             "topic": "Schreiben & Sprechen",
             "chapter": "3.6",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand how to use modal verbs with main verbs and separable verbs",
+            "instruction": "This is a practical exercise. All the answers are included in the document except for the last paragraph. You can send a screenshot of that to your tutor",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/XwFPjLjvDog",
                 "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
             }
         },
