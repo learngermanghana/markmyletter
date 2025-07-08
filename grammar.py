@@ -2067,7 +2067,7 @@ if tab == "My Results and Resources":
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
-        st.info("🎉 You have completed all available assignments for this level!")
+        st.info("🎉 Great Job!")
 
     # ========== DOWNLOAD PDF SUMMARY ==========
     if st.button("⬇️ Download PDF Summary"):
