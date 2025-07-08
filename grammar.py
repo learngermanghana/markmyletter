@@ -1121,7 +1121,7 @@ def get_a2_schedule():
             "day": 8,
             "topic": "Rezepte und Essen (Exercise)",
             "chapter": "3.8",
-            "goal": "Learn about recipes and food.",
+            "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
