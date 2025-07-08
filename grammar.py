@@ -886,7 +886,7 @@ def get_a1_schedule():
             "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
             "instruction": "After completing this chapter, go to the Falowen Exam Chat Mode, select A1 Teil 3, and start practicing",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/IVtUc9T3o0Y",
                 "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
             }
         },
