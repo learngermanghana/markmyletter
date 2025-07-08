@@ -1123,7 +1123,7 @@ def get_a2_schedule():
             "chapter": "3.8",
             "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/_xQMNp3qcDQ",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
         },
@@ -1929,6 +1929,8 @@ if tab == "My Results and Resources":
                  .reset_index(drop=True)
         )
         st.table(df_display)
+
+
 
     # Download PDF summary
     if st.button("⬇️ Download PDF Summary"):
