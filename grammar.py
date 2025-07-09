@@ -1358,6 +1358,17 @@ def get_a2_schedule():
             "video": "",
             "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
         },
+#
+        # DAY 29
+        {
+            "day": 28,
+            "topic": "Goethe Mock Test",
+            "chapter": "10.29",
+            "goal": "Practice how the final exams for the lesen will look like",
+            "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
+            "video": "",
+            "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
+        },
     ]
 
 def get_b1_schedule():
