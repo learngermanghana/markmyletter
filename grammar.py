@@ -533,43 +533,6 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Progress Stats ---
-        df_stats = load_stats_data()
-        stats = df_stats[df_stats["studentcode"].astype(str).str.lower() == student_code]
-        level = student_row.get("Level","").upper()
-        TOTALS = {"A1":18, "A2":28, "B1":28}
-        total_assign = TOTALS.get(level, 18)
-
-        submitted = len(stats)
-        rate = (submitted / total_assign) * 100 if total_assign else 0
-
-        if not stats.empty:
-            sorted_stats = stats.sort_values("date", ascending=False)
-            last = sorted_stats.iloc[0]
-            last_asg, last_score = last["assignment"], last["score"]
-        else:
-            sorted_stats = pd.DataFrame()
-            last_asg, last_score = "-", "-"
-
-        passed = (stats["score"].astype(float) >= 80).sum()
-
-        st.markdown("### 📈 Progress Stats")
-        st.markdown(
-            f"- **Submitted:** {submitted}/{total_assign} ({rate:.0f}%)\n"
-            f"- **Last Assignment:** {last_asg} (Score: {last_score})\n"
-            f"- **Passed (≥80):** {passed}"
-        )
-
-        if not sorted_stats.empty:
-            trend = sorted_stats.head(10)[["assignment","score"]][::-1]
-            fig, ax = plt.subplots(figsize=(3.2,2.2))  # compact chart for mobile
-            ax.plot(trend["assignment"], trend["score"], marker="o")
-            ax.set_ylim(0,100)
-            ax.set_ylabel("Score")
-            ax.set_xlabel("Assignment")
-            plt.xticks(rotation=30)
-            st.pyplot(fig)
-
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
