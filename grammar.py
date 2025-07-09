@@ -1131,7 +1131,7 @@ def get_a2_schedule():
             "goal": "Describe a typical day.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1ayExWDJ8rTEL8hsuMgbil5_ddDPO8z29/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/16l_UeUkxYNXD35o6hxPxV0xGVHyvvpqV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
         # DAY 13
