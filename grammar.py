@@ -669,7 +669,7 @@ def get_a1_schedule():
         # DAY 1
         {
             "day": 1,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 0.1",
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
@@ -682,7 +682,7 @@ def get_a1_schedule():
         # DAY 2 – Multi chapter
         {
             "day": 2,
-            "topic": "Lesen & Hören",
+            "topic": "Lesen & Hören 0.2 and 1.1 ",
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
@@ -704,7 +704,7 @@ def get_a1_schedule():
         # DAY 3
         {
             "day": 3,
-            "topic": "Schreiben & Sprechen and Lesen & Hören",
+            "topic": "Schreiben & Sprechen 1.1 and Lesen & Hören 1.2",
             "chapter": "1.1_1.2",
             "goal": "Introduce others and talk about your family.",
             "instruction": (
@@ -1010,7 +1010,7 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
+                "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
                 "workbook_link": ""
             },
             "schreiben_sprechen": {
@@ -1023,23 +1023,23 @@ def get_a1_schedule():
             "day": 24,
             "topic": "Schreiben & Sprechen",
             "chapter": "8.13",
-            "goal": "",
+            "goal": "Learn about conjunctions and how to apply them in your exams",
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://drive.google.com/file/d/1smb4IuRqSKndoGf_ujEi5IiaYyXOTj4t/view?usp=sharing"
             }
         },
         # DAY 25
         {
             "day": 25,
-            "topic": "Exam tips - Schreiben & Sprechen recap",
+            "topic": "Goethe Mock Test",
             "chapter": "final",
-            "goal": "",
+            "goal": "This test should help the student have an idea about how the lesen and horen will look like",
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": ""
+                "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
             }
         }
     ]
