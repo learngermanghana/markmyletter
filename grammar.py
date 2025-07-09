@@ -2035,10 +2035,10 @@ if tab == "My Results and Resources":
         st.markdown(
             """
             - 🏆 **Completion Trophy**: Finish all assignments for your level.
-            - 🥇 **Gold Badge**: Maintain an average score above 90.
-            - 🥈 **Silver Badge**: Average score above 75.
+            - 🥇 **Gold Badge**: Maintain an average score above 80.
+            - 🥈 **Silver Badge**: Average score above 70.
             - 🥉 **Bronze Badge**: Average score above 60.
-            - 🌟 **Star Performer**: Score 95 or higher on any assignment.
+            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
             """
         )
 
