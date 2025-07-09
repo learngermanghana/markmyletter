@@ -2211,19 +2211,19 @@ def load_exam_topics():
 df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
-    # 📋 Tab header
+    # 🗣️ Compact tab header
     st.markdown(
         '''
         <div style="
-            padding: 16px;
+            padding: 8px 12px;
             background: #28a745;
             color: #fff;
-            border-radius: 8px;
+            border-radius: 6px;
             text-align: center;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 8px;
+            font-size: 1.3rem;
         ">
-            <span style="font-size:1.8rem; font-weight:600;">🗣️ Exam Simulator & Custom Chat</span>
+            🗣️ Exam Simulator & Custom Chat
         </div>
         ''',
         unsafe_allow_html=True
