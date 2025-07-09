@@ -976,8 +976,8 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
@@ -993,8 +993,8 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1EFZA_oAeznMBEqIgTWyeFt9wLdmqA-Bp/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1_zEb4wmENI7szcepRz_CIjSo9aS7RHv-/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
@@ -1004,10 +1004,10 @@ def get_a1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Lesen & Hören 14.2 and Schreiben & Sprechen 7.12",
+            "topic": "Lesen & Hören 14.2",
             "chapter": "14.2_7.12",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand adjective declension and dative verbs",
+            "instruction": " This chapter has no assignment. Only grammar",
             "lesen_hören": {
                 "video": "",
                 "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
@@ -1431,7 +1431,7 @@ def get_b1_schedule():
         # DAY 6
         {
             "day": 6,
-            "topic": "Mein Traumjob",
+            "topic": "Mein Traumjob 2.6",
             "chapter": "2.6",
             "goal": "Describe your dream job.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1442,7 +1442,7 @@ def get_b1_schedule():
         # DAY 7
         {
             "day": 7,
-            "topic": "Gesund bleiben",
+            "topic": "Gesund bleiben 3.7",
             "chapter": "3.7",
             "goal": "Learn how to talk about health and fitness.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1453,7 +1453,7 @@ def get_b1_schedule():
         # DAY 8
         {
             "day": 8,
-            "topic": "Arztbesuch und Gesundheitstipps",
+            "topic": "Arztbesuch und Gesundheitstipps 3.8",
             "chapter": "3.8",
             "goal": "Communicate with a doctor and give health tips.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1464,7 +1464,7 @@ def get_b1_schedule():
         # DAY 9
         {
             "day": 9,
-            "topic": "Erinnerungen und Kindheit",
+            "topic": "Erinnerungen und Kindheit 3.9",
             "chapter": "3.9",
             "goal": "Talk about childhood memories.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1475,7 +1475,7 @@ def get_b1_schedule():
         # DAY 10
         {
             "day": 10,
-            "topic": "Typisch deutsch? Kultur und Alltag",
+            "topic": "Typisch deutsch? Kultur und Alltag 4.10",
             "chapter": "4.10",
             "goal": "Discuss cultural habits and everyday life.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1486,7 +1486,7 @@ def get_b1_schedule():
         # DAY 11
         {
             "day": 11,
-            "topic": "Wünsche und Träume",
+            "topic": "Wünsche und Träume 4.11",
             "chapter": "4.11",
             "goal": "Express wishes and dreams.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1497,7 +1497,7 @@ def get_b1_schedule():
         # DAY 12
         {
             "day": 12,
-            "topic": "Medien und Kommunikation",
+            "topic": "Medien und Kommunikation 4.12",
             "chapter": "4.12",
             "goal": "Talk about media and communication.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1508,7 +1508,7 @@ def get_b1_schedule():
         # DAY 13
         {
             "day": 13,
-            "topic": "Reisen und Verkehr",
+            "topic": "Reisen und Verkehr 5.13",
             "chapter": "5.13",
             "goal": "Discuss travel and transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1519,7 +1519,7 @@ def get_b1_schedule():
         # DAY 14
         {
             "day": 14,
-            "topic": "Stadt oder Land",
+            "topic": "Stadt oder Land 5.14",
             "chapter": "5.14",
             "goal": "Compare life in the city and the countryside.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1530,7 +1530,7 @@ def get_b1_schedule():
         # DAY 15
         {
             "day": 15,
-            "topic": "Wohnungssuche und Umzug",
+            "topic": "Wohnungssuche und Umzug 5.15",
             "chapter": "5.15",
             "goal": "Talk about searching for an apartment and moving.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1541,7 +1541,7 @@ def get_b1_schedule():
         # DAY 16
         {
             "day": 16,
-            "topic": "Natur und Umwelt",
+            "topic": "Natur und Umwelt 6.16",
             "chapter": "6.16",
             "goal": "Learn to discuss nature and the environment.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1552,7 +1552,7 @@ def get_b1_schedule():
         # DAY 17
         {
             "day": 17,
-            "topic": "Probleme und Lösungen",
+            "topic": "Probleme und Lösungen 6.17",
             "chapter": "6.17",
             "goal": "Describe problems and find solutions.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1563,7 +1563,7 @@ def get_b1_schedule():
         # DAY 18
         {
             "day": 18,
-            "topic": "Arbeit und Finanzen",
+            "topic": "Arbeit und Finanzen 6.18",
             "chapter": "6.18",
             "goal": "Talk about work and finances.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1574,7 +1574,7 @@ def get_b1_schedule():
         # DAY 19
         {
             "day": 19,
-            "topic": "Berufliche Zukunft",
+            "topic": "Berufliche Zukunft 7.19",
             "chapter": "7.19",
             "goal": "Discuss future career plans.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1585,7 +1585,7 @@ def get_b1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Bildung und Weiterbildung",
+            "topic": "Bildung und Weiterbildung 7.20",
             "chapter": "7.20",
             "goal": "Talk about education and further studies.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1596,7 +1596,7 @@ def get_b1_schedule():
         # DAY 21
         {
             "day": 21,
-            "topic": "Familie und Gesellschaft",
+            "topic": "Familie und Gesellschaft 7.21",
             "chapter": "7.21",
             "goal": "Discuss family and society.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1607,7 +1607,7 @@ def get_b1_schedule():
         # DAY 22
         {
             "day": 22,
-            "topic": "Konsum und Werbung",
+            "topic": "Konsum und Werbung 8.22",
             "chapter": "8.22",
             "goal": "Talk about consumption and advertising.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1618,7 +1618,7 @@ def get_b1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Globalisierung",
+            "topic": "Globalisierung 8.23",
             "chapter": "8.23",
             "goal": "Discuss globalization and its effects.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1629,7 +1629,7 @@ def get_b1_schedule():
         # DAY 24
         {
             "day": 24,
-            "topic": "Kulturelle Unterschiede",
+            "topic": "Kulturelle Unterschiede 8.24",
             "chapter": "8.24",
             "goal": "Talk about cultural differences.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1640,7 +1640,7 @@ def get_b1_schedule():
         # DAY 25
         {
             "day": 25,
-            "topic": "Lebenslauf schreiben",
+            "topic": "Lebenslauf schreiben 8.25",
             "chapter": "9.25",
             "goal": "Write a CV and cover letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1651,7 +1651,7 @@ def get_b1_schedule():
         # DAY 26
         {
             "day": 26,
-            "topic": "Präsentationen halten",
+            "topic": "Präsentationen halten 9.26",
             "chapter": "9.26",
             "goal": "Learn to give presentations.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1662,7 +1662,7 @@ def get_b1_schedule():
         # DAY 27
         {
             "day": 27,
-            "topic": "Zusammenfassen und Berichten",
+            "topic": "Zusammenfassen und Berichten 9.27",
             "chapter": "9.27",
             "goal": "Practice summarizing and reporting.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
@@ -1673,7 +1673,7 @@ def get_b1_schedule():
         # DAY 28
         {
             "day": 28,
-            "topic": "Abschlussprüfungsvorbereitung",
+            "topic": "Abschlussprüfungsvorbereitung 10.28",
             "chapter": "10.28",
             "goal": "Prepare for the final exam.",
             "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
