@@ -2773,8 +2773,26 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
-# --------- Main Vocab Trainer Tab logic -------------
 if tab == "Vocab Trainer":
+    # 📚 Compact Vocab Trainer header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #6f42c1;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            📚 Vocab Trainer
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+    
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
         "vt_history": [],
