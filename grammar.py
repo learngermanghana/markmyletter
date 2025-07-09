@@ -1155,7 +1155,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Vl9UPeM2RaATafT8t539aOPrxnSkfr9A/view?usp=sharing",
-            "workbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing"
+            "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
         # DAY 12
         {
