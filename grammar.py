@@ -1361,7 +1361,7 @@ def get_a2_schedule():
 #
         # DAY 29
         {
-            "day": 28,
+            "day": 29,
             "topic": "Goethe Mock Test",
             "chapter": "10.29",
             "goal": "Practice how the final exams for the lesen will look like",
