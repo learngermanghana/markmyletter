@@ -653,7 +653,7 @@ def get_a1_schedule():
             "day": 1,
             "topic": "Lesen & Hören",
             "chapter": "0.1",
-            "goal": "You will learn to introduce yourself and greet others in German.",
+            "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
             "lesen_hören": {
                 "video": "",
@@ -1034,15 +1034,7 @@ def get_a2_schedule():
             "topic": "Small Talk (Exercise)",
             "chapter": "1.1",
             "goal": "Practice basic greetings and small talk.",
-            "instruction": (
-                "Today's lesson has 4 parts:\n\n"
-                "**1. Sprechen (Group Practice):** Practice the daily question using the brain map provided. Use the chat feature in the Falowen app to speak for at least 1 minute.\n\n"
-                "**2. Schreiben:** Reframe your group practice as a short letter (assignment).\n\n"
-                "**3. Lesen:** Complete the reading exercise (7 questions).\n\n"
-                "**4. Hören:** Do the listening exercise (5 questions).\n\n"
-                "**Assignments to be submitted:** Schreiben, Lesen, and Hören.\n\n"
-                "Finish all sections before submitting your answers."
-            ),
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
@@ -1715,9 +1707,6 @@ def get_c1_schedule():
     ]
 
 
-
-# --------------------------------------
-
 # --- FORCE A MOCK LOGIN FOR TESTING ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
@@ -1727,182 +1716,203 @@ if "student_row" not in st.session_state:
     }
 
 # --------------------------------------
-# Shared at top so all tabs can access
-student_row = st.session_state.get('student_row', {})
-student_level = student_row.get('Level', 'A1').upper()
+# Shared imports and context
+from datetime import datetime
+import urllib.parse
+import streamlit as st
 
-if tab == "Course Book":
-    import datetime, urllib.parse
+student_row = st.session_state.get("student_row", {})
+student_level = student_row.get("Level", "A1").upper()
 
-    # --------------------------------------
-    # Compute level schedule mapping once at module load for efficiency
-    # --------------------------------------
-    LEVEL_SCHEDULES = {
+# --- Cache level schedules with TTL for periodic refresh ---
+@st.cache_data(ttl=86400)
+def load_level_schedules():
+    return {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
         "B1": get_b1_schedule(),
+        "B2": get_b2_schedule(),
+        "C1": get_c1_schedule(),
     }
 
-    student_row = st.session_state.get('student_row', {})
-    student_level = student_row.get('Level', 'A1').upper()
-    schedule = LEVEL_SCHEDULES.get(student_level, LEVEL_SCHEDULES['A1'])
+# --- Helpers ---
 
-    # 1️⃣ SEARCH BAR
-    search_query = st.text_input("🔍 Search for a topic, chapter, or keyword:")
-    selected_day_idx = 0
+def render_assignment_reminder():
+    """
+    Render a responsive, mobile-friendly assignment reminder box with clear contrast.
+    """
+    st.markdown(
+        '''
+        <div style="
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 600px;
+            padding: 16px;
+            background: #ffc107;
+            color: #000;
+            border-left: 6px solid #e0a800;
+            margin: 16px auto;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            line-height: 1.4;
+            text-align: center;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        ">
+            ⬆️ <strong>Your Assignment:</strong><br>
+            Complete the exercises in your <em>workbook</em> for this chapter.
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
 
-    if search_query:
-        sq = search_query.strip().lower()
-        results = [
-            (i, d)
-            for i, d in enumerate(schedule)
-            if sq in str(d.get("topic", "")).lower()
-            or sq in str(d.get("chapter", "")).lower()
-            or sq in str(d.get("goal", "")).lower()
-            or sq in str(d.get("instruction", "")).lower()
-            or sq in f"day {d.get('day','')}".lower()
-            or sq == str(d.get("day", "")).strip()
-        ]
-        if results:
-            st.info(f"Found {len(results)} result(s). Click to view lesson:")
-            result_labels = [
-                f"Day {d['day']}: {d['topic']} (Chapter {d['chapter']})" for i, d in results
-            ]
-            idx = st.selectbox("Select a lesson:", list(range(len(results))), format_func=lambda i: result_labels[i])
-            selected_day_idx = results[idx][0]
-        else:
-            st.warning("No matching lessons found.")
-            st.stop()  # Stop here so you don't try to access non-existent result
+def render_link(label, url):
+    st.markdown(f"- [{label}]({url})")
+
+@st.cache_data(ttl=86400)
+def build_wa_message(name, code, level, day, chapter, answer):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    return (
+        f"Learn Language Education Academy – Assignment Submission\n"
+        f"Name: {name}\n"
+        f"Code: {code}\n"
+        f"Level: {level}\n"
+        f"Day: {day}\n"
+        f"Chapter: {chapter}\n"
+        f"Date: {timestamp}\n"
+        f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
+    )
+
+def filter_matches(lesson, sq):
+    """Check if search query appears in lesson fields."""
+    fields = [
+        lesson.get('topic', ''),
+        lesson.get('chapter', ''),
+        lesson.get('goal', ''),
+        lesson.get('instruction', ''),
+        str(lesson.get('day', ''))
+    ]
+    return any(sq in str(f).lower() for f in fields)
+
+
+def render_section(day_info, key, title, icon):
+    content = day_info.get(key)
+    if not content:
+        return
+    items = content if isinstance(content, list) else [content]
+    st.markdown(f"#### {icon} {title}")
+    for idx, part in enumerate(items):
+        if len(items) > 1:
+            st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
+        if part.get('video'):
+            st.video(part['video'])
+        if part.get('grammarbook_link'):
+            render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
+        if part.get('workbook_link'):
+            render_link("📒 Workbook (Assignment)", part['workbook_link'])
+            render_assignment_reminder()
+        extras = part.get('extra_resources')
+        if extras:
+            for ex in (extras if isinstance(extras, list) else [extras]):
+                render_link("🔗 Extra", ex)
+
+RESOURCE_LABELS = {
+    'video': '🎥 Video',
+    'grammarbook_link': '📘 Grammar',
+    'workbook_link': '📒 Workbook',
+    'extra_resources': '🔗 Extra'
+}
+
+if tab == "Course Book":
+    st.markdown(
+        '''
+        <div style="
+            padding: 16px;
+            background: #007bff;
+            color: #ffffff;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        ">
+            <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
+        </div>
+        ''', unsafe_allow_html=True
+    )
+    st.divider()
+
+    schedules = load_level_schedules()
+    schedule = schedules.get(student_level, schedules.get('A1', []))
+
+    query = st.text_input("🔍 Search for topic, chapter, or keyword:")
+    if query:
+        sq = query.strip().lower()
+        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, sq)]
+        if not matches:
+            st.warning("No matching lessons.")
+            st.stop()
+        labels = [f"Day {d['day']}: {d['topic']}" for _, d in matches]
+        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i])
+        idx = matches[sel][0]
     else:
-        selected_day_idx = st.selectbox(
+        idx = st.selectbox(
             "Choose your lesson/day:",
             range(len(schedule)),
             format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
         )
 
-    day_info = schedule[selected_day_idx]
+    info = schedule[idx]
+    st.markdown(f"### Day {info['day']}: {info['topic']} (Chapter {info['chapter']})")
 
-    st.markdown(f"### Day {day_info['day']}: {day_info['topic']} (Chapter {day_info['chapter']})")
+    if info.get('goal'):
+        st.markdown(f"**🎯 Goal:**  {info['goal']}")
+    if info.get('instruction'):
+        st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-    # Display optional metadata
-    if day_info.get("goal"):
-        st.markdown(f"**🎯 Goal:**<br>{day_info['goal']}", unsafe_allow_html=True)
-    if day_info.get("instruction"):
-        st.markdown(f"**📝 Instruction:**<br>{day_info['instruction']}", unsafe_allow_html=True)
+    render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
+    render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-
-    # --------- Show Lesen & Hören ----------
-    def render_lh_section(item, idx=None, total=None):
-        """
-        Renders a single Lesen & Hören assignment with optional numbering.
-        """
-        # Title for multi-part lessons
-        if idx is not None and total and total > 1:
-            st.markdown(f"#### 📚 Assignment {idx+1} of {total}: Chapter {item.get('chapter','')}")
-        # Video
-        if item.get('video'):
-            st.video(item['video'])
-        # Link rendering util avoids duplication
-        def link(label, url):
-            st.markdown(f"- [{label}]({url})")
-        # Grammar book
-        if item.get('grammarbook_link'):
-            link('📘 Grammar Book', item['grammarbook_link'])
-        # Workbook
-        if item.get('workbook_link'):
-            link('📒 Workbook', item['workbook_link'])
-        # Extras
-        extras = item.get('extra_resources')
-        if extras:
-            if isinstance(extras, list):
-                for ex in extras:
-                    link('🔗 Extra', ex)
-            else:
-                link('🔗 Extra', extras)
-
-    # Normalize and render Lesen & Hören to always use list format
-    if 'lesen_hören' in day_info:
-        lh = day_info['lesen_hören']
-        lh_items = lh if isinstance(lh, list) else [lh]
-        if len(lh_items) > 1:
-            st.markdown(
-                '<div style="padding:8px; background:#f8f9fa; border-left:4px solid #007bff; margin:8px 0;">'
-                '<strong>Note:</strong> Multiple Lesen & Hören tasks below. Complete all before submitting.'
-                '</div>', unsafe_allow_html=True
-            )
-        for i, part in enumerate(lh_items):
-            render_lh_section(part, idx=i, total=len(lh_items))
-
-    # --- Show Schreiben & Sprechen (if present) ---
-    if 'schreiben_sprechen' in day_info:
-        ss = day_info['schreiben_sprechen']
-        st.markdown('#### 📝 Schreiben & Sprechen')
-        if ss.get('video'):
-            st.video(ss['video'])
-        def sp_link(label, url): st.markdown(f"- [{label}]({url})")
-        if ss.get('grammarbook_link'):
-            sp_link('📘 Grammar Book', ss['grammarbook_link'])
-        if ss.get('workbook_link'):
-            sp_link('📒 Workbook', ss['workbook_link'])
-        extras = ss.get('extra_resources')
-        if extras:
-            if isinstance(extras, list):
-                for ex in extras: sp_link('🔗 Extra', ex)
-            else: sp_link('🔗 Extra', extras)
-
-    # ---------- Top-level resources for A2/B1/B2 ----------
-    if student_level in ['A2','B1','B2']:
-        for res in ['video','grammarbook_link','workbook_link','extra_resources']:
-            if day_info.get(res):
-                url = day_info[res]
-                # choose label based on key
-                label = (
-                    '🎥 Video' if res=='video' else
-                    '📘 Grammar' if 'grammar' in res else
-                    '📒 Workbook' if 'workbook' in res else
-                    '🔗 Extra'
-                )
+    if student_level in ['A2', 'B1', 'B2', 'C1']:
+        for res, label in RESOURCE_LABELS.items():
+            val = info.get(res)
+            if val:
                 if res == 'video':
-                    st.video(url)
+                    st.video(val)
                 else:
-                    st.markdown(f"- [{label}]({url})", unsafe_allow_html=True)
+                    st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+        st.markdown(
+            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+            unsafe_allow_html=True
+        )
 
-    # --- Assignment Submission Section (WhatsApp) ---
     st.divider()
-    st.markdown("## 📲 Submit Assignment (WhatsApp)")
+    st.header("📲 Submit Assignment (WhatsApp)")
 
-    with st.container():
-        student_name = st.text_input("👤 Your Name", value=student_row.get('Name', ''))
-        student_code = st.text_input("🆔 Student Code", value=student_row.get('StudentCode', ''))
+    def render_whatsapp():
+        st.subheader("👤 Your Name & Code")
+        name = st.text_input("Name", value=student_row.get('Name',''))
+        code = st.text_input("Code", value=student_row.get('StudentCode',''))
+        st.subheader("✍️ Your Answer")
+        ans = st.text_area("Answer (or attach on WhatsApp)", height=180)
+        msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
+        url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
+        if st.button("📤 Send via WhatsApp"):
+            st.success("Click link below to open WhatsApp.")
+            st.markdown(f"[📨 Open WhatsApp]({url})")
+        st.text_area("📋 Copy message:", msg, height=180)
+    render_whatsapp()
 
-        # Wider mobile-friendly text area
-        st.markdown("#### ✍️ Your Answer")
-        answer = st.text_area("Type your answer here (leave blank if sending a file/photo on WhatsApp)", height=400, label_visibility="collapsed")
-
-        wa_message = f"""Learn Language Education Academy – Assignment Submission
-Name: {student_name}
-Code: {student_code}
-Level: {student_level}
-Day: {day_info['day']}
-Chapter: {day_info['chapter']}
-Date: {datetime.datetime.now():%Y-%m-%d %H:%M}
-Answer: {answer if answer.strip() else '[See attached file/photo]'}
-"""
-        wa_url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(wa_message)
-
-        if st.button("📤 Submit via WhatsApp"):
-            st.success("✅ Now click the button below to open WhatsApp and send your assignment.")
-            st.markdown(
-                f"""<a href="{wa_url}" target="_blank" style="display:block; text-align:center; font-size:1.15em; font-weight:600; background:#25D366; color:white; padding:14px; border-radius:10px; margin-top:10px;">📨 Open WhatsApp</a>""",
-                unsafe_allow_html=True
-            )
-            st.text_area("📋 Copy this message if needed:", wa_message, height=400, label_visibility="visible")
-
-    st.info("""
-    - Tap the links above to open books in a new tab (no in-app preview).
-    - If multiple tasks are assigned, mention which one you're submitting.
-    - Always use your correct name and student code!
-    """)
+    st.info(
+        """
+- Tap the links above to open resources in a new tab.
+- Mention which task you're submitting.
+- Use your correct name and code.
+        """
+    )
 
 
 if tab == "My Results and Resources":
