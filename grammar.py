@@ -524,6 +524,7 @@ import time
 import matplotlib.pyplot as plt
 
 # ======= Dashboard Code =======
+# ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
@@ -542,7 +543,24 @@ if st.session_state.get("logged_in"):
     )
 
     if tab == "Dashboard":
-        st.header("📊 Student Dashboard")
+        # 🏠 Compact Dashboard header
+        st.markdown(
+            '''
+            <div style="
+                padding: 8px 12px;
+                background: #343a40;
+                color: #ffffff;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 8px;
+                font-size: 1.3rem;
+            ">
+                📊 Student Dashboard
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        st.divider()
 
         # --- Get student_row first ---
         df_students = load_student_data()
@@ -1914,8 +1932,26 @@ if tab == "Course Book":
         """
     )
 
-
 if tab == "My Results and Resources":
+    # 📊 Compact Results & Resources header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #17a2b8;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            📊 My Results & Resources
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+    
     import requests, io, pandas as pd, re, base64
     from fpdf import FPDF
     from collections import Counter
@@ -2883,7 +2919,24 @@ if tab == "Vocab Trainer":
 import urllib.parse
 
 if tab == "Schreiben Trainer":
-    st.header("✍️ Schreiben Trainer (Writing Practice)")
+    # ✍️ Compact Schreiben Trainer header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
 
     # 1. Choose Level (remember previous)
     schreiben_levels = ["A1", "A2", "B1", "B2"]
