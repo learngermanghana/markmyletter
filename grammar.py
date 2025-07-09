@@ -656,7 +656,7 @@ def get_a1_schedule():
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
