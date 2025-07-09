@@ -2211,6 +2211,25 @@ def load_exam_topics():
 df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
+    # 📋 Tab header
+    st.markdown(
+        '''
+        <div style="
+            padding: 16px;
+            background: #28a745;
+            color: #fff;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        ">
+            <span style="font-size:1.8rem; font-weight:600;">🗣️ Exam Simulator & Custom Chat</span>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+
     # --- Daily Limit Check ---
     # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
     if not has_falowen_quota(student_code):
