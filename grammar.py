@@ -1194,8 +1194,8 @@ def get_a2_schedule():
             "goal": "Prepare for a job interview.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1_TITbTNNBpvVb9jiYpYEslv7bjHwMxBl/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1sW2yKZptnYWPhS7ciYdi0hN5HV-ycsF0/view?usp=sharing"
         },
         # DAY 14
         {
@@ -1205,8 +1205,8 @@ def get_a2_schedule():
             "goal": "Discuss jobs and careers.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
         },
         # DAY 15
         {
@@ -1216,8 +1216,8 @@ def get_a2_schedule():
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1UohFnTmCwjCJHQU1etaGOBzZJTk2kauz/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
         },
         # DAY 16
         {
