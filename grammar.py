@@ -673,6 +673,7 @@ def get_a1_schedule():
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
@@ -691,12 +692,14 @@ def get_a1_schedule():
                     "chapter": "0.2",
                     "video": "",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
+                    "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
                 },
                 {
                     "chapter": "1.1",
                     "video": "https://youtu.be/rNxu2uQZ_lc",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
+                    "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
                 }
             ]
@@ -716,7 +719,8 @@ def get_a1_schedule():
             ),
             "schreiben_sprechen": {
                 "video": "",
-                "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
+                "assignment": False,
             },
             "lesen_hören": [
                 {
@@ -724,6 +728,7 @@ def get_a1_schedule():
                     "video": "https://youtu.be/NVCN4fZXEk0",
                     "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
+                    "assignment": True
                 }
             ]
         },
@@ -734,10 +739,12 @@ def get_a1_schedule():
             "chapter": "2",
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/BzI2n4A8Oak",
                 "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing",
+                "assignment": True
             }
         },
         # DAY 5
@@ -747,6 +754,7 @@ def get_a1_schedule():
             "chapter": "1.2",
             "goal": "Consolidate your understanding of introductions.",
             "instruction": "Use self-practice workbook and review answers for self-check.",
+            "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
                 "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
@@ -758,6 +766,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 2.3",
             "chapter": "2.3",
             "goal": "Learn about family and expressing your hobby",
+            "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "",
@@ -771,6 +780,7 @@ def get_a1_schedule():
             "chapter": "3",
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/dGIj1GbK4sI",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
@@ -784,6 +794,7 @@ def get_a1_schedule():
             "chapter": "4",
             "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
                 "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
@@ -797,6 +808,7 @@ def get_a1_schedule():
             "chapter": "5",
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
@@ -809,15 +821,17 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 6 and Schreiben & Sprechen 2.4",
             "chapter": "6_2.4",
             "goal": "Understand Possessive Determiners and its usage in connection with nouns",
-            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",
+            "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",         
             "lesen_hören": {
                 "video": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
+                "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "https://youtu.be/5qnB2Gocp8s",
-                "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing",
+                "assignment": False,
             }
         },
         # DAY 11
@@ -827,6 +841,7 @@ def get_a1_schedule():
             "chapter": "7",
             "goal": "Understand the 12 hour clock system",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/uyvXoCoqjiE",
                 "grammarbook_link": "https://drive.google.com/file/d/1pSaloRhfh8eTKK_r9mzwp6xkbfdkCVox/view?usp=sharing",
@@ -840,6 +855,7 @@ def get_a1_schedule():
             "chapter": "8",
             "goal": "Understand the 24 hour clock and date system in German",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/aWvIHjV3e_I",
                 "grammarbook_link": "",
@@ -855,6 +871,7 @@ def get_a1_schedule():
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
                 "video": "",
+                "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
         },
@@ -864,6 +881,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 3.6",
             "chapter": "3.6",
             "goal": "Understand how to use modal verbs with main verbs and separable verbs",
+            "assignment": False,
             "instruction": "This is a practical exercise. All the answers are included in the document except for the last paragraph. You can send a screenshot of that to your tutor",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/XwFPjLjvDog",
@@ -875,6 +893,7 @@ def get_a1_schedule():
             "day": 15,
             "topic": "Schreiben & Sprechen 4.7",
             "chapter": "4.7",
+            "assignment": False,
             "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
             "instruction": "After completing this chapter, go to the Falowen Exam Chat Mode, select A1 Teil 3, and start practicing",
             "schreiben_sprechen": {
@@ -893,6 +912,7 @@ def get_a1_schedule():
                 {
                     "chapter": "9",
                     "video": "https://youtu.be/MrB3BPtQN6A",
+                    "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
                 },
@@ -900,6 +920,7 @@ def get_a1_schedule():
                     "chapter": "10",
                     "video": "",
                     "grammarbook_link": "",
+                    "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
                 }
             ]
@@ -913,6 +934,7 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "https://youtu.be/k2ZC3rXPe1k",
+                "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1lMzZrM4aAItO8bBmehODvT6gG7dz8I9s/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/17FNSfHBxyga9sKxzicT_qkP7PA4vB5-A/view?usp=sharing"
             }
@@ -928,18 +950,21 @@ def get_a1_schedule():
                 {
                     "chapter": "12.1",
                     "video": "",
+                    "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
                 },
                 {
                     "chapter": "12.2",
                     "video": "",
+                    "assignment": True,
                     "grammarbook_link": "",
                     "workbook_link": "https://drive.google.com/file/d/1xojH7Tgb5LeJj3nzNSATUVppWnJgJLEF/view?usp=sharing"
                 }
             ],
             "schreiben_sprechen": {
                 "video": "",
+                "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
         },
@@ -952,6 +977,7 @@ def get_a1_schedule():
             "instruction": "",
             "schreiben_sprechen": {
                 "video": "",
+                "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1-bbY9zoos62U5jUAFrYCyxay_cvbk65N/view?usp=sharing"
             }
         },
@@ -977,10 +1003,12 @@ def get_a1_schedule():
             "lesen_hören": {
                 "video": "",
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
+                "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
+                "assignment": False,
                 "workbook_link": ""
             }
         },
@@ -993,11 +1021,13 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "",
+                "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1EFZA_oAeznMBEqIgTWyeFt9wLdmqA-Bp/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1_zEb4wmENI7szcepRz_CIjSo9aS7RHv-/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
+                "assignment": False,
                 "workbook_link": ""
             }
         },
@@ -1010,6 +1040,7 @@ def get_a1_schedule():
             "instruction": " This chapter has no assignment. Only grammar",
             "lesen_hören": {
                 "video": "",
+                "assignment": False,
                 "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
                 "workbook_link": ""
             },
@@ -1025,6 +1056,7 @@ def get_a1_schedule():
             "chapter": "8.13",
             "goal": "Learn about conjunctions and how to apply them in your exams",
             "instruction": "",
+            "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
                 "workbook_link": "https://drive.google.com/file/d/1smb4IuRqSKndoGf_ujEi5IiaYyXOTj4t/view?usp=sharing"
@@ -1053,6 +1085,7 @@ def get_a2_schedule():
             "chapter": "1.1",
             "goal": "Practice basic greetings and small talk.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "assignment": True,
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
@@ -1063,15 +1096,8 @@ def get_a2_schedule():
             "topic": "Personen Beschreiben 1.2 (Exercise)",
             "chapter": "1.2",
             "goal": "Describe people and their appearance.",
-            "instruction": (
-                "Today's lesson has 4 parts:\n\n"
-                "**1. Sprechen (Group Practice):** Practice describing people using the brain map and discuss in the Falowen chat for at least 1 minute.\n\n"
-                "**2. Schreiben:** Write a short letter about a person.\n\n"
-                "**3. Lesen:** Do the reading exercise (7 questions).\n\n"
-                "**4. Hören:** Complete the listening exercise (5 questions).\n\n"
-                "**Assignments to be submitted:** Schreiben, Lesen, and Hören.\n\n"
-                "Finish all sections before submitting your answers."
-            ),
+            "assignment": True,
+            "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1VB_nXEfdeTgkzCYjh0tvE75zFJleMlyU/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
@@ -1082,6 +1108,7 @@ def get_a2_schedule():
             "topic": "Dinge und Personen vergleichen 1.3",
             "chapter": "1.3",
             "goal": "Learn to compare things and people.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
@@ -1093,6 +1120,7 @@ def get_a2_schedule():
             "topic": "Wo möchten wir uns treffen? 2.4",
             "chapter": "2.4",
             "goal": "Arrange and discuss meeting places.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
@@ -1104,6 +1132,7 @@ def get_a2_schedule():
             "topic": "Was machst du in deiner Freizeit? 2.5 ",
             "chapter": "2.5",
             "goal": "Talk about free time activities.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
@@ -1115,6 +1144,7 @@ def get_a2_schedule():
             "topic": "Möbel und Räume kennenlernen 3.6",
             "chapter": "3.6",
             "goal": "Identify furniture and rooms.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
@@ -1126,6 +1156,7 @@ def get_a2_schedule():
             "topic": "Eine Wohnung suchen (Übung) 3.7",
             "chapter": "3.7",
             "goal": "Practice searching for an apartment.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "https://youtu.be/ScU6w8VQgNg",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
@@ -1136,6 +1167,7 @@ def get_a2_schedule():
             "day": 8,
             "topic": "Rezepte und Essen (Exercise) 3.8",
             "chapter": "3.8",
+            "assignment": True,
             "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "https://youtu.be/_xQMNp3qcDQ",
@@ -1148,6 +1180,7 @@ def get_a2_schedule():
             "topic": "Urlaub 3.9",
             "chapter": "4.9",
             "goal": "Discuss vacation plans.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "https://youtu.be/NxoQH-BY9Js",
             "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
@@ -1158,6 +1191,7 @@ def get_a2_schedule():
             "day": 10,
             "topic": "Tourismus und Traditionelle Feste 4.10",
             "chapter": "4.10",
+            "assignment": True,
             "goal": "Learn about tourism and festivals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
@@ -1169,6 +1203,7 @@ def get_a2_schedule():
             "day": 11,
             "topic": "Unterwegs: Verkehrsmittel vergleichen 4.11",
             "chapter": "4.11",
+            "assignment": True,
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
@@ -1180,6 +1215,7 @@ def get_a2_schedule():
             "day": 12,
             "topic": "Ein Tag im Leben (Übung) 5.12",
             "chapter": "5.12",
+            "assignment": True,
             "goal": "Describe a typical day.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
@@ -1191,6 +1227,7 @@ def get_a2_schedule():
             "day": 13,
             "topic": "Ein Vorstellungsgespräch (Exercise) 5.13",
             "chapter": "5.13",
+            "assignment": True,
             "goal": "Prepare for a job interview.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "https://youtu.be/urKBrX5VAYU",
@@ -1202,6 +1239,7 @@ def get_a2_schedule():
             "day": 14,
             "topic": "Beruf und Karriere (Exercise) 5.14",
             "chapter": "5.14",
+            "assignment": True,
             "goal": "Discuss jobs and careers.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
@@ -1213,6 +1251,7 @@ def get_a2_schedule():
             "day": 15,
             "topic": "Mein Lieblingssport 6.15",
             "chapter": "6.15",
+            "assignment": True,
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
@@ -1225,6 +1264,7 @@ def get_a2_schedule():
             "topic": "Wohlbefinden und Entspannung 6.16",
             "chapter": "6.16",
             "goal": "Express well-being and relaxation.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1236,6 +1276,7 @@ def get_a2_schedule():
             "topic": "In die Apotheke gehen 6.17",
             "chapter": "6.17",
             "goal": "Learn phrases for the pharmacy.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1247,6 +1288,7 @@ def get_a2_schedule():
             "topic": "Die Bank anrufen 7.18",
             "chapter": "7.18",
             "goal": "Practice calling the bank.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
@@ -1258,6 +1300,7 @@ def get_a2_schedule():
             "topic": "Einkaufen? Wo und wie? (Exercise) 7.19",
             "chapter": "7.19",
             "goal": "Shop and ask about locations.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Qt9oxn-74t8dFdsk-NjSc0G5OT7MQ-qq/view?usp=sharing",
@@ -1269,6 +1312,7 @@ def get_a2_schedule():
             "topic": "Typische Reklamationssituationen üben 7.20",
             "chapter": "7.20",
             "goal": "Handle typical complaints.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1-72wZuNJE4Y92Luy0h5ygWooDnBd9PQW/view?usp=sharing",
@@ -1280,6 +1324,7 @@ def get_a2_schedule():
             "topic": "Ein Wochenende planen 8.21",
             "chapter": "8.21",
             "goal": "Plan a weekend.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1FcCg7orEizna4rAkX3_FCyd3lh_Bb3IT/view?usp=sharing",
@@ -1291,6 +1336,7 @@ def get_a2_schedule():
             "topic": "Die Woche Planung 8.22",
             "chapter": "8.22",
             "goal": "Make a weekly plan.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dWr4QHw8zT1RPbuIEr_X13cPLYpH-mms/view?usp=sharing",
@@ -1302,6 +1348,7 @@ def get_a2_schedule():
             "topic": "Wie kommst du zur Schule / zur Arbeit? 9.23",
             "chapter": "9.23",
             "goal": "Talk about your route to school or work.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
@@ -1313,6 +1360,7 @@ def get_a2_schedule():
             "topic": "Einen Urlaub planen 9.24",
             "chapter": "9.24",
             "goal": "Plan a vacation.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1tFXs-DNKvt97Q4dsyXsYvKVQvT5Qqt0y/view?usp=sharing",
@@ -1324,6 +1372,7 @@ def get_a2_schedule():
             "topic": "Tagesablauf (Exercise) 9.25",
             "chapter": "9.25",
             "goal": "Describe a daily routine.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "workbook_link": "https://drive.google.com/file/d/1jfWDzGfXrzhfGZ1bQe1u5MXVQkR5Et43/view?usp=sharing"
@@ -1334,6 +1383,7 @@ def get_a2_schedule():
             "topic": "Gefühle in verschiedenen Situationen beschreiben 10.26",
             "chapter": "10.26",
             "goal": "Express feelings in various situations.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "workbook_link": "https://drive.google.com/file/d/126MQiti-lpcovP1TdyUKQAK6KjqBaoTx/view?usp=sharing"
@@ -1344,6 +1394,7 @@ def get_a2_schedule():
             "topic": "Digitale Kommunikation 10.27",
             "chapter": "10.27",
             "goal": "Talk about digital communication.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "workbook_link": "https://drive.google.com/file/d/1UdBu6O2AMQ2g6Ot_abTsFwLvT87LHHwY/view?usp=sharing"
@@ -1354,6 +1405,7 @@ def get_a2_schedule():
             "topic": "Über die Zukunft sprechen 10.28",
             "chapter": "10.28",
             "goal": "Discuss the future.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
@@ -1365,6 +1417,7 @@ def get_a2_schedule():
             "topic": "Goethe Mock Test 10.29",
             "chapter": "10.29",
             "goal": "Practice how the final exams for the lesen will look like",
+            "assignment": True,
             "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
             "video": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
@@ -1379,6 +1432,7 @@ def get_b1_schedule():
             "topic": "Traumwelten (Übung) 1.1",
             "chapter": "1.1",
             "goal": "Talk about dream worlds and imagination.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1390,6 +1444,7 @@ def get_b1_schedule():
             "topic": "Freunde fürs Leben (Übung) 1.2",
             "chapter": "1.2",
             "goal": "Discuss friendships and important qualities.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1401,6 +1456,7 @@ def get_b1_schedule():
             "topic": "Vergangenheit erzählen 1.3",
             "chapter": "1.3",
             "goal": "Tell stories about the past.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1412,6 +1468,7 @@ def get_b1_schedule():
             "topic": "Wohnen und Zusammenleben 2.4",
             "chapter": "2.4",
             "goal": "Discuss housing and living together.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1423,6 +1480,7 @@ def get_b1_schedule():
             "topic": "Feste feiern 2.5",
             "chapter": "2.5",
             "goal": "Talk about festivals and celebrations.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1434,6 +1492,7 @@ def get_b1_schedule():
             "topic": "Mein Traumjob 2.6",
             "chapter": "2.6",
             "goal": "Describe your dream job.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1445,6 +1504,7 @@ def get_b1_schedule():
             "topic": "Gesund bleiben 3.7",
             "chapter": "3.7",
             "goal": "Learn how to talk about health and fitness.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1456,6 +1516,7 @@ def get_b1_schedule():
             "topic": "Arztbesuch und Gesundheitstipps 3.8",
             "chapter": "3.8",
             "goal": "Communicate with a doctor and give health tips.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1467,6 +1528,7 @@ def get_b1_schedule():
             "topic": "Erinnerungen und Kindheit 3.9",
             "chapter": "3.9",
             "goal": "Talk about childhood memories.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1478,6 +1540,7 @@ def get_b1_schedule():
             "topic": "Typisch deutsch? Kultur und Alltag 4.10",
             "chapter": "4.10",
             "goal": "Discuss cultural habits and everyday life.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1489,6 +1552,7 @@ def get_b1_schedule():
             "topic": "Wünsche und Träume 4.11",
             "chapter": "4.11",
             "goal": "Express wishes and dreams.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1500,6 +1564,7 @@ def get_b1_schedule():
             "topic": "Medien und Kommunikation 4.12",
             "chapter": "4.12",
             "goal": "Talk about media and communication.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1511,6 +1576,7 @@ def get_b1_schedule():
             "topic": "Reisen und Verkehr 5.13",
             "chapter": "5.13",
             "goal": "Discuss travel and transportation.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1522,6 +1588,7 @@ def get_b1_schedule():
             "topic": "Stadt oder Land 5.14",
             "chapter": "5.14",
             "goal": "Compare life in the city and the countryside.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1533,6 +1600,7 @@ def get_b1_schedule():
             "topic": "Wohnungssuche und Umzug 5.15",
             "chapter": "5.15",
             "goal": "Talk about searching for an apartment and moving.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1544,6 +1612,7 @@ def get_b1_schedule():
             "topic": "Natur und Umwelt 6.16",
             "chapter": "6.16",
             "goal": "Learn to discuss nature and the environment.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1555,6 +1624,7 @@ def get_b1_schedule():
             "topic": "Probleme und Lösungen 6.17",
             "chapter": "6.17",
             "goal": "Describe problems and find solutions.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1566,6 +1636,7 @@ def get_b1_schedule():
             "topic": "Arbeit und Finanzen 6.18",
             "chapter": "6.18",
             "goal": "Talk about work and finances.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1577,6 +1648,7 @@ def get_b1_schedule():
             "topic": "Berufliche Zukunft 7.19",
             "chapter": "7.19",
             "goal": "Discuss future career plans.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1588,6 +1660,7 @@ def get_b1_schedule():
             "topic": "Bildung und Weiterbildung 7.20",
             "chapter": "7.20",
             "goal": "Talk about education and further studies.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1599,6 +1672,7 @@ def get_b1_schedule():
             "topic": "Familie und Gesellschaft 7.21",
             "chapter": "7.21",
             "goal": "Discuss family and society.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1610,6 +1684,7 @@ def get_b1_schedule():
             "topic": "Konsum und Werbung 8.22",
             "chapter": "8.22",
             "goal": "Talk about consumption and advertising.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1621,6 +1696,7 @@ def get_b1_schedule():
             "topic": "Globalisierung 8.23",
             "chapter": "8.23",
             "goal": "Discuss globalization and its effects.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1632,6 +1708,7 @@ def get_b1_schedule():
             "topic": "Kulturelle Unterschiede 8.24",
             "chapter": "8.24",
             "goal": "Talk about cultural differences.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1643,6 +1720,7 @@ def get_b1_schedule():
             "topic": "Lebenslauf schreiben 8.25",
             "chapter": "9.25",
             "goal": "Write a CV and cover letter.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1654,6 +1732,7 @@ def get_b1_schedule():
             "topic": "Präsentationen halten 9.26",
             "chapter": "9.26",
             "goal": "Learn to give presentations.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1665,6 +1744,7 @@ def get_b1_schedule():
             "topic": "Zusammenfassen und Berichten 9.27",
             "chapter": "9.27",
             "goal": "Practice summarizing and reporting.",
+            "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
             "grammarbook_link": "",
@@ -1676,6 +1756,7 @@ def get_b1_schedule():
             "topic": "Abschlussprüfungsvorbereitung 10.28",
             "chapter": "10.28",
             "goal": "Prepare for the final exam.",
+            "assignment": True,
             "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
             "video": "",
             "grammarbook_link": "",
@@ -1943,6 +2024,7 @@ if tab == "Course Book":
         """
     )
 
+#MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
     st.markdown(
@@ -2038,7 +2120,6 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-
     # ========== DETAILED RESULTS (with comments) ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -2089,7 +2170,6 @@ if tab == "My Results and Resources":
             st.table(df_display)
     st.markdown("---") 
 
-
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
     
@@ -2127,13 +2207,68 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
+    # ========== SKIPPED ASSIGNMENTS LOGIC ==========
+    def extract_all_chapter_nums(chapter_str):
+        # Split by underscores, spaces, etc. and extract all numeric parts
+        parts = re.split(r'[_\s,;]+', str(chapter_str))
+        nums = []
+        for part in parts:
+            match = re.search(r'\d+(?:\.\d+)?', part)
+            if match:
+                nums.append(float(match.group()))
+        return nums
+
+    # Build a set of all chapter numbers completed by student
+    completed_nums = set()
+    for _, row in df_lvl.iterrows():
+        nums = extract_all_chapter_nums(row['assignment'])
+        completed_nums.update(nums)
+
+    last_num = max(completed_nums) if completed_nums else 0
+
+    schedule = LEVEL_SCHEDULES.get(level, [])
+    skipped_assignments = []
+    for lesson in schedule:
+        chapter_field = lesson.get("chapter", "")
+        lesson_nums = extract_all_chapter_nums(chapter_field)
+        day = lesson.get("day", "")
+        has_assignment = lesson.get("assignment", False)
+        # If any required num is skipped (i.e., less than last_num and not in completed)
+        for chap_num in lesson_nums:
+            if (
+                has_assignment
+                and chap_num < last_num
+                and chap_num not in completed_nums
+            ):
+                skipped_assignments.append(
+                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
+                )
+                break  # Only need to flag once per lesson
+
+    if skipped_assignments:
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #fff3cd;
+                border-left: 6px solid #ffecb5;
+                color: #7a6001;
+                padding: 16px 18px 16px 16px;
+                border-radius: 8px;
+                margin: 12px 0;
+                font-size: 1.05em;">
+                <b>⚠️ You have skipped the following assignments.<br>
+                Please complete them for full progress:</b><br>
+                {"<br>".join(skipped_assignments)}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
     def extract_chapter_num(chapter):
-        # Prefer numbers like '1.3', but if just '3' or '10' that's fine too.
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
             return None
-        # Find highest numeric value in the chapter string (handles both '1.3' and '3')
         return max(float(n) for n in nums)
 
     completed_chapters = []
@@ -2233,8 +2368,6 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
-
-
 
 
 # ================================
