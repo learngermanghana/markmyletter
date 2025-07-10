@@ -2007,13 +2007,13 @@ if tab == "Course Book":
         name = st.text_input("Name", value=student_row.get('Name',''))
         code = st.text_input("Code", value=student_row.get('StudentCode',''))
         st.subheader("✍️ Your Answer")
-        ans = st.text_area("Answer (or attach on WhatsApp)", height=180)
+        ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
         msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
         if st.button("📤 Send via WhatsApp"):
             st.success("Click link below to open WhatsApp.")
             st.markdown(f"[📨 Open WhatsApp]({url})")
-        st.text_area("📋 Copy message:", msg, height=180)
+        st.text_area("📋 Copy message:", msg, height=500)
     render_whatsapp()
 
     st.info(
