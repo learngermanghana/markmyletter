@@ -1177,7 +1177,7 @@ def get_a2_schedule():
         # DAY 9
         {
             "day": 9,
-            "topic": "Urlaub 3.9",
+            "topic": "Urlaub 4.9",
             "chapter": "4.9",
             "goal": "Discuss vacation plans.",
             "assignment": True,
