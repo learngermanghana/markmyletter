@@ -871,8 +871,8 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/aWvIHjV3e_I",
-                "grammarbook_link": "",
-                "workbook_link": ""
+                "grammarbook_link": "https://drive.google.com/file/d/1fW2ChjnDKW_5SEr65ZgE1ylJy1To46_p/view?usp=sharing",
+                "workbook_link": "https://drive.google.com/file/d/1onzokN8kQualNO6MSsPndFXiRwsnsVM9/view?usp=sharing"
             }
         },
         # DAY 13
