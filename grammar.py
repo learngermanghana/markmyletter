@@ -15,7 +15,6 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
 # ---- OpenAI Client Setup ----
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -23,24 +22,21 @@ if not OPENAI_API_KEY:
         "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
     )
     st.stop()
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY   # <- Set for OpenAI client!
-client = OpenAI()  # <-- Do NOT pass api_key here for openai>=1.0
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI()
 
-# ---- DB connection helper ----
+# ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-conn = get_connection()
-c = conn.cursor()
-
-# --- Create/verify tables if not exist (run once per app startup) ---
+# ==== INITIALIZE DB TABLES ====
 def init_db():
     conn = get_connection()
     c = conn.cursor()
-    # Vocab Progress Table
+    # Vocab Progress Table (NO daily limit)
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +49,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Schreiben Progress Table
+    # Schreiben Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +62,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Sprechen Progress Table
+    # Sprechen Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,12 +95,12 @@ def init_db():
             student_code TEXT,
             level        TEXT,
             teil         TEXT,
-            remaining    TEXT,    -- JSON list of topics still to do
-            used         TEXT,    -- JSON list of already done
+            remaining    TEXT,
+            used         TEXT,
             PRIMARY KEY (student_code, level, teil)
         )
     """)
-    # My Vocab Table (STUDENT PERSONAL VOCAB)
+    # My Vocab Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,97 +111,95 @@ def init_db():
             date_added TEXT
         )
     """)
+    # Sprechen Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Schreiben Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
     conn.commit()
 
-# Call DB initialization ONCE after imports
-init_db()
+init_db()  # <<-- Make sure this is before any other DB calls!
 
-# ====== DB HELPERS (for all tables) ======
+# ==== CONSTANTS ====
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
 
-def save_vocab_submission(student_code, name, level, word, student_answer, is_correct):
+# ==== USAGE COUNTERS ====
+def get_sprechen_usage(student_code):
+    today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO vocab_progress (student_code, name, level, word, student_answer, is_correct, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, word, student_answer, int(is_correct), str(date.today()))
+        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
     )
-    conn.commit()
+    row = c.fetchone()
+    return row[0] if row else 0
 
-def save_schreiben_submission(student_code, name, level, essay, score, feedback):
+def inc_sprechen_usage(student_code):
+    today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, essay, score, feedback, str(date.today()))
-    )
-    conn.commit()
-
-def save_sprechen_submission(student_code, name, level, teil, message, score, feedback):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO sprechen_progress (student_code, name, level, teil, message, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, teil, message, score, feedback, str(date.today()))
-    )
-    conn.commit()
-
-# ====== PERSONAL VOCAB HELPERS ======
-def get_personal_vocab_stats(student_code):
-    """
-    Returns a dict: {level: count} for all levels where this student has personal vocab,
-    and total.
-    """
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT level, COUNT(*) FROM my_vocab WHERE student_code=? GROUP BY level",
-        (student_code,)
-    )
-    rows = c.fetchall()
-    stats = {row[0]: row[1] for row in rows}
-    stats['total'] = sum(stats.values())
-    return stats
-
-def add_my_vocab(student_code, level, word, translation):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO my_vocab (student_code, level, word, translation, date_added) VALUES (?, ?, ?, ?, ?)",
-        (student_code, level, word, translation, str(date.today()))
-    )
-    conn.commit()
-
-def get_my_vocab(student_code, level=None):
-    conn = get_connection()
-    c = conn.cursor()
-    if level:
+    usage = get_sprechen_usage(student_code)
+    if usage == 0:
         c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? AND level=? ORDER BY date_added DESC",
-            (student_code, level)
+            "INSERT INTO sprechen_usage (student_code, date, count) VALUES (?, ?, ?)",
+            (student_code, today, 1)
         )
     else:
         c.execute(
-            "SELECT id, word, translation, date_added FROM my_vocab WHERE student_code=? ORDER BY date_added DESC",
-            (student_code,)
+            "UPDATE sprechen_usage SET count = ? WHERE student_code = ? AND date = ?",
+            (usage + 1, student_code, today)
         )
-    return c.fetchall()
-
-def delete_my_vocab(vocab_id, student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM my_vocab WHERE id=? AND student_code=?", (vocab_id, student_code))
     conn.commit()
 
-def count_my_vocab(student_code, level=None):
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
+
+def get_schreiben_usage(student_code):
+    today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    if level:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=? AND level=?", (student_code, level))
-    else:
-        c.execute("SELECT COUNT(*) FROM my_vocab WHERE student_code=?", (student_code,))
-    return c.fetchone()[0]
+    c.execute(
+        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
 
-# ====== OTHER HELPERS (existing, no change) ======
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    usage = get_schreiben_usage(student_code)
+    if usage == 0:
+        c.execute(
+            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, ?)",
+            (student_code, today, 1)
+        )
+    else:
+        c.execute(
+            "UPDATE schreiben_usage SET count = ? WHERE student_code = ? AND date = ?",
+            (usage + 1, student_code, today)
+        )
+    conn.commit()
+
+def has_schreiben_quota(student_code, limit=SCHREIBEN_DAILY_LIMIT):
+    return get_schreiben_usage(student_code) < limit
 
 def get_writing_stats(student_code):
     conn = get_connection()
@@ -220,7 +214,6 @@ def get_writing_stats(student_code):
     return attempted, passed, accuracy
 
 def get_student_stats(student_code):
-    """Return writing stats per level for a student."""
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -234,47 +227,14 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
-def get_falowen_usage(student_code):
-    today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    return st.session_state["falowen_usage"][key]
 
-def inc_falowen_usage(student_code):
-    today_str = str(date.today())
-    key = f"{student_code}_falowen_{today_str}"
-    if "falowen_usage" not in st.session_state:
-        st.session_state["falowen_usage"] = {}
-    st.session_state["falowen_usage"].setdefault(key, 0)
-    st.session_state["falowen_usage"][key] += 1
+# -- ALIAS for legacy code (use this so your old code works without errors!) --
+has_falowen_quota = has_sprechen_quota
 
-def has_falowen_quota(student_code):
-    return get_falowen_usage(student_code) < FALOWEN_DAILY_LIMIT
+# (Now your whole app can use has_falowen_quota(student_code, FALOWEN_DAILY_LIMIT)
+# OR has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT) and it will always work.)
 
-def get_vocab_streak(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT date FROM vocab_progress WHERE student_code=? ORDER BY date DESC",
-        (student_code,),
-    )
-    rows = c.fetchall()
-    if not rows:
-        return 0
-    dates = [date.fromisoformat(r[0]) for r in rows]
-    if (date.today() - dates[0]).days > 1:
-        return 0
-    streak = 1
-    prev = dates[0]
-    for d in dates[1:]:
-        if (prev - d).days == 1:
-            streak += 1
-            prev = d
-        else:
-            break
-    return streak
+
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -319,6 +279,37 @@ def save_progress(student_code, level, teil, remaining, used):
         (student_code, level, teil, json.dumps(remaining), json.dumps(used))
     )
     conn.commit()
+
+def save_schreiben_attempt(student_code, name, level, score):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (student_code, name, level, "", score, "", str(date.today()))
+    )
+    conn.commit()
+
+# Bubble CSS
+bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
+bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
+
+# Highlight function and words
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+def highlight_keywords(text, words):
+    import re
+    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
+    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
+
+
+
+# ====================================
+# 5. CONSTANTS & VOCAB LISTS
+# ====================================
+
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
+max_turns = 25
     
 
 # ====================================
@@ -479,14 +470,7 @@ if st.button("Log out"):
     st.rerun()
 
 
-# ====================================
-# 5. CONSTANTS & VOCAB LISTS
-# ====================================
 
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-max_turns = 25
 
 # ======= Data Loading Functions =======
 @st.cache_data
@@ -2410,9 +2394,8 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-    # --- Daily Limit Check ---
-    # You can use a helper like: has_falowen_quota(student_code) or get_falowen_remaining(student_code)
-    if not has_falowen_quota(student_code):
+    # --- Daily Limit Check (NEW: persistent with SQLite) ---
+    if not has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT):
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
@@ -2628,7 +2611,7 @@ if tab == "Exams Mode & Custom Chat":
                 f"1. Explain difficult words when level is A1,A2,B1,B2. "
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 20 questions in total). "
                 f"Never ask more than 3 questions about the same keyword. "
-                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English. "
+                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
@@ -2639,7 +2622,7 @@ if tab == "Exams Mode & Custom Chat":
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
         st.stop()
 
-    # ---- SESSION STATE DEFAULTS ----
+# ---- SESSION STATE DEFAULTS ----
     default_state = {
         "falowen_stage": 1,
         "falowen_mode": None,
@@ -2656,12 +2639,31 @@ if tab == "Exams Mode & Custom Chat":
         if key not in st.session_state:
             st.session_state[key] = val
 
+
     # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
+
+        st.info(
+            """
+            **Which mode should you choose?**
+
+            - 📝 **Exam Mode**:  
+                Practice a real speaking exam simulation with real topics and an examiner.  
+                _Use this if you want to prepare for your official speaking test!_
+
+            - 💬 **Custom Chat**:  
+                Chat about any topic! Great for practicing class presentations, your own ideas, or having an intelligent conversation partner.
+            """,
+            icon="ℹ️"
+        )
+
         mode = st.radio(
             "How would you like to practice?",
-            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)"],
+            [
+                "Geführte Prüfungssimulation (Exam Mode)",
+                "Eigenes Thema/Frage (Custom Chat)"
+            ],
             key="falowen_mode_center"
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
@@ -2671,6 +2673,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
         st.stop()
 
     # ---- STAGE 2: Level Selection ----
@@ -2683,7 +2686,7 @@ if tab == "Exams Mode & Custom Chat":
         )
         if st.button("⬅️ Back", key="falowen_back1"):
             st.session_state["falowen_stage"] = 1
-            st.stop()
+            st.rerun()
         if st.button("Next ➡️", key="falowen_next_level"):
             st.session_state["falowen_level"] = level
             if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
@@ -2693,10 +2696,10 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
         st.stop()
 
-
-
+    
     # ---- STAGE 3: Exam Part & Topic (Exam Mode Only) ----
     if st.session_state["falowen_stage"] == 3:
         level = st.session_state["falowen_level"]
@@ -2730,12 +2733,15 @@ if tab == "Exams Mode & Custom Chat":
         else:
             topics_list = []
 
-        # Optional topic picker
+        # Optional topic picker (auto-pick random, but always shuffle for fairness)
         picked = None
+        random.shuffle(topics_list)  # Always shuffle!
         if topics_list:
             picked = st.selectbox("Choose a topic (optional):", ["(random)"] + topics_list)
             if picked == "(random)":
+                # When random, set None and shuffle for Stage 4 auto-picking
                 st.session_state["falowen_exam_topic"] = None
+                st.session_state["falowen_exam_keyword"] = None
             else:
                 # If picked includes ' – ', split out topic & keyword
                 if " – " in picked:
@@ -2759,14 +2765,16 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
 
-            # Shuffle or save deck if needed (optional)
+            # Save/shuffle deck for Stage 4 picking
             st.session_state["remaining_topics"] = topics_list.copy()
             random.shuffle(st.session_state["remaining_topics"])
             st.session_state["used_topics"] = []
 
-
+    # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
+        import re
+
         level = st.session_state["falowen_level"]
         teil = st.session_state["falowen_teil"]
         mode = st.session_state["falowen_mode"]
@@ -2774,7 +2782,7 @@ if tab == "Exams Mode & Custom Chat":
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
         # ---- Show daily usage ----
-        used_today = get_falowen_usage(student_code)
+        used_today = get_sprechen_usage(student_code)
         st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
         if used_today >= FALOWEN_DAILY_LIMIT:
             st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
@@ -2789,7 +2797,10 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_mode": None,
                 "custom_topic_intro_done": False,
                 "falowen_turn_count": 0,
-                "falowen_exam_topic": None
+                "falowen_exam_topic": None,
+                "falowen_exam_keyword": None,
+                "remaining_topics": [],
+                "used_topics": [],
             })
             st.rerun()
 
@@ -2807,21 +2818,92 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Render Chat History ----
+        # ---- Bubble Styles (MOBILE FRIENDLY) ----
+        bubble_user = (
+            "background: #1976d2;"
+            "color: #fff;"
+            "padding: 14px 16px;"
+            "border-radius: 18px 6px 18px 18px;"
+            "margin: 10px 0 10px auto;"
+            "display: block;"
+            "font-size: 1.13rem;"
+            "word-break: break-word;"
+            "max-width: 380px;"
+            "width: fit-content;"
+            "box-sizing: border-box;"
+            "line-height: 1.6;"
+            "text-align: left;"
+            "font-weight: 500;"
+            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
+        )
+        bubble_assistant = (
+            "background: #fff9c4;"
+            "color: #333;"
+            "padding: 14px 16px;"
+            "border-radius: 18px 18px 18px 6px;"
+            "margin: 10px auto 10px 0;"
+            "display: block;"
+            "font-size: 1.13rem;"
+            "word-break: break-word;"
+            "max-width: 380px;"
+            "width: fit-content;"
+            "box-sizing: border-box;"
+            "line-height: 1.6;"
+            "text-align: left;"
+            "font-weight: 500;"
+            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
+        )
+        st.markdown("""
+        <style>
+        @media only screen and (max-width: 600px) {
+            div[style*="background: #1976d2"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
+            }
+            div[style*="background: #fff9c4"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # ---- Word Highlighting ----
+        def highlight_keywords(text, keywords):
+            if not keywords: return text
+            def repl(match):
+                word = match.group(0)
+                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
+            for word in keywords:
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
+            return text
+
+        highlight_words = []
+        if is_exam:
+            if st.session_state.get("falowen_exam_keyword"):
+                highlight_words.append(st.session_state["falowen_exam_keyword"])
+            highlight_words += ["weil", "möchte", "deshalb"]
+
+        # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
                     st.markdown(
-                        "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
                         unsafe_allow_html=True
                     )
-                    st.markdown(msg["content"])
             else:
                 with st.chat_message("user"):
-                    st.markdown(f"🗣️ {msg['content']}")
-
-        # ---- Auto-scroll to bottom ----
-        st.markdown("<script>window.scrollTo(0, document.body.scrollHeight);</script>", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        unsafe_allow_html=True
+                    )
 
         # ---- PDF Download Button ----
         if st.session_state["falowen_messages"]:
@@ -2854,6 +2936,16 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
             if topic:
@@ -2867,18 +2959,20 @@ if tab == "Exams Mode & Custom Chat":
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-            inc_falowen_usage(student_code)
+            inc_sprechen_usage(student_code)
 
-            # render user message
             with st.chat_message("user"):
-                st.markdown(f"🗣️ {user_input}")
+                st.markdown(
+                    f"<div style='display:flex;justify-content:flex-end;'>"
+                    f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
+                    unsafe_allow_html=True
+                )
 
-            # AI response
             with st.chat_message(
                 "assistant",
                 avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
             ):
-                with st.spinner("Herr Felix is typing..."):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
                     try:
                         resp = client.chat.completions.create(
@@ -2890,20 +2984,81 @@ if tab == "Exams Mode & Custom Chat":
                         ai_reply = resp.choices[0].message.content.strip()
                     except Exception as e:
                         ai_reply = f"Sorry, an error occurred: {e}"
+
                 st.markdown(
-                    "<span style='color:#33691e;font-weight:bold'>🧑‍🏫 Herr Felix:</span>",
+                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
-                st.markdown(ai_reply)
 
-            # save assistant reply
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
+        # ---- END SESSION BUTTON & SUMMARY ----
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
 
 
+    # ---- STAGE 5: End-of-Session Summary ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.subheader("📝 End-of-Session Summary")
+
+        messages = st.session_state.get("falowen_messages", [])
+
+        # 1. Total Turns
+        user_turns = len([m for m in messages if m["role"] == "user"])
+        st.markdown(f"- **Total Messages Sent:** {user_turns}")
+
+        # 2. Words Used
+        import re
+        user_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
+        user_words = set(re.findall(r'\b\w+\b', user_text.lower()))
+        st.markdown(f"- **Unique Words Used:** {len(user_words)}")
+        if user_words:
+            st.markdown(f"`{', '.join(list(user_words)[:20])}`")
+
+        # 3. Corrections/Highlights
+        corrections = []
+        for m in messages:
+            if m["role"] == "assistant":
+                # Simple extraction: lines mentioning 'correct', 'should', 'mistake', 'improve'
+                lines = m["content"].split("\n")
+                for line in lines:
+                    if any(word in line.lower() for word in ["correct", "should", "mistake", "improve", "tip"]):
+                        if len(line) < 130:  # avoid overly long
+                            corrections.append(line)
+        if corrections:
+            st.markdown("**Common Corrections & Tips:**")
+            for corr in corrections[:8]:
+                st.markdown(f"- {corr}")
+
+        # 4. Recent AI Feedback
+        last_feedback = "\n\n".join([m["content"] for m in messages if m["role"] == "assistant"][-2:])
+        st.markdown("**Recent Feedback:**")
+        st.markdown(last_feedback)
+
+        # 5. Download Chat as PDF
+        pdf_bytes = falowen_download_pdf(messages, f"Falowen_Summary_{st.session_state.get('student_code','')}")
+        st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name="Falowen_Summary.pdf", mime="application/pdf")
+
+        # 6. Start new session
+        st.divider()
+        if st.button("🔄 Start New Session"):
+            for key in [
+                "falowen_stage", "falowen_messages", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics"
+            ]:
+                st.session_state[key] = None
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+
 # =========================================
-#End
+# End
 # =========================================
+
+
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
@@ -3061,14 +3216,11 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-
-#
-
+                
 
 # ====================================
-# SCHREIBEN TRAINER TAB (with Daily Limit and Mobile UI)
+# SCHREIBEN TRAINER TAB (with Daily Limit, Mobile UI, persistent with SQLite)
 # ====================================
-import urllib.parse
 
 if tab == "Schreiben Trainer":
     # ✍️ Compact Schreiben Trainer header
@@ -3101,15 +3253,10 @@ if tab == "Schreiben Trainer":
     )
     st.session_state["schreiben_level"] = schreiben_level
 
-    # 2. Daily limit tracking (by student & date)
+    # 2. Daily limit tracking (persistent in DB)
     student_code = st.session_state.get("student_code", "demo")
     student_name = st.session_state.get("student_name", "")
-    today_str = str(date.today())
-    limit_key = f"{student_code}_schreiben_{today_str}"
-    if "schreiben_usage" not in st.session_state:
-        st.session_state["schreiben_usage"] = {}
-    st.session_state["schreiben_usage"].setdefault(limit_key, 0)
-    daily_so_far = st.session_state["schreiben_usage"][limit_key]
+    daily_so_far = get_schreiben_usage(student_code)   # <-- DB-based!
 
     # 3. Show overall writing performance (DB-driven, mobile-first)
     attempted, passed, accuracy = get_writing_stats(student_code)
@@ -3140,6 +3287,13 @@ if tab == "Schreiben Trainer":
         height=180,
         placeholder="Write your German letter here..."
     )
+
+    # --- Word and character count ---
+    if user_letter.strip():
+        import re
+        words = re.findall(r'\b\w+\b', user_letter)
+        chars = len(user_letter)
+        st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
     # 6. AI prompt (always define before calling the API)
     ai_prompt = (
@@ -3183,7 +3337,6 @@ if tab == "Schreiben Trainer":
         if feedback:
             # === Extract score and check if passed ===
             import re
-            # Robust regex for score detection
             score_match = re.search(
                 r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25",
                 feedback,
@@ -3197,11 +3350,9 @@ if tab == "Schreiben Trainer":
                 st.warning("Could not detect a score in the AI feedback.")
                 score = 0
 
-            # === Update usage and save to DB ===
-            st.session_state["schreiben_usage"][limit_key] += 1
-            save_schreiben_submission(
-                student_code, student_name, schreiben_level, user_letter, score, feedback
-            )
+            # === Update usage (persistently in DB) and only save stats ===
+            inc_schreiben_usage(student_code)
+            save_schreiben_attempt(student_code, student_name, schreiben_level, score)
 
             # --- Show Feedback ---
             st.markdown("---")
@@ -3237,3 +3388,5 @@ if tab == "Schreiben Trainer":
                 f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                 unsafe_allow_html=True
             )
+
+
