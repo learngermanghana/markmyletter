@@ -870,7 +870,7 @@ def get_a1_schedule():
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/aWvIHjV3e_I",
+                "video": "https://youtu.be/hLpPFOthVkU",
                 "grammarbook_link": "https://drive.google.com/file/d/1fW2ChjnDKW_5SEr65ZgE1ylJy1To46_p/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1onzokN8kQualNO6MSsPndFXiRwsnsVM9/view?usp=sharing"
             }
