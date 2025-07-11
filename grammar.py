@@ -246,17 +246,31 @@ st.set_page_config(
 # ---- Falowen Header ----
 st.markdown(
     """
-    <div style='display:flex;align-items:center;gap:18px;margin-bottom:22px;'>
-        <img src='https://cdn-icons-png.flaticon.com/512/323/323329.png' width='50' style='border-radius:50%;border:2.5px solid #d2b431;box-shadow:0 2px 8px #e4c08d;'/>
-        <div>
-            <span style='font-size:2.0rem;font-weight:bold;color:#17617a;letter-spacing:2px;'>Falowen App</span>
-            <span style='font-size:1.6rem;margin-left:12px;'>🇩🇪</span>
+    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
+        <!-- Left Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
+        <!-- Center Block -->
+        <div style='flex: 1; text-align: center;'>
+            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
+                Falowen App
+            </span>
             <br>
-            <span style='font-size:1.02rem;color:#ff9900;font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.01rem;color:#268049;font-weight:400;'>
+            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
+            <br>
+            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
                 Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
             </span>
+            <br>
+            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+            </span>
+            <br>
+            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
+                Competent German Tutors Team
+            </span>
         </div>
+        <!-- Right Flag -->
+        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
     </div>
     """,
     unsafe_allow_html=True
@@ -356,8 +370,7 @@ def load_student_data():
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "")).strip()
-    # Debug: show raw string
-    st.write("DEBUG: raw ContractEnd:", repr(expiry_str))
+    # Debug lines removed
 
     if not expiry_str or expiry_str.lower() == "nan":
         return True
@@ -375,15 +388,14 @@ def is_contract_expired(row):
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
         if pd.isnull(parsed):
-            st.write("DEBUG: pandas parse failed for", expiry_str)
             return True
         expiry_date = parsed.to_pydatetime()
 
     today = datetime.now().date()
-    # Debug: show parsed date
-    st.write("DEBUG: parsed expiry_date:", expiry_date.date(), "today:", today)
+    # Debug lines removed
 
     return expiry_date.date() < today
+
 
 # ---- Cookie & Session Setup ----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
@@ -457,7 +469,24 @@ if not st.session_state["logged_in"]:
         else:
             st.error("Login failed. Please check your Student Code or Email.")
 
+    # --- Add extra info for students below the login box ---
+    st.markdown(
+        """
+        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+            <span style='color:#ff9800;font-weight:600;'>
+                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
+            </span>
+            <br>
+            <span style='color:#1976d2;'>
+                🆕 <b>Update:</b> New features have been added to help you prepare for your German exam! Practice as often as you want, within your daily quota.
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.stop()
+
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
