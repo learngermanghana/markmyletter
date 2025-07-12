@@ -883,7 +883,7 @@ def get_a1_schedule():
             "goal": "Recap from the lesen and horen. Understand numbers, time, asking of price and how to formulate statements in German",
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/PwDLGmfBUDw",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
