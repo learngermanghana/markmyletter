@@ -20,7 +20,11 @@ st.markdown(
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    footer:after {content:""; display:none;}
     .st-emotion-cache-1v0mbdj {display: none;}
+    .css-164nlkn {display: none;}
+    .css-1lsmgbg.egzxvld1 {display: none;} /* Some new versions */
+    .st-emotion-cache-7ym5gk {display: none;} /* Another possible Streamlit version */
     </style>
     """,
     unsafe_allow_html=True
