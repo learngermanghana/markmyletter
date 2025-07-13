@@ -3404,34 +3404,41 @@ if tab == "Schreiben Trainer":
             st.markdown("#### 📝 Feedback from Herr Felix")
             st.markdown(feedback)
 
-            # === Download as PDF ===
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.multi_cell(0, 10, f"Your Letter:\n\n{user_letter}\n\nFeedback from Herr Felix:\n\n{feedback}")
-            pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
-            pdf.output(pdf_output)
-            with open(pdf_output, "rb") as f:
-                pdf_bytes = f.read()
-            st.download_button(
-                "⬇️ Download Feedback as PDF",
-                pdf_bytes,
-                file_name=pdf_output,
-                mime="application/pdf"
-            )
-            import os
-            os.remove(pdf_output)
+        def sanitize_text(text):
+            return text.encode('latin-1', errors='replace').decode('latin-1')
 
-            # === WhatsApp Share ===
-            wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
-            wa_url = (
-                "https://api.whatsapp.com/send"
-                "?phone=233205706589"
-                f"&text={urllib.parse.quote(wa_message)}"
-            )
-            st.markdown(
-                f"[📲 Send to Tutor on WhatsApp]({wa_url})",
-                unsafe_allow_html=True
-            )
+        # === Download as PDF ===
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        safe_user_letter = sanitize_text(user_letter)
+        safe_feedback = sanitize_text(feedback)
+        pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+        pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+        pdf.output(pdf_output)
+        with open(pdf_output, "rb") as f:
+            pdf_bytes = f.read()
+        st.download_button(
+            "⬇️ Download Feedback as PDF",
+            pdf_bytes,
+            file_name=pdf_output,
+            mime="application/pdf"
+        )
+        import os
+        os.remove(pdf_output)
+
+        # === WhatsApp Share ===
+        wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+        wa_url = (
+            "https://api.whatsapp.com/send"
+            "?phone=233205706589"
+            f"&text={urllib.parse.quote(wa_message)}"
+        )
+        st.markdown(
+            f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+            unsafe_allow_html=True
+        )
+#
+
 
 
