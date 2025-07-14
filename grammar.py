@@ -726,7 +726,7 @@ def get_a1_schedule():
                 },
                 {
                     "chapter": "1.1",
-                    "video": "https://youtu.be/rNxu2uQZ_lc",
+                    "video": "https://youtu.be/AjsnO1hxDs4",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
