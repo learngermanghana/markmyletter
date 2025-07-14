@@ -978,7 +978,7 @@ def get_a1_schedule():
             "lesen_hören": [
                 {
                     "chapter": "12.1",
-                    "video": "",
+                    "video": "https://youtu.be/-vTEvx9a8Ts",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
