@@ -1747,7 +1747,7 @@ def get_b1_schedule():
         {
             "day": 25,
             "topic": "Lebenslauf schreiben 8.25",
-            "chapter": "9.25",
+            "chapter": "8.25",
             "goal": "Write a CV and cover letter.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
