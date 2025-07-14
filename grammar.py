@@ -625,7 +625,7 @@ if st.session_state.get("logged_in"):
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
-            "https://i.imgur.com/9hLAScD.jpg",
+            "https://i.imgur.com/IjZl191.png",
             "https://i.imgur.com/2PzOOvn.jpg",
             "https://i.imgur.com/Q9mpvRY.jpg",
         ]
