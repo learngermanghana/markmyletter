@@ -719,7 +719,7 @@ def get_a1_schedule():
             "lesen_hören": [
                 {
                     "chapter": "0.2",
-                    "video": "",
+                    "video": "https://youtu.be/S7n6TlAQRLQ",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
