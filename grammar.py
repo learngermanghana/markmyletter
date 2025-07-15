@@ -2649,8 +2649,12 @@ if tab == "Exams Mode & Custom Chat":
     def build_custom_chat_prompt(level):
         if level == "C1":
             return (
-                "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
-                "Gib konstruktives Feedback, stelle schwierige Fragen, und hilf dem Studenten, auf C1-Niveau zu sprechen."
+                "You are supportive German C1 Teacher. Speak both english and German "
+                "Ask student one question at a time"
+                "Suggest useful phrases student can use to begin their phrases"
+                "Check if student is writing on C1 Level"
+                "When there is error, correct for the student and teach them how to say it correctly"
+                "Help student progress from B2 to C1 with your support and guidance"
             )
         if level in ["A1", "A2", "B1", "B2"]:
             correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
