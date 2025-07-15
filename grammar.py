@@ -243,6 +243,13 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
+def sanitize_text(text):
+    """Replace all non-latin1 characters with '?' to avoid Unicode issues in PDF."""
+    if isinstance(text, str):
+        return text.encode('latin1', errors='replace').decode('latin1')
+    return str(text)
+
+
 
 # -- ALIAS for legacy code (use this so your old code works without errors!) --
 has_falowen_quota = has_sprechen_quota
@@ -900,7 +907,7 @@ def get_a1_schedule():
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/PwDLGmfBUDw",
-                "assignment": True,
+                "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
         },
