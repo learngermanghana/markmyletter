@@ -1014,8 +1014,8 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Schreiben & Sprechen 6.10 (Intro to letter writing)",
-            "chapter": "6.10",
+            "topic": "Introduction to Letter Writing",
+            "chapter": "12.3",
             "goal": "Practice how to write both formal and informal letters",
             "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
@@ -2055,6 +2055,9 @@ if tab == "Course Book":
         """
     )
 
+def sanitize_pdf_text(text):
+    return text.encode("latin1", errors="replace").decode("latin1")
+
 #MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
@@ -2139,7 +2142,7 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     # ========== METRICS ==========
-    totals = {"A1": 18, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
+    totals = {"A1": 19, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
@@ -2331,24 +2334,26 @@ if tab == "My Results and Resources":
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "Learn Language Education Academy", ln=1, align='C')
+        pdf.cell(0, 10, sanitize_pdf_text("Learn Language Education Academy"), ln=1, align='C')
         pdf.ln(5)
         pdf.set_font("Arial", '', 12)
         pdf.multi_cell(
             0, 8,
-            f"Name: {df_user.name.iloc[0]}\n"
-            f"Code: {code}\n"
-            f"Level: {level}\n"
-            f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
+            sanitize_pdf_text(
+                f"Name: {df_user.name.iloc[0]}\n"
+                f"Code: {code}\n"
+                f"Level: {level}\n"
+                f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
+            )
         )
         pdf.ln(4)
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Summary Metrics", ln=1)
+        pdf.cell(0, 8, sanitize_pdf_text("Summary Metrics"), ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}", ln=1)
+        pdf.cell(0, 8, sanitize_pdf_text(f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}"), ln=1)
         pdf.ln(4)
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, "Detailed Results", ln=1)
+        pdf.cell(0, 8, sanitize_pdf_text("Detailed Results"), ln=1)
         pdf.set_font("Arial", '', 10)
         for _, row in df_display.iterrows():
             feedback = row.get('comments', '')
@@ -2358,10 +2363,10 @@ if tab == "My Results and Resources":
                 str(feedback).lower().strip() == "nan"
             ):
                 feedback = "No feedback yet."
-            pdf.cell(0, 7, f"{row['assignment']}: {row['score']} ({row['date']})", ln=1)
+            pdf.cell(0, 7, sanitize_pdf_text(f"{row['assignment']}: {row['score']} ({row['date']})"), ln=1)
             if 'comments' in row and feedback:
                 pdf.set_font("Arial", 'I', 9)
-                pdf.multi_cell(0, 6, f"  Feedback: {feedback}")
+                pdf.multi_cell(0, 6, sanitize_pdf_text(f"  Feedback: {feedback}"))
                 pdf.set_font("Arial", '', 10)
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
         # Streamlit native download button
