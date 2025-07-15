@@ -900,7 +900,7 @@ def get_a1_schedule():
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/PwDLGmfBUDw",
-                "assignment": False,
+                "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
         },
@@ -992,7 +992,7 @@ def get_a1_schedule():
                 }
             ],
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/xVyYo7upDGo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
@@ -1016,6 +1016,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 6.10 (Intro to letter writing)",
             "chapter": "6.10",
             "goal": "Practice how to write both formal and informal letters",
+            "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "schreiben_sprechen": {
                 "video": "",
