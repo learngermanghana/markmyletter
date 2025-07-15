@@ -739,7 +739,7 @@ def get_a1_schedule():
             "day": 3,
             "topic": "Schreiben & Sprechen 1.1 and Lesen & Hören 1.2",
             "chapter": "1.1_1.2",
-            "goal": "Introduce others and talk about your family.",
+            "goal": "Recap what we have learned so far: be able to introduce yourself in German and know all the pronouns.",
             "instruction": (
                 "Begin with the practicals at **Schreiben & Sprechen** (writing & speaking). "
                 "Then, move to **Lesen & Hören** (reading & listening). "
