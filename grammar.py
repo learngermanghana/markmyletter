@@ -243,12 +243,6 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
-def sanitize_text(text):
-    """Replace all non-latin1 characters with '?' to avoid Unicode issues in PDF."""
-    if isinstance(text, str):
-        return text.encode('latin1', errors='replace').decode('latin1')
-    return str(text)
-
 
 
 # -- ALIAS for legacy code (use this so your old code works without errors!) --
