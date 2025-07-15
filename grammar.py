@@ -748,7 +748,7 @@ def get_a1_schedule():
                 "Main assignment to be marked is under Lesen & Hören below."
             ),
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
                 "assignment": False,
             },
