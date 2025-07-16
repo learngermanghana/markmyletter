@@ -1247,10 +1247,10 @@ def get_a2_schedule():
             "topic": "Mein Traumberuf (Übung) 5.12",
             "chapter": "5.12",
             "assignment": True,
-            "goal": "Describe a typical day.",
+            "goal": "Learn how to talk about about a dream job and future goals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1cQsk5djETpfuXwbORZqOKLSW3m6g2qt_/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1dyGB5q92EePy8q60eWWYA91LXnsWQFb1/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
         # DAY 13
