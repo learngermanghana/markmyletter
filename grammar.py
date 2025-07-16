@@ -796,7 +796,7 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 2.3",
             "chapter": "2.3",
             "goal": "Learn about family and expressing your hobby",
-            "assignment": False
+            "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "",
