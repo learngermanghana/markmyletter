@@ -1244,7 +1244,7 @@ def get_a2_schedule():
         # DAY 12
         {
             "day": 12,
-            "topic": "Ein Tag im Leben (Übung) 5.12",
+            "topic": "Mein Traumberuf (Übung) 5.12",
             "chapter": "5.12",
             "assignment": True,
             "goal": "Describe a typical day.",
