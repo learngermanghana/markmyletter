@@ -2446,6 +2446,32 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
+        # ---- Exam Sample Images (A1/A2 Template) ----
+    image_map = {
+        ("A1", "Teil 1"): {
+            "url": "https://i.imgur.com/sKQDrpx.png",
+            "caption": "Sample – A1 Teil 1"
+        },
+        ("A1", "Teil 2"): {
+            "url": "https://i.imgur.com/ZPaRQwP.png",  # Replace with real image if you get a valid link!
+            "caption": "Sample – A1 Teil 2"
+        },
+        ("A1", "Teil 3"): {
+            "url": "https://i.imgur.com/MxBUCR8.png",
+            "caption": "Sample – A1 Teil 3"
+        },
+        # Add A2 and others as needed:
+        # ("A2", "Teil 1"): { ... }
+    }
+
+    # Display image only for selected level/teil and at the start of chat
+    level = st.session_state.get("falowen_level")
+    teil = st.session_state.get("falowen_teil")
+    if level and teil and not st.session_state.get("falowen_messages"):
+        for (map_level, map_teil), v in image_map.items():
+            if level == map_level and map_teil in teil:
+                st.image(v["url"], width=380, caption=v["caption"])
+
     # --- Daily Limit Check (NEW: persistent with SQLite) ---
     if not has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT):
         st.header("🗣️ Falowen – Speaking & Exam Trainer")
@@ -2654,6 +2680,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Suggest useful phrases student can use to begin their phrases"
                 "Check if student is writing on C1 Level"
                 "When there is error, correct for the student and teach them how to say it correctly"
+                "Stay on one topic and always ask next question. After 5 questions on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
             )
         if level in ["A1", "A2", "B1", "B2"]:
@@ -2874,41 +2901,6 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
             
-        # ---- Exam Sample Images (A1/A2 Template) ----
-        image_map = {
-            ("A1", "Teil 1"): {
-                "url": "https://i.imgur.com/sKQDrpx.png",
-                "caption": "Sample – A1 Teil 1"
-            },
-            ("A1", "Teil 2"): {
-                # Replace with your real Imgur URL for A1 Teil 2
-                "url": "https://i.imgur.com/YOUR_A1_TEIL2_IMAGE.png",
-                "caption": "Sample – A1 Teil 2"
-            },
-            ("A1", "Teil 3"): {
-                "url": "https://i.imgur.com/MxBUCR8.png",
-                "caption": "Sample – A1 Teil 3"
-            },
-            # Example for A2 – extend for your use
-            ("A2", "Teil 1"): {
-                "url": "https://i.imgur.com/YOUR_A2_TEIL1_IMAGE.png",
-                "caption": "Sample – A2 Teil 1"
-            },
-            # Add more as needed: ("A2", "Teil 2"), etc.
-        }
-
-        # Show image only at the beginning of the chat for each section
-        level = st.session_state["falowen_level"]
-        teil = st.session_state["falowen_teil"]
-        if (
-            level and teil and not st.session_state["falowen_messages"]
-        ):
-            for (map_level, map_teil), v in image_map.items():
-                if (
-                    level == map_level
-                    and map_teil in teil
-                ):
-                    st.image(v["url"], width=400, caption=v["caption"])
 
         # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
