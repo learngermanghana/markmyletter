@@ -2873,6 +2873,42 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_messages": []
             })
             st.rerun()
+            
+        # ---- Exam Sample Images (A1/A2 Template) ----
+        image_map = {
+            ("A1", "Teil 1"): {
+                "url": "https://i.imgur.com/sKQDrpx.png",
+                "caption": "Sample – A1 Teil 1"
+            },
+            ("A1", "Teil 2"): {
+                # Replace with your real Imgur URL for A1 Teil 2
+                "url": "https://i.imgur.com/YOUR_A1_TEIL2_IMAGE.png",
+                "caption": "Sample – A1 Teil 2"
+            },
+            ("A1", "Teil 3"): {
+                "url": "https://i.imgur.com/MxBUCR8.png",
+                "caption": "Sample – A1 Teil 3"
+            },
+            # Example for A2 – extend for your use
+            ("A2", "Teil 1"): {
+                "url": "https://i.imgur.com/YOUR_A2_TEIL1_IMAGE.png",
+                "caption": "Sample – A2 Teil 1"
+            },
+            # Add more as needed: ("A2", "Teil 2"), etc.
+        }
+
+        # Show image only at the beginning of the chat for each section
+        level = st.session_state["falowen_level"]
+        teil = st.session_state["falowen_teil"]
+        if (
+            level and teil and not st.session_state["falowen_messages"]
+        ):
+            for (map_level, map_teil), v in image_map.items():
+                if (
+                    level == map_level
+                    and map_teil in teil
+                ):
+                    st.image(v["url"], width=400, caption=v["caption"])
 
         # ---- Bubble Styles (MOBILE FRIENDLY) ----
         bubble_user = (
