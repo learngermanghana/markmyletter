@@ -2446,7 +2446,7 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-        # ---- Exam Sample Images (A1/A2 Template) ----
+    # ---- Exam Sample Images (A1/A2 Template) ----
     image_map = {
         ("A1", "Teil 1"): {
             "url": "https://i.imgur.com/sKQDrpx.png",
@@ -2460,23 +2460,19 @@ if tab == "Exams Mode & Custom Chat":
             "url": "https://i.imgur.com/MxBUCR8.png",
             "caption": "Sample – A1 Teil 3"
         },
-        # Add A2 and others as needed:
+        # Add A2 etc:
         # ("A2", "Teil 1"): { ... }
     }
 
     # Display image only for selected level/teil and at the start of chat
     level = st.session_state.get("falowen_level")
     teil = st.session_state.get("falowen_teil")
-    if level and teil and not st.session_state.get("falowen_messages"):
+    msgs = st.session_state.get("falowen_messages", [])
+    # Show image if no chat yet, or only the 1st assistant instruction
+    if level and teil and (not msgs or (len(msgs) == 1 and msgs[0].get("role") == "assistant")):
         for (map_level, map_teil), v in image_map.items():
             if level == map_level and map_teil in teil:
                 st.image(v["url"], width=380, caption=v["caption"])
-
-    # --- Daily Limit Check (NEW: persistent with SQLite) ---
-    if not has_sprechen_quota(student_code, FALOWEN_DAILY_LIMIT):
-        st.header("🗣️ Falowen – Speaking & Exam Trainer")
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
 
 
     # ---- PDF Helper ----
