@@ -1006,7 +1006,7 @@ def get_a1_schedule():
             "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
             "instruction": "",
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://youtu.be/MqAp84GthAo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
