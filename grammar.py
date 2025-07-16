@@ -1237,7 +1237,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
+            "video": "https://youtu.be/RkvfRiPCZI4",
             "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
