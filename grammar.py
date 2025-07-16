@@ -2453,7 +2453,7 @@ if tab == "Exams Mode & Custom Chat":
             "caption": "Sample – A1 Teil 1"
         },
         ("A1", "Teil 2"): {
-            "url": "https://i.imgur.com/ZPaRQwP.png",  # Replace with real image if you get a valid link!
+            "url": "https://i.imgur.com/xTTIUME.png",  # Replace with real image if you get a valid link!
             "caption": "Sample – A1 Teil 2"
         },
         ("A1", "Teil 3"): {
