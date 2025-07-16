@@ -1008,7 +1008,7 @@ def get_a1_schedule():
             "schreiben_sprechen": {
                 "video": "",
                 "assignment": False,
-                "workbook_link": "https://drive.google.com/file/d/1-bbY9zoos62U5jUAFrYCyxay_cvbk65N/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
         },
         # DAY 20
