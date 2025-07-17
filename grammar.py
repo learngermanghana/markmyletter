@@ -972,7 +972,7 @@ def get_a1_schedule():
         # DAY 18
         {
             "day": 18,
-            "topic": "Lesen & Hören 12.1 and 12.2 and Schreiben & Sprechen (including 5.8)",
+            "topic": "Lesen & Hören 12.1 and 12.2",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
             "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8) for practice to understand chapter 12",
