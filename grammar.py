@@ -1096,8 +1096,8 @@ def get_a1_schedule():
         # DAY 25
         {
             "day": 25,
-            "topic": "Goethe Mock Test",
-            "chapter": "final",
+            "topic": "Goethe Mock Test 15",
+            "chapter": "15",
             "assignment": True,
             "goal": "This test should help the student have an idea about how the lesen and horen will look like",
             "instruction": "",
