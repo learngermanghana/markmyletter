@@ -1027,7 +1027,7 @@ def get_a1_schedule():
         # DAY 21
         {
             "day": 21,
-            "topic": "Lesen & Hören 13 and Schreiben & Sprechen 6.11",
+            "topic": "Lesen & Hören 13",
             "chapter": "13",
             "assignment": True,
             "goal": "",
