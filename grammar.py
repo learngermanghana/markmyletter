@@ -1029,17 +1029,16 @@ def get_a1_schedule():
             "day": 21,
             "topic": "Lesen & Hören 13 and Schreiben & Sprechen 6.11",
             "chapter": "13_6.11",
+            "assignment": True,
             "goal": "",
             "instruction": "",
             "lesen_hören": {
                 "video": "",
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
-                "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
-                "assignment": False,
                 "workbook_link": ""
             }
         },
@@ -1058,7 +1057,7 @@ def get_a1_schedule():
             },
             "schreiben_sprechen": {
                 "video": "",
-                "assignment": False,
+                "assignment": True,
                 "workbook_link": ""
             }
         },
@@ -1098,6 +1097,7 @@ def get_a1_schedule():
             "day": 25,
             "topic": "Goethe Mock Test",
             "chapter": "final",
+            "assignment": True,
             "goal": "This test should help the student have an idea about how the lesen and horen will look like",
             "instruction": "",
             "schreiben_sprechen": {
