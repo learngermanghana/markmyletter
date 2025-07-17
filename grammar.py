@@ -2340,65 +2340,139 @@ if tab == "My Results and Resources":
     else:
         st.info("🎉 Great Job!")
 
-    # ========== DOWNLOAD PDF SUMMARY ==========
-    if st.button("⬇️ Download PDF Summary"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, sanitize_pdf_text("Learn Language Education Academy"), ln=1, align='C')
-        pdf.ln(5)
-        pdf.set_font("Arial", '', 12)
-        pdf.multi_cell(
-            0, 8,
-            sanitize_pdf_text(
-                f"Name: {df_user.name.iloc[0]}\n"
-                f"Code: {code}\n"
-                f"Level: {level}\n"
-                f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"
-            )
-        )
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, sanitize_pdf_text("Summary Metrics"), ln=1)
-        pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, sanitize_pdf_text(f"Total: {total}, Completed: {completed}, Avg: {avg_score:.1f}, Best: {best_score}"), ln=1)
-        pdf.ln(4)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, sanitize_pdf_text("Detailed Results"), ln=1)
-        pdf.set_font("Arial", '', 10)
-        for _, row in df_display.iterrows():
-            feedback = row.get('comments', '')
-            if (
-                pd.isna(feedback) or
-                not str(feedback).strip() or
-                str(feedback).lower().strip() == "nan"
-            ):
-                feedback = "No feedback yet."
-            pdf.cell(0, 7, sanitize_pdf_text(f"{row['assignment']}: {row['score']} ({row['date']})"), ln=1)
-            if 'comments' in row and feedback:
-                pdf.set_font("Arial", 'I', 9)
-                pdf.multi_cell(0, 6, sanitize_pdf_text(f"  Feedback: {feedback}"))
-                pdf.set_font("Arial", '', 10)
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        # Streamlit native download button
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-        # Manual fallback download
-        st.markdown(
-            get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"),
-            unsafe_allow_html=True
-        )
-        st.info("If you are on iPhone or computer and the button does not work, tap-and-hold or right-click on the blue link above and choose **Save link as...** to download your PDF.")
+# ========== DOWNLOAD PDF SUMMARY ==========
 
-    # --- Resources Section ---
+# Constants for layout
+COL_ASSN_W = 45
+COL_SCORE_W = 18
+COL_DATE_W = 30
+PAGE_WIDTH = 210  # A4 width in mm
+MARGIN = 10       # default margin
+FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+LOGO_URL = "https://i.imgur.com/iFiehrp.png"
+
+# Cached logo download to speed up repeated PDF generations
+@st.cache_data
+def fetch_logo():
+    import requests, tempfile
+    try:
+        resp = requests.get(LOGO_URL, timeout=6)
+        resp.raise_for_status()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        tmp.write(resp.content)
+        tmp.flush()
+        return tmp.name
+    except Exception:
+        return None
+
+# Subclass FPDF to add automatic header/footer
+from fpdf import FPDF
+class PDFReport(FPDF):
+    def header(self):
+        logo_path = fetch_logo()
+        if logo_path:
+            try:
+                self.image(logo_path, 10, 8, 30)
+                self.ln(20)
+            except Exception:
+                self.ln(20)
+        else:
+            self.ln(28)
+        self.set_font("Arial", 'B', 16)
+        self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
+        self.ln(3)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", 'I', 9)
+        self.set_text_color(120, 120, 120)
+        footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
+        self.cell(0, 8, footer_text, 0, 0, 'C')
+        self.set_text_color(0, 0, 0)
+        self.alias_nb_pages()
+
+if st.button("⬇️ Download PDF Summary"):
+    import unicodedata
+    def clean_for_pdf(text):
+        if not isinstance(text, str):
+            text = str(text)
+        text = unicodedata.normalize('NFKD', text)
+        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+        text = text.replace('\n', ' ').replace('\r', ' ')
+        return text
+
+    def score_label(score):
+        try:
+            s = float(score)
+        except:
+            return "Needs Improvement"
+        if s >= 90:
+            return "Excellent"
+        elif s >= 75:
+            return "Good"
+        elif s >= 60:
+            return "Sufficient"
+        else:
+            return "Needs Improvement"
+
+    # Create PDF and add first page
+    pdf = PDFReport()
+    pdf.add_page()
+
+    # Student Info
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
+    pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
+    pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+    pdf.ln(5)
+
+    # Summary Metrics
+    pdf.set_font("Arial", 'B', 13)
+    pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
+    pdf.set_font("Arial", '', 11)
+    pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
+    pdf.ln(6)
+
+    # Table Header
+    pdf.set_font("Arial", 'B', 11)
+    pdf.set_fill_color(235, 235, 245)
+    pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
+    pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
+    pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
+    pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
+    pdf.set_font("Arial", '', 10)
+    pdf.set_fill_color(249, 249, 249)
+    row_fill = False
+
+    # Table Rows with wrapped feedback
+    for _, row in df_display.iterrows():
+        assn = clean_for_pdf(str(row['assignment'])[:24])
+        score_txt = clean_for_pdf(str(row['score']))
+        date_txt = clean_for_pdf(str(row['date']))
+        label = clean_for_pdf(score_label(row['score']))
+
+        pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
+        pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
+        pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
+        pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
+        row_fill = not row_fill
+
+    # Output Download
+    pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+    st.download_button(
+        label="Download PDF",
+        data=pdf_bytes,
+        file_name=f"{code}_results_{level}.pdf",
+        mime="application/pdf"
+    )
+    st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
+    st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
+
+    # Useful Resources
     st.markdown("---")
     st.subheader("📚 Useful Resources")
-    st.markdown(
-        """
+    st.markdown("""
 **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
 Practice writing tasks and sample questions for A1.
 
@@ -2413,9 +2487,7 @@ A2-level speaking exam guide.
 
 **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
 How to prepare for your B1 oral exam.
-        """
-    )
-
+    """)
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
