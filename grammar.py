@@ -1066,7 +1066,7 @@ def get_a1_schedule():
         {
             "day": 23,
             "topic": "Lesen & Hören 14.2",
-            "chapter": "14.2_7.12",
+            "chapter": "14.2",
             "goal": "Understand adjective declension and dative verbs",
             "instruction": " This chapter has no assignment. Only grammar",
             "lesen_hören": {
