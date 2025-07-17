@@ -1014,7 +1014,7 @@ def get_a1_schedule():
         # DAY 20
         {
             "day": 20,
-            "topic": "Introduction to Letter Writing",
+            "topic": "Introduction to Letter Writing 12.3",
             "chapter": "12.3",
             "goal": "Practice how to write both formal and informal letters",
             "assignment": True,
@@ -2299,6 +2299,14 @@ if tab == "My Results and Resources":
         )
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    # Helper: Should this lesson be recommended (i.e. not Schreiben & Sprechen)?
+    def is_recommendable_assignment(lesson):
+        topic = str(lesson.get("topic", "")).lower()
+        # Skip if both "schreiben" and "sprechen" in topic
+        if "schreiben" in topic and "sprechen" in topic:
+            return False
+        return True
+
     def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
         if not nums:
@@ -2316,6 +2324,8 @@ if tab == "My Results and Resources":
     next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if not is_recommendable_assignment(lesson):
+            continue  # Skip Schreiben & Sprechen lessons
         if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
