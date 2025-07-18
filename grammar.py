@@ -2059,7 +2059,6 @@ if tab == "Course Book":
 def sanitize_pdf_text(text):
     return text.encode("latin1", errors="replace").decode("latin1")
 
-#MyResults
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
     st.markdown(
@@ -2084,7 +2083,7 @@ if tab == "My Results and Resources":
     from fpdf import FPDF
     from collections import Counter
 
-    # ============ LEVEL SCHEDULES (make sure these functions are defined above) ============
+    # ============ LEVEL SCHEDULES (assume these functions are defined above) ============
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -2155,7 +2154,7 @@ if tab == "My Results and Resources":
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
 
-    # ========== DETAILED RESULTS (with comments) ==========
+    # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
@@ -2207,7 +2206,6 @@ if tab == "My Results and Resources":
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
-    
     with st.expander("What badges can you earn?", expanded=False):
         st.markdown(
             """
@@ -2220,11 +2218,9 @@ if tab == "My Results and Resources":
         )
 
     badge_count = 0
-
     if completed >= total and total > 0:
         st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
         badge_count += 1
-
     if avg_score >= 90:
         st.info("🥇 **Gold Badge:** Average score above 90!")
         badge_count += 1
@@ -2234,17 +2230,14 @@ if tab == "My Results and Resources":
     elif avg_score >= 60:
         st.info("🥉 **Bronze Badge:** Average score above 60!")
         badge_count += 1
-
     if best_score >= 95:
         st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
         badge_count += 1
-
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
     # ========== SKIPPED ASSIGNMENTS LOGIC ==========
     def extract_all_chapter_nums(chapter_str):
-        # Split by underscores, spaces, etc. and extract all numeric parts
         parts = re.split(r'[_\s,;]+', str(chapter_str))
         nums = []
         for part in parts:
@@ -2268,7 +2261,6 @@ if tab == "My Results and Resources":
         lesson_nums = extract_all_chapter_nums(chapter_field)
         day = lesson.get("day", "")
         has_assignment = lesson.get("assignment", False)
-        # If any required num is skipped (i.e., less than last_num and not in completed)
         for chap_num in lesson_nums:
             if (
                 has_assignment
@@ -2300,7 +2292,6 @@ if tab == "My Results and Resources":
         )
 
     # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    # Helper: Should this lesson be recommended (i.e. not Schreiben & Sprechen)?
     def is_recommendable_assignment(lesson):
         topic = str(lesson.get("topic", "")).lower()
         # Skip if both "schreiben" and "sprechen" in topic
@@ -2321,7 +2312,6 @@ if tab == "My Results and Resources":
             completed_chapters.append(num)
     last_num = max(completed_chapters) if completed_chapters else 0
 
-    schedule = LEVEL_SCHEDULES.get(level, [])
     next_assignment = None
     for lesson in schedule:
         chap_num = extract_chapter_num(lesson.get("chapter", ""))
@@ -2340,133 +2330,151 @@ if tab == "My Results and Resources":
     else:
         st.info("🎉 Great Job!")
 
-# ========== DOWNLOAD PDF SUMMARY ==========
+    # ========== DOWNLOAD PDF SUMMARY ==========
+    # Constants for layout
+    COL_ASSN_W = 45
+    COL_SCORE_W = 18
+    COL_DATE_W = 30
+    PAGE_WIDTH = 210  # A4 width in mm
+    MARGIN = 10       # default margin
+    FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+    LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
-# Constants for layout
-COL_ASSN_W = 45
-COL_SCORE_W = 18
-COL_DATE_W = 30
-PAGE_WIDTH = 210  # A4 width in mm
-MARGIN = 10       # default margin
-FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
-LOGO_URL = "https://i.imgur.com/iFiehrp.png"
-
-# Cached logo download to speed up repeated PDF generations
-@st.cache_data
-def fetch_logo():
-    import requests, tempfile
-    try:
-        resp = requests.get(LOGO_URL, timeout=6)
-        resp.raise_for_status()
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-        tmp.write(resp.content)
-        tmp.flush()
-        return tmp.name
-    except Exception:
-        return None
-
-# Subclass FPDF to add automatic header/footer
-from fpdf import FPDF
-class PDFReport(FPDF):
-    def header(self):
-        logo_path = fetch_logo()
-        if logo_path:
-            try:
-                self.image(logo_path, 10, 8, 30)
-                self.ln(20)
-            except Exception:
-                self.ln(20)
-        else:
-            self.ln(28)
-        self.set_font("Arial", 'B', 16)
-        self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
-        self.ln(3)
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font("Arial", 'I', 9)
-        self.set_text_color(120, 120, 120)
-        footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
-        self.cell(0, 8, footer_text, 0, 0, 'C')
-        self.set_text_color(0, 0, 0)
-        self.alias_nb_pages()
-
-if st.button("⬇️ Download PDF Summary"):
-    import unicodedata
-    def clean_for_pdf(text):
-        if not isinstance(text, str):
-            text = str(text)
-        text = unicodedata.normalize('NFKD', text)
-        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-        text = text.replace('\n', ' ').replace('\r', ' ')
-        return text
-
-    def score_label(score):
+    @st.cache_data
+    def fetch_logo():
+        import requests, tempfile
         try:
-            s = float(score)
-        except:
-            return "Needs Improvement"
-        if s >= 90:
-            return "Excellent"
-        elif s >= 75:
-            return "Good"
-        elif s >= 60:
-            return "Sufficient"
-        else:
-            return "Needs Improvement"
+            resp = requests.get(LOGO_URL, timeout=6)
+            resp.raise_for_status()
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            tmp.write(resp.content)
+            tmp.flush()
+            return tmp.name
+        except Exception:
+            return None
 
-    # Create PDF and add first page
-    pdf = PDFReport()
-    pdf.add_page()
+    from fpdf import FPDF
+    class PDFReport(FPDF):
+        def header(self):
+            logo_path = fetch_logo()
+            if logo_path:
+                try:
+                    self.image(logo_path, 10, 8, 30)
+                    self.ln(20)
+                except Exception:
+                    self.ln(20)
+            else:
+                self.ln(28)
+            self.set_font("Arial", 'B', 16)
+            self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
+            self.ln(3)
 
-    # Student Info
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
-    pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
-    pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-    pdf.ln(5)
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("Arial", 'I', 9)
+            self.set_text_color(120, 120, 120)
+            footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
+            self.cell(0, 8, footer_text, 0, 0, 'C')
+            self.set_text_color(0, 0, 0)
+            self.alias_nb_pages()
 
-    # Summary Metrics
-    pdf.set_font("Arial", 'B', 13)
-    pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-    pdf.set_font("Arial", '', 11)
-    pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
-    pdf.ln(6)
+    if st.button("⬇️ Download PDF Summary"):
+        import unicodedata
+        def clean_for_pdf(text):
+            if not isinstance(text, str):
+                text = str(text)
+            text = unicodedata.normalize('NFKD', text)
+            text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+            text = text.replace('\n', ' ').replace('\r', ' ')
+            return text
 
-    # Table Header
-    pdf.set_font("Arial", 'B', 11)
-    pdf.set_fill_color(235, 235, 245)
-    pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
-    pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
-    pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
-    pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
-    pdf.set_font("Arial", '', 10)
-    pdf.set_fill_color(249, 249, 249)
-    row_fill = False
+        def score_label(score):
+            try:
+                s = float(score)
+            except:
+                return "Needs Improvement"
+            if s >= 90:
+                return "Excellent"
+            elif s >= 75:
+                return "Good"
+            elif s >= 60:
+                return "Sufficient"
+            else:
+                return "Needs Improvement"
 
-    # Table Rows with wrapped feedback
-    for _, row in df_display.iterrows():
-        assn = clean_for_pdf(str(row['assignment'])[:24])
-        score_txt = clean_for_pdf(str(row['score']))
-        date_txt = clean_for_pdf(str(row['date']))
-        label = clean_for_pdf(score_label(row['score']))
+        # Create PDF and add first page
+        pdf = PDFReport()
+        pdf.add_page()
 
-        pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
-        pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
-        pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
-        pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
-        row_fill = not row_fill
+        # Student Info
+        pdf.set_font("Arial", '', 12)
+        pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+        pdf.ln(5)
 
-    # Output Download
-    pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-    st.download_button(
-        label="Download PDF",
-        data=pdf_bytes,
-        file_name=f"{code}_results_{level}.pdf",
-        mime="application/pdf"
+        # Summary Metrics
+        pdf.set_font("Arial", 'B', 13)
+        pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
+        pdf.set_font("Arial", '', 11)
+        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
+        pdf.ln(6)
+
+        # Table Header
+        pdf.set_font("Arial", 'B', 11)
+        pdf.set_fill_color(235, 235, 245)
+        pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
+        pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
+        pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
+        pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
+        pdf.set_font("Arial", '', 10)
+        pdf.set_fill_color(249, 249, 249)
+        row_fill = False
+
+        # Table Rows with wrapped feedback
+        for _, row in df_display.iterrows():
+            assn = clean_for_pdf(str(row['assignment'])[:24])
+            score_txt = clean_for_pdf(str(row['score']))
+            date_txt = clean_for_pdf(str(row['date']))
+            label = clean_for_pdf(score_label(row['score']))
+            pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
+            pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
+            pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
+            pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
+            row_fill = not row_fill
+
+        # Output Download
+        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+        st.download_button(
+            label="Download PDF",
+            data=pdf_bytes,
+            file_name=f"{code}_results_{level}.pdf",
+            mime="application/pdf"
+        )
+        st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
+    st.markdown("---")
+    st.subheader("📚 Useful Resources")
+    st.markdown(
+        """
+**1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
+Practice writing tasks and sample questions for A1.
+
+**2. [A1 Exams Sprechen Guide](https://drive.google.com/file/d/1UWvbCCCcrW3_j9x7pOuWug6_Odvzcvaa/view?usp=sharing)**  
+Step-by-step guide to the A1 speaking exam.
+
+**3. [German Writing Rules](https://drive.google.com/file/d/1o7_ez3WSNgpgxU_nEtp6EO1PXDyi3K3b/view?usp=sharing)**  
+Tips and grammar rules for better writing.
+
+**4. [A2 Sprechen Guide](https://drive.google.com/file/d/1TZecDTjNwRYtZXpEeshbWnN8gCftryhI/view?usp=sharing)**  
+A2-level speaking exam guide.
+
+**5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
+How to prepare for your B1 oral exam.
+        """
     )
-    st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
-    st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
 
 
 
