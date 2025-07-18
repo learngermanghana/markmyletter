@@ -2040,9 +2040,6 @@ if tab == "Course Book":
     if info.get('grammar_topic'):
         st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
 
-    info = schedule[idx]
-    st.markdown(f"### Day {info['day']}: {info['topic']} (Chapter {info['chapter']})")
-
     if info.get('goal'):
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
