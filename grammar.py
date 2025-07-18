@@ -2469,10 +2469,11 @@ if st.button("⬇️ Download PDF Summary"):
     st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
 
-    # Useful Resources
-    st.markdown("---")
-    st.subheader("📚 Useful Resources")
-    st.markdown("""
+# --- Resources Section ---
+st.markdown("---")
+st.subheader("📚 Useful Resources")
+st.markdown(
+    """
 **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
 Practice writing tasks and sample questions for A1.
 
@@ -2487,7 +2488,8 @@ A2-level speaking exam guide.
 
 **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
 How to prepare for your B1 oral exam.
-    """)
+    """
+)
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
