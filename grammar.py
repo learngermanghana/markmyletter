@@ -1449,7 +1449,7 @@ def get_a2_schedule():
             "topic": "Goethe Mock Test 10.29",
             "chapter": "10.29",
             "goal": "Practice how the final exams for the lesen will look like",
-            "assignment": True,
+            "assignment": False,
             "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
             "video": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
