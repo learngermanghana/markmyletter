@@ -2180,8 +2180,10 @@ if tab == "My Results and Resources":
     totals = {"A1": 19, "A2": 31, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
-    avg_score = df_lvl.score.mean() or 0
-    best_score = df_lvl.score.max() or 0
+    df_lvl = df_lvl.copy()
+    df_lvl['score'] = pd.to_numeric(df_lvl['score'], errors='coerce')
+    avg_score = df_lvl['score'].mean() or 0
+    best_score = df_lvl['score'].max() or 0
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Assignments", total)
