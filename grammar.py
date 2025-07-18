@@ -7,6 +7,7 @@ import json
 from datetime import date, datetime
 import pandas as pd
 import streamlit as st
+import re
 import matplotlib.pyplot as plt
 import time
 import requests
@@ -703,6 +704,7 @@ def get_a1_schedule():
             "chapter": "0.1",
             "goal": "You will learn to introduce yourself, greet others in German, and ask about people's well-being.",
             "instruction": "Watch the video, review grammar, do the workbook, submit assignment.",
+            "grammar_topic": "Formal and Informal Greetings",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
@@ -717,6 +719,7 @@ def get_a1_schedule():
             "chapter": "0.2_1.1",
             "goal": "Understand the German alphabets, personal pronouns and verb conjugation in German.",
             "instruction": "You are doing Lesen and Hören chapter 0.2 and 1.1. Make sure to follow up attentively.",
+            "grammar_topic": "German Alphabets and Personal Pronouns",
             "lesen_hören": [
                 {
                     "chapter": "0.2",
@@ -747,6 +750,7 @@ def get_a1_schedule():
                 "Schreiben & Sprechen activities are for self-practice and have answers provided for self-check. "
                 "Main assignment to be marked is under Lesen & Hören below."
             ),
+            "grammar_topic": "German Pronouns",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
@@ -769,6 +773,7 @@ def get_a1_schedule():
             "chapter": "2",
             "goal": "Learn numbers from one to 10 thousand. Also know the difference between city and street",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "German Numbers",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/BzI2n4A8Oak",
@@ -810,6 +815,7 @@ def get_a1_schedule():
             "chapter": "3",
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
             "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
+            "grammar_topic": "Fragen nach dem Preis; gern/lieber/mögen (Talking about price and preferences)",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/dGIj1GbK4sI",
@@ -824,6 +830,7 @@ def get_a1_schedule():
             "chapter": "4",
             "goal": "Learn about schon mal and noch nie, irregular verbs and all the personal pronouns",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "schon mal, noch nie; irregular verbs; personal pronouns",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
@@ -838,6 +845,7 @@ def get_a1_schedule():
             "chapter": "5",
             "goal": "Learn about the German articles and cases",
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "Nominative & Akkusative, Definite & Indefinite Articles",
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
@@ -1449,7 +1457,7 @@ def get_a2_schedule():
             "topic": "Goethe Mock Test 10.29",
             "chapter": "10.29",
             "goal": "Practice how the final exams for the lesen will look like",
-            "assignment": False,
+            "assignment": True,
             "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
             "video": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
@@ -1925,18 +1933,29 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
     )
 
-def filter_matches(lesson, sq):
-    """Check if search query appears in lesson fields."""
-    fields = [
-        lesson.get('topic', ''),
-        lesson.get('chapter', ''),
-        lesson.get('goal', ''),
-        lesson.get('instruction', ''),
-        str(lesson.get('day', ''))
-    ]
-    return any(sq in str(f).lower() for f in fields)
 
+def highlight_terms(text, terms):
+    """Wrap each term in <span> for highlight in markdown/html."""
+    if not text: return ""
+    for term in terms:
+        if not term.strip():
+            continue
+        pattern = re.compile(re.escape(term), re.IGNORECASE)
+        text = pattern.sub(f"<span style='background:yellow;border-radius:0.23em;'>{term}</span>", text)
+    return text
 
+def filter_matches(lesson, terms):
+    """Check if ANY term appears in ANY searchable field."""
+    searchable = (
+        str(lesson.get('topic', '')).lower() +
+        str(lesson.get('chapter', '')).lower() +
+        str(lesson.get('goal', '')).lower() +
+        str(lesson.get('instruction', '')).lower() +
+        str(lesson.get('grammar_topic', '')).lower() +
+        str(lesson.get('day', '')).lower()
+    )
+    return any(term in searchable for term in terms)
+    
 def render_section(day_info, key, title, icon):
     content = day_info.get(key)
     if not content:
@@ -1990,15 +2009,21 @@ if tab == "Course Book":
     schedules = load_level_schedules()
     schedule = schedules.get(student_level, schedules.get('A1', []))
 
-    query = st.text_input("🔍 Search for topic, chapter, or keyword:")
-    if query:
-        sq = query.strip().lower()
-        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, sq)]
+    query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
+    search_terms = [q for q in query.strip().lower().split() if q] if query else []
+
+    if search_terms:
+        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
         if not matches:
-            st.warning("No matching lessons.")
+            st.warning("No matching lessons. Try simpler terms or check spelling.")
             st.stop()
-        labels = [f"Day {d['day']}: {d['topic']}" for _, d in matches]
-        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i])
+        labels = []
+        for _, d in matches:
+            # Highlight all visible fields in results!
+            title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
+            grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
+            labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
         idx = matches[sel][0]
     else:
         idx = st.selectbox(
@@ -2008,12 +2033,22 @@ if tab == "Course Book":
         )
 
     info = schedule[idx]
+    st.markdown(
+        f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
+        unsafe_allow_html=True
+    )
+    if info.get('grammar_topic'):
+        st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+
+    info = schedule[idx]
     st.markdown(f"### Day {info['day']}: {info['topic']} (Chapter {info['chapter']})")
 
     if info.get('goal'):
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
+    if info.get('grammar_topic'):
+        st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
@@ -2142,7 +2177,7 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     # ========== METRICS ==========
-    totals = {"A1": 19, "A2": 28, "B1": 28, "B2": 24, "C1": 24}
+    totals = {"A1": 19, "A2": 31, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     avg_score = df_lvl.score.mean() or 0
