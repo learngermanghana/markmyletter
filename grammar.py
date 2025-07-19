@@ -921,6 +921,7 @@ def get_a1_schedule():
             "goal": "Understand how to use modal verbs with main verbs and separable verbs",
             "assignment": False,
             "instruction": "This is a practical exercise. All the answers are included in the document except for the last paragraph. You can send a screenshot of that to your tutor",
+            "grammar_topic": "Modal Verbs",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/XwFPjLjvDog",
                 "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
@@ -934,6 +935,7 @@ def get_a1_schedule():
             "assignment": False,
             "goal": "Understand imperative statements and learn how to use them in your Sprechen exams, especially in Teil 3.",
             "instruction": "After completing this chapter, go to the Falowen Exam Chat Mode, select A1 Teil 3, and start practicing",
+            "grammar_topic": "Imperative",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/IVtUc9T3o0Y",
                 "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
@@ -946,6 +948,7 @@ def get_a1_schedule():
             "chapter": "9_10",
             "goal": "Understand how to negate statements using nicht,kein and nein",
             "instruction": "This chapter has two assignments. Do the assignments for chapter 9 and after chapter 10. Chapter 10 has no grammar",
+            "grammar_topic": "Negation",
             "lesen_hören": [
                 {
                     "chapter": "9",
@@ -969,6 +972,7 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 11",
             "chapter": "11",
             "goal": "Understand instructions and request in German using the Imperative rule",
+            "grammar_topic": "Direction",
             "instruction": "",
             "lesen_hören": {
                 "video": "https://youtu.be/k2ZC3rXPe1k",
@@ -1077,6 +1081,7 @@ def get_a1_schedule():
             "chapter": "14.2",
             "goal": "Understand adjective declension and dative verbs",
             "instruction": " This chapter has no assignment. Only grammar",
+            "grammar_topic": "Adjective Declension and Dative Verbs",
             "lesen_hören": {
                 "video": "",
                 "assignment": False,
