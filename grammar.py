@@ -1180,8 +1180,9 @@ def get_a2_schedule():
             "goal": "Describe people and their appearance.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Subordinate Clauses (Nebensätze) with dass and weil",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1VB_nXEfdeTgkzCYjh0tvE75zFJleMlyU/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1xMpEAPD8C0HtIFsmgqYO-wZaKDrQtiYp/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
         },
         # DAY 3
