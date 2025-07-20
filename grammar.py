@@ -3878,7 +3878,10 @@ if tab == "Schreiben Trainer":
                     st.rerun()
 
     # Step 3: Summary and Copyable Plan (with line selection)
-    if st.session_state.letter_coach_stage == 0 and st.session_state.letter_coach_chat:
+    if (
+        st.session_state.get("letter_coach_stage", 0) == 0
+        and st.session_state.get("letter_coach_chat")
+    ):
         st.subheader("📝 Your Step-by-Step Plan")
 
         # Collect only student replies
@@ -3928,6 +3931,7 @@ if tab == "Schreiben Trainer":
             st.session_state.letter_coach_user_input = ""
             st.session_state.selected_letter_lines = []
             st.rerun()
+
 
 
 
