@@ -2926,6 +2926,7 @@ if tab == "Exams Mode & Custom Chat":
             st.rerun()
         st.stop()
 
+
     # =====================
     #   STAGE 3: Exam Topic Picker (Exam Mode) and Custom Chat Topic Input
     # =====================
@@ -3072,12 +3073,8 @@ if tab == "Exams Mode & Custom Chat":
 
         elif st.session_state.get("falowen_mode") == "Eigenes Thema/Frage (Custom Chat)":
             st.subheader("Step 3: Enter Your Topic")
-            topic = st.text_input(
-                "What would you like to talk about? (Write your topic, theme, or question here.)",
-                value=st.session_state.get("falowen_custom_topic", "")
-            )
-
-            st.session_state["falowen_custom_topic"] = topic
+            st.info("You'll start a chat with your tutor. No topic needed—just press Start Chat!")
+            st.session_state["falowen_custom_topic"] = ""  # Or set a default value if you want
 
             if st.button("⬅️ Back", key="falowen_back2_custom"):
                 st.session_state["falowen_stage"] = 2
