@@ -2825,7 +2825,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Suggest useful phrases student can use to begin their phrases"
                 "Check if student is writing on C1 Level"
                 "When there is error, correct for the student and teach them how to say it correctly"
-                "Stay on one topic and always ask next question. After 5 questions on a topic, give the student their performance and scores and suggestions to improve"
+                "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
             )
         if level in ["A1", "A2", "B1", "B2"]:
