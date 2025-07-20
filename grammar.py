@@ -3754,6 +3754,82 @@ if tab == "Schreiben Trainer":
         if "letter_coach_type" not in st.session_state:
             st.session_state.letter_coach_type = ""
 
+        import pandas as pd
+        import json
+
+        # ==== Download Progress as CSV ====
+        st.info('''
+        🛟 **How to save your work:**
+        - Download your progress often so you never lose your ideas or chats, especially if your device logs you out or you have internet issues.
+        - You can upload your progress file later, or copy-paste your progress to continue from where you stopped—no need to start over each time!
+        ''')
+        if st.session_state.get("letter_coach_chat"):
+            rows = []
+            for msg in st.session_state.letter_coach_chat[1:]:
+                role = "You" if msg["role"] == "user" else "Herr Felix"
+                rows.append({"Role": role, "Message": msg["content"]})
+            df = pd.DataFrame(rows)
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Download Progress as CSV", csv, file_name="falowen_letter_coach_progress.csv", mime="text/csv")
+
+        # ==== Upload Progress as CSV ====
+        uploaded_file = st.file_uploader("⬆️ Upload previous progress CSV", type=["csv"], key="letter_coach_csv_upload")
+        if uploaded_file and not st.session_state.get("letter_coach_uploaded"):
+            df_uploaded = pd.read_csv(uploaded_file)
+            chat = []
+            for _, row in df_uploaded.iterrows():
+                role = "user" if row["Role"] == "You" else "assistant"
+                chat.append({"role": role, "content": row["Message"]})
+            system_message = {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"}
+            chat = [system_message] + chat
+            st.session_state.letter_coach_chat = chat
+            st.session_state.letter_coach_stage = 2
+            st.session_state.letter_coach_uploaded = True
+            st.success("Progress uploaded! Continue your session below.")
+            st.stop()
+        if not uploaded_file and st.session_state.get("letter_coach_uploaded"):
+            st.session_state["letter_coach_uploaded"] = False
+
+
+        # ==== Instant Copy Chat Progress (JSON) ====
+        if st.session_state.get("letter_coach_chat"):
+            chat_json = json.dumps(st.session_state["letter_coach_chat"], ensure_ascii=False, indent=2)
+            st.markdown("**📋 Copy your chat progress for backup/resume:**")
+            st.code(chat_json, language="json")
+            st.info("Copy the text above and save it (e.g., in your email or phone notes). Paste it here to continue later.")
+
+        # ==== Paste and Resume Progress (from copied JSON) ====
+        st.markdown("**Or paste your saved chat progress below:**")
+        resume_chat_str = st.text_area(
+            "Paste your saved chat progress here (JSON format) to resume session:",
+            value="",
+            key="letter_coach_resume_paste",
+            height=120,
+            help="Paste only if you want to restore a previous chat session."
+        )
+        colA, colB = st.columns(2)
+        with colA:
+            if st.button("Restore from Pasted Progress"):
+                try:
+                    restored_chat = json.loads(resume_chat_str)
+                    if isinstance(restored_chat, list) and all("role" in m and "content" in m for m in restored_chat):
+                        st.session_state.letter_coach_chat = restored_chat
+                        st.session_state.letter_coach_stage = 2
+                        st.success("Progress restored! Continue your session below.")
+                        st.experimental_rerun()
+                    else:
+                        st.warning("Invalid format! Please paste exactly as copied from the app.")
+                except Exception as e:
+                    st.warning(f"Error restoring progress: {e}")
+        with colB:
+            if st.button("Start Everything Fresh"):
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_stage = 0
+                st.session_state.letter_coach_type = ""
+                st.session_state.letter_coach_uploaded = False
+                st.rerun()
+
         # ------ STAGE 0: GET PROMPT -------
         if st.session_state.letter_coach_stage == 0:
             with st.form("prompt_form", clear_on_submit=True):
@@ -3784,7 +3860,6 @@ if tab == "Schreiben Trainer":
             st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
             chat_history = st.session_state.letter_coach_chat
 
-            # Show previous
             for msg in chat_history[1:]:
                 st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
@@ -3796,7 +3871,6 @@ if tab == "Schreiben Trainer":
                 send_type = st.form_submit_button("Send")
 
             if send_type and type_guess:
-                # Use OpenAI to analyze and check type
                 ai_check_prompt = (
                     f"Prompt: {st.session_state.letter_coach_prompt}\n"
                     f"Student answer: {type_guess}\n"
@@ -3804,7 +3878,6 @@ if tab == "Schreiben Trainer":
                     "2. If correct, reply: 👍 Great! That's right. If not, reply: ❌ Actually, this is a [correct type] because [reason].\n"
                     "Explain in 1-2 sentences in simple English, then ask if they want to start from introduction or a section (e.g. advantages)."
                 )
-                # Call AI
                 resp = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "system", "content": ai_check_prompt}],
@@ -3840,7 +3913,6 @@ if tab == "Schreiben Trainer":
                 send = st.form_submit_button("Send")
             if send and user_input.strip():
                 chat_history.append({"role": "user", "content": user_input})
-                # AI prompt is aware of prompt + type
                 system_prompt = (
                     f"You are Herr Felix, a German letter-writing coach. The prompt is: '{st.session_state.letter_coach_prompt}'. "
                     f"The student thinks it is a {st.session_state.letter_coach_type} letter. "
@@ -3875,60 +3947,64 @@ if tab == "Schreiben Trainer":
                     st.session_state.letter_coach_type = ""
                     st.rerun()
 
-    # Step 3: Summary and Copyable Plan (with line selection)
-    if (
-        st.session_state.get("letter_coach_stage", 0) == 0
-        and st.session_state.get("letter_coach_chat")
-    ):
-        st.subheader("📝 Your Step-by-Step Plan")
+        # Step 3: Summary and Copyable Plan (with line selection)
+        if (
+            st.session_state.get("letter_coach_stage", 0) == 0
+            and st.session_state.get("letter_coach_chat")
+        ):
+            st.subheader("📝 Your Step-by-Step Plan")
 
-        # Collect only student replies
-        user_msgs = [
-            (i, msg["content"])
-            for i, msg in enumerate(st.session_state.letter_coach_chat[1:], start=1)
-            if msg["role"] == "user"
-        ]
+            user_msgs = [
+                (i, msg["content"])
+                for i, msg in enumerate(st.session_state.letter_coach_chat[1:], start=1)
+                if msg["role"] == "user"
+            ]
 
-        # Track which lines are selected (default: all checked)
-        if "selected_letter_lines" not in st.session_state or len(st.session_state.selected_letter_lines) != len(user_msgs):
-            st.session_state.selected_letter_lines = [True] * len(user_msgs)
+            if "selected_letter_lines" not in st.session_state or len(st.session_state.selected_letter_lines) != len(user_msgs):
+                st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
-        st.markdown("**✅ Select which parts to include in your letter:**")
-        selected = []
-        for idx, (msg_idx, content) in enumerate(user_msgs):
-            checked = st.checkbox(
-                content,
-                value=st.session_state.selected_letter_lines[idx] if idx < len(st.session_state.selected_letter_lines) else True,
-                key=f"letter_line_{msg_idx}"
+            st.markdown("**✅ Select which parts to include in your letter:**")
+            selected = []
+            for idx, (msg_idx, content) in enumerate(user_msgs):
+                checked = st.checkbox(
+                    content,
+                    value=st.session_state.selected_letter_lines[idx] if idx < len(st.session_state.selected_letter_lines) else True,
+                    key=f"letter_line_{msg_idx}"
+                )
+                selected.append(checked)
+
+            st.session_state.selected_letter_lines = selected
+
+            arranged_letter = [content for (i, (msg_idx, content)) in enumerate(user_msgs) if st.session_state.selected_letter_lines[i]]
+
+            st.markdown("**Copy your selected letter draft:**")
+            st.code("\n".join(arranged_letter), language="markdown")
+
+            st.markdown("---")
+            st.markdown("**Copy your text with AI feedback and tips:**")
+            ai_and_you = "\n".join(
+                f"{'You' if m['role']=='user' else 'Herr Felix'}: {m['content']}"
+                for m in st.session_state.letter_coach_chat[1:]
             )
-            selected.append(checked)
+            st.code(ai_and_you, language="markdown")
+            st.info("""
+            **Next Step:**  
+            Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
+            """)
 
-        st.session_state.selected_letter_lines = selected
+            if st.button("Start New Letter Coach"):
+                st.session_state.letter_coach_chat = []
+                st.session_state.letter_coach_prompt = ""
+                st.session_state.letter_coach_user_input = ""
+                st.session_state.selected_letter_lines = []
+                st.rerun()
+#
 
-        # Only include selected lines
-        arranged_letter = [content for (i, (msg_idx, content)) in enumerate(user_msgs) if st.session_state.selected_letter_lines[i]]
 
-        st.markdown("**Copy your selected letter draft:**")
-        st.code("\n".join(arranged_letter), language="markdown")
 
-        st.markdown("---")
-        st.markdown("**Copy your text with AI feedback and tips:**")
-        ai_and_you = "\n".join(
-            f"{'You' if m['role']=='user' else 'Herr Felix'}: {m['content']}"
-            for m in st.session_state.letter_coach_chat[1:]
-        )
-        st.code(ai_and_you, language="markdown")
-        st.info("""
-        **Next Step:**  
-        Paste your draft into the **Mark My Letter** tab to get AI feedback and a score before sending it to your tutor!
-        """)
 
-        if st.button("Start New Letter Coach"):
-            st.session_state.letter_coach_chat = []
-            st.session_state.letter_coach_prompt = ""
-            st.session_state.letter_coach_user_input = ""
-            st.session_state.selected_letter_lines = []
-            st.rerun()
+
+
 
 
 
