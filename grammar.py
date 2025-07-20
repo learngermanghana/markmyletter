@@ -2216,7 +2216,7 @@ if tab == "My Results and Resources":
     df_lvl = df_user[df_user.level == level]
 
     # ========== METRICS ==========
-    totals = {"A1": 19, "A2": 31, "B1": 28, "B2": 24, "C1": 24}
+    totals = {"A1": 19, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
     completed = df_lvl.assignment.nunique()
     df_lvl = df_lvl.copy()
