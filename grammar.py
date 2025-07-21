@@ -3553,6 +3553,7 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
                 
 
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4025,6 +4026,8 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 #
+
+
 
 
 
