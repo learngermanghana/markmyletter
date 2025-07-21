@@ -4024,6 +4024,9 @@ if tab == "Schreiben Trainer":
                 st.session_state.selected_letter_lines = []
                 st.rerun()
 
+#
+
+
 
 
 
