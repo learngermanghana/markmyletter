@@ -3744,6 +3744,21 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
+        # --- General Instructions for Students ---
+        st.markdown(
+            """
+            👋 **Welcome to Letter Coach!**
+
+            - Paste your **exam question** or **letter prompt** below to get started.
+            - If you are already writing your letter and get stuck, you can **paste your unfinished draft here**.  
+              The AI will help you continue step by step.
+            - You can always **download your letter as TXT** and upload it later to keep working.
+            - Or simply **copy and paste** your text into the chat at any time—the AI will understand and keep helping you!
+
+            *Scroll down to get started, upload a file, or paste your prompt or letter in the chat.*
+            """
+        )
+
         IDEAS_LIMIT = 20
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
