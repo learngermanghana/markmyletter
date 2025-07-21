@@ -3728,7 +3728,7 @@ if tab == "Schreiben Trainer":
             </div>
         """
 
-   if sub_tab == "Ideas Generator (Letter Coach)":
+    if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
         def reset_letter_coach():
