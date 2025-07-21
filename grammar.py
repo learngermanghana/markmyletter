@@ -841,8 +841,8 @@ def get_a1_schedule():
             "assignment": False,
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": "https://drive.google.com/file/d/1xellIzaxzoBTFOUdaCEHu_OiiuEnFeWT/view?usp=drive_link"
+                "video": "https://youtu.be/JrYSpnZN6P0",
+                "workbook_link": "https://drive.google.com/file/d/1xellIzaxzoBTFOUdaCEHu_OiiuEnFeWT/view?usp=sharing"
             }
         },
         # DAY 7
