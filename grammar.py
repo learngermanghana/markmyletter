@@ -3253,6 +3253,20 @@ if tab == "Exams Mode & Custom Chat":
                 mime="application/pdf"
             )
 
+                # ---- TXT Download Button ----
+        if st.session_state["falowen_messages"]:
+            chat_as_text = "\n".join([
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in st.session_state["falowen_messages"]
+            ])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
+                mime="text/plain"
+            )
+            st.caption("To save progress, download as TXT before you leave chat. Open and Copy the text file and paste in a fresh chat and the A.I will continue the chat from where you left.")
+
         # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
         with col1:
