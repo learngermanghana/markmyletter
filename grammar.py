@@ -1088,10 +1088,6 @@ def get_a1_schedule():
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "workbook_link": ""
             }
         },
         # DAY 22
