@@ -3741,7 +3741,6 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -3758,22 +3757,35 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students ---
+        # --- General Instructions for Students (Minimal Welcome + Subline) ---
         st.markdown(
             """
-            👋 **Welcome to Letter Coach!**
-
-            - Paste your **exam question** or **letter prompt** below to get started.
-            - If you are already writing your letter and get stuck, you can **paste your unfinished draft here**.  
-              The AI will help you continue step by step.
-            - You can always **download your letter as TXT** and upload it later to keep working.
-            - Or simply **copy and paste** your text into the chat at any time—the AI will understand and keep helping you!
-
-            *Scroll down to get started, upload a file, or paste your prompt or letter in the chat.*
-            """
+            <div style="
+                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
+                border-radius: 12px;
+                border: 1px solid #e6d3fa;
+                box-shadow: 0 2px 8px #e5e1fa22;
+                padding: 0.75em 1em 0.72em 1em;
+                margin-bottom: 1.1em;
+                margin-top: 0.1em;
+                color: #4b2976;
+                font-size: 1.03rem;
+                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                text-align: center;
+                ">
+                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
+                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
+                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
+                </span>
+                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
+                    Get started below 👇
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
-        IDEAS_LIMIT = 20
+        IDEAS_LIMIT = 14
         ideas_so_far = get_letter_coach_usage(student_code)
         st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
         if ideas_so_far >= IDEAS_LIMIT:
@@ -3793,7 +3805,7 @@ if tab == "Schreiben Trainer":
 
         # --- File Upload (Resume Letter) ---
         uploaded_file = st.file_uploader(
-            "⬆️ Upload previous letter as TXT to continue",
+            "⬇️ Upload previous letter as TXT to continue",
             type=["txt"],
             key="letter_coach_txt_upload"
         )
@@ -3816,71 +3828,96 @@ if tab == "Schreiben Trainer":
                 "Scroll down to continue your chat with Herr Felix, review your draft, or start typing your next step below.\n\n"
                 "If you want feedback, keep chatting or finish your letter, then download as TXT for scoring in 'Mark My Letter'."
             )
-
-
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
+            st.markdown(
+                """
+                <div style="
+                    background: linear-gradient(90deg, #f9fbe7 70%, #eaf4ff 100%);
+                    border-radius: 9px;
+                    border: 1px solid #e0e0e0;
+                    box-shadow: 0 2px 8px #c0caf01c;
+                    padding: 0.74em 1.1em 0.58em 1.1em;
+                    margin-bottom: 0.55em;
+                    margin-top: 0.05em;
+                    color: #4a6276;
+                    font-size: 1.05rem;
+                    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+                    ">
+                    <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
+                    <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
+                        Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
+                        Herr Felix will guide you step by step.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             with st.form("prompt_form", clear_on_submit=True):
                 prompt = st.text_area(
-                    "Paste your letter/essay question or prompt here:",
+                    "",
                     value=st.session_state.letter_coach_prompt,
-                    height=140,
+                    height=120,
                     disabled=(ideas_so_far >= IDEAS_LIMIT),
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail ..."
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
                 )
-                send = st.form_submit_button("Send")
+                send = st.form_submit_button("✉️ Start Letter Coach")
             if send and prompt:
                 st.session_state.letter_coach_prompt = prompt
-                st.session_state.letter_coach_stage = 1
-                st.session_state.letter_coach_chat = [
-                    {"role": "system", "content": "You are a German letter coach. Always explain in English. Short and supportive!"},
-                    {"role": "assistant", "content": "Which type of letter do you think this is: formal, informal, SMS, or opinion essay?"}
+
+                # Compose the system prompt
+                system_prompt = (
+                    f"You are Herr Felix, a creative and supportive German letter-writing coach for A1–C1 students.\n"
+                    f"The prompt is: '{prompt}'.\n"
+                    "Always reply in simple English.\n"
+                    "If this is your first reply after the student shares their letter question or prompt, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin, with examples for greetings, introductions, and connectors.\n"
+                    "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
+                    "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
+                    "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
+                    "For introductions: Use 'Ich schreibe Ihnen, weil ich ...' for formal, or 'Ich schreibe dir, weil ich ...' for informal. At A1 level, always end main request with 'möchte'.\n"
+                    "For OPINION ESSAYS: Suggest starting with 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'.\n"
+                    "Suggest easy connectors for the student's level (A1: 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich möchte wissen'; higher: 'außerdem', 'trotzdem').\n"
+                    "After the greeting, guide the student to the next section: introduction, reason, request, closing, etc., always one step at a time, with clear bullet points and classic examples for each.\n"
+                    "Highlight connectors (like **weil**) and modal verbs (like **möchte**) in bold so the student notices them.\n"
+                    "If the student uses a word incorrectly (e.g. 'teilnehmen' instead of 'wahrnehmen'), gently explain why the correction is needed (e.g. 'wahrnehmen' is the right verb for appointments, not 'teilnehmen').\n"
+                    "Always move step by step: after each feedback, only suggest the next step in a clear bullet. Never list all steps at once.\n"
+                    "NEVER write the full letter—only help with the part being worked on. Only move to the next section if the previous section is done.\n"
+                    "If a part is missing (like greeting, reason, or closing), gently remind the student to add it before moving on.\n"
+                    "Highlight corrections, connectors, or important words in **bold**.\n"
+                    "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
+                    "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
+                )
+
+                # Start chat history with system and user message
+                chat_history = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
                 ]
+                # Generate immediate AI reply
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=chat_history,
+                        temperature=0.22,
+                        max_tokens=380
+                    )
+                    ai_reply = resp.choices[0].message.content
+                except Exception as e:
+                    ai_reply = "Sorry, there was an error generating a response. Please try again."
+                chat_history.append({"role": "assistant", "content": ai_reply})
+
+                st.session_state.letter_coach_chat = chat_history
+                st.session_state.letter_coach_stage = 1  # Step 1: chat view
                 inc_letter_coach_usage(student_code)
                 st.rerun()
+
             if prompt:
                 st.markdown("---")
-                st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{prompt}")
+                st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
-        # --- Stage 1: Guess Letter Type ---
+
+        # --- Stage 1: Coaching Chat ---
         elif st.session_state.letter_coach_stage == 1:
-            st.markdown("---")
-            st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
-            chat_history = st.session_state.letter_coach_chat
-            for msg in chat_history[1:]:
-                st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
-            with st.form("type_form", clear_on_submit=True):
-                type_guess = st.text_input(
-                    "Which type do you think it is (formal, informal, SMS, opinion essay)?",
-                    value="", key="letter_coach_type_input"
-                )
-                send_type = st.form_submit_button("Send")
-            if send_type and type_guess:
-                ai_check_prompt = (
-                    f"Prompt: {st.session_state.letter_coach_prompt}\n"
-                    f"Student answer: {type_guess}\n"
-                    "1. Is the student correct about the type (formal, informal, SMS, or opinion essay)?\n"
-                    "2. If correct, reply: 👍 Great! That's right. If not, reply: ❌ Actually, this is a [correct type] because [reason].\n"
-                    "Explain in 1-2 sentences in simple English, then ask if they want to start from greeting or a section (e.g. advantages)."
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": ai_check_prompt}],
-                    temperature=0.2,
-                    max_tokens=150
-                )
-                ai_type_feedback = resp.choices[0].message.content
-                chat_history.extend([
-                    {"role": "user", "content": type_guess},
-                    {"role": "assistant", "content": ai_type_feedback}
-                ])
-                st.session_state.letter_coach_chat = chat_history
-                st.session_state.letter_coach_stage = 2
-                st.session_state.letter_coach_type = type_guess
-                st.rerun()
-
-        # --- Stage 2+: Coaching Chat ---
-        elif st.session_state.letter_coach_stage >= 2:
             st.markdown("---")
             st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state.letter_coach_prompt}")
             chat_history = st.session_state.letter_coach_chat
@@ -3938,60 +3975,142 @@ if tab == "Schreiben Trainer":
                     "At the end of the letter, help the student check their work with a quick checklist: Greeting, Introduction, Reason, Request, Closing, Connector.\n"
                     "Always finish with: 'If you are okay or confident, click END SUMMARY below to copy your text and send to your tutor—or type your next idea/question.'"
                 )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                    temperature=0.22,
-                    max_tokens=380
-                )
-                ai_reply = resp.choices[0].message.content
+                with st.spinner("👨‍🏫 Herr Felix is typing..."):
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                        temperature=0.22,
+                        max_tokens=380
+                    )
+                    ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
+            import streamlit.components.v1 as components
+
+            # Collect student messages from session chat
             user_msgs = [
                 msg["content"]
                 for msg in st.session_state.letter_coach_chat[1:]
-                if msg["role"] == "user"
+                if msg.get("role") == "user"
             ]
-            letter_draft = "\n".join(user_msgs)
 
-            st.markdown("**📝 Your Letter Draft (auto-updates):**")
-            st.text_area("Your letter so far", value=letter_draft, height=180, key="live_letter", disabled=True)
+            st.markdown("""
+                **📝 Your Letter Draft**
+                - Tick the lines you want to include in your letter draft.
+                - You can untick any part you want to leave out.
+                - Only ticked lines will appear in your downloadable draft below.
+            """)
 
-            colA, colB = st.columns([1, 1])
-            with colA:
-                st.download_button("⬇️ Download Letter as TXT", letter_draft.encode("utf-8"), file_name="my_letter.txt")
-            with colB:
-                st.code(letter_draft, language="markdown")
-                st.caption("**📋 Click the clipboard icon above to copy your letter!**")
+            # Store selection in session state
+            if "selected_letter_lines" not in st.session_state or \
+               len(st.session_state.selected_letter_lines) != len(user_msgs):
+                st.session_state.selected_letter_lines = [True] * len(user_msgs)
 
-            if num_student_turns >= 4 or st.session_state.get("show_checklist"):
-                st.markdown("""
-                **✅ Final Checklist Before Sending Your Letter**
-                - [ ] Greeting (e.g. **Sehr geehrte/r ...**, or **Liebe/r ...**)
-                - [ ] Introduction (**Ich schreibe Ihnen, weil...**)
-                - [ ] Reason (**weil**, **denn**)
-                - [ ] Request (**möchte**, e.g. *Ich möchte...*)
-                - [ ] Closing (e.g. **Mit freundlichen Grüßen**)
-                - [ ] Used at least one connector (**und**, **aber**, **weil**, etc.)
-                """)
-                st.info("If you missed a part, go back and add it before sending!")
+            selected_lines = []
+            for i, line in enumerate(user_msgs):
+                st.session_state.selected_letter_lines[i] = st.checkbox(
+                    line,
+                    value=st.session_state.selected_letter_lines[i],
+                    key=f"letter_line_{i}"
+                )
+                if st.session_state.selected_letter_lines[i]:
+                    selected_lines.append(line)
 
-            st.markdown("---")
-            confirm_end = st.checkbox("I'm sure. End the summary and finish my letter coach session.", key="end_summary_confirm")
-            if st.button("END SUMMARY", disabled=not confirm_end):
-                st.session_state.letter_coach_active = False
-                st.session_state.letter_coach_stage = 0
-                st.session_state.letter_coach_chat = []
-                st.session_state.letter_coach_prompt = ""
-                st.session_state.letter_coach_type = ""
-                st.session_state.selected_letter_lines = []
-                st.session_state.letter_coach_uploaded = False
-                st.success("Session ended. Download your letter as TXT and use 'Mark My Letter' for final feedback and scoring!")
-                st.stop()
-            st.caption("⚠️ Are you sure? You won’t be able to add to this chat after ending.")
+            letter_draft = "\n".join(selected_lines)
+
+            # --- Modern, soft header (copy/download) ---
+            st.markdown(
+                """
+                <div style="
+                    background:#23272b;
+                    color:#eee;
+                    border-radius:10px;
+                    padding:0.72em 1.04em;
+                    margin-bottom:0.4em;
+                    font-size:1.07em;
+                    font-weight:400;
+                    border:1px solid #343a40;
+                    box-shadow:0 2px 10px #0002;
+                    text-align:left;
+                ">
+                    <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
+                    <span style="font-size:1.00em; color:#b0b0b0;">copy &amp; download below</span>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # --- Mobile-friendly copy/download box ---
+            components.html(f"""
+                <textarea id="letterBox" readonly rows="6" style="
+                    width: 100%;
+                    border-radius: 12px;
+                    background: #f9fbe7;
+                    border: 1.7px solid #ffe082;
+                    color: #222;
+                    font-size: 1.12em;
+                    font-family: 'Fira Mono', 'Consolas', monospace;
+                    padding: 1em 0.7em;
+                    box-shadow: 0 2px 8px #ffe08266;
+                    margin-bottom: 0.5em;
+                    resize: none;
+                    overflow:auto;
+                " onclick="this.select()">{letter_draft}</textarea>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox').value)" 
+                    style="
+                        background:#ffc107;
+                        color:#3e2723;
+                        font-size:1.08em;
+                        font-weight:bold;
+                        padding:0.48em 1.12em;
+                        margin-top:0.4em;
+                        border:none;
+                        border-radius:7px;
+                        cursor:pointer;
+                        box-shadow:0 2px 8px #ffe08255;
+                        width:100%;
+                        max-width:320px;
+                        display:block;
+                        margin-left:auto;
+                        margin-right:auto;
+                    ">
+                    📋 Copy Text
+                </button>
+                <style>
+                    @media (max-width: 480px) {{
+                        #letterBox {{
+                            font-size: 1.16em !important;
+                            min-width: 93vw !important;
+                        }}
+                    }}
+                </style>
+            """, height=175)
+
+            st.markdown("""
+                <div style="
+                    background:#ffe082;
+                    padding:0.9em 1.2em;
+                    border-radius:10px;
+                    margin:0.4em 0 1.2em 0;
+                    color:#543c0b;
+                    font-weight:600;
+                    border-left:6px solid #ffc107;
+                    font-size:1.08em;">
+                    📋 <span>On phone, tap in the box above to select all for copy.<br>
+                    Or just tap <b>Copy Text</b>.<br>
+                    To download, use the button below.</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+            st.download_button(
+                "⬇️ Download Letter as TXT",
+                letter_draft.encode("utf-8"),
+                file_name="my_letter.txt"
+            )
+
 
             if st.button("Start New Letter Coach"):
                 st.session_state.letter_coach_chat = []
