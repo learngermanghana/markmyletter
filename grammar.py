@@ -3801,6 +3801,22 @@ if tab == "Schreiben Trainer":
             if key not in st.session_state:
                 st.session_state[key] = default
 
+        
+        # --- File Upload (Resume Letter) ---
+        uploaded_file = st.file_uploader(
+            "⬇️ Upload previous letter as TXT to continue",
+            type=["txt"],
+            key="letter_coach_txt_upload"
+        )
+
+        if uploaded_file and "upload_content" not in st.session_state:
+            try:
+                st.session_state.upload_content = uploaded_file.read().decode("utf-8")
+                st.success("Letter uploaded! Copy below and paste into the chat box.")
+            except Exception as e:
+                st.warning(f"Could not read the file. Please check format. Error: {e}")
+
+
         if "upload_content" in st.session_state and not st.session_state.get("letter_coach_uploaded", False):
             import streamlit.components.v1 as components
             components.html(f"""
