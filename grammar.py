@@ -3740,8 +3740,7 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
-     if sub_tab == "Ideas Generator (Letter Coach)":
+    if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
         LETTER_COACH_PROMPTS = {
@@ -3796,6 +3795,7 @@ if tab == "Schreiben Trainer":
                 "After 10 turns, encourage finishing; after 14, end the chat and ask the student to paste their draft in 'Mark My Letter' for feedback and a score."
             ),
         }
+
 
 
         def reset_letter_coach():
