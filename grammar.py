@@ -1024,7 +1024,7 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 12.1 and 12.2",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
-            "instruction": "This lesson has two Lesen & Hören assignments (12.1 and 12.2) and one Schreiben & Sprechen practice (5.8) for practice to understand chapter 12",
+            "instruction": "Two Case Preposition",
             "lesen_hören": [
                 {
                     "chapter": "12.1",
@@ -1053,7 +1053,8 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 5.9",
             "chapter": "5.9",
             "goal": "Understand the difference between Erlaubt and Verboten and how to use it in the exams hall",
-            "instruction": "",
+            "instruction": "Review the workbook and do the practicals in it. Answers are attached",
+            "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/MqAp84GthAo",
                 "assignment": False,
@@ -1080,12 +1081,13 @@ def get_a1_schedule():
             "chapter": "13",
             "assignment": True,
             "goal": "",
-            "instruction": "",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": "Weather and Past Tense. How to form Perfekt statement in German",
             "lesen_hören": {
                 "video": "",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1zCnIoVHlfRwOQ9mX2NxVFuHgsqfHUkDK/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "",
