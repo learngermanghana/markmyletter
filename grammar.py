@@ -4035,7 +4035,7 @@ if tab == "Schreiben Trainer":
                     text-align:left;
                 ">
                     <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                    <span style="font-size:1.00em; color:#b0b0b0;">copy often &amp; or download below to prevent data loss</span>
+                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
                 </div>
                 """,
                 unsafe_allow_html=True
