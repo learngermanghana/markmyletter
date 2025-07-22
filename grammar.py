@@ -1093,7 +1093,7 @@ def get_a1_schedule():
         # DAY 22
         {
             "day": 22,
-            "topic": "Lesen & Hören 14.1 and Schreiben & Sprechen 7.12",
+            "topic": "Lesen & Hören 14.1",
             "chapter": "14.1",
             "goal": "",
             "instruction": "",
@@ -1102,11 +1102,6 @@ def get_a1_schedule():
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1EFZA_oAeznMBEqIgTWyeFt9wLdmqA-Bp/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1_zEb4wmENI7szcepRz_CIjSo9aS7RHv-/view?usp=sharing"
-            },
-            "schreiben_sprechen": {
-                "video": "",
-                "assignment": True,
-                "workbook_link": ""
             }
         },
         # DAY 23
