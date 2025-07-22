@@ -3566,6 +3566,7 @@ if tab == "Vocab Trainer":
                 
 
 
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3604,6 +3605,141 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_level"] = schreiben_level
 
     st.divider()
+
+    # --- 1. MARK MY LETTER SUB-TAB ---
+    if sub_tab == "Mark My Letter":
+        st.markdown(
+            '''
+            <div style="
+                padding: 8px 12px;
+                background: #d63384;
+                color: #fff;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 8px;
+                font-size: 1.2rem;">
+                ✍️ Mark My Letter (AI Feedback & Score)
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        student_code = st.session_state.get("student_code", "demo")
+        student_name = st.session_state.get("student_name", "")
+
+        # Daily usage
+        SCHREIBEN_DAILY_LIMIT = 5
+        daily_so_far = get_schreiben_usage(student_code)
+        st.markdown(f"**Daily usage:** {daily_so_far} / {SCHREIBEN_DAILY_LIMIT}")
+
+        user_letter = st.text_area(
+            "Paste or type your German letter/essay here.",
+            key="schreiben_input",
+            disabled=(daily_so_far >= SCHREIBEN_DAILY_LIMIT),
+            height=200,
+            placeholder="Write your German letter here..."
+        )
+
+        # Word/char count
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+        ai_prompt = (
+            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+            f"The student has submitted a {schreiben_level} German letter or essay. "
+            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+            "Don't just say errors—show exactly where the mistakes are. "
+            "1. Give a score out of 25 marks and always display the score clearly. "
+            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+            "6. Also check for AI usage or if the student wrote with their own effort. "
+            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+            "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score."
+        )
+
+        submit_disabled = daily_so_far >= SCHREIBEN_DAILY_LIMIT or not user_letter.strip()
+        if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
+            st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
+
+        if st.button("Get Feedback", type="primary", disabled=submit_disabled):
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
+
+            if feedback:
+                # Extract score
+                score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                if not score_match:
+                    score_match = re.search(r"Score[:\s]+(\d+)\s*/\s*25", feedback, re.IGNORECASE)
+                score = int(score_match.group(1)) if score_match else 0
+
+                # Save to DB if needed here
+                inc_schreiben_usage(student_code)
+                save_schreiben_attempt(student_code, student_name, schreiben_level, score)
+
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
+
+                # Download as PDF
+                def sanitize_text(text):
+                    return text.encode('latin-1', errors='replace').decode('latin-1')
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", size=12)
+                safe_user_letter = sanitize_text(user_letter)
+                safe_feedback = sanitize_text(feedback)
+                pdf.multi_cell(0, 10, f"Your Letter:\n\n{safe_user_letter}\n\nFeedback from Herr Felix:\n\n{safe_feedback}")
+                pdf_output = f"Feedback_{student_code}_{schreiben_level}.pdf"
+                pdf.output(pdf_output)
+                with open(pdf_output, "rb") as f:
+                    pdf_bytes = f.read()
+                st.download_button(
+                    "⬇️ Download Feedback as PDF",
+                    pdf_bytes,
+                    file_name=pdf_output,
+                    mime="application/pdf"
+                )
+                import os
+                os.remove(pdf_output)
+
+                wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
+                wa_url = (
+                    "https://api.whatsapp.com/send"
+                    "?phone=233205706589"
+                    f"&text={urllib.parse.quote(wa_message)}"
+                )
+                st.markdown(
+                    f"[📲 Send to Tutor on WhatsApp]({wa_url})",
+                    unsafe_allow_html=True
+                )
+
+    # ===== BUBBLE FUNCTION =====
+    def bubble(role, text):
+        color = "#7b2ff2" if role == "assistant" else "#222"
+        bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+        name = "Herr Felix" if role == "assistant" else "You"
+        return f"""
+            <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+            border-radius:14px;max-width:98vw;font-size:1.09rem;">
+                <b>{name}:</b><br>{text}
+            </div>
+        """
 
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
@@ -3996,16 +4132,5 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_uploaded = False
                 st.rerun()
 #
-
-
-
-
-
-
-
-
-
-
-
 
 
