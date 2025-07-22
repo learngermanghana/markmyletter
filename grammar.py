@@ -3857,7 +3857,6 @@ if tab == "Schreiben Trainer":
                     f"The prompt is: '{prompt}'.\n"
                     "Always reply in simple English.\n"
                     "If this is your first reply after the student shares their letter question or prompt or continuation of letter, start by explaining the main parts of the letter in English, using bullet points. For each part, tell the student exactly how to begin or continue already started leter, with examples for greetings, introductions, and connectors.\n"
-                    "If first input is too long, ask the student if is a letter continuation or questions and build it from there\n"
                     "Always say: 'Let's begin with the greeting. How would you start your letter?' and wait for the student's greeting before moving to the next step.\n"
                     "For FORMAL letters: Explain that you should start with a greeting like 'Sehr geehrte/r ...,' and you can add 'Ich hoffe, es geht Ihnen gut.'\n"
                     "For INFORMAL letters: Start with 'Liebe ...,' or 'Lieber ...,' and you can add 'Wie geht es dir?' or 'Ich hoffe, es geht dir gut.'\n"
@@ -3974,7 +3973,7 @@ if tab == "Schreiben Trainer":
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
                 st.rerun()
-
+#
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
 
