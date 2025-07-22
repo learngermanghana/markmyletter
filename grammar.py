@@ -1084,7 +1084,7 @@ def get_a1_schedule():
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "grammar_topic": "Weather and Past Tense. How to form Perfekt statement in German",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/6cBs3Qfvdk4",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
@@ -3823,6 +3823,7 @@ if tab == "Schreiben Trainer":
                     <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
                         Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
                         Herr Felix will guide you step by step.
+                        For continuation of your letter, paste it twice for thr A.I to understand is continuation and not question. Always prompt it.
                     </div>
                 </div>
                 """,
