@@ -3822,8 +3822,6 @@ if tab == "Schreiben Trainer":
                     <span style="font-size:1.15em; font-weight: 500; vertical-align:middle;">📝 Enter your exam prompt or letter draft below</span>
                     <div style="color:#668b8b;font-size:0.99em;margin-top:0.22em;">
                         Paste the <b>question</b>, a <b>draft</b>, or any <b>unfinished letter</b>.<br>
-                        Herr Felix will guide you step by step.
-                        For continuation of your letter, paste it twice for thr A.I to understand is continuation and not question. Always prompt it.
                     </div>
                 </div>
                 """,
