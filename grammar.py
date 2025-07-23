@@ -1,20 +1,24 @@
+# ==== Standard Library ====
 import os
 import random
 import difflib
 import sqlite3
 import atexit
 import json
+import re
 from datetime import date, datetime
+import time
+import io
+
+# ==== Third-Party Packages ====
 import pandas as pd
 import streamlit as st
-import re
 import matplotlib.pyplot as plt
-import time
 import requests
-import io
 from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
+
 
 # ===== HIDE STREAMLIT DEFAULT FOOTER/MENU =====
 st.markdown(
@@ -3179,7 +3183,27 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
                     st.rerun()
+                    
+    # ==========================
+    # FIRESTORE CHAT HELPERS
+    # ==========================
+    def save_falowen_chat(student_code, mode, level, teil, messages):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        chats = data.get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        chats[chat_key] = messages
+        doc_ref.set({"chats": chats}, merge=True)
 
+    def load_falowen_chat(student_code, mode, level, teil):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return []
+        chats = doc.to_dict().get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        return chats.get(chat_key, [])
 
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
@@ -3192,12 +3216,22 @@ if tab == "Exams Mode & Custom Chat":
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
+        # Student code (from session)
+        student_code = st.session_state.get("student_code", "demo")
+
         # ---- Show daily usage ----
         used_today = get_sprechen_usage(student_code)
         st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
         if used_today >= FALOWEN_DAILY_LIMIT:
             st.warning("You have reached your daily practice limit for Falowen today. Please come back tomorrow.")
             st.stop()
+
+        # ---- LOAD chat from Firestore on first entry ----
+        if not st.session_state.get("_falowen_loaded", False):
+            loaded = load_falowen_chat(student_code, mode, level, teil)
+            if loaded:
+                st.session_state["falowen_messages"] = loaded
+            st.session_state["_falowen_loaded"] = True
 
         # ---- Session Controls ----
         def reset_chat():
@@ -3212,93 +3246,41 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_exam_keyword": None,
                 "remaining_topics": [],
                 "used_topics": [],
+                "_falowen_loaded": False,
             })
             st.rerun()
 
         def back_step():
             st.session_state.update({
                 "falowen_stage": max(1, st.session_state["falowen_stage"] - 1),
-                "falowen_messages": []
+                "falowen_messages": [],
+                "_falowen_loaded": False,
             })
             st.rerun()
 
         def change_level():
             st.session_state.update({
                 "falowen_stage": 2,
-                "falowen_messages": []
+                "falowen_messages": [],
+                "_falowen_loaded": False,
             })
             st.rerun()
-            
 
-        # ---- Bubble Styles (MOBILE FRIENDLY) ----
-        bubble_user = (
-            "background: #1976d2;"
-            "color: #fff;"
-            "padding: 14px 16px;"
-            "border-radius: 18px 6px 18px 18px;"
-            "margin: 10px 0 10px auto;"
-            "display: block;"
-            "font-size: 1.13rem;"
-            "word-break: break-word;"
-            "max-width: 380px;"
-            "width: fit-content;"
-            "box-sizing: border-box;"
-            "line-height: 1.6;"
-            "text-align: left;"
-            "font-weight: 500;"
-            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
-        )
-        bubble_assistant = (
-            "background: #fff9c4;"
-            "color: #333;"
-            "padding: 14px 16px;"
-            "border-radius: 18px 18px 18px 6px;"
-            "margin: 10px auto 10px 0;"
-            "display: block;"
-            "font-size: 1.13rem;"
-            "word-break: break-word;"
-            "max-width: 380px;"
-            "width: fit-content;"
-            "box-sizing: border-box;"
-            "line-height: 1.6;"
-            "text-align: left;"
-            "font-weight: 500;"
-            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
-        )
-        st.markdown("""
-        <style>
-        @media only screen and (max-width: 600px) {
-            div[style*="background: #1976d2"] {
-                font-size: 1.09rem !important;
-                padding: 13px 9px !important;
-                max-width: 94vw !important;
-                width: 94vw !important;
-            }
-            div[style*="background: #fff9c4"] {
-                font-size: 1.09rem !important;
-                padding: 13px 9px !important;
-                max-width: 94vw !important;
-                width: 94vw !important;
-            }
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # ---- Bubble Styles, highlight_keywords, etc. ----
+        # ---- Place your bubble_user, bubble_assistant, and highlight_keywords definitions here ----
 
-        # ---- Word Highlighting ----
-        def highlight_keywords(text, keywords):
-            if not keywords: return text
-            def repl(match):
-                word = match.group(0)
-                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
-            for word in keywords:
-                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
-            return text
-
-        highlight_words = []
-        if is_exam:
-            if st.session_state.get("falowen_exam_keyword"):
-                highlight_words.append(st.session_state["falowen_exam_keyword"])
-            highlight_words += ["weil", "möchte", "deshalb"]
+        # ---- Fix chat format (AVOID KeyError/TypeError forever) ----
+        def ensure_message_format(msg):
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                return msg
+            if isinstance(msg, (list, tuple)) and len(msg) == 2:
+                return {"role": msg[0], "content": msg[1]}
+            if isinstance(msg, str):
+                return {"role": "user", "content": msg}
+            return None
+        msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
+        msgs = [m for m in msgs if m is not None]
+        st.session_state["falowen_messages"] = msgs
 
         # ---- Render Chat History (bubbles and highlights) ----
         for msg in st.session_state["falowen_messages"]:
@@ -3330,7 +3312,7 @@ if tab == "Exams Mode & Custom Chat":
                 mime="application/pdf"
             )
 
-                # ---- TXT Download Button ----
+        # ---- TXT Download Button ----
         if st.session_state["falowen_messages"]:
             chat_as_text = "\n".join([
                 f"{msg['role'].capitalize()}: {msg['content']}"
@@ -3359,6 +3341,8 @@ if tab == "Exams Mode & Custom Chat":
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
             )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # Save initial message to Firestore
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
         # ---- Build System Prompt including topic/context ----
         if is_exam:
@@ -3418,12 +3402,15 @@ if tab == "Exams Mode & Custom Chat":
                 )
 
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            # SAVE CHAT after each message
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
         # ---- END SESSION BUTTON & SUMMARY ----
         st.divider()
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
 
 
     # ---- STAGE 5: End-of-Session Summary ----
@@ -3485,31 +3472,20 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 
-
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
 # =========================================
 
-# Your Google Sheets link
+# ---- Your Google Sheets Link ----
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 sheet_name = "Sheet1"
-
-# Get export CSV link
 csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
-# ========== Mobile-friendly message bubble ==========
-BUBBLE_STYLE = (
-    "padding:6px 10px; border-radius:6px; max-width:98vw; "
-    "margin-bottom:8px; text-align:{align}; background:{bgcolor}; "
-    "font-size:1em; word-break:break-word;"
-)
-
+# ---- Mobile-friendly message bubble ----
 def render_message(role, msg):
-    # Improved style for mobile readability!
     align = "left" if role == "assistant" else "right"
-    # High-contrast light bubble for both themes
     bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
-    textcolor = "#222"  # nearly black text
+    textcolor = "#222"
     bordcol = "#cccccc"
     label = "Herr Felix" if role == "assistant" else "You"
     style = (
@@ -3524,13 +3500,20 @@ def render_message(role, msg):
         unsafe_allow_html=True
     )
 
-# ====================================================
-
-# Helper to normalize user input
+# ---- Helper functions ----
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
-# Load vocab lists once (cached)
+def is_correct_answer(user_input, answer):
+    # Accept any valid answer separated by ',', '/', or ';'
+    possible = [a.strip().lower() for a in re.split(r'[,/;]', answer)]
+    given = clean_text(user_input)
+    if given in possible:
+        return True
+    # Optional: fuzzy matching for typo tolerance
+    # return any(fuzz.ratio(given, a) > 85 for a in possible)
+    return False
+
 @st.cache_data
 def load_vocab_lists():
     df = pd.read_csv(csv_url)
@@ -3542,8 +3525,55 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
+# ==========================
+# FIRESTORE STATS HELPERS
+# ==========================
+
+def save_vocab_attempt(student_code, level, total, correct, practiced_words):
+    doc_ref = db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    history = data.get("history", [])
+
+    attempt = {
+        "level": level,
+        "total": total,
+        "correct": correct,
+        "practiced_words": practiced_words,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    history.append(attempt)
+    best = max([a["correct"] for a in history] or [0])
+    last_practiced = attempt["timestamp"]
+    completed_words = set(sum([a["practiced_words"] for a in history], []))
+
+    doc_ref.set({
+        "history": history,
+        "best": best,
+        "last_practiced": last_practiced,
+        "completed_words": list(completed_words),
+        "total_sessions": len(history),
+    })
+
+def get_vocab_stats(student_code):
+    doc_ref = db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return {
+            "history": [],
+            "best": 0,
+            "last_practiced": None,
+            "completed_words": [],
+            "total_sessions": 0,
+        }
+
+# =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
+
 if tab == "Vocab Trainer":
-    # 📚 Compact Vocab Trainer header
     st.markdown(
         '''
         <div style="
@@ -3561,7 +3591,7 @@ if tab == "Vocab Trainer":
         unsafe_allow_html=True
     )
     st.divider()
-    
+
     HERR_FELIX = "Herr Felix 👨‍🏫"
     defaults = {
         "vt_history": [],
@@ -3573,35 +3603,66 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Choose level
+    # Student code (from session)
+    student_code = st.session_state.get("student_code", "demo")
+
+    # ===== Show Vocab Stats =====
+    vocab_stats = get_vocab_stats(student_code)
+    st.markdown("### 📝 **Your Vocab Practice Stats**")
+    st.markdown(f"- **Sessions:** {vocab_stats['total_sessions']}")
+    st.markdown(f"- **Best Score:** {vocab_stats['best']}")
+    st.markdown(f"- **Last Practiced:** {vocab_stats['last_practiced']}")
+    st.markdown(f"- **Total Unique Words Completed:** {len(vocab_stats['completed_words'])}")
+
+    if st.toggle("Show Last 5 Sessions"):
+        for attempt in vocab_stats["history"][-5:][::-1]:
+            st.markdown(
+                f"- **Date:** {attempt['timestamp']} | **Score:** {attempt['correct']}/{attempt['total']} | **Level:** {attempt['level']}<br>"
+                f"<span style='font-size:0.97em;'>Words: {', '.join(attempt['practiced_words'])}</span>",
+                unsafe_allow_html=True
+            )
+
+    # ---- Load vocab lists ----
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
+    completed_set = set(vocab_stats["completed_words"])
 
     if max_words == 0:
         st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
         st.stop()
+
+    # Show how many you haven't done yet
+    not_done = [pair for pair in vocab_items if pair[0] not in completed_set]
+    st.info(f"You have {len(not_done)} words NOT yet practiced at {level}.")
 
     # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
-    
-    # Show number of available words for the selected level
-    st.info(f"There are {max_words} words available in {level}.")
+    # Option to practice only new or all words
+    practice_mode = st.radio("Choose word selection:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
+    if practice_mode == "Only new words":
+        session_vocab = not_done.copy()
+    else:
+        session_vocab = vocab_items.copy()
 
     # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
+        max_count = len(session_vocab)
+        if max_count == 0:
+            st.warning("🎉 You've completed all words at this level! Switch to 'All words' if you want to practice again.")
+            st.stop()
         count = st.number_input(
-            "How many words can you practice today. You can also type the number?",
+            "How many words can you practice today? (Type a number)",
             min_value=1,
-            max_value=max_words,
-            value=min(7, max_words),
+            max_value=max_count,
+            value=min(7, max_count),
             key="vt_count"
         )
         if st.button("Start Practice", key="vt_start"):
-            shuffled = vocab_items.copy()
+            shuffled = session_vocab.copy()
             random.shuffle(shuffled)
             st.session_state.vt_list = shuffled[:int(count)]
             st.session_state.vt_total = int(count)
@@ -3625,9 +3686,7 @@ if tab == "Vocab Trainer":
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
         if user_input and st.button("Check", key=f"vt_check_{idx}"):
             st.session_state.vt_history.append(("user", user_input))
-            given = clean_text(user_input)
-            correct = clean_text(answer)
-            if given == correct:
+            if is_correct_answer(user_input, answer):
                 st.session_state.vt_score += 1
                 fb = f"✅ Correct! '{word}' = '{answer}'"
             else:
@@ -3638,13 +3697,18 @@ if tab == "Vocab Trainer":
     # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
+        practiced_words = [pair[0] for pair in st.session_state.vt_list]
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
+
+        # Save to Firestore!
+        save_vocab_attempt(student_code, level, total, score, practiced_words)
+
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-                
-import re
-from datetime import datetime
+
+
+
 
 if tab == "Schreiben Trainer":
     st.markdown(
