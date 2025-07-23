@@ -592,11 +592,10 @@ def load_reviews():
 
 from datetime import datetime
 
-# Add this helper at the top (after your imports)
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    # Try US format first
+    # US format first
     for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
@@ -609,6 +608,39 @@ if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
     student_name = st.session_state.get("student_name", "")
 
+    # --- Get student_row first (always before any UI) ---
+    df_students = load_student_data()
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
+    display_name = student_row.get('Name') or student_name or "Student"
+    first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
+
+    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+    MONTHLY_RENEWAL = 1000
+    contract_end_str = student_row.get("ContractEnd", "")
+    today = datetime.today()
+    contract_end = parse_contract_end(contract_end_str)
+    if contract_end:
+        days_left = (contract_end - today).days
+        if 0 < days_left <= 30:
+            st.warning(
+                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
+        elif days_left < 0:
+            st.error(
+                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
+    else:
+        st.info("Contract end date unavailable or in wrong format.")
+
+    st.info(
+        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+        "Do your best to complete your course on time to avoid extra fees!"
+    )
+
+    # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -642,14 +674,6 @@ if st.session_state.get("logged_in"):
         )
         st.divider()
 
-        # --- Get student_row first ---
-        df_students = load_student_data()
-        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
-        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
-
-        display_name = student_row.get('Name') or student_name or "Student"
-        first_name = str(display_name).strip().split()[0].title() if display_name else "Student"
-
         # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
@@ -672,32 +696,7 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
-
-        # --- Contract End and Renewal Policy ---
-        MONTHLY_RENEWAL = 1000
-        contract_end_str = student_row.get("ContractEnd", "")
-        today = datetime.today()
-
-        contract_end = parse_contract_end(contract_end_str)
-        if contract_end:
-            days_left = (contract_end - today).days
-            if 0 < days_left <= 30:
-                st.warning(
-                    f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                    f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
-                )
-            elif days_left < 0:
-                st.error(
-                    f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
-                )
-        else:
-            st.info("Contract end date unavailable or in wrong format.")
-
-        st.info(
-            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-            "Do your best to complete your course on time to avoid extra fees!"
-        )
-
+            
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
