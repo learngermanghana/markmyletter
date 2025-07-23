@@ -737,13 +737,12 @@ if st.session_state.get("logged_in"):
 
 **How to Pay:**
 - [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
-- Pay your exam fee to **either**:
+- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
     - **Ecobank Ghana**
         - Account Name: **GOETHE-INSTITUT GHANA**
         - Account Number: **1441 001 701 903**
         - Branch: **Ring Road Central**
         - SWIFT Code: **ECOCGHAC**
-    - **Mobile Money** (details as provided at registration)
 - **IMPORTANT:** Use your **full name** as payment reference!
 - After payment, send your proof to: registrations-accra@goethe.de
 
@@ -751,6 +750,7 @@ if st.session_state.get("logged_in"):
                 """,
                 unsafe_allow_html=True
             )
+
 
         # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
