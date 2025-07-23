@@ -590,6 +590,19 @@ def load_reviews():
     return df
 
 
+from datetime import datetime
+
+# Add this helper at the top (after your imports)
+def parse_contract_end(date_str):
+    if not date_str or str(date_str).lower() in ("nan", "none", ""):
+        return None
+    for fmt in ("%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
@@ -639,7 +652,7 @@ if st.session_state.get("logged_in"):
         # --- Minimal, super-visible greeting for mobile ---
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
-        from datetime import datetime
+
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
@@ -659,25 +672,24 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
+        # --- Contract End and Renewal Policy ---
         MONTHLY_RENEWAL = 1000
         contract_end_str = student_row.get("ContractEnd", "")
         today = datetime.today()
 
-        try:
-            if contract_end_str:
-                contract_end = datetime.strptime(contract_end_str, "%d.%m.%y")
-                days_left = (contract_end - today).days
-
-                if 0 < days_left <= 30:
-                    st.warning(
-                        f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                        f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
-                    )
-                elif days_left < 0:
-                    st.error(
-                        f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
-                    )
-        except Exception as e:
+        contract_end = parse_contract_end(contract_end_str)
+        if contract_end:
+            days_left = (contract_end - today).days
+            if 0 < days_left <= 30:
+                st.warning(
+                    f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                    f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                )
+            elif days_left < 0:
+                st.error(
+                    f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                )
+        else:
             st.info("Contract end date unavailable or in wrong format.")
 
         st.info(
@@ -755,6 +767,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
 def get_a1_schedule():
     return [
