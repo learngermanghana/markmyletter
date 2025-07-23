@@ -1154,7 +1154,7 @@ def get_a1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Lesen & Hören 14.2",
+            "topic": "Lesen & Hören 14.2 and Schreiben and Sprechen",
             "chapter": "14.2",
             "goal": "Understand adjective declension and dative verbs",
             "instruction": " This chapter has no assignment. Only grammar",
@@ -1163,10 +1163,6 @@ def get_a1_schedule():
                 "video": "",
                 "assignment": False,
                 "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
-                "workbook_link": ""
-            },
-            "schreiben_sprechen": {
-                "video": "",
                 "workbook_link": ""
             }
         },
