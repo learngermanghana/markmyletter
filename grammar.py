@@ -727,17 +727,27 @@ if st.session_state.get("logged_in"):
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
             st.markdown(
                 """
-| Level | Date       | Fee (GHS) |
-|-------|------------|-----------|
-| A1    | 21.07.25   | 2,850     |
-| A2    | 22.07.25   | 2,400     |
-| B1    | 23.07.25   | 2,750     |
-| B2    | 24.07.25   | 2,500     |
-| C1    | 25.07.25   | 2,450     |
+| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
+|-------|---------------------|-----------|---------------------|
+| A1    | 13.10.2025          | 2,850     | —                   |
+| A2    | 14.10.2025          | 2,400     | —                   |
+| B1    | 15.10.2025          | 2,750     | 880 / 704*          |
+| B2    | 16.10.2025          | 2,500     | 840                 |
+| C1    | 17.10.2025          | 2,450     | 700                 |
 
-- [Register here](https://www.goethe.de/ins/gh/en/spr/prf/anm.html)
-- After paying, send proof to registrations-accra@goethe.de
-- Pay by Mobile Money or Ecobank (use your full name as reference)
+**How to Pay:**
+- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
+- Pay your exam fee to **either**:
+    - **Ecobank Ghana**
+        - Account Name: **GOETHE-INSTITUT GHANA**
+        - Account Number: **1441 001 701 903**
+        - Branch: **Ring Road Central**
+        - SWIFT Code: **ECOCGHAC**
+    - **Mobile Money** (details as provided at registration)
+- **IMPORTANT:** Use your **full name** as payment reference!
+- After payment, send your proof to: registrations-accra@goethe.de
+
+- *Discounted rate may apply for certain candidates.*
                 """,
                 unsafe_allow_html=True
             )
