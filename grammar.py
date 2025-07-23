@@ -16,7 +16,7 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
-
+# ===== HIDE STREAMLIT DEFAULT FOOTER/MENU =====
 st.markdown(
     """
     <style>
@@ -25,23 +25,38 @@ st.markdown(
     footer:after {content:""; display:none;}
     .st-emotion-cache-1v0mbdj {display: none;}
     .css-164nlkn {display: none;}
-    .css-1lsmgbg.egzxvld1 {display: none;} /* Some new versions */
-    .st-emotion-cache-7ym5gk {display: none;} /* Another possible Streamlit version */
+    .css-1lsmgbg.egzxvld1 {display: none;}
+    .st-emotion-cache-7ym5gk {display: none;}
     </style>
     """,
     unsafe_allow_html=True
 )
 
-
-# ---- OpenAI Client Setup ----
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+# ===== OPENAI CLIENT SETUP =====
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    st.error(
-        "Missing OpenAI API key. Please set OPENAI_API_KEY as an environment variable or in Streamlit secrets."
-    )
+    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-client = OpenAI()
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+# ===== FIREBASE ADMIN SDK SETUP =====
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# Only initialize Firebase once!
+if not firebase_admin._apps:
+    # Converts Streamlit TOML secret (dict) to proper dict for credentials.Certificate
+    firebase_creds = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(firebase_creds)
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+doc_ref = db.collection("test").document("hello")
+doc_ref.set({"field": "test!"})
+result = doc_ref.get()
+print(result.to_dict())  # Should print {'field': 'test!'}
 
 # ==== DB CONNECTION ====
 def get_connection():
@@ -281,6 +296,32 @@ def inc_letter_coach_usage(student_code):
             "UPDATE letter_coach_usage SET count = ? WHERE student_code = ? AND date = ?",
             (usage + 1, student_code, today)
         )
+
+# === Firestore Auto-Save/Restore for Letter Coach ===
+
+def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
+    """
+    Auto-saves the student's Letter Coach (Ideen Generator) progress in Firestore.
+    """
+    doc_ref = db.collection("letter_coach_progress").document(student_code)
+    doc_ref.set({
+        "level": schreiben_level,
+        "prompt": letter_coach_prompt,
+        "chat": chat_history,
+        "last_update": firestore.SERVER_TIMESTAMP
+    })
+
+def load_letter_coach_progress(student_code):
+    """
+    Loads the student's most recent Letter Coach (Ideen Generator) progress from Firestore.
+    Returns (prompt, chat_history), or ("", []) if nothing saved.
+    """
+    doc_ref = db.collection("letter_coach_progress").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        data = doc.to_dict()
+        return data.get("prompt", ""), data.get("chat", [])
+    return "", []
     conn.commit()
 
 
@@ -3781,6 +3822,15 @@ if tab == "Schreiben Trainer":
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
+        # --- AUTO-RESTORE FROM FIRESTORE ON LOAD ---
+        if not st.session_state.get("letter_coach_prompt") and not st.session_state.get("letter_coach_chat"):
+            last_prompt, last_chat = load_letter_coach_progress(student_code)
+            if last_prompt or last_chat:
+                st.session_state.letter_coach_prompt = last_prompt
+                st.session_state.letter_coach_chat = last_chat
+                st.session_state.letter_coach_stage = 1 if last_chat else 0
+      
+
         LETTER_COACH_PROMPTS = {
             "A1": (
                 "You are Herr Felix, a creative and supportive German letter-writing coach for A1 students. "
@@ -3928,6 +3978,7 @@ if tab == "Schreiben Trainer":
             if key not in st.session_state:
                 st.session_state[key] = default
 
+
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
             st.markdown(
@@ -4000,6 +4051,13 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_chat = chat_history
                 st.session_state.letter_coach_stage = 1  # Step 1: chat view
                 inc_letter_coach_usage(student_code)
+                # --- SAVE TO FIRESTORE ---
+                save_letter_coach_progress(
+                    student_code,
+                    st.session_state.get("schreiben_level", "A1"),
+                    st.session_state.letter_coach_prompt,
+                    st.session_state.letter_coach_chat,
+                )
                 st.rerun()
 
             if prompt:
@@ -4053,6 +4111,13 @@ if tab == "Schreiben Trainer":
                     ai_reply = resp.choices[0].message.content
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state.letter_coach_chat = chat_history
+                # --- SAVE TO FIRESTORE ---
+                save_letter_coach_progress(
+                    student_code,
+                    st.session_state.get("schreiben_level", "A1"),
+                    st.session_state.letter_coach_prompt,
+                    st.session_state.letter_coach_chat,
+                )
                 st.rerun()
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
@@ -4195,7 +4260,15 @@ if tab == "Schreiben Trainer":
                 st.session_state.letter_coach_type = ""
                 st.session_state.selected_letter_lines = []
                 st.session_state.letter_coach_uploaded = False
+                # --- SAVE RESET TO FIRESTORE ---
+                save_letter_coach_progress(
+                    student_code,
+                    st.session_state.get("schreiben_level", "A1"),
+                    "",
+                    [],
+                )
                 st.rerun()
-#
+
+
 
 
