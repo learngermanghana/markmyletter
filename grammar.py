@@ -4165,7 +4165,7 @@ if tab == "Schreiben Trainer":
                         }}
                     }}
                 </style>
-            """, height=400)
+            """, height=175)
 
             st.markdown("""
                 <div style="
