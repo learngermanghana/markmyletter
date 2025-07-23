@@ -746,7 +746,6 @@ if st.session_state.get("logged_in"):
 - **IMPORTANT:** Use your **full name** as payment reference!
 - After payment, send your proof to: registrations-accra@goethe.de
 
-- *Discounted rate may apply for certain candidates.*
                 """,
                 unsafe_allow_html=True
             )
