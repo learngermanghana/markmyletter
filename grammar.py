@@ -3240,7 +3240,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["_falowen_loaded"] = False
             st.rerun()
 
-
         def back_step():
             st.session_state.update({
                 "falowen_stage": max(1, st.session_state["falowen_stage"] - 1),
@@ -3257,8 +3256,75 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Bubble Styles, highlight_keywords, etc. ----
-        # ---- Place your bubble_user, bubble_assistant, and highlight_keywords definitions here ----
+        # ---- Bubble Styles (MOBILE FRIENDLY) ----
+        bubble_user = (
+            "background: #1976d2;"
+            "color: #fff;"
+            "padding: 14px 16px;"
+            "border-radius: 18px 6px 18px 18px;"
+            "margin: 10px 0 10px auto;"
+            "display: block;"
+            "font-size: 1.13rem;"
+            "word-break: break-word;"
+            "max-width: 380px;"
+            "width: fit-content;"
+            "box-sizing: border-box;"
+            "line-height: 1.6;"
+            "text-align: left;"
+            "font-weight: 500;"
+            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
+        )
+        bubble_assistant = (
+            "background: #fff9c4;"
+            "color: #333;"
+            "padding: 14px 16px;"
+            "border-radius: 18px 18px 18px 6px;"
+            "margin: 10px auto 10px 0;"
+            "display: block;"
+            "font-size: 1.13rem;"
+            "word-break: break-word;"
+            "max-width: 380px;"
+            "width: fit-content;"
+            "box-sizing: border-box;"
+            "line-height: 1.6;"
+            "text-align: left;"
+            "font-weight: 500;"
+            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
+        )
+        st.markdown("""
+        <style>
+        @media only screen and (max-width: 600px) {
+            div[style*="background: #1976d2"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
+            }
+            div[style*="background: #fff9c4"] {
+                font-size: 1.09rem !important;
+                padding: 13px 9px !important;
+                max-width: 94vw !important;
+                width: 94vw !important;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # ---- Word Highlighting ----
+        def highlight_keywords(text, keywords):
+            if not keywords: return text
+            def repl(match):
+                word = match.group(0)
+                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
+            for word in keywords:
+                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
+            return text
+
+        highlight_words = []
+        if is_exam:
+            if st.session_state.get("falowen_exam_keyword"):
+                highlight_words.append(st.session_state["falowen_exam_keyword"])
+            highlight_words += ["weil", "möchte", "deshalb"]
 
         # ---- Fix chat format (AVOID KeyError/TypeError forever) ----
         def ensure_message_format(msg):
@@ -3332,7 +3398,6 @@ if tab == "Exams Mode & Custom Chat":
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
             )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-            # Save initial message to Firestore
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
         # ---- Build System Prompt including topic/context ----
@@ -3375,6 +3440,9 @@ if tab == "Exams Mode & Custom Chat":
             ):
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    # ENSURE only one system prompt at top
+                    messages = [m for m in messages if m["role"] != "system"]
+                    messages = [{"role": "system", "content": system_prompt}] + messages
                     try:
                         resp = client.chat.completions.create(
                             model="gpt-4o",
@@ -3401,6 +3469,8 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+
+
 
 
 
