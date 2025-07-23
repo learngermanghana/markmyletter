@@ -1186,7 +1186,7 @@ def get_a1_schedule():
             "chapter": "15",
             "assignment": True,
             "goal": "This test should help the student have an idea about how the lesen and horen will look like",
-            "instruction": "",
+            "instruction": "Open the link and answer the questions using the link. After submit and alert your tutor.",
             "schreiben_sprechen": {
                 "video": "",
                 "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
