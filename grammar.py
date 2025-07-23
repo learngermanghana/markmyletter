@@ -659,8 +659,6 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-                from datetime import datetime
-
         MONTHLY_RENEWAL = 1000
         contract_end_str = student_row.get("ContractEnd", "")
         today = datetime.today()
