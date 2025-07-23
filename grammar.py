@@ -3205,6 +3205,18 @@ if tab == "Exams Mode & Custom Chat":
         chat_key = f"{mode}_{level}_{teil or 'custom'}"
         return chats.get(chat_key, [])
 
+    def clear_falowen_chat(student_code, mode, level, teil):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return
+        data = doc.to_dict()
+        chats = data.get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        if chat_key in chats:
+            chats[chat_key] = []
+            doc_ref.set({"chats": chats}, merge=True)
+
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
@@ -3216,7 +3228,6 @@ if tab == "Exams Mode & Custom Chat":
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
-        # Student code (from session)
         student_code = st.session_state.get("student_code", "demo")
 
         # ---- Show daily usage ----
@@ -3238,6 +3249,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
             st.session_state["_falowen_loaded"] = False
+            clear_falowen_chat(student_code, mode, level, teil)
             st.rerun()
 
         def back_step():
@@ -3469,7 +3481,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-
 
 
 
