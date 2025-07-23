@@ -1095,13 +1095,14 @@ def get_a1_schedule():
             "day": 22,
             "topic": "Lesen & Hören 14.1",
             "chapter": "14.1",
-            "goal": "",
-            "instruction": "",
+            "goal": "Understand health and talking about body parts in German",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
+            "grammar_topic": Health and Body Parts",
             "lesen_hören": {
                 "video": "",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1EFZA_oAeznMBEqIgTWyeFt9wLdmqA-Bp/view?usp=sharing",
-                "workbook_link": "https://drive.google.com/file/d/1_zEb4wmENI7szcepRz_CIjSo9aS7RHv-/view?usp=sharing"
+                "workbook_link": "https://drive.google.com/file/d/1LkDUU7r78E_pzeFnHKw9vfD9QgUAAacu/view?usp=sharing"
             }
         },
         # DAY 23
