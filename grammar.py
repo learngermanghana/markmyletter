@@ -851,7 +851,7 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 3",
             "chapter": "3",
             "goal": "Know how to ask for a price and also the use of mogen and gern to express your hobby",
-            "instruction": "Do schreiben and sprechen 2.3 before this chapter for better understanding",
+            "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.Do schreiben and sprechen 2.3 before this chapter for better understanding",
             "grammar_topic": "Fragen nach dem Preis; gern/lieber/mögen (Talking about price and preferences)",
             "assignment": True,
             "lesen_hören": {
