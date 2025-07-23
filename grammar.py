@@ -16,6 +16,7 @@ from openai import OpenAI
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
 
+
 st.markdown(
     """
     <style>
@@ -588,10 +589,7 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-import time
-import matplotlib.pyplot as plt
 
-# ======= Dashboard Code =======
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
     student_code = st.session_state.get("student_code", "").strip().lower()
@@ -660,6 +658,34 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
+
+                from datetime import datetime
+
+        MONTHLY_RENEWAL = 1000
+        contract_end_str = student_row.get("ContractEnd", "")
+        today = datetime.today()
+
+        try:
+            if contract_end_str:
+                contract_end = datetime.strptime(contract_end_str, "%d.%m.%y")
+                days_left = (contract_end - today).days
+
+                if 0 < days_left <= 30:
+                    st.warning(
+                        f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                        f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                    )
+                elif days_left < 0:
+                    st.error(
+                        f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+                    )
+        except Exception as e:
+            st.info("Contract end date unavailable or in wrong format.")
+
+        st.info(
+            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+            "Do your best to complete your course on time to avoid extra fees!"
+        )
 
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
