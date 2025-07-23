@@ -3235,19 +3235,9 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Session Controls ----
         def reset_chat():
-            st.session_state.update({
-                "falowen_stage": 1,
-                "falowen_messages": [],
-                "falowen_teil": None,
-                "falowen_mode": None,
-                "custom_topic_intro_done": False,
-                "falowen_turn_count": 0,
-                "falowen_exam_topic": None,
-                "falowen_exam_keyword": None,
-                "remaining_topics": [],
-                "used_topics": [],
-                "_falowen_loaded": False,
-            })
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.session_state["_falowen_loaded"] = False
             st.rerun()
 
 
