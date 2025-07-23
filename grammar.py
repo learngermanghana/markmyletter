@@ -1099,7 +1099,7 @@ def get_a1_schedule():
             "instruction": "Watch the video, study the grammar, complete the workbook, and send your answers.",
             "grammar_topic": "Health and Body Parts",
             "lesen_hören": {
-                "video": "",
+                "video": "https://youtu.be/Zx_TFF9FNGo",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1QoG4mNxA1w8AeTMPfLtMQ_rAHrmC1DdO/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1LkDUU7r78E_pzeFnHKw9vfD9QgUAAacu/view?usp=sharing"
