@@ -4035,7 +4035,7 @@ if tab == "Schreiben Trainer":
                     "",
                     value="",
                     key="letter_coach_user_input",
-                    height=110,
+                    height=400,
                     placeholder="Type your reply, ask about a section, or paste your draft here..."
                 )
                 send = st.form_submit_button("Send")
