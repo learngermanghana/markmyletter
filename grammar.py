@@ -4092,6 +4092,7 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
+        
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
@@ -4117,9 +4118,7 @@ if tab == "Schreiben Trainer":
             if last_prompt or last_chat:
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
-                st.session_state[ns("stage")] = 1 if last_chat else 
-
-
+                st.session_state[ns("stage")] = 1 if last_chat else 0
 
         LETTER_COACH_PROMPTS = {
             "A1": (
