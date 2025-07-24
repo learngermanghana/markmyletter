@@ -2699,6 +2699,29 @@ How to prepare for your B1 oral exam.
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
 
+def save_exam_progress(student_code, progress_items):
+    doc_ref = db.collection("exam_progress").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    all_progress = data.get("completed", [])
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    for item in progress_items:
+        # Only add if not already present (avoid duplicates)
+        already = any(
+            p["level"] == item["level"] and
+            p["teil"] == item["teil"] and
+            p["topic"] == item["topic"]
+            for p in all_progress
+        )
+        if not already:
+            all_progress.append({
+                "level": item["level"],
+                "teil": item["teil"],
+                "topic": item["topic"],
+                "date": now
+            })
+    doc_ref.set({"completed": all_progress}, merge=True)
+
 # --- CONFIG ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
 exam_sheet_name = "exam_topics"   # <-- update if your tab is named differently
@@ -2733,12 +2756,18 @@ if tab == "Exams Mode & Custom Chat":
                 "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
                 "custom_topic_intro_done", "falowen_turn_count",
                 "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
-                "_falowen_loaded"
+                "_falowen_loaded", "falowen_practiced_topics"
             ]:
                 if k in st.session_state: del st.session_state[k]
             st.session_state["last_logged_code"] = code
             st.rerun()
-    
+
+    # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
+    if "falowen_practiced_topics" not in st.session_state:
+        st.session_state["falowen_practiced_topics"] = []
+
+
+        
     # 🗣️ Compact tab header
     st.markdown(
         '''
@@ -3031,8 +3060,7 @@ if tab == "Exams Mode & Custom Chat":
         if key not in st.session_state:
             st.session_state[key] = val
 
-
-    # ---- STAGE 1: Mode Selection ----
+        # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
 
@@ -3067,6 +3095,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
         st.stop()
+
 
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
@@ -3407,8 +3436,7 @@ if tab == "Exams Mode & Custom Chat":
                 file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
                 mime="text/plain"
             )
-            st.caption("To save progress, download as TXT before you leave chat. Open and Copy the text file and paste in a fresh chat and the A.I will continue the chat from where you left.")
-
+            
         # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -3487,6 +3515,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             # SAVE CHAT after each message
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
+
 
         # ---- END SESSION BUTTON & SUMMARY ----
         st.divider()
@@ -4194,6 +4223,7 @@ if tab == "Schreiben Trainer":
                 f"3. Always add your ideas after student submmit their sentence if necessary "
                 f"4. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. Students shouldnt write more than 7 to 8 words in a sentence. Divide for them with full stops "
                 f"5. Always be sure that students complete letter is between 30 to 40 words "
+                f"6. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "For a prompt, give a short, clear overview (in English) of the structure (greeting, introduction, reason, request, closing), with classic examples for each. "
                 "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
@@ -4213,6 +4243,7 @@ if tab == "Schreiben Trainer":
                 f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
                 f"3. Always add your ideas after student submmit their sentence if necessary "
                 f"4. Always be sure that students complete formal letter is between 40 to 50 words,informal letter and opinion essay between 80 to 90 words "
+                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "For a formal letter, give a brief overview of the structure (greeting, introduction, main reason/request, closing), with useful examples. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "For an informal letter, outline the friendly structure (greeting, introduction, reason, personal info, closing), with simple examples. "
@@ -4231,6 +4262,7 @@ if tab == "Schreiben Trainer":
                 f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
                 f"3. Always add your ideas after student submmit their sentence if necessary "
                 f"4. Always be sure that students complete formal letter is between 100 to 150 words and opinion essay is 150 to 170 words "
+                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "For a formal letter, briefly outline the advanced structure: greeting, introduction, clear argument/reason, supporting details, closing—with examples. "
                 "For an informal letter, outline a friendly but organized structure: greeting, personal introduction, main point/reason, examples, closing. "
@@ -4248,6 +4280,7 @@ if tab == "Schreiben Trainer":
                 f"2. Always check to be sure their letters are organized with paragraphs using sequence and sentence starters "
                 f"3. Always add your ideas after student submmit their sentence if necessary "
                 f"4. Always be sure that students complete formal letter is between 120 to 150 words and opinion essay is 230 to 250 words "
+                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
                 "If you are not sure, politely ask the student what type of writing they need help with. "
                 "For a formal letter, give a precise overview: greeting, sophisticated introduction, detailed argument, supporting evidence, closing, with nuanced examples. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
