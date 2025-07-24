@@ -229,12 +229,9 @@ def get_schreiben_usage(student_code):
     return row[0] if row else 0
 
 def inc_schreiben_usage(student_code):
-    import sqlite3
-    from datetime import date
-    conn = sqlite3.connect("your_database.db")
-    c = conn.cursor()
     today = str(date.today())
-
+    conn = get_connection()
+    c = conn.cursor()
     c.execute(
         """
         INSERT INTO schreiben_usage (student_code, date, count)
@@ -245,7 +242,7 @@ def inc_schreiben_usage(student_code):
         (student_code, today)
     )
     conn.commit()
-    conn.close()
+
 
 
 def get_writing_stats(student_code):
@@ -274,16 +271,21 @@ def get_student_stats(student_code):
         stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
     return stats
 
-def get_letter_coach_usage(student_code):
+def inc_letter_coach_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+        """
+        INSERT INTO letter_coach_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
         (student_code, today)
     )
-    row = c.fetchone()
-    return row[0] if row else 0
+    conn.commit()
+
 
 def inc_letter_coach_usage(student_code):
     today = str(date.today())
