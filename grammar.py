@@ -3780,8 +3780,7 @@ if tab == "Vocab Trainer":
                 st.session_state[k] = defaults[k]
 
 
-
-
+            
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3800,7 +3799,19 @@ if tab == "Schreiben Trainer":
     )
     st.divider()
 
-    # Sub-tabs: Mark My Letter, Ideas Generator (Letter Coach)
+    # Track previous student code in session
+    student_code = st.session_state.get("student_code", "demo")
+    prev_student_code = st.session_state.get("prev_student_code", None)
+
+    if student_code != prev_student_code:
+        # Try to restore previous chat for this student_code
+        last_prompt, last_chat = load_letter_coach_progress(student_code)
+        st.session_state["letter_coach_prompt"] = last_prompt or ""
+        st.session_state["letter_coach_chat"] = last_chat or []
+        st.session_state["letter_coach_stage"] = 1 if last_chat else 0
+        st.session_state["prev_student_code"] = student_code
+
+    # Sub-tabs
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
@@ -3821,6 +3832,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
+
     # --- 1. MARK MY LETTER SUB-TAB ---
     if sub_tab == "Mark My Letter":
         st.markdown(
@@ -3838,8 +3850,7 @@ if tab == "Schreiben Trainer":
             ''',
             unsafe_allow_html=True
         )
-        student_code = st.session_state.get("student_code", "demo")
-        student_name = st.session_state.get("student_name", "")
+
 
         # ====== LETTER STATS FUNCTIONS ======
         def save_schreiben_attempt(student_code, student_name, level, score, letter, breakdown=None):
@@ -3886,6 +3897,10 @@ if tab == "Schreiben Trainer":
                     "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
                 }
 
+        def get_schreiben_usage(student_code):
+            # TODO: Replace with your actual Firestore logic if needed
+            return 0
+
         # Show stats panel
         stats = get_schreiben_stats(student_code)
         st.markdown("### 📝 **Your Letter Writing Stats**")
@@ -3930,7 +3945,9 @@ if tab == "Schreiben Trainer":
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
-            
+
+
+        # AI prompt for feedback
         ai_prompt = (
             f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
             f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -3957,7 +3974,7 @@ if tab == "Schreiben Trainer":
         if submit_disabled and daily_so_far >= SCHREIBEN_DAILY_LIMIT:
             st.warning("You have reached today's writing practice limit. Please come back tomorrow.")
 
-        if st.button("Get Feedback", type="primary", disabled=submit_disabled):
+        if st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}"):
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
                     completion = client.chat.completions.create(
@@ -3974,6 +3991,7 @@ if tab == "Schreiben Trainer":
                     feedback = None
 
             if feedback:
+                import re
                 # Extract score
                 score_match = re.search(r"score\s*(?:[:=]|is)?\s*(\d+)\s*/\s*25", feedback, re.IGNORECASE)
                 if not score_match:
@@ -3993,7 +4011,7 @@ if tab == "Schreiben Trainer":
                     else:
                         breakdown[area] = ("-", "Not found")
 
-                # Save to DB
+                # Save to Firestore (per student!)
                 inc_schreiben_usage(student_code)
                 save_schreiben_attempt(student_code, student_name, schreiben_level, score, user_letter, breakdown)
 
@@ -4012,7 +4030,8 @@ if tab == "Schreiben Trainer":
                         unsafe_allow_html=True
                     )
 
-                # Download as PDF
+                # Download as PDF (safe text)
+                from fpdf import FPDF
                 def sanitize_text(text):
                     return text.encode('latin-1', errors='replace').decode('latin-1')
                 pdf = FPDF()
@@ -4034,6 +4053,8 @@ if tab == "Schreiben Trainer":
                 import os
                 os.remove(pdf_output)
 
+                # WhatsApp share
+                import urllib.parse
                 wa_message = f"Hi, here is my German letter and AI feedback:\n\n{user_letter}\n\nFeedback:\n{feedback}"
                 wa_url = (
                     "https://api.whatsapp.com/send"
@@ -4044,9 +4065,8 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-
-
-    # ===== BUBBLE FUNCTION =====
+                
+    # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
     def bubble(role, text):
         color = "#7b2ff2" if role == "assistant" else "#222"
         bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
@@ -4061,14 +4081,18 @@ if tab == "Schreiben Trainer":
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
 
-        # --- AUTO-RESTORE FROM FIRESTORE ON LOAD ---
-        if not st.session_state.get("letter_coach_prompt") and not st.session_state.get("letter_coach_chat"):
+        # === NAMESPACED SESSION KEYS (per student) ===
+        ns_prefix = f"{student_code}_letter_coach_"
+        def ns(key): return ns_prefix + key
+
+        # --- Auto-restore progress for this student only
+        if not st.session_state.get(ns("prompt")) and not st.session_state.get(ns("chat")):
             last_prompt, last_chat = load_letter_coach_progress(student_code)
             if last_prompt or last_chat:
-                st.session_state.letter_coach_prompt = last_prompt
-                st.session_state.letter_coach_chat = last_chat
-                st.session_state.letter_coach_stage = 1 if last_chat else 0
-      
+                st.session_state[ns("prompt")] = last_prompt
+                st.session_state[ns("chat")] = last_chat
+                st.session_state[ns("stage")] = 1 if last_chat else 0
+
 
         LETTER_COACH_PROMPTS = {
             "A1": (
@@ -4174,14 +4198,13 @@ if tab == "Schreiben Trainer":
             ),
         }
 
-
         def reset_letter_coach():
             for k in [
                 "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
                 "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
             ]:
-                st.session_state[k] = (0 if k == "letter_coach_stage" else [])
-            st.session_state.letter_coach_uploaded = False
+                st.session_state[k] = 0 if k == "letter_coach_stage" else []
+            st.session_state["letter_coach_uploaded"] = False
 
         def bubble(role, text):
             if role == "assistant":
@@ -4233,7 +4256,6 @@ if tab == "Schreiben Trainer":
         ]:
             if key not in st.session_state:
                 st.session_state[key] = default
-
 
         # --- Stage 0: Paste Prompt ---
         if st.session_state.letter_coach_stage == 0:
@@ -4393,7 +4415,7 @@ if tab == "Schreiben Trainer":
                 - Only ticked lines will appear in your downloadable draft below.
             """)
 
-            # Store selection in session state
+            # Store selection in session state (keeps selection per student)
             if "selected_letter_lines" not in st.session_state or \
                len(st.session_state.selected_letter_lines) != len(user_msgs):
                 st.session_state.selected_letter_lines = [True] * len(user_msgs)
@@ -4524,7 +4546,5 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
-
 
 
