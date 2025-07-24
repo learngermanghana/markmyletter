@@ -229,24 +229,24 @@ def get_schreiben_usage(student_code):
     return row[0] if row else 0
 
 def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
+    import sqlite3
+    from datetime import date
+    conn = sqlite3.connect("your_database.db")
     c = conn.cursor()
-    usage = get_schreiben_usage(student_code)
-    if usage == 0:
-        c.execute(
-            "INSERT INTO schreiben_usage (student_code, date, count) VALUES (?, ?, ?)",
-            (student_code, today, 1)
-        )
-    else:
-        c.execute(
-            "UPDATE schreiben_usage SET count = ? WHERE student_code = ? AND date = ?",
-            (usage + 1, student_code, today)
-        )
-    conn.commit()
+    today = str(date.today())
 
-def has_schreiben_quota(student_code, limit=SCHREIBEN_DAILY_LIMIT):
-    return get_schreiben_usage(student_code) < limit
+    c.execute(
+        """
+        INSERT INTO schreiben_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+    conn.close()
+
 
 def get_writing_stats(student_code):
     conn = get_connection()
