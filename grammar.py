@@ -4092,9 +4092,20 @@ if tab == "Schreiben Trainer":
                 <b>{name}:</b><br>{text}
             </div>
         """
-
     if sub_tab == "Ideas Generator (Letter Coach)":
         import io
+
+        # --- Define get_letter_coach_usage HERE if needed inside the block ---
+        def get_letter_coach_usage(student_code):
+            today = str(date.today())
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute(
+                "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
+                (student_code, today)
+            )
+            row = c.fetchone()
+            return row[0] if row else 0
 
         # === NAMESPACED SESSION KEYS (per student) ===
         ns_prefix = f"{student_code}_letter_coach_"
@@ -4106,7 +4117,8 @@ if tab == "Schreiben Trainer":
             if last_prompt or last_chat:
                 st.session_state[ns("prompt")] = last_prompt
                 st.session_state[ns("chat")] = last_chat
-                st.session_state[ns("stage")] = 1 if last_chat else 0
+                st.session_state[ns("stage")] = 1 if last_chat else 
+
 
 
         LETTER_COACH_PROMPTS = {
