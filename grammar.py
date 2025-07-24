@@ -2716,6 +2716,29 @@ def load_exam_topics():
 df_exam = load_exam_topics()
 
 if tab == "Exams Mode & Custom Chat":
+    # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
+    if "student_code" not in st.session_state or not st.session_state["student_code"]:
+        code = st.text_input("Enter your Student Code to continue:", key="login_code")
+        if st.button("Login"):
+            st.session_state["student_code"] = code.strip()
+            st.session_state["last_logged_code"] = code.strip()
+            st.rerun()
+        st.stop()
+    else:
+        code = st.session_state["student_code"]
+        last_code = st.session_state.get("last_logged_code", None)
+        if last_code != code:
+            # Clear all chat-related session state for new login
+            for k in [
+                "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
+                "_falowen_loaded"
+            ]:
+                if k in st.session_state: del st.session_state[k]
+            st.session_state["last_logged_code"] = code
+            st.rerun()
+    
     # 🗣️ Compact tab header
     st.markdown(
         '''
