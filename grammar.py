@@ -3978,6 +3978,9 @@ if tab == "Schreiben Trainer":
             "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
             "Give scores by analyzing grammar, structure, vocabulary, etc. Explain to the student why you gave that score. "
             "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+            "9. For A1 and A2, dont recommed any relative clauses or sentence longer than 7 or 8 word. Bring full stop to seperate long phrases."
+            "10. For A2,B1,B2, C1 make sure students work is organized into paragraphs using sequences like erstens and so on based on their level"
+            "11. Always recommend conjunctions based on student level. For A1 and A2 stick to weil,deshalb and ich mochte wissen,und,oder and so on"
             "Grammar: [score/5, one-sentence tip]\n"
             "Vocabulary: [score/5, one-sentence tip]\n"
             "Spelling: [score/5, one-sentence tip]\n"
@@ -4572,6 +4575,5 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
-
+#
 
