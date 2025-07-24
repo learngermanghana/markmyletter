@@ -600,8 +600,6 @@ if st.button("Log out"):
     st.rerun()
 
 
-
-
 # ======= Data Loading Functions =======
 @st.cache_data
 def load_student_data():
@@ -610,16 +608,6 @@ def load_student_data():
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
     df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip().str.replace(" ", "")
-    return df
-
-@st.cache_data
-def load_stats_data():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    SHEET_NAME = "Sheet1"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-    df = pd.read_csv(csv_url)
-    # Clean columns for easier access
-    df.columns = df.columns.str.strip().str.lower()
     return df
 
 @st.cache_data
@@ -634,19 +622,43 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-
-from datetime import datetime
+@st.cache_data
+def load_assignment_scores():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    SHEET_NAME = "Sheet1"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
 
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    # US format first
     for fmt in ("%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
     return None
+
+def get_assignment_streak(df):
+    if df.empty or 'date' not in df.columns:
+        return 0, None
+    dates = pd.to_datetime(df['date'], errors='coerce').dropna().sort_values()
+    if dates.empty:
+        return 0, None
+    streak = 1
+    max_streak = 1
+    prev = dates.iloc[0]
+    for d in dates.iloc[1:]:
+        if (d - prev).days == 1:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 1
+        prev = d
+    last_date = dates.iloc[-1].strftime('%d %b %Y')
+    return max_streak, last_date
 
 # ======= Dashboard Code =======
 if st.session_state.get("logged_in"):
@@ -723,6 +735,80 @@ if st.session_state.get("logged_in"):
         st.success(f"Hello, {first_name}! 👋")
         st.info("Great to see you. Let's keep learning!")
 
+        # ========== STREAKS BLOCK (GAMIFIED & WEEKLY) ========== #
+        # ---- Fetch vocab_stats and schreiben_stats (replace below with your Firestore logic!) ----
+        try:
+            vocab_stats = get_vocab_stats(student_code)
+            if vocab_stats is None:
+                vocab_stats = {"history": []}
+        except Exception:
+            vocab_stats = {"history": []}
+        try:
+            schreiben_stats = get_schreiben_stats(student_code)
+            if schreiben_stats is None:
+                schreiben_stats = {"attempts": []}
+        except Exception:
+            schreiben_stats = {"attempts": []}
+
+        df_assign = load_assignment_scores()
+        assignments = df_assign[df_assign['studentcode'].str.lower() == student_code]
+
+        # --- Calculate "this week" data ---
+        from datetime import date, timedelta, datetime
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+
+        # Vocab
+        vocab_dates = {
+            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
+            for a in vocab_stats.get("history", [])
+            if a.get("timestamp")
+        }
+        vocab_this_week = sum(1 for d in vocab_dates if d >= monday)
+        vocab_last = max(vocab_dates) if vocab_dates else None
+        vocab_status = "🔥 On fire!" if vocab_this_week >= 3 else "😴 Start practicing"
+
+        # Schreiben
+        schreiben_dates = {
+            datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M").date()
+            for a in schreiben_stats.get("attempts", [])
+            if a.get("timestamp")
+        }
+        schreiben_this_week = sum(1 for d in schreiben_dates if d >= monday)
+        schreiben_last = max(schreiben_dates) if schreiben_dates else None
+        schreiben_status = "✍️ You’re writing!" if schreiben_this_week >= 1 else "😴 No writing yet"
+
+        # Assignments
+        assignment_dates = pd.to_datetime(assignments["date"], errors="coerce").dt.date.dropna().unique()
+        assignment_this_week = sum(1 for d in assignment_dates if d >= monday)
+        last_assignment = max(assignment_dates) if len(assignment_dates) else None
+        assignment_status = "📝 Looks good!" if assignment_this_week >= 1 else "😴 No submissions yet"
+
+        # 🎯 Your Practice Streaks This Week
+        st.markdown("### 🎯 Your Practice Streaks This Week")
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### 📚 Vocab")
+            st.metric("Days Practiced", vocab_this_week)
+            st.markdown(f"<span style='font-size:1.3em'>{vocab_status}</span>", unsafe_allow_html=True)
+            st.caption(f"Last: {vocab_last.strftime('%d %b') if vocab_last else 'N/A'}")
+
+        with col2:
+            st.markdown("#### ✍️ Schreiben")
+            st.metric("Days Practiced", schreiben_this_week)
+            st.markdown(f"<span style='font-size:1.3em'>{schreiben_status}</span>", unsafe_allow_html=True)
+            st.caption(f"Last: {schreiben_last.strftime('%d %b') if schreiben_last else 'N/A'}")
+
+        with col3:
+            st.markdown("#### 📝 Assignments")
+            st.metric("Submitted This Week", assignment_this_week)
+            st.markdown(f"<span style='font-size:1.3em'>{assignment_status}</span>", unsafe_allow_html=True)
+            st.caption(f"Last: {last_assignment.strftime('%d %b') if pd.notnull(last_assignment) else 'N/A'}")
+
+        st.info("Practice or submit at least once per week to keep your streak going! 🚀")
+        st.divider()
+
         # --- Student Info & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
@@ -741,7 +827,7 @@ if st.session_state.get("logged_in"):
                 st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
         except:
             pass
-            
+
         # --- Announcements & Ads (auto-rotating, reduced size) ---
         st.markdown("### 🖼️ Announcements & Ads")
         ad_images = [
@@ -766,7 +852,7 @@ if st.session_state.get("logged_in"):
             st.rerun()
 
         idx = st.session_state["ad_idx"]
-        st.image(ad_images[idx], caption=ad_captions[idx], width=400)  # change width if needed
+        st.image(ad_images[idx], caption=ad_captions[idx], width=400)
 
         # --- Simple Goethe Exam Section ---
         with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
@@ -795,7 +881,6 @@ if st.session_state.get("logged_in"):
                 unsafe_allow_html=True
             )
 
-
         # --- Auto-Rotating Student Reviews ---
         st.markdown("### 🗣️ What Our Students Say")
         reviews = load_reviews()
@@ -823,6 +908,7 @@ if st.session_state.get("logged_in"):
             )
 
 
+            
 def get_a1_schedule():
     return [
         # DAY 1
@@ -1418,7 +1504,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "https://youtu.be/mHp4rUK6I1I",
+            "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dGZjcHhdN1xAdK2APL54RykGH7_msUyr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
         },
@@ -3205,18 +3291,6 @@ if tab == "Exams Mode & Custom Chat":
         chat_key = f"{mode}_{level}_{teil or 'custom'}"
         return chats.get(chat_key, [])
 
-    def clear_falowen_chat(student_code, mode, level, teil):
-        doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return
-        data = doc.to_dict()
-        chats = data.get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        if chat_key in chats:
-            chats[chat_key] = []
-            doc_ref.set({"chats": chats}, merge=True)
-
     # =========================================
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state["falowen_stage"] == 4:
@@ -3228,6 +3302,7 @@ if tab == "Exams Mode & Custom Chat":
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
 
+        # Student code (from session)
         student_code = st.session_state.get("student_code", "demo")
 
         # ---- Show daily usage ----
@@ -3246,10 +3321,19 @@ if tab == "Exams Mode & Custom Chat":
 
         # ---- Session Controls ----
         def reset_chat():
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
-            st.session_state["_falowen_loaded"] = False
-            clear_falowen_chat(student_code, mode, level, teil)
+            st.session_state.update({
+                "falowen_stage": 1,
+                "falowen_messages": [],
+                "falowen_teil": None,
+                "falowen_mode": None,
+                "custom_topic_intro_done": False,
+                "falowen_turn_count": 0,
+                "falowen_exam_topic": None,
+                "falowen_exam_keyword": None,
+                "remaining_topics": [],
+                "used_topics": [],
+                "_falowen_loaded": False,
+            })
             st.rerun()
 
         def back_step():
@@ -3268,75 +3352,8 @@ if tab == "Exams Mode & Custom Chat":
             })
             st.rerun()
 
-        # ---- Bubble Styles (MOBILE FRIENDLY) ----
-        bubble_user = (
-            "background: #1976d2;"
-            "color: #fff;"
-            "padding: 14px 16px;"
-            "border-radius: 18px 6px 18px 18px;"
-            "margin: 10px 0 10px auto;"
-            "display: block;"
-            "font-size: 1.13rem;"
-            "word-break: break-word;"
-            "max-width: 380px;"
-            "width: fit-content;"
-            "box-sizing: border-box;"
-            "line-height: 1.6;"
-            "text-align: left;"
-            "font-weight: 500;"
-            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
-        )
-        bubble_assistant = (
-            "background: #fff9c4;"
-            "color: #333;"
-            "padding: 14px 16px;"
-            "border-radius: 18px 18px 18px 6px;"
-            "margin: 10px auto 10px 0;"
-            "display: block;"
-            "font-size: 1.13rem;"
-            "word-break: break-word;"
-            "max-width: 380px;"
-            "width: fit-content;"
-            "box-sizing: border-box;"
-            "line-height: 1.6;"
-            "text-align: left;"
-            "font-weight: 500;"
-            "box-shadow: 0 2px 8px rgba(0,0,0,0.06);"
-        )
-        st.markdown("""
-        <style>
-        @media only screen and (max-width: 600px) {
-            div[style*="background: #1976d2"] {
-                font-size: 1.09rem !important;
-                padding: 13px 9px !important;
-                max-width: 94vw !important;
-                width: 94vw !important;
-            }
-            div[style*="background: #fff9c4"] {
-                font-size: 1.09rem !important;
-                padding: 13px 9px !important;
-                max-width: 94vw !important;
-                width: 94vw !important;
-            }
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # ---- Word Highlighting ----
-        def highlight_keywords(text, keywords):
-            if not keywords: return text
-            def repl(match):
-                word = match.group(0)
-                return f"<span style='background:#fff3b0;border-radius:0.4em;padding:0.12em 0.4em'>{word}</span>"
-            for word in keywords:
-                text = re.sub(rf'\b{re.escape(word)}\b', repl, text, flags=re.IGNORECASE)
-            return text
-
-        highlight_words = []
-        if is_exam:
-            if st.session_state.get("falowen_exam_keyword"):
-                highlight_words.append(st.session_state["falowen_exam_keyword"])
-            highlight_words += ["weil", "möchte", "deshalb"]
+        # ---- Bubble Styles, highlight_keywords, etc. ----
+        # ---- Place your bubble_user, bubble_assistant, and highlight_keywords definitions here ----
 
         # ---- Fix chat format (AVOID KeyError/TypeError forever) ----
         def ensure_message_format(msg):
@@ -3393,7 +3410,7 @@ if tab == "Exams Mode & Custom Chat":
                 file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
                 mime="text/plain"
             )
-           
+            st.caption("To save progress, download as TXT before you leave chat. Open and Copy the text file and paste in a fresh chat and the A.I will continue the chat from where you left.")
 
         # ---- Session Buttons ----
         col1, col2, col3 = st.columns(3)
@@ -3410,6 +3427,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
             )
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # Save initial message to Firestore
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
         # ---- Build System Prompt including topic/context ----
@@ -3452,9 +3470,6 @@ if tab == "Exams Mode & Custom Chat":
             ):
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                     messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
-                    # ENSURE only one system prompt at top
-                    messages = [m for m in messages if m["role"] != "system"]
-                    messages = [{"role": "system", "content": system_prompt}] + messages
                     try:
                         resp = client.chat.completions.create(
                             model="gpt-4o",
@@ -3481,7 +3496,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
-
 
 
 
@@ -4545,7 +4559,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
