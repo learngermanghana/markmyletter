@@ -51,9 +51,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect(
-            "vocab_progress.db", check_same_thread=False
-        )
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
@@ -136,17 +134,36 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Daily Usage Tables
-    for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
-        c.execute(f"""
-            CREATE TABLE IF NOT EXISTS {tbl} (
-                student_code TEXT,
-                date TEXT,
-                count INTEGER,
-                PRIMARY KEY (student_code, date)
-            )
-        """)
+    # Sprechen Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sprechen_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Letter Coach Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS letter_coach_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
+    # Schreiben Daily Usage Table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS schreiben_usage (
+            student_code TEXT,
+            date TEXT,
+            count INTEGER,
+            PRIMARY KEY (student_code, date)
+        )
+    """)
     conn.commit()
+
+init_db()  # <<-- Make sure this is before any other DB calls!
 
 
 # ==== CONSTANTS ====
