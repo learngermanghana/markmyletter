@@ -615,51 +615,26 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 # --- Manual Login Form ---
+
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
-
-    # Get cookie value (if any) for pre-fill
-    code_from_cookie = cookie_manager.get("student_code") or ""
-    code_from_cookie = str(code_from_cookie).strip().lower()
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-
-    # Only show password box if the login_input is empty (i.e., not auto-filled/remembered)
-    show_password = not bool(login_input)
-    if show_password:
-        dummy_password = st.text_input(
-            "Password (not required)", 
-            type="password", 
-            value="", 
-            help="(Leave blank – not required, for auto-fill only)"
-        )
-
     if st.button("Login"):
-        df_students = load_student_data()
-        df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"] = df_students["Email"].str.lower().str.strip()
+        # ... login logic ...
+        pass
 
-        found = df_students[
-            (df_students["StudentCode"] == login_input) |
-            (df_students["Email"] == login_input)
-        ]
-        if not found.empty:
-            student_row = found.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Please contact the office for renewal.")
-                st.stop()
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}! 🎉")
-            st.rerun()
-        else:
-            st.error("Login failed. Please check your Student Code or Email.")
+    # --- iPhone/iPad cookie/autofill tip ---
+    st.markdown(
+        """
+        <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
+            <b>Tip for iPhone/iPad users:</b> To stay logged in, please avoid Private mode and do not clear Safari website data. 
+            <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
+    # --- Add extra info for students below the login box ---
     st.markdown(
         """
         <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
@@ -677,23 +652,6 @@ if not st.session_state["logged_in"]:
 
     st.stop()
 
-
-    # --- Info below login box ---
-    st.markdown(
-        """
-        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
-            <span style='color:#ff9800;font-weight:600;'>
-                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
-            </span>
-            <br>
-            <span style='color:#1976d2;'>
-                🆕 <b>Update:</b> New features have been added to help you prepare for your German exam! Practice as often as you want, within your daily quota.
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.stop()
 
 
 # --- Logged In UI ---
