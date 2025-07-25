@@ -719,7 +719,7 @@ if st.session_state.get("logged_in"):
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # Greeting and contract info (same as before)
+    # Greeting and contract info
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
     # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
@@ -794,33 +794,51 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
+    # --- Student Information & Balance (NOW DIRECTLY BELOW TAB) ---
+    st.markdown(f"### 👤 {student_row.get('Name','')}")
+    st.markdown(
+        f"- **Level:** {student_row.get('Level','')}\n"
+        f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+        f"- **Email:** {student_row.get('Email','')}\n"
+        f"- **Phone:** {student_row.get('Phone','')}\n"
+        f"- **Location:** {student_row.get('Location','')}\n"
+        f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+        f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+        f"- **Status:** {student_row.get('Status','')}"
+    )
+    try:
+        bal = float(student_row.get("Balance", 0))
+        if bal > 0:
+            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+    except:
+        pass
 
-        # Upcoming Exam Countdown (by level mapping)
-        GOETHE_EXAM_DATES = {
-            "A1": date(2025, 10, 13),
-            "A2": date(2025, 10, 14),
-            "B1": date(2025, 10, 15),
-            "B2": date(2025, 10, 16),
-            "C1": date(2025, 10, 17),
-        }
-        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
-        exam_date = GOETHE_EXAM_DATES.get(level)
-        if exam_date:
-            days_to_exam = (exam_date - date.today()).days
-            st.subheader("⏳ Upcoming Exam Countdown")
-            if days_to_exam > 0:
-                st.info(f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).")
-            elif days_to_exam == 0:
-                st.success("🚀 Exam is today! Good luck!")
-            else:
-                st.error(f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.")
+    # --- Upcoming Exam Countdown (by level mapping) ---
+    GOETHE_EXAM_DATES = {
+        "A1": date(2025, 10, 13),
+        "A2": date(2025, 10, 14),
+        "B1": date(2025, 10, 15),
+        "B2": date(2025, 10, 16),
+        "C1": date(2025, 10, 17),
+    }
+    level = (student_row.get("Level", "") or "").upper().replace(" ", "")
+    exam_date = GOETHE_EXAM_DATES.get(level)
+    if exam_date:
+        days_to_exam = (exam_date - date.today()).days
+        st.subheader("⏳ Upcoming Exam Countdown")
+        if days_to_exam > 0:
+            st.info(f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).")
+        elif days_to_exam == 0:
+            st.success("🚀 Exam is today! Good luck!")
         else:
-            st.warning(f"No exam date configured for level {level}.")
+            st.error(f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.")
+    else:
+        st.warning(f"No exam date configured for level {level}.")
 
-        # --- Goethe Exam Dates & Fees ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
-            st.markdown(
-                """
+    # --- Goethe Exam Dates & Fees ---
+    with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
+        st.markdown(
+            """
 | Level | Online Registration | Fee (GHS) | Single Module (GHS) |
 |-------|---------------------|-----------|---------------------|
 | A1    | 13.10.2025          | 2,850     | —                   |
@@ -839,51 +857,31 @@ if st.session_state.get("logged_in"):
         - SWIFT Code: **ECOCGHAC**
 - **IMPORTANT:** Use your **full name** as payment reference!
 - After payment, send your proof to: registrations-accra@goethe.de
-                """,
-                unsafe_allow_html=True
-            )
+            """,
+            unsafe_allow_html=True
+        )
 
-            # --- Student Information & Balance ---
-            st.markdown(f"### 👤 {student_row.get('Name','')}")
-            st.markdown(
-                f"- **Level:** {student_row.get('Level','')}\n"
-                f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-                f"- **Email:** {student_row.get('Email','')}\n"
-                f"- **Phone:** {student_row.get('Phone','')}\n"
-                f"- **Location:** {student_row.get('Location','')}\n"
-                f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-                f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-                f"- **Status:** {student_row.get('Status','')}"
-            )
-            try:
-                bal = float(student_row.get("Balance", 0))
-                if bal > 0:
-                    st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-            except:
-                pass
-
-            # --- Reviews Section ---
-            st.markdown("### 🗣️ What Our Students Say")
-            reviews = load_reviews()
-            if reviews.empty:
-                st.info("No reviews yet. Be the first to share your experience!")
-            else:
-                rev_list = reviews.to_dict("records")
-                if "rev_idx" not in st.session_state:
-                    st.session_state["rev_idx"] = 0
-                    st.session_state["rev_last_time"] = time.time()
-                if time.time() - st.session_state["rev_last_time"] > 8:
-                    st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                    st.session_state["rev_last_time"] = time.time()
-                    st.rerun()
-                r = rev_list[st.session_state["rev_idx"]]
-                stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
-                st.markdown(
-                    f"> {r.get('review_text','')}\n"
-                    f"> — **{r.get('student_name','')}**  \n"
-                    f"> {stars}"
-                )
-
+    # --- Reviews Section ---
+    st.markdown("### 🗣️ What Our Students Say")
+    reviews = load_reviews()
+    if reviews.empty:
+        st.info("No reviews yet. Be the first to share your experience!")
+    else:
+        rev_list = reviews.to_dict("records")
+        if "rev_idx" not in st.session_state:
+            st.session_state["rev_idx"] = 0
+            st.session_state["rev_last_time"] = time.time()
+        if time.time() - st.session_state["rev_last_time"] > 8:
+            st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+            st.session_state["rev_last_time"] = time.time()
+            st.rerun()
+        r = rev_list[st.session_state["rev_idx"]]
+        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        st.markdown(
+            f"> {r.get('review_text','')}\n"
+            f"> — **{r.get('student_name','')}**  \n"
+            f"> {stars}"
+        )
 
             
 def get_a1_schedule():
