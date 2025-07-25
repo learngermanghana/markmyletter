@@ -2235,10 +2235,9 @@ if tab == "Course Book":
     current_time = LEVEL_TIME.get(student_level, 20)
     st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
 
-    # ====== SUGGESTED END DATE CALCULATION ======
+    # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
     contract_start_str = student_row.get('ContractStart', '')
     contract_start_date = None
-    # Try all possible formats
     for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
         try:
             contract_start_date = datetime.strptime(contract_start_str, fmt).date()
@@ -2247,12 +2246,23 @@ if tab == "Course Book":
             continue
 
     if contract_start_date:
-        weeks_needed = (total_assignments + 2) // 3  # 3 per week, round up
-        est_end_date = contract_start_date + timedelta(weeks=weeks_needed)
-        st.success(f"🎯 **At 3 lessons/week, you can finish by:** {est_end_date.strftime('%A, %d %b %Y')}")
-        st.caption("Stay consistent – finishing on time means just 3 lessons every week.")
+        # 3 per week
+        weeks_3 = (total_assignments + 2) // 3
+        end_3 = contract_start_date + timedelta(weeks=weeks_3)
+        # 2 per week
+        weeks_2 = (total_assignments + 1) // 2
+        end_2 = contract_start_date + timedelta(weeks=weeks_2)
+        # 1 per week
+        weeks_1 = total_assignments
+        end_1 = contract_start_date + timedelta(weeks=weeks_1)
+
+        st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
+        st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
+        st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
+        st.caption("Stay consistent – choose your pace and finish on time.")
     else:
         st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
+
 
     info = schedule[idx]
     st.markdown(
