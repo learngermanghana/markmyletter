@@ -694,6 +694,7 @@ if st.button("Log out"):
     st.success("You have been logged out.")
     st.rerun()
     
+
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
 @st.cache_data
@@ -736,135 +737,102 @@ if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
 
-    # ------ TAB SELECTOR & MODE SWITCHER -------
-    tab_list = [
-        "Dashboard",
-        "Course Book",
-        "My Results and Resources",
-        "Exams Mode & Custom Chat",
-        "Vocab Trainer",
-        "Schreiben Trainer",
-        "My Learning Notes",
-    ]
-
-    tab_modes = ["Quick Switch (Show all tabs)", "Full-View Mode (Current tab only)"]
-    tab_mode = st.selectbox(
-        "Tab View Mode",
-        tab_modes,
-        index=0,
-        key="tab_mode_select"
-    )
-
-    # --------- Load student info always (for all tabs, any mode) ----------
+    # Load student info
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
+    # Greeting and contract info
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # ====== SHOW DASHBOARD HEADER/STREAK ONLY IF NOT FULL-VIEW ======
-    if tab_mode != "Full-View Mode (Current tab only)":
-        # --- Contract End and Renewal Policy ---
-        MONTHLY_RENEWAL = 1000
-        contract_end_str = student_row.get("ContractEnd", "")
-        today = datetime.today()
-        contract_end = parse_contract_end(contract_end_str)
-        if contract_end:
-            days_left = (contract_end - today).days
-            if 0 < days_left <= 30:
-                st.warning(
-                    f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                    f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
-                )
-            elif days_left < 0:
-                st.error(
-                    f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
-                )
-        else:
-            st.info("Contract end date unavailable or in wrong format.")
-
-        st.info(
-            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-            "Do your best to complete your course on time to avoid extra fees!"
-        )
-
-        # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
-        df_assign = load_assignment_scores()
-        df_assign['date'] = pd.to_datetime(
-            df_assign['date'], format="%Y-%m-%d", errors="coerce"
-        ).dt.date
-        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
-
-        from datetime import timedelta, date
-        dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
-        streak = 1 if dates else 0
-        for i in range(1, len(dates)):
-            if (dates[i-1] - dates[i]).days == 1:
-                streak += 1
-            else:
-                break
-
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-        assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
-        WEEKLY_GOAL = 3
-
-        st.markdown("### 🏅 Assignment Streak & Weekly Goal")
-        col1, col2 = st.columns(2)
-        col1.metric("Streak", f"{streak} days")
-        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-        if assignment_count >= WEEKLY_GOAL:
-            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
-        else:
-            rem = WEEKLY_GOAL - assignment_count
-            st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
-
-        st.divider()
-
-        # ---------- Tab Tips Section (only on Dashboard) ----------
-        DASHBOARD_REMINDERS = [
-            "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
-            "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-            "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
-            "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
-            "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
-            "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
-        ]
-        import random
-        dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-        st.info(dashboard_tip)  # This line gives the tip as a friendly info box
-
-    # ===== TAB SELECTOR: Always visible =====
-    if tab_mode == "Full-View Mode (Current tab only)":
-        st.markdown(
-            "<div style='margin: 8px 0 12px 0; background: #22223b; color: #fff; padding: 10px 18px; border-radius: 7px;'>"
-            "<b>You're in Full-View Mode.</b> Only this tab is showing.<br>"
-            "Click below to change tab.</div>",
-            unsafe_allow_html=True
-        )
-        cur_tab = st.session_state.get("main_tab_select", tab_list[0])
-        cur_tab_idx = tab_list.index(cur_tab)
-        new_tab_idx = st.selectbox(
-            "Switch tab:",
-            range(len(tab_list)),
-            format_func=lambda i: tab_list[i],
-            index=cur_tab_idx,
-            key="tab_single_select"
-        )
-        tab = tab_list[new_tab_idx]
-        if new_tab_idx != cur_tab_idx:
-            st.session_state["main_tab_select"] = tab
-            st.rerun()
+    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+    MONTHLY_RENEWAL = 1000
+    contract_end_str = student_row.get("ContractEnd", "")
+    today = datetime.today()
+    contract_end = parse_contract_end(contract_end_str)
+    if contract_end:
+        days_left = (contract_end - today).days
+        if 0 < days_left <= 30:
+            st.warning(
+                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
+        elif days_left < 0:
+            st.error(
+                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
     else:
-        tab = st.radio(
-            "How do you want to practice?",
-            tab_list,
-            key="main_tab_select"
-        )
+        st.info("Contract end date unavailable or in wrong format.")
+
+    st.info(
+        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+        "Do your best to complete your course on time to avoid extra fees!"
+    )
+
+    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+    df_assign = load_assignment_scores()
+    df_assign['date'] = pd.to_datetime(
+        df_assign['date'], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
+    mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i-1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
+
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
+    WEEKLY_GOAL = 3
+
+    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+    col1, col2 = st.columns(2)
+    col1.metric("Streak", f"{streak} days")
+    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+    if assignment_count >= WEEKLY_GOAL:
+        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+    else:
+        rem = WEEKLY_GOAL - assignment_count
+        st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
 
     st.divider()
 
-    # ===================== TAB CONTENTS =====================
+    # ---------- Tab Tips Section (only on Dashboard) ----------
+    DASHBOARD_REMINDERS = [
+        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
+        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
+        "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
+        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
+        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
+        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
+    ]
+    import random
+    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
+    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
+
+    # --- Main Tab Selection ---
+    tab = st.radio(
+        "How do you want to practice?",
+        [
+            "Dashboard",
+            "Course Book",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "My Learning Notes",
+        ],
+        key="main_tab_select"
+    )
+
+    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
     if tab == "Dashboard":
+        # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
             f"- **Level:** {student_row.get('Level','')}\n"
@@ -952,6 +920,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
             
 def get_a1_schedule():
     return [
