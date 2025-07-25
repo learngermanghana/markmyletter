@@ -627,7 +627,7 @@ if not st.session_state["logged_in"]:
     # Only show password field if not auto-remembered (cookie is empty or user typed something new)
     show_pw_field = not code_from_cookie or (login_input != code_from_cookie)
     if show_pw_field:
-        login_password = st.text_input("Password", type="password", help="(Leave empty)")
+        login_password = st.text_input("Password (leave empty if not sure)", type="password", help="(Leave empty)")
     else:
         login_password = None  # Or a dummy value
 
