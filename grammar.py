@@ -2336,13 +2336,11 @@ if tab == "Course Book":
         unsafe_allow_html=True
     )
     if info.get('grammar_topic'):
-        st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
     if info.get('goal'):
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
-    if info.get('grammar_topic'):
-        st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
