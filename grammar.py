@@ -719,7 +719,7 @@ if st.session_state.get("logged_in"):
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # Greeting
+    # Greeting and contract info (same as before)
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
     # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
@@ -746,6 +746,40 @@ if st.session_state.get("logged_in"):
         "Do your best to complete your course on time to avoid extra fees!"
     )
 
+    # --- Assignment Streak + Weekly Goal (BEFORE TAB SELECTION) ---
+    df_assign = load_assignment_scores()
+    df_assign['date'] = pd.to_datetime(
+        df_assign['date'], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
+    mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
+
+    # Calculate submission streak
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]['date'].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i-1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
+
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
+    WEEKLY_GOAL = 3
+
+    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+    col1, col2 = st.columns(2)
+    col1.metric("Streak", f"{streak} days")
+    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+    if assignment_count >= WEEKLY_GOAL:
+        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+    else:
+        rem = WEEKLY_GOAL - assignment_count
+        st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
+
+    st.divider()
+
     # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
@@ -760,37 +794,6 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-    if tab == "Dashboard":
-        st.markdown(
-            '''
-            <div style="padding:8px 12px; background:#343a40; color:#fff; border-radius:6px;
-                text-align:center; margin-bottom:8px; font-size:1.3rem;">
-                📊 Student Dashboard
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-        st.success(f"Hello, {first_name}! 👋")
-        st.info("Great to see you. Let's keep learning!")
-
-        # --- Assignment Gamification Only ---
-        df_assign = load_assignment_scores()
-        df_assign['date'] = pd.to_datetime(
-            df_assign['date'], format="%Y-%m-%d", errors="coerce"
-        ).dt.date
-        mask_student = df_assign['studentcode'].str.lower().str.strip() == student_code
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-        assignment_count = df_assign[mask_student & (df_assign['date'] >= monday)].shape[0]
-        WEEKLY_GOAL = 3
-
-        st.markdown("### 📝 Weekly Assignment Goal")
-        st.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-        if assignment_count >= WEEKLY_GOAL:
-            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
-        else:
-            rem = WEEKLY_GOAL - assignment_count
-            st.info(f"Submit {rem} more assignment{'s' if rem>1 else ''} by Sunday to hit your goal.")
 
         # Upcoming Exam Countdown (by level mapping)
         GOETHE_EXAM_DATES = {
@@ -800,7 +803,7 @@ if st.session_state.get("logged_in"):
             "B2": date(2025, 10, 16),
             "C1": date(2025, 10, 17),
         }
-        level = student_row.get("Level", "").upper()
+        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
         exam_date = GOETHE_EXAM_DATES.get(level)
         if exam_date:
             days_to_exam = (exam_date - date.today()).days
