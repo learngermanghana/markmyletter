@@ -1578,8 +1578,8 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Verbs and Adjectives with Prepositions",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1BiAyDazBR3lTplP7D2yjaYmEm2btUT1D/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1G_sRFKG9Qt5nc0Zyfnax-0WXSMmbWB70/view?usp=sharing"
         },
         # DAY 17
         {
@@ -1589,9 +1589,10 @@ def get_a2_schedule():
             "goal": "Learn phrases for the pharmacy.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Notes on German Indefinite Pronouns",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1O040UoSuBdy4llTK7MbGIsib63uNNcrV/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1vsdVR_ubbu5gbXnm70vZS5xGFivjBYoA/view?usp=sharing"
         },
         # DAY 18
         {
@@ -1601,6 +1602,7 @@ def get_a2_schedule():
             "goal": "Practice calling the bank.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Notes on Opening a Bank Account in Germany",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
