@@ -1245,7 +1245,8 @@ def get_a1_schedule():
             "topic": "Lesen & Hören 12.1 and 12.2",
             "chapter": "12.1_12.2",
             "goal": "Learn about German professions and how to use two-way prepositions",
-            "instruction": "Two Case Preposition",
+            "instruction": "Do assignments for 12.1 and 12.2 and use the schreiben and sprechen below for practicals for full understanding",
+            "grammar_topic": "Two Case Preposition",
             "lesen_hören": [
                 {
                     "chapter": "12.1",
@@ -1290,6 +1291,7 @@ def get_a1_schedule():
             "goal": "Practice how to write both formal and informal letters",
             "assignment": True,
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
+            "grammar_topic": "Formal and Informal Letter",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/sHRHE1soH6I",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
@@ -1347,7 +1349,8 @@ def get_a1_schedule():
             "topic": "Schreiben & Sprechen 8.13",
             "chapter": "8.13",
             "goal": "Learn about conjunctions and how to apply them in your exams",
-            "instruction": "",
+            "instruction": "This chapter has no assignments. It gives you ideas to progress for A2 and how to use conjunctions",
+            "grammar_topic": "German Conjunctions,
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
@@ -1404,6 +1407,7 @@ def get_a2_schedule():
             "goal": "Learn to compare things and people.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Positive, Comparative, and Superlative in German",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
@@ -1416,6 +1420,7 @@ def get_a2_schedule():
             "goal": "Arrange and discuss meeting places.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Nominalization of Verbs",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
@@ -1428,6 +1433,7 @@ def get_a2_schedule():
             "goal": "Talk about free time activities.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Dative Preposition",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
@@ -1440,6 +1446,7 @@ def get_a2_schedule():
             "goal": "Identify furniture and rooms.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Two Case Preposition",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
@@ -1452,6 +1459,7 @@ def get_a2_schedule():
             "goal": "Practice searching for an apartment.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Identifying German Nouns' Gender"
             "video": "https://youtu.be/ScU6w8VQgNg",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
@@ -1464,6 +1472,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn about recipes and food. Practice using sequence words like zuerst', 'nachdem', and 'außerdem' to organize your letter.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Zuerst, Nachdem, and Talking About Sequence in German"
             "video": "https://youtu.be/_xQMNp3qcDQ",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
@@ -1476,6 +1485,7 @@ def get_a2_schedule():
             "goal": "Discuss vacation plans.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Understanding Präteritum and Perfekt",
             "video": "https://youtu.be/NxoQH-BY9Js",
             "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
@@ -1488,6 +1498,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn about tourism and festivals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Präteritum",
             "video": "https://youtu.be/XFxV3GSSm8E",
             "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
@@ -1500,6 +1511,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Compare means of transportation.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Prepositions in and naxh",
             "video": "https://youtu.be/RkvfRiPCZI4",
             "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
@@ -1512,6 +1524,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Learn how to talk about a dream job and future goals.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Konjunktiv II",
             "video": "https://youtu.be/w81bsmssGXQ",
             "grammarbook_link": "https://drive.google.com/file/d/1dyGB5q92EePy8q60eWWYA91LXnsWQFb1/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
@@ -1524,6 +1537,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Prepare for a job interview.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Konjunktive II with modal verbs",
             "video": "https://youtu.be/urKBrX5VAYU",
             "grammarbook_link": "https://drive.google.com/file/d/1tv2tYzn9mIG57hwWr_ilxV1My7kt-RKQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1sW2yKZptnYWPhS7ciYdi0hN5HV-ycsF0/view?usp=sharing"
@@ -1536,6 +1550,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Discuss jobs and careers.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Modal Verbs",
             "video": "https://youtu.be/IyBvx-yVT-0",
             "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
@@ -1548,6 +1563,7 @@ def get_a2_schedule():
             "assignment": True,
             "goal": "Talk about your favorite sport.",
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Reflexive Pronouns",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dGZjcHhdN1xAdK2APL54RykGH7_msUyr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
@@ -1560,6 +1576,7 @@ def get_a2_schedule():
             "goal": "Express well-being and relaxation.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "grammar_topic": "Verbs and Adjectives with Prepositions",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
