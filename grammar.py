@@ -834,7 +834,7 @@ if st.session_state.get("logged_in"):
         tab = tab_list[new_tab_idx]
         if new_tab_idx != cur_tab_idx:
             st.session_state["main_tab_select"] = tab
-            st.experimental_rerun()
+            st.rerun()
     else:
         tab = st.radio(
             "How do you want to practice?",
