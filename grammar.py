@@ -3893,14 +3893,13 @@ if tab == "Schreiben Trainer":
         # --- Writing Stats Block (INSERTED HERE) ---
         def get_schreiben_stats_all(student_code):
             """
-            Load all submission stats for this student. 
+            Load all submission stats for this student.
             You should adapt this to your DB logic (Firestore, SQLite, etc.).
             Returns: list of dicts with 'score', 'passed', 'date' fields.
             """
             doc_ref = db.collection("schreiben_submissions").document(student_code)
             doc = doc_ref.get()
             data = doc.to_dict() if doc.exists else {}
-            # Example: data["submissions"] = [{ "score": 19, "date": "...", "passed": True }, ... ]
             return data.get("submissions", [])
         
         def save_submission(student_code, score, passed, date):
@@ -3925,14 +3924,23 @@ if tab == "Schreiben Trainer":
         avg_score = round(sum(sub.get("score", 0) for sub in submissions) / total, 2) if total else 0
         pass_rate = round((num_passed / total) * 100, 1) if total else 0
 
+        # --- MOBILE & DARK MODE FRIENDLY STATS BOX ---
         st.markdown(
             f"""
-            <div style="background:#e3ffe9;padding:10px;border-radius:8px;margin-bottom:10px;">
-            <b>📈 Your Writing Stats:</b><br>
-            Total Letters: <b>{total}</b><br>
-            Passes: <b>{num_passed}</b> <br>
-            Pass Rate: <b>{pass_rate}%</b> <br>
-            Avg Score: <b>{avg_score}/25</b>
+            <div style="
+                background: linear-gradient(90deg,#222 80%,#3c474d 100%);
+                color: #eaffea;
+                padding: 18px 13px 12px 13px;
+                border-radius: 13px;
+                margin-bottom: 16px;
+                font-size: 1.07em;
+                border: 1.5px solid #1abc9c33;
+                box-shadow: 0 2px 8px #0003;">
+                <span style="font-weight:bold;font-size:1.18em;color:#ffeb3b;">✅ Your Writing Stats</span><br>
+                <b>Total Letters:</b> <span style="color:#fff;">{total}</span><br>
+                <b>Passes:</b> <span style="color:#96ffa3;">{num_passed}</span> <br>
+                <b>Pass Rate:</b> <span style="color:#fff;">{pass_rate}%</span> <br>
+                <b>Avg Score:</b> <span style="color:#ffe3e3;">{avg_score}/25</span>
             </div>
             """, unsafe_allow_html=True
         )
@@ -4099,6 +4107,7 @@ if tab == "Schreiben Trainer":
                 ai_prompt3 = (
                     f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
                     "ONLY show one correct example of their letter, using simple, direct German for their level."
+                    "Always talk as the tutor"
                 )
                 with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
                     completion3 = client.chat.completions.create(
