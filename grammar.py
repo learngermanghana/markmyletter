@@ -767,17 +767,15 @@ if st.session_state.get("logged_in"):
         key="tab_mode_select"
     )
 
-    # ====== ONLY SHOW DASHBOARD HEADER IF NOT IN FULL VIEW ======
+    # --------- Load student info always (for all tabs, any mode) ----------
+    df_students = load_student_data()
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
+
+    # ====== SHOW DASHBOARD HEADER/STREAK ONLY IF NOT FULL-VIEW ======
     if tab_mode != "Full-View Mode (Current tab only)":
-        # Load student info
-        df_students = load_student_data()
-        matches = df_students[df_students["StudentCode"].str.lower() == student_code]
-        student_row = matches.iloc[0].to_dict() if not matches.empty else {}
-
-        # Greeting and contract info
-        first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
-
-        # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+        # --- Contract End and Renewal Policy ---
         MONTHLY_RENEWAL = 1000
         contract_end_str = student_row.get("ContractEnd", "")
         today = datetime.today()
@@ -877,9 +875,8 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
-    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
+    # ===================== TAB CONTENTS =====================
     if tab == "Dashboard":
-        # --- Student Information & Balance ---
         st.markdown(f"### 👤 {student_row.get('Name','')}")
         st.markdown(
             f"- **Level:** {student_row.get('Level','')}\n"
@@ -967,9 +964,6 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-
-
-
             
 def get_a1_schedule():
     return [
