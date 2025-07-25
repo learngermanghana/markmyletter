@@ -2218,6 +2218,24 @@ if tab == "Course Book":
             format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
         )
 
+    # ===== Progress Bar (just for scrolling/selection) =====
+    total_assignments = len(schedule)
+    assignments_done = idx + 1  # "done" means: loaded up to this point, not completed
+    percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
+    st.progress(percent)
+    st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
+
+    # ===== Estimated time for just this lesson =====
+    LEVEL_TIME = {
+        "A1": 15,
+        "A2": 25,
+        "B1": 30,
+        "B2": 40,
+        "C1": 45
+    }
+    current_time = LEVEL_TIME.get(student_level, 20)
+    st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
+
     info = schedule[idx]
     st.markdown(
         f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
@@ -2232,6 +2250,7 @@ if tab == "Course Book":
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
     if info.get('grammar_topic'):
         st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
+
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
