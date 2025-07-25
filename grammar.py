@@ -2236,6 +2236,25 @@ if tab == "Course Book":
     current_time = LEVEL_TIME.get(student_level, 20)
     st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
 
+    # ====== SUGGESTED END DATE CALCULATION ======
+    from datetime import datetime, timedelta
+    contract_start_str = student_row.get('ContractStart', '')
+    try:
+        contract_start_date = datetime.strptime(contract_start_str, "%Y-%m-%d").date()
+    except Exception:
+        try:
+            contract_start_date = datetime.strptime(contract_start_str, "%d/%m/%Y").date()
+        except Exception:
+            contract_start_date = None
+
+    if contract_start_date:
+        weeks_needed = (total_assignments + 2) // 3  # 3 per week, round up
+        est_end_date = contract_start_date + timedelta(weeks=weeks_needed)
+        st.success(f"🎯 **At 3 lessons/week, you can finish by:** {est_end_date.strftime('%A, %d %b %Y')}")
+        st.caption("Stay consistent – finishing on time means just 3 lessons every week.")
+    else:
+        st.warning("❓ Start date missing. Please contact admin to update your contract start date for end date suggestion.")
+
     info = schedule[idx]
     st.markdown(
         f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
