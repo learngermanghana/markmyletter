@@ -811,6 +811,48 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
+    # --- Tab Mode Switcher (shows below radio, not above) ---
+    tab_modes = ["Quick Switch (Show all tabs)", "Full-View Mode (Current tab only)"]
+    tab_mode = st.selectbox(
+        "Tab View Mode",
+        tab_modes,
+        index=0,
+        key="tab_mode_select"
+    )
+
+    # Logic for full view mode
+    if tab_mode == "Full-View Mode (Current tab only)":
+        # Hide all other tabs, show only the selected tab.
+        st.markdown(
+            "<div style='margin: 8px 0 12px 0; background: #22223b; color: #fff; padding: 10px 18px; border-radius: 7px;'>"
+            "<b>You're in Full-View Mode.</b> Only this tab is showing.<br>"
+            "Click below to change tab.</div>",
+            unsafe_allow_html=True
+        )
+        tab_list = [
+            "Dashboard",
+            "Course Book",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "My Learning Notes",
+        ]
+        # Show a dropdown to pick tab
+        cur_tab_idx = tab_list.index(tab)
+        new_tab_idx = st.selectbox(
+            "Switch tab:",
+            range(len(tab_list)),
+            format_func=lambda i: tab_list[i],
+            index=cur_tab_idx,
+            key="tab_single_select"
+        )
+        if new_tab_idx != cur_tab_idx:
+            st.session_state["main_tab_select"] = tab_list[new_tab_idx]
+            st.experimental_rerun()
+
+    st.divider()
+
     # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
     if tab == "Dashboard":
         # --- Student Information & Balance ---
