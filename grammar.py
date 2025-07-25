@@ -2205,7 +2205,6 @@ if tab == "Course Book":
             st.stop()
         labels = []
         for _, d in matches:
-            # Highlight all visible fields in results!
             title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
             grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
             labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
@@ -2220,7 +2219,7 @@ if tab == "Course Book":
 
     # ===== Progress Bar (just for scrolling/selection) =====
     total_assignments = len(schedule)
-    assignments_done = idx + 1  # "done" means: loaded up to this point, not completed
+    assignments_done = idx + 1
     percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
     st.progress(percent)
     st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
@@ -2237,15 +2236,15 @@ if tab == "Course Book":
     st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
 
     # ====== SUGGESTED END DATE CALCULATION ======
-    from datetime import datetime, timedelta
     contract_start_str = student_row.get('ContractStart', '')
-    try:
-        contract_start_date = datetime.strptime(contract_start_str, "%Y-%m-%d").date()
-    except Exception:
+    contract_start_date = None
+    # Try all possible formats
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
         try:
-            contract_start_date = datetime.strptime(contract_start_str, "%d/%m/%Y").date()
+            contract_start_date = datetime.strptime(contract_start_str, fmt).date()
+            break
         except Exception:
-            contract_start_date = None
+            continue
 
     if contract_start_date:
         weeks_needed = (total_assignments + 2) // 3  # 3 per week, round up
@@ -2253,7 +2252,7 @@ if tab == "Course Book":
         st.success(f"🎯 **At 3 lessons/week, you can finish by:** {est_end_date.strftime('%A, %d %b %Y')}")
         st.caption("Stay consistent – finishing on time means just 3 lessons every week.")
     else:
-        st.warning("❓ Start date missing. Please contact admin to update your contract start date for end date suggestion.")
+        st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
 
     info = schedule[idx]
     st.markdown(
@@ -2262,14 +2261,12 @@ if tab == "Course Book":
     )
     if info.get('grammar_topic'):
         st.markdown(f"**🔤 Grammar:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-
     if info.get('goal'):
         st.markdown(f"**🎯 Goal:**  {info['goal']}")
     if info.get('instruction'):
         st.markdown(f"**📝 Instruction:**  {info['instruction']}")
     if info.get('grammar_topic'):
         st.markdown(f"**📘 Grammar Focus:**  {info['grammar_topic']}")
-
 
     render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
     render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
@@ -2312,8 +2309,6 @@ if tab == "Course Book":
         """
     )
 
-def sanitize_pdf_text(text):
-    return text.encode("latin1", errors="replace").decode("latin1")
 
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
