@@ -1729,7 +1729,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
             "grammar_topic": "Präsens & Perfekt",
-            "video": "",
+            "video": "https://youtu.be/wMrdW2DhD5o",
             "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
