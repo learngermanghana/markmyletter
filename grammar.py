@@ -618,15 +618,27 @@ if not st.session_state["logged_in"] and code_from_cookie:
 
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
+    # See if student code is auto-filled (from cookie)
+    code_from_cookie = cookie_manager.get("student_code") or ""
+    code_from_cookie = str(code_from_cookie).strip().lower()
+    
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
+
+    # Only show password field if not auto-remembered (cookie is empty or user typed something new)
+    show_pw_field = not code_from_cookie or (login_input != code_from_cookie)
+    if show_pw_field:
+        login_password = st.text_input("Password", type="password")
+    else:
+        login_password = None  # Or a dummy value
+
     if st.button("Login"):
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"]       = df_students["Email"].str.lower().str.strip()
+        df_students["Email"] = df_students["Email"].str.lower().str.strip()
 
         found = df_students[
             (df_students["StudentCode"] == login_input) |
-            (df_students["Email"]       == login_input)
+            (df_students["Email"] == login_input)
         ]
         if not found.empty:
             student_row = found.iloc[0]
@@ -650,14 +662,14 @@ if not st.session_state["logged_in"]:
     st.markdown(
         """
         <div style='color:#1976d2;font-size:1rem;margin-top:8px;margin-bottom:4px;'>
-            <b>Tip for iPhone/iPad users:</b> To stay logged in, please avoid Private mode and do not clear Safari website data. 
+            <b>Tip for iPhone/iPad users:</b> To stay logged in, avoid Private mode and do not clear Safari website data. 
             <br>To save your code for faster login, tap 'Save Password' or use iCloud Keychain suggestions when prompted.
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # --- Data privacy only ---
+    # --- Data privacy ---
     st.markdown(
         """
         <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
@@ -668,8 +680,8 @@ if not st.session_state["logged_in"]:
         """,
         unsafe_allow_html=True
     )
-
     st.stop()
+
 
 
 # --- Logged In UI ---
