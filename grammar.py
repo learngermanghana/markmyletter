@@ -617,17 +617,30 @@ if not st.session_state["logged_in"] and code_from_cookie:
 # --- Manual Login Form ---
 if not st.session_state["logged_in"]:
     st.title("🔑 Student Login")
+
+    # Get cookie value (if any) for pre-fill
+    code_from_cookie = cookie_manager.get("student_code") or ""
+    code_from_cookie = str(code_from_cookie).strip().lower()
     login_input = st.text_input("Enter your Student Code or Email:", value=code_from_cookie).strip().lower()
-    remember_me = st.checkbox("Remember me", value=bool(code_from_cookie))
+
+    # Only show password box if the login_input is empty (i.e., not auto-filled/remembered)
+    show_password = not bool(login_input)
+    if show_password:
+        dummy_password = st.text_input(
+            "Password (not required)", 
+            type="password", 
+            value="", 
+            help="(Leave blank – not required, for auto-fill only)"
+        )
 
     if st.button("Login"):
         df_students = load_student_data()
         df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-        df_students["Email"]       = df_students["Email"].str.lower().str.strip()
+        df_students["Email"] = df_students["Email"].str.lower().str.strip()
 
         found = df_students[
             (df_students["StudentCode"] == login_input) |
-            (df_students["Email"]       == login_input)
+            (df_students["Email"] == login_input)
         ]
         if not found.empty:
             student_row = found.iloc[0]
@@ -640,16 +653,30 @@ if not st.session_state["logged_in"]:
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
-            # --- Only save to cookie if checked ---
-            if remember_me:
-                cookie_manager["student_code"] = student_row["StudentCode"]
-            else:
-                cookie_manager["student_code"] = ""
+            cookie_manager["student_code"] = student_row["StudentCode"]
             cookie_manager.save()
             st.success(f"Welcome, {student_row['Name']}! 🎉")
             st.rerun()
         else:
             st.error("Login failed. Please check your Student Code or Email.")
+
+    st.markdown(
+        """
+        <div style='text-align:center; margin-top:20px; margin-bottom:12px;'>
+            <span style='color:#ff9800;font-weight:600;'>
+                🔒 <b>Data Privacy:</b> Your login details and activity are never shared. Only your teacher can see your learning progress.
+            </span>
+            <br>
+            <span style='color:#1976d2;'>
+                🆕 <b>Update:</b> New features have been added to help you prepare for your German exam! Practice as often as you want, within your daily quota.
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.stop()
+
 
     # --- Info below login box ---
     st.markdown(
