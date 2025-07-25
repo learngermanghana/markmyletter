@@ -796,22 +796,17 @@ if st.session_state.get("logged_in"):
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
     st.info(dashboard_tip)  # This line gives the tip as a friendly info box
 
-    # --- Main Tab Selection ---
-    tab = st.radio(
-        "How do you want to practice?",
-        [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-            "My Learning Notes",
-        ],
-        key="main_tab_select"
-    )
+    # ------ TAB SELECTOR & MODE SWITCHER -------
+    tab_list = [
+        "Dashboard",
+        "Course Book",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+        "My Learning Notes",
+    ]
 
-    # --- Tab Mode Switcher (shows below radio, not above) ---
     tab_modes = ["Quick Switch (Show all tabs)", "Full-View Mode (Current tab only)"]
     tab_mode = st.selectbox(
         "Tab View Mode",
@@ -820,26 +815,15 @@ if st.session_state.get("logged_in"):
         key="tab_mode_select"
     )
 
-    # Logic for full view mode
     if tab_mode == "Full-View Mode (Current tab only)":
-        # Hide all other tabs, show only the selected tab.
         st.markdown(
             "<div style='margin: 8px 0 12px 0; background: #22223b; color: #fff; padding: 10px 18px; border-radius: 7px;'>"
             "<b>You're in Full-View Mode.</b> Only this tab is showing.<br>"
             "Click below to change tab.</div>",
             unsafe_allow_html=True
         )
-        tab_list = [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-            "My Learning Notes",
-        ]
-        # Show a dropdown to pick tab
-        cur_tab_idx = tab_list.index(tab)
+        cur_tab = st.session_state.get("main_tab_select", tab_list[0])
+        cur_tab_idx = tab_list.index(cur_tab)
         new_tab_idx = st.selectbox(
             "Switch tab:",
             range(len(tab_list)),
@@ -847,9 +831,16 @@ if st.session_state.get("logged_in"):
             index=cur_tab_idx,
             key="tab_single_select"
         )
+        tab = tab_list[new_tab_idx]
         if new_tab_idx != cur_tab_idx:
-            st.session_state["main_tab_select"] = tab_list[new_tab_idx]
+            st.session_state["main_tab_select"] = tab
             st.experimental_rerun()
+    else:
+        tab = st.radio(
+            "How do you want to practice?",
+            tab_list,
+            key="main_tab_select"
+        )
 
     st.divider()
 
@@ -943,6 +934,7 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
 
             
 def get_a1_schedule():
