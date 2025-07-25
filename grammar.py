@@ -1725,23 +1725,25 @@ def get_b1_schedule():
             "day": 1,
             "topic": "Traumwelten (Übung) 1.1",
             "chapter": "1.1",
-            "goal": "Talk about dream worlds and imagination.",
+            "goal": "Sprich über Traumwelten und Vorstellungskraft.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
+            "grammar_topic": "Präsens & Perfekt",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
         # DAY 2
         {
             "day": 2,
             "topic": "Freunde fürs Leben (Übung) 1.2",
             "chapter": "1.2",
-            "goal": "Discuss friendships and important qualities.",
+            "goal": "Sprich über Freundschaften und wichtige Eigenschaften.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
+            "grammar_topic": "Präteritum (Simple Past) – Erzählen von vergangenen Erlebnissen",
             "video": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": ""
         },
         # DAY 3
