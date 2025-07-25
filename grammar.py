@@ -1350,7 +1350,7 @@ def get_a1_schedule():
             "chapter": "8.13",
             "goal": "Learn about conjunctions and how to apply them in your exams",
             "instruction": "This chapter has no assignments. It gives you ideas to progress for A2 and how to use conjunctions",
-            "grammar_topic": "German Conjunctions,
+            "grammar_topic": "German Conjunctions",
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
