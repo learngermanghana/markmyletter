@@ -4270,7 +4270,7 @@ if tab == "Schreiben Trainer":
         if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
             st.info("👉 Try to fix your mistakes using the feedback above, then resubmit below for a bonus!")
             correction = st.text_area(
-                "Your corrected version:",
+                "Type here:",
                 key="correction_input",
                 height=180,
                 value=""
