@@ -3276,7 +3276,6 @@ if tab == "Exams Mode & Custom Chat":
         lesen_links = {
             "A1": [
                 ("Goethe A1 Lesen PDF 1", "https://drive.google.com/file/d/1JnerQsEg3iPNIkYDqE0ypBGTjNK1LsRO/view?usp=sharing"),
-                ("Practice Paper 2", "https://your-other-link.com")
             ],
             "A2": [
                 ("A2 Lesen Sample", "https://drive.google.com/file/d/1YMjpi2aJ6o3TkLOR3ld81SfNzdZQxMQB/view?usp=sharing")
