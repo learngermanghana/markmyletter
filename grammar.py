@@ -4259,6 +4259,8 @@ if tab == "Schreiben Trainer":
                 st.session_state["correction_points"] = 0
 
             # --- AUTOMATICALLY SAVE STATS/SUBMISSION ---
+            import datetime
+            import re
             score_match = re.search(r"Score[: ]+(\d+)", feedback)
             score = int(score_match.group(1)) if score_match else 0
             passed = score >= 17  # adjust pass threshold as needed
