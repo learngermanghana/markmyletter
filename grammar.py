@@ -4788,6 +4788,8 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 
+
+# === Firestore DB logic (assume 'db' object is already initialized above) ===
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
@@ -4797,8 +4799,7 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-# ------------------------------------
-# Main Tab Logic
+# ------------------ MAIN TAB LOGIC -------------------
 if tab == "My Learning Notes":
     st.markdown("""
         <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -4816,7 +4817,12 @@ if tab == "My Learning Notes":
     notes = st.session_state[key_notes]
 
     # --- Sub-tabs: 1) Add/Edit 2) Library ---
-    subtab = st.radio("Notebook", ["➕ Add/Edit Note", "📚 My Notes Library"], horizontal=True)
+    subtab = st.radio(
+        "Notebook", 
+        ["➕ Add/Edit Note", "📚 My Notes Library"], 
+        horizontal=True, 
+        key="notebook_radio"
+    )
 
     ### --- Add/Edit Note Subtab ---
     if subtab == "➕ Add/Edit Note":
@@ -4833,34 +4839,40 @@ if tab == "My Learning Notes":
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
             new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
-            if st.form_submit_button("💾 Save Note"):
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                if not new_title.strip():
-                    st.warning("Please enter a title.")
-                    st.stop()
-                note = {
-                    "title": new_title.strip().title(),
-                    "tag": new_tag.strip().title(),
-                    "text": new_text.strip(),
-                    "pinned": False,
-                    "created": timestamp,
-                    "updated": timestamp
-                }
-                if editing:
-                    notes[idx] = note
-                    for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                        if k in st.session_state: del st.session_state[k]
-                    st.success("Note updated!")
-                else:
-                    notes.insert(0, note)  # Newest first
-                    st.success("Note added!")
-                st.session_state[key_notes] = notes
-                save_notes_to_db(student_code, notes)
-                st.rerun()
-            if editing and st.form_submit_button("❌ Cancel Edit"):
+            save_btn = st.form_submit_button("💾 Save Note")
+            cancel_btn = st.form_submit_button("❌ Cancel Edit") if editing else None
+
+        if save_btn:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            if not new_title.strip():
+                st.warning("Please enter a title.")
+                st.stop()
+            note = {
+                "title": new_title.strip().title(),
+                "tag": new_tag.strip().title(),
+                "text": new_text.strip(),
+                "pinned": False if not editing else notes[idx].get("pinned", False),
+                "created": notes[idx]["created"] if editing else timestamp,
+                "updated": timestamp
+            }
+            if editing:
+                notes[idx] = note
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                     if k in st.session_state: del st.session_state[k]
-                st.rerun()
+                st.success("Note updated!")
+            else:
+                notes.insert(0, note)  # Newest first
+                st.success("Note added!")
+            st.session_state[key_notes] = notes
+            save_notes_to_db(student_code, notes)
+            st.session_state["notebook_radio"] = "📚 My Notes Library"  # After save, show library
+            st.rerun()
+
+        if cancel_btn:
+            for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                if k in st.session_state: del st.session_state[k]
+            st.session_state["notebook_radio"] = "📚 My Notes Library"
+            st.rerun()
 
     ### --- Notes Library Subtab ---
     elif subtab == "📚 My Notes Library":
@@ -5006,6 +5018,7 @@ if tab == "My Learning Notes":
                         st.session_state["edit_note_title"] = note["title"]
                         st.session_state["edit_note_text"] = note["text"]
                         st.session_state["edit_note_tag"] = note.get("tag", "")
+                        st.session_state["notebook_radio"] = "➕ Add/Edit Note"  # Force switch tab
                         st.rerun()
                 with cols[1]:
                     if st.button("🗑️ Delete", key=f"del_{i}"):
@@ -5029,8 +5042,8 @@ if tab == "My Learning Notes":
                             st.rerun()
                 with cols[3]:
                     st.caption("")
-# ---------------------- END TAB -------------------------
 
+# ---------------------- END TAB -------------------------
 
 
 
