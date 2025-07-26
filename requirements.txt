@@ -8,3 +8,5 @@ matplotlib
 thefuzz
 firebase-admin>=6.0.0
 python-docx
+gtts
+pydub
