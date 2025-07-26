@@ -4192,7 +4192,9 @@ if tab == "Schreiben Trainer":
                 "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
                 "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
                 "Don't just say errors—show exactly where the mistakes are. "
-                "1. Give a score out of 25 marks and always display the score clearly. "
+                "Mark any mistake phrase or example in [highlight]...[/highlight]. "
+                "If something is especially good, you can also use [highlight]...[/highlight] and say why. "
+                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
                 "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
                 "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
                 "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
@@ -4227,6 +4229,7 @@ if tab == "Schreiben Trainer":
                 inc_schreiben_usage(student_code)
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
+                # Optional: If you want to highlight feedback, wrap in function here
                 st.markdown(feedback)
                 st.session_state["awaiting_correction"] = True
                 st.session_state["correction_points"] = 0
@@ -4251,6 +4254,48 @@ if tab == "Schreiben Trainer":
             col1, col2 = st.columns(2)
             try_correction = col1.button("Submit My Correction", key="submit_correction")
             show_model = col2.button("Show me a correct version (I tried myself first!)", key="show_model_btn")
+
+            # Correction Feedback
+            if try_correction and correction.strip():
+                ai_prompt2 = (
+                    f"As Herr Felix, the student has tried to fix their errors after feedback. "
+                    "Give a brief review ONLY on what was improved or still needs fixing, and give up to 2 bonus points if you see clear corrections. "
+                    "Always talk as the tutor and directly to the student. "
+                    "When student submits more than 3 times and doesn't improve and scores below the pass mark, end the session and encourage them to try tomorrow. "
+                    "Do NOT regrade from scratch. Reward visible fixes, encourage, and then show the corrected score as: Score: [old score]+[bonus] / 25."
+                )
+                with st.spinner("🧑‍🏫 Reviewing your corrections..."):
+                    completion2 = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt2},
+                            {"role": "user", "content": f"Original:\n{st.session_state['last_user_letter']}\n\nCorrection:\n{correction}"},
+                        ],
+                        temperature=0.5,
+                    )
+                    feedback2 = completion2.choices[0].message.content
+                st.session_state["correction_points"] += 1
+                st.markdown("#### 📝 Correction Feedback")
+                st.markdown(feedback2)
+
+            # Model answer unlock
+            if show_model:
+                ai_prompt3 = (
+                    f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
+                    "ONLY show one correct example of their letter, using simple, direct German for their level."
+                )
+                with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
+                    completion3 = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt3},
+                            {"role": "user", "content": st.session_state["last_user_letter"]},
+                        ],
+                        temperature=0.2,
+                    )
+                    model_answer = completion3.choices[0].message.content
+                st.success("✅ Here is one correct version (for learning!):")
+                st.markdown(model_answer)
 
             if try_correction and correction.strip():
                 ai_prompt2 = (
