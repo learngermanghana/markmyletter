@@ -4228,6 +4228,7 @@ if tab == "Schreiben Trainer":
         passed = score >= 17  # adjust pass threshold as needed
         save_submission(student_code, score, passed, datetime.datetime.now())
 
+
     # Error Correction Loop
     if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
         st.info("👉 Try to fix your mistakes using the feedback and resubmit below for a bonus! (You can edit only the right box)")
