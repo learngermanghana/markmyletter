@@ -3972,6 +3972,18 @@ def init_student_session():
         # Update tracker
         st.session_state["prev_student_code"] = code
 
+def highlight_feedback(feedback_text):
+    """
+    Turns [highlight]...[/highlight] into yellow background, and keeps Markdown **bold**.
+    """
+    # If you use [highlight] markup in your prompt, convert to span.
+    highlighted = re.sub(
+        r'\[highlight\](.*?)\[/highlight\]',
+        r'<span style="background-color: #fff59d; font-weight:bold;">\1</span>',
+        feedback_text
+    )
+    return highlighted
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4120,7 +4132,7 @@ if tab == "Schreiben Trainer":
             key="schreiben_input",
             value=st.session_state.get("schreiben_input", ""),
             disabled=(daily_so_far >= MARK_LIMIT),
-            height=300,
+            height=400,
             placeholder="Write your German letter here..."
         )
 
@@ -4169,14 +4181,16 @@ if tab == "Schreiben Trainer":
                 "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
                 "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
                 "Don't just say errors—show exactly where the mistakes are. "
+                "Mark any mistake phrase or example in [highlight]...[/highlight]. "
+                "If something is especially good, you can also use [highlight]...[/highlight] and say why. "
                 "1. Give a score out of 25 marks and always display the score clearly. "
                 "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
                 "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
                 "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
                 "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                "6. Also check for AI usage or if the student wrote with their own effort. "
-                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                "6. Check if their essay is too short or long based on their level and type of essay."
+                "8. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "9. After your feedback, give a clear breakdown in this format (always use the same order):\n"
                 "Grammar: [score/5, one-sentence tip]\n"
                 "Vocabulary: [score/5, one-sentence tip]\n"
                 "Spelling: [score/5, one-sentence tip]\n"
@@ -4204,7 +4218,10 @@ if tab == "Schreiben Trainer":
                 inc_schreiben_usage(student_code)
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
-                st.markdown(feedback)
+                st.markdown(
+                    highlight_feedback(feedback),
+                    unsafe_allow_html=True
+                )
                 st.session_state["awaiting_correction"] = True
                 st.session_state["correction_points"] = 0
 
@@ -4214,7 +4231,8 @@ if tab == "Schreiben Trainer":
             score_match = re.search(r"Score[: ]+(\d+)", feedback)
             score = int(score_match.group(1)) if score_match else 0
             passed = score >= 17  # adjust pass threshold as needed
-            save_submission(student_code, score, passed, datetime.datetime.now())                                                                    
+            save_submission(student_code, score, passed, datetime.datetime.now())
+                                                                
 
         # Error Correction Loop
         if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
@@ -4255,6 +4273,7 @@ if tab == "Schreiben Trainer":
                     f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
                     "ONLY show one correct example of their letter, using simple, direct German for their level."
                     "Always talk as the tutor"
+                    "1.When the student dont improve after 3rd try, advice the student in a nice way and end the chat"
                 )
                 with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
                     completion3 = client.chat.completions.create(
