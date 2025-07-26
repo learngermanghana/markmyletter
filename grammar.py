@@ -3972,13 +3972,16 @@ def init_student_session():
         # Update tracker
         st.session_state["prev_student_code"] = code
 
-import re
 
 def highlight_feedback(feedback):
-    # Use a lighter yellow and black text
-    pattern = r"„(.+?)“"
-    repl = r'<span style="background:#fffde7; color:#222; border-bottom:2px solid #ffe082; padding:2px 2px;">„\1“</span>'
-    return re.sub(pattern, repl, feedback)
+    # Replace [highlight]...[/highlight] with <mark> (lighter, readable background)
+    highlighted = re.sub(
+        r"\[highlight\](.*?)\[/highlight\]",
+        r"<mark style='background: #ffeaa7; color: #111; padding:2px 3px; border-radius:2px;'>\1</mark>",
+        feedback,
+        flags=re.DOTALL
+    )
+    return highlighted
 
 
 if tab == "Schreiben Trainer":
@@ -4169,7 +4172,7 @@ if tab == "Schreiben Trainer":
             key=f"feedback_btn_{student_code}"
         )
 
-            # --- Feedback logic ---
+    # --- Feedback logic ---
     if feedback_btn:
         st.session_state["awaiting_correction"] = True
         ai_prompt = (
@@ -4213,12 +4216,7 @@ if tab == "Schreiben Trainer":
 
         if feedback:
             inc_schreiben_usage(student_code)
-            st.markdown("---")
-            st.markdown("#### 📝 Feedback from Herr Felix")
-            st.markdown(
-                highlight_feedback(feedback),
-                unsafe_allow_html=True
-            )
+            # Don't repeat feedback here if showing it in columns below!
             st.session_state["awaiting_correction"] = True
             st.session_state["correction_points"] = 0
 
