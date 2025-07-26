@@ -3973,15 +3973,39 @@ def init_student_session():
         st.session_state["prev_student_code"] = code
 
 
-def highlight_feedback(feedback):
-    # Replace [highlight]...[/highlight] with <mark> (lighter, readable background)
-    highlighted = re.sub(
-        r"\[highlight\](.*?)\[/highlight\]",
-        r"<mark style='background: #ffeaa7; color: #111; padding:2px 3px; border-radius:2px;'>\1</mark>",
-        feedback,
-        flags=re.DOTALL
+import re
+
+def highlight_feedback(text):
+    """
+    Converts [highlight]...[/highlight] to Streamlit-friendly bold text with emoji.
+    Also formats wrong/correct pairs for feedback clarity.
+    """
+    # 1. Replace [highlight]...[/highlight] with bold, colored span & emoji
+    def highlight_repl(match):
+        highlighted = match.group(1)
+        # Use background color (yellow), bold and emoji for error
+        return f'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>'
+
+    # Replace all [highlight]...[/highlight]
+    text = re.sub(r'\[highlight\](.*?)\[/highlight\]', highlight_repl, text, flags=re.DOTALL)
+
+    # 2. (Optional) Replace "It should be" or "Correction:" with ✔️ and green
+    text = re.sub(
+        r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
+        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
+        text
     )
-    return highlighted
+    text = re.sub(
+        r'Correction:\s*["“”]?(.*?)["“”]?(?=[\.\n])',
+        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
+        text
+    )
+
+    # 3. (Optional) Bullet formatting for feedback
+    text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
+
+    return text
+
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
@@ -4230,13 +4254,11 @@ if tab == "Schreiben Trainer":
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
                 # Optional: If you want to highlight feedback, wrap in function here
-                st.markdown(feedback)
+                st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
                 st.session_state["awaiting_correction"] = True
                 st.session_state["correction_points"] = 0
 
             # --- AUTOMATICALLY SAVE STATS/SUBMISSION ---
-            import datetime
-            import re
             score_match = re.search(r"Score[: ]+(\d+)", feedback)
             score = int(score_match.group(1)) if score_match else 0
             passed = score >= 17  # adjust pass threshold as needed
@@ -4371,19 +4393,6 @@ if tab == "Schreiben Trainer":
                         f"[📲 Send to Tutor on WhatsApp]({wa_url})",
                         unsafe_allow_html=True
                     )
-
-            # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
-            def bubble(role, text):
-                color = "#7b2ff2" if role == "assistant" else "#222"
-                bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-                name = "Herr Felix" if role == "assistant" else "You"
-                return f"""
-                    <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
-                    border-radius:14px;max-width:98vw;font-size:1.09rem;">
-                        <b>{name}:</b><br>{text}
-                    </div>
-                """
-
 
 
     if sub_tab == "Ideas Generator (Letter Coach)":
