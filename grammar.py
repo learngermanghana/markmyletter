@@ -2428,6 +2428,23 @@ if tab == "Course Book":
         )
 
     st.divider()
+    
+    # ==== Video of the Day (Expander) ====
+    with st.expander("🎬 Video of the Day for Your Level"):
+        playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
+        if playlist_id:
+            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+            if video_list:
+                today_idx = date.today().toordinal()
+                pick = today_idx % len(video_list)
+                video = video_list[pick]
+                st.markdown(f"**{video['title']}**")
+                st.video(video['url'])
+            else:
+                st.info("No videos found for your level’s playlist. Check back soon!")
+        else:
+            st.info("No playlist found for your level yet. Stay tuned!")
+
     st.header("📲 Submit Assignment (WhatsApp)")
 
     def render_whatsapp():
@@ -2451,6 +2468,7 @@ if tab == "Course Book":
 - Use your correct name and code.
         """
     )
+
 
 
 if tab == "My Results and Resources":
