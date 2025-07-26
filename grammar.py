@@ -3983,6 +3983,19 @@ def highlight_feedback(feedback):
     )
     return highlighted
 
+# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
+def bubble(role, text):
+    color = "#7b2ff2" if role == "assistant" else "#222"
+    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+    name = "Herr Felix" if role == "assistant" else "You"
+    return f"""
+        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+        border-radius:14px;max-width:98vw;font-size:1.09rem;">
+            <b>{name}:</b><br>{text}
+        </div>
+    """
+
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4045,245 +4058,239 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-        # ----------- 1. MARK MY LETTER -----------
-        if sub_tab == "Mark My Letter":
-            # --- Writing Stats Block ---
-            def get_schreiben_stats_all(student_code):
-                doc_ref = db.collection("schreiben_submissions").document(student_code)
-                doc = doc_ref.get()
-                data = doc.to_dict() if doc.exists else {}
-                return data.get("submissions", [])
+    # ----------- 1. MARK MY LETTER -----------
+    if sub_tab == "Mark My Letter":
+        # --- Writing Stats Block (INSERTED HERE) ---
+        def get_schreiben_stats_all(student_code):
+            """
+            Load all submission stats for this student.
+            You should adapt this to your DB logic (Firestore, SQLite, etc.).
+            Returns: list of dicts with 'score', 'passed', 'date' fields.
+            """
+            doc_ref = db.collection("schreiben_submissions").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            return data.get("submissions", [])
+        
+        def save_submission(student_code, score, passed, date):
+            """
+            Save a letter submission for this student.
+            """
+            doc_ref = db.collection("schreiben_submissions").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            submissions = data.get("submissions", [])
+            submissions.append({
+                "score": score,
+                "passed": passed,
+                "date": date.strftime("%Y-%m-%d")
+            })
+            doc_ref.set({"submissions": submissions}, merge=True)
 
-            def save_submission(student_code, score, passed, date):
-                doc_ref = db.collection("schreiben_submissions").document(student_code)
-                doc = doc_ref.get()
-                data = doc.to_dict() if doc.exists else {}
-                submissions = data.get("submissions", [])
-                submissions.append({
-                    "score": score,
-                    "passed": passed,
-                    "date": date.strftime("%Y-%m-%d")
-                })
-                doc_ref.set({"submissions": submissions}, merge=True)
+        # Load stats for display
+        submissions = get_schreiben_stats_all(student_code)
+        total = len(submissions)
+        num_passed = sum(1 for sub in submissions if sub.get("passed"))
+        avg_score = round(sum(sub.get("score", 0) for sub in submissions) / total, 2) if total else 0
+        pass_rate = round((num_passed / total) * 100, 1) if total else 0
 
-            # Load stats for display
-            submissions = get_schreiben_stats_all(student_code)
-            total = len(submissions)
-            num_passed = sum(1 for sub in submissions if sub.get("passed"))
-            avg_score = round(sum(sub.get("score", 0) for sub in submissions) / total, 2) if total else 0
-            pass_rate = round((num_passed / total) * 100, 1) if total else 0
+        # --- MOBILE & DARK MODE FRIENDLY STATS BOX ---
+        st.markdown(
+            f"""
+            <div style="
+                background: linear-gradient(90deg,#222 80%,#3c474d 100%);
+                color: #eaffea;
+                padding: 18px 13px 12px 13px;
+                border-radius: 13px;
+                margin-bottom: 16px;
+                font-size: 1.07em;
+                border: 1.5px solid #1abc9c33;
+                box-shadow: 0 2px 8px #0003;">
+                <span style="font-weight:bold;font-size:1.18em;color:#ffeb3b;">✅ Your Writing Stats</span><br>
+                <b>Total Letters:</b> <span style="color:#fff;">{total}</span><br>
+                <b>Passes:</b> <span style="color:#96ffa3;">{num_passed}</span> <br>
+                <b>Pass Rate:</b> <span style="color:#fff;">{pass_rate}%</span> <br>
+                <b>Avg Score:</b> <span style="color:#ffe3e3;">{avg_score}/25</span>
+            </div>
+            """, unsafe_allow_html=True
+        )
 
-            # --- Stats UI ---
-            st.markdown(
-                f"""
-                <div style="
-                    background: linear-gradient(90deg,#222 80%,#3c474d 100%);
-                    color: #eaffea;
-                    padding: 18px 13px 12px 13px;
-                    border-radius: 13px;
-                    margin-bottom: 16px;
-                    font-size: 1.07em;
-                    border: 1.5px solid #1abc9c33;
-                    box-shadow: 0 2px 8px #0003;">
-                    <span style="font-weight:bold;font-size:1.18em;color:#ffeb3b;">✅ Your Writing Stats</span><br>
-                    <b>Total Letters:</b> <span style="color:#fff;">{total}</span><br>
-                    <b>Passes:</b> <span style="color:#96ffa3;">{num_passed}</span> <br>
-                    <b>Pass Rate:</b> <span style="color:#fff;">{pass_rate}%</span> <br>
-                    <b>Avg Score:</b> <span style="color:#ffe3e3;">{avg_score}/25</span>
-                </div>
-                """, unsafe_allow_html=True
+        # Submission Limit (max 3 per day)
+        MARK_LIMIT = 3
+
+        def get_schreiben_usage(student_code):
+            today = datetime.now().date()
+            doc_ref = db.collection("schreiben_usage").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            return data.get(str(today), 0)
+
+        def inc_schreiben_usage(student_code):
+            today = datetime.now().date()
+            doc_ref = db.collection("schreiben_usage").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            today_key = str(today)
+            data[today_key] = data.get(today_key, 0) + 1
+            doc_ref.set(data)
+
+        daily_so_far = get_schreiben_usage(student_code)
+        st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
+
+        # Letter Textarea
+        user_letter = st.text_area(
+            "Paste or type your German letter/essay here.",
+            key="schreiben_input",
+            value=st.session_state.get("schreiben_input", ""),
+            disabled=(daily_so_far >= MARK_LIMIT),
+            height=300,
+            placeholder="Write your German letter here..."
+        )
+
+        # AUTOSAVE LOGIC: Save latest draft per student in Firestore
+        if (
+            user_letter.strip() and
+            user_letter != get_schreiben_stats(student_code).get("last_letter", "")
+        ):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            data["last_letter"] = user_letter
+            doc_ref.set(data, merge=True)
+
+        # Word count
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+        # Track state for correction loop
+        if "last_feedback" not in st.session_state:
+            st.session_state["last_feedback"] = None
+        if "last_user_letter" not in st.session_state:
+            st.session_state["last_user_letter"] = None
+        if "awaiting_correction" not in st.session_state:
+            st.session_state["awaiting_correction"] = False
+        if "correction_points" not in st.session_state:
+            st.session_state["correction_points"] = 0
+
+        # Submit button
+        submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
+        feedback_btn = st.button(
+            "Get Feedback",
+            type="primary",
+            disabled=submit_disabled,
+            key=f"feedback_btn_{student_code}"
+        )
+
+        # Feedback logic
+        if feedback_btn:
+            st.session_state["awaiting_correction"] = True
+            ai_prompt = (
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                f"The student has submitted a {schreiben_level} German letter or essay. "
+                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                "Don't just say errors—show exactly where the mistakes are. "
+                "1. Give a score out of 25 marks and always display the score clearly. "
+                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                "6. Also check for AI usage or if the student wrote with their own effort. "
+                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                "Grammar: [score/5, one-sentence tip]\n"
+                "Vocabulary: [score/5, one-sentence tip]\n"
+                "Spelling: [score/5, one-sentence tip]\n"
+                "Structure: [score/5, one-sentence tip]\n"
+                "For each area, rate out of 5 and give a specific, actionable tip in English."
             )
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
+                    st.session_state["last_feedback"] = feedback
+                    st.session_state["last_user_letter"] = user_letter
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
 
-            # Submission Limit (max 3 per day)
-            MARK_LIMIT = 3
-
-            def get_schreiben_usage(student_code):
-                today = datetime.now().date()
-                doc_ref = db.collection("schreiben_usage").document(student_code)
-                doc = doc_ref.get()
-                data = doc.to_dict() if doc.exists else {}
-                return data.get(str(today), 0)
-
-            def inc_schreiben_usage(student_code):
-                today = datetime.now().date()
-                doc_ref = db.collection("schreiben_usage").document(student_code)
-                doc = doc_ref.get()
-                data = doc.to_dict() if doc.exists else {}
-                today_key = str(today)
-                data[today_key] = data.get(today_key, 0) + 1
-                doc_ref.set(data)
-
-            daily_so_far = get_schreiben_usage(student_code)
-            st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
-
-            # Letter Textarea
-            user_letter = st.text_area(
-                "Paste or type your German letter/essay here.",
-                key="schreiben_input",
-                value=st.session_state.get("schreiben_input", ""),
-                disabled=(daily_so_far >= MARK_LIMIT),
-                height=400,
-                placeholder="Write your German letter here..."
-            )
-
-            # AUTOSAVE LOGIC: Save latest draft per student in Firestore
-            if (
-                user_letter.strip() and
-                user_letter != get_schreiben_stats(student_code).get("last_letter", "")
-            ):
-                doc_ref = db.collection("schreiben_stats").document(student_code)
-                doc = doc_ref.get()
-                data = doc.to_dict() if doc.exists else {}
-                data["last_letter"] = user_letter
-                doc_ref.set(data, merge=True)
-
-            # Word count
-            if user_letter.strip():
-                words = re.findall(r'\b\w+\b', user_letter)
-                chars = len(user_letter)
-                st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
-
-            # Track state for correction loop
-            if "last_feedback" not in st.session_state:
-                st.session_state["last_feedback"] = None
-            if "last_user_letter" not in st.session_state:
-                st.session_state["last_user_letter"] = None
-            if "awaiting_correction" not in st.session_state:
-                st.session_state["awaiting_correction"] = False
-            if "correction_points" not in st.session_state:
+            if feedback:
+                inc_schreiben_usage(student_code)
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(feedback)
+                st.session_state["awaiting_correction"] = True
                 st.session_state["correction_points"] = 0
 
-            # Submit button
-            submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
-            feedback_btn = st.button(
-                "Get Feedback",
-                type="primary",
-                disabled=submit_disabled,
-                key=f"feedback_btn_{student_code}"
+            # --- AUTOMATICALLY SAVE STATS/SUBMISSION ---
+            import datetime
+            import re
+            score_match = re.search(r"Score[: ]+(\d+)", feedback)
+            score = int(score_match.group(1)) if score_match else 0
+            passed = score >= 17  # adjust pass threshold as needed
+            save_submission(student_code, score, passed, datetime.datetime.now())                                                                    
+
+        # Error Correction Loop
+        if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
+            st.info("👉 Try to fix your mistakes using the feedback above, then resubmit below for a bonus!")
+            correction = st.text_area(
+                "Your corrected version:",
+                key="correction_input",
+                height=180,
+                value=""
             )
+            col1, col2 = st.columns(2)
+            try_correction = col1.button("Submit My Correction", key="submit_correction")
+            show_model = col2.button("Show me a correct version (I tried myself first!)", key="show_model_btn")
 
-            # --- Feedback logic ---
-            if feedback_btn:
-                st.session_state["awaiting_correction"] = True
-                ai_prompt = (
-                    f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                    f"The student has submitted a {schreiben_level} German letter or essay. "
-                    "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                    "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                    "Don't just say errors—show exactly where the mistakes are. "
-                    "Mark any mistake phrase or example in [highlight]...[/highlight]. "
-                    "If something is especially good, you can also use [highlight]...[/highlight] and say why. "
-                    "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
-                    "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-                    "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-                    "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                    "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                    "6. Check if their essay is too short or long based on their level and type of essay. "
-                    "7. Avoid writing a full corrected letter; instead, list and show the phrases to improve on, with tips, suggestions, and what the student should do. "
-                    "8. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                    "9. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                    "Grammar: [score/5, one-sentence tip]\n"
-                    "Vocabulary: [score/5, one-sentence tip]\n"
-                    "Spelling: [score/5, one-sentence tip]\n"
-                    "Structure: [score/5, one-sentence tip]\n"
-                    "For each area, rate out of 5 and give a specific, actionable tip in English."
+            if try_correction and correction.strip():
+                ai_prompt2 = (
+                    f"As Herr Felix, the student has tried to fix their errors after feedback. "
+                    "Give a brief review ONLY on what was improved or still needs fixing, and give up to 2 bonus points if you see clear corrections. "
+                    "Do NOT regrade from scratch. Reward visible fixes, encourage, and then show the corrected score as: Score: [old score]+[bonus] / 25."
                 )
-                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    try:
-                        completion = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": ai_prompt},
-                                {"role": "user", "content": user_letter},
-                            ],
-                            temperature=0.6,
-                        )
-                        feedback = completion.choices[0].message.content
-                        st.session_state["last_feedback"] = feedback
-                        st.session_state["last_user_letter"] = user_letter
-                    except Exception as e:
-                        st.error("AI feedback failed. Please check your OpenAI setup.")
-                        feedback = None
-
-                if feedback:
-                    inc_schreiben_usage(student_code)
-                    # Don't repeat feedback here if showing it in columns below!
-                    st.session_state["awaiting_correction"] = True
-                    st.session_state["correction_points"] = 0
-
-                # --- AUTOMATICALLY SAVE STATS/SUBMISSION ---
-                import datetime
-                import re
-                score_match = re.search(r"Score[: ]+(\d+)", feedback)
-                score = int(score_match.group(1)) if score_match else 0
-                passed = score >= 17  # adjust pass threshold as needed
-                save_submission(student_code, score, passed, datetime.datetime.now())
-
-            # Error Correction Loop
-            if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
-                st.info("👉 Try to fix your mistakes using the feedback and resubmit below for a bonus! (You can edit only the right box)")
-
-                col_feedback, col_edit = st.columns([2, 3])  # Wider edit area
-
-                with col_feedback:
-                    st.markdown("#### 📝 Last Feedback")
-                    st.markdown(
-                        highlight_feedback(st.session_state["last_feedback"]),
-                        unsafe_allow_html=True,
+                with st.spinner("🧑‍🏫 Reviewing your corrections..."):
+                    completion2 = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt2},
+                            {"role": "user", "content": f"Original:\n{st.session_state['last_user_letter']}\n\nCorrection:\n{correction}"},
+                        ],
+                        temperature=0.5,
                     )
+                    feedback2 = completion2.choices[0].message.content
+                st.session_state["correction_points"] += 1  # Simple bonus system, or parse bonus from feedback2
+                st.markdown("#### 📝 Correction Feedback")
+                st.markdown(feedback2)
 
-                with col_edit:
-                    st.markdown("**Your corrected version:**")
-                    correction = st.text_area(
-                        "",
-                        key="correction_input",
-                        height=180,
-                        value=""
+            # Model answer unlock
+            if show_model:
+                ai_prompt3 = (
+                    f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
+                    "ONLY show one correct example of their letter, using simple, direct German for their level."
+                    "Always talk as the tutor"
+                )
+                with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
+                    completion3 = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt3},
+                            {"role": "user", "content": st.session_state["last_user_letter"]},
+                        ],
+                        temperature=0.2,
                     )
-                    submit, model = st.columns(2)
-                    try_correction = submit.button("Submit My Correction", key="submit_correction")
-                    show_model = model.button("Show me a correct version (I tried myself first!)", key="show_model_btn")
-
-                if try_correction and correction.strip():
-                    ai_prompt2 = (
-                        f"As Herr Felix, the student has tried to fix their errors after feedback. "
-                        "Give a brief review ONLY on what was improved or still needs fixing, and give up to 2 bonus points if you see clear corrections. "
-                        "Always talk as the tutor and directly to the student. "
-                        "When student submits more than 3 times and doesn't improve and scores below the pass mark, end the session and encourage them to try tomorrow. "
-                        "Do NOT regrade from scratch. Reward visible fixes, encourage, and then show the corrected score as: Score: [old score]+[bonus] / 25."
-                    )
-                    with st.spinner("🧑‍🏫 Reviewing your corrections..."):
-                        completion2 = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": ai_prompt2},
-                                {"role": "user", "content": f"Original:\n{st.session_state['last_user_letter']}\n\nCorrection:\n{correction}"},
-                            ],
-                            temperature=0.5,
-                        )
-                        feedback2 = completion2.choices[0].message.content
-                    st.session_state["correction_points"] += 1
-                    st.markdown("#### 📝 Correction Feedback")
-                    st.markdown(feedback2)
-
-                # Model answer unlock
-                if show_model:
-                    ai_prompt3 = (
-                        f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
-                        "ONLY show one correct example of their letter, using simple, direct German for their level."
-                    )
-                    with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
-                        completion3 = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": ai_prompt3},
-                                {"role": "user", "content": st.session_state["last_user_letter"]},
-                            ],
-                            temperature=0.2,
-                        )
-                        model_answer = completion3.choices[0].message.content
-                    st.success("✅ Here is one correct version (for learning!):")
-                    st.markdown(model_answer)
+                    model_answer = completion3.choices[0].message.content
+                st.success("✅ Here is one correct version (for learning!):")
+                st.markdown(model_answer)
 
                 # PDF + WhatsApp sharing
                 if st.session_state.get("last_feedback") and st.session_state.get("last_user_letter"):
@@ -4350,7 +4357,7 @@ if tab == "Schreiben Trainer":
             st.session_state[ns("chat")] = last_chat or []
             st.session_state[ns("stage")] = 1 if last_chat else 0
             st.session_state["prev_letter_coach_code"] = student_code
-
+#
         # --- Set per-student defaults if missing ---
         for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
             if ns(k) not in st.session_state:
