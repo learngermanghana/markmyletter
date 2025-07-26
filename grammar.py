@@ -2428,8 +2428,9 @@ if tab == "Course Book":
         )
 
     st.divider()
-    
-    # ==== Video of the Day (Expander) ====
+
+    st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
+
     with st.expander("🎬 Video of the Day for Your Level"):
         playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
         if playlist_id:
@@ -2459,7 +2460,17 @@ if tab == "Course Book":
             st.success("Click link below to open WhatsApp.")
             st.markdown(f"[📨 Open WhatsApp]({url})")
         st.text_area("📋 Copy message:", msg, height=500)
+
     render_whatsapp()
+
+    st.info(
+        """
+    - Tap the links above to open resources in a new tab.
+    - Mention which task you're submitting.
+    - Use your correct name and code.
+        """
+    )
+
 
     st.info(
         """
