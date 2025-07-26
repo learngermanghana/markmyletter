@@ -1421,7 +1421,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Two Case Preposition",
             "video": "",
-            "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
         },
         # DAY 7
