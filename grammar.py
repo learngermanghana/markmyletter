@@ -3983,7 +3983,6 @@ def highlight_feedback(feedback):
     )
     return highlighted
 
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4046,25 +4045,16 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
-        # --- Writing Stats Block (INSERTED HERE) ---
+        # --- Writing Stats Block ---
         def get_schreiben_stats_all(student_code):
-            """
-            Load all submission stats for this student.
-            You should adapt this to your DB logic (Firestore, SQLite, etc.).
-            Returns: list of dicts with 'score', 'passed', 'date' fields.
-            """
             doc_ref = db.collection("schreiben_submissions").document(student_code)
             doc = doc_ref.get()
             data = doc.to_dict() if doc.exists else {}
             return data.get("submissions", [])
         
         def save_submission(student_code, score, passed, date):
-            """
-            Save a letter submission for this student.
-            """
             doc_ref = db.collection("schreiben_submissions").document(student_code)
             doc = doc_ref.get()
             data = doc.to_dict() if doc.exists else {}
@@ -4083,7 +4073,7 @@ if tab == "Schreiben Trainer":
         avg_score = round(sum(sub.get("score", 0) for sub in submissions) / total, 2) if total else 0
         pass_rate = round((num_passed / total) * 100, 1) if total else 0
 
-        # --- MOBILE & DARK MODE FRIENDLY STATS BOX ---
+        # --- Stats UI ---
         st.markdown(
             f"""
             <div style="
@@ -4172,61 +4162,62 @@ if tab == "Schreiben Trainer":
             key=f"feedback_btn_{student_code}"
         )
 
-    # --- Feedback logic ---
-    if feedback_btn:
-        st.session_state["awaiting_correction"] = True
-        ai_prompt = (
-            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-            f"The student has submitted a {schreiben_level} German letter or essay. "
-            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-            "Don't just say errors—show exactly where the mistakes are. "
-            "Mark any mistake phrase or example in [highlight]...[/highlight]. "
-            "If something is especially good, you can also use [highlight]...[/highlight] and say why. "
-            "1. Give a score out of 25 marks and always display the score clearly. "
-            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-            "6. Check if their essay is too short or long based on their level and type of essay."
-            "8. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-            "9. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-            "Grammar: [score/5, one-sentence tip]\n"
-            "Vocabulary: [score/5, one-sentence tip]\n"
-            "Spelling: [score/5, one-sentence tip]\n"
-            "Structure: [score/5, one-sentence tip]\n"
-            "For each area, rate out of 5 and give a specific, actionable tip in English."
-        )
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            try:
-                completion = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": ai_prompt},
-                        {"role": "user", "content": user_letter},
-                    ],
-                    temperature=0.6,
-                )
-                feedback = completion.choices[0].message.content
-                st.session_state["last_feedback"] = feedback
-                st.session_state["last_user_letter"] = user_letter
-            except Exception as e:
-                st.error("AI feedback failed. Please check your OpenAI setup.")
-                feedback = None
-
-        if feedback:
-            inc_schreiben_usage(student_code)
-            # Don't repeat feedback here if showing it in columns below!
+        # --- Feedback logic ---
+        if feedback_btn:
             st.session_state["awaiting_correction"] = True
-            st.session_state["correction_points"] = 0
+            ai_prompt = (
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                f"The student has submitted a {schreiben_level} German letter or essay. "
+                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                "Don't just say errors—show exactly where the mistakes are. "
+                "Mark any mistake phrase or example in [highlight]...[/highlight]. "
+                "If something is especially good, you can also use [highlight]...[/highlight] and say why. "
+                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
+                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                "6. Check if their essay is too short or long based on their level and type of essay. "
+                "7. Avoid writing a full corrected letter; instead, list and show the phrases to improve on, with tips, suggestions, and what the student should do. "
+                "8. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "9. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                "Grammar: [score/5, one-sentence tip]\n"
+                "Vocabulary: [score/5, one-sentence tip]\n"
+                "Spelling: [score/5, one-sentence tip]\n"
+                "Structure: [score/5, one-sentence tip]\n"
+                "For each area, rate out of 5 and give a specific, actionable tip in English."
+            )
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
+                    st.session_state["last_feedback"] = feedback
+                    st.session_state["last_user_letter"] = user_letter
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
 
-        # --- AUTOMATICALLY SAVE STATS/SUBMISSION ---
-        import datetime
-        import re
-        score_match = re.search(r"Score[: ]+(\d+)", feedback)
-        score = int(score_match.group(1)) if score_match else 0
-        passed = score >= 17  # adjust pass threshold as needed
-        save_submission(student_code, score, passed, datetime.datetime.now())
+            if feedback:
+                inc_schreiben_usage(student_code)
+                # Don't repeat feedback here if showing it in columns below!
+                st.session_state["awaiting_correction"] = True
+                st.session_state["correction_points"] = 0
+
+            # --- AUTOMATICALLY SAVE STATS/SUBMISSION ---
+            import datetime
+            import re
+            score_match = re.search(r"Score[: ]+(\d+)", feedback)
+            score = int(score_match.group(1)) if score_match else 0
+            passed = score >= 17  # adjust pass threshold as needed
+            save_submission(student_code, score, passed, datetime.datetime.now())
 
 
     # Error Correction Loop
