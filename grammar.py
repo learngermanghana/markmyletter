@@ -56,6 +56,53 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+# === YouTube Data API Settings ===
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": [
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
+    # etc.
+}
+
+
+@st.cache_data(ttl=3600*12)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
+
+
 # ==== DB CONNECTION ====
 def get_connection():
     if "conn" not in st.session_state:
@@ -388,6 +435,32 @@ def inc_letter_coach_usage(student_code):
     )
     conn.commit()
 
+
+
+def fetch_youtube_playlist_videos(playlist_id, api_key, max_results=50):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": max_results,  # Max per page is 50
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
 
 # === Firestore Auto-Save/Restore for Letter Coach ===
 
@@ -736,7 +809,6 @@ def parse_contract_end(date_str):
             continue
     return None
 
-# ========== DASHBOARD ==========
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
@@ -855,53 +927,54 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-        # --- Upcoming Exam Countdown (by level mapping) ---
+        # --- Goethe Exam Countdown & Video of the Day (per level) ---
         GOETHE_EXAM_DATES = {
-            "A1": date(2025, 10, 13),
-            "A2": date(2025, 10, 14),
-            "B1": date(2025, 10, 15),
-            "B2": date(2025, 10, 16),
-            "C1": date(2025, 10, 17),
+            "A1": (date(2025, 10, 13), 2850, None),
+            "A2": (date(2025, 10, 14), 2400, None),
+            "B1": (date(2025, 10, 15), 2750, 880),
+            "B2": (date(2025, 10, 16), 2500, 840),
+            "C1": (date(2025, 10, 17), 2450, 700),
         }
         level = (student_row.get("Level", "") or "").upper().replace(" ", "")
-        exam_date = GOETHE_EXAM_DATES.get(level)
-        if exam_date:
+        exam_info = GOETHE_EXAM_DATES.get(level)
+
+        st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
+        if exam_info:
+            exam_date, fee, module_fee = exam_info
             days_to_exam = (exam_date - date.today()).days
-            st.subheader("⏳ Upcoming Exam Countdown")
+            fee_text = f"**Fee:** ₵{fee:,}"
+            if module_fee:
+                fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
             if days_to_exam > 0:
-                st.info(f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).")
+                st.info(
+                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                    f"{fee_text}  \n"
+                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+                )
             elif days_to_exam == 0:
                 st.success("🚀 Exam is today! Good luck!")
             else:
-                st.error(f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.")
+                st.error(
+                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                    f"{fee_text}"
+                )
+
+            # ---- Per-level YouTube Playlist ----
+            playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
+            if playlist_id:
+                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+                if video_list:
+                    today_idx = date.today().toordinal()
+                    pick = today_idx % len(video_list)
+                    video = video_list[pick]
+                    st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
+                    st.video(video['url'])
+                else:
+                    st.info("No videos found for your level’s playlist. Check back soon!")
+            else:
+                st.info("No playlist found for your level yet. Stay tuned!")
         else:
-            st.warning(f"No exam date configured for level {level}.")
-
-        # --- Goethe Exam Dates & Fees ---
-        with st.expander("📅 Goethe Exam Dates & Fees", expanded=True):
-            st.markdown(
-                """
-| Level | Online Registration | Fee (GHS) | Single Module (GHS) |
-|-------|---------------------|-----------|---------------------|
-| A1    | 13.10.2025          | 2,850     | —                   |
-| A2    | 14.10.2025          | 2,400     | —                   |
-| B1    | 15.10.2025          | 2,750     | 880                 |
-| B2    | 16.10.2025          | 2,500     | 840                 |
-| C1    | 17.10.2025          | 2,450     | 700                 |
-
-**How to Pay:**
-- [Register here](https://www.goethe.de/ins/gh/en/spr/prf.html)
-- Pay your exam fee by **bank deposit or Mobile Money transfer to the bank account below**:
-    - **Ecobank Ghana**
-        - Account Name: **GOETHE-INSTITUT GHANA**
-        - Account Number: **1441 001 701 903**
-        - Branch: **Ring Road Central**
-        - SWIFT Code: **ECOCGHAC**
-- **IMPORTANT:** Use your **full name** as payment reference!
-- After payment, send your proof to: registrations-accra@goethe.de
-                """,
-                unsafe_allow_html=True
-            )
+            st.warning("No exam date configured for your level.")
 
         # --- Reviews Section ---
         st.markdown("### 🗣️ What Our Students Say")
@@ -924,6 +997,10 @@ if st.session_state.get("logged_in"):
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+
+
+
+
 
             
 def get_a1_schedule():
