@@ -4167,7 +4167,7 @@ if tab == "Schreiben Trainer":
             key="schreiben_input",
             value=st.session_state.get("schreiben_input", ""),
             disabled=(daily_so_far >= MARK_LIMIT),
-            height=300,
+            height=400,
             placeholder="Write your German letter here..."
         )
 
@@ -4272,7 +4272,7 @@ if tab == "Schreiben Trainer":
             correction = st.text_area(
                 "Type here:",
                 key="correction_input",
-                height=180,
+                height=400,
                 value=""
             )
             col1, col2 = st.columns(2)
