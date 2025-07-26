@@ -5030,7 +5030,7 @@ if tab == "My Learning Notes":
                         st.session_state["edit_note_text"] = note["text"]
                         st.session_state["edit_note_tag"] = note.get("tag", "")
                         st.session_state["switch_to_edit_note"] = True
-                        st.experimental_rerun()
+                        st.rerun()
                 with cols[1]:
                     if st.button("🗑️ Delete", key=f"del_{i}"):
                         notes.remove(note)
