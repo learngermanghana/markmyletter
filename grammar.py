@@ -4789,7 +4789,11 @@ if tab == "Schreiben Trainer":
 
 
 
-# === Firestore DB logic (assume 'db' object is already initialized above) ===
+import streamlit as st
+from datetime import datetime
+import os
+
+# --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
@@ -4799,7 +4803,8 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-# ------------------ MAIN TAB LOGIC -------------------
+# ======================================
+# == Main Tab Logic ==
 if tab == "My Learning Notes":
     st.markdown("""
         <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -4816,7 +4821,15 @@ if tab == "My Learning Notes":
         st.session_state[key_notes] = load_notes_from_db(student_code)
     notes = st.session_state[key_notes]
 
-    # --- Sub-tabs: 1) Add/Edit 2) Library ---
+    # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
+    # If flags are set, switch tab before rendering radio
+    if st.session_state.get("switch_to_edit_note"):
+        st.session_state["notebook_radio"] = "➕ Add/Edit Note"
+        del st.session_state["switch_to_edit_note"]
+    elif st.session_state.get("switch_to_library"):
+        st.session_state["notebook_radio"] = "📚 My Notes Library"
+        del st.session_state["switch_to_library"]
+
     subtab = st.radio(
         "Notebook", 
         ["➕ Add/Edit Note", "📚 My Notes Library"], 
@@ -4824,7 +4837,7 @@ if tab == "My Learning Notes":
         key="notebook_radio"
     )
 
-    ### --- Add/Edit Note Subtab ---
+    # === Add/Edit Note Subtab ===
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
         editing = st.session_state.get("edit_note_idx", None) is not None
@@ -4835,12 +4848,13 @@ if tab == "My Learning Notes":
             text = st.session_state.get("edit_note_text", "")
         else:
             title, tag, text = "", "", ""
+
         with st.form("note_form", clear_on_submit=not editing):
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
             new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
             save_btn = st.form_submit_button("💾 Save Note")
-            cancel_btn = st.form_submit_button("❌ Cancel Edit") if editing else None
+            cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
 
         if save_btn:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -4851,8 +4865,8 @@ if tab == "My Learning Notes":
                 "title": new_title.strip().title(),
                 "tag": new_tag.strip().title(),
                 "text": new_text.strip(),
-                "pinned": False if not editing else notes[idx].get("pinned", False),
-                "created": notes[idx]["created"] if editing else timestamp,
+                "pinned": False,
+                "created": timestamp,
                 "updated": timestamp
             }
             if editing:
@@ -4861,27 +4875,26 @@ if tab == "My Learning Notes":
                     if k in st.session_state: del st.session_state[k]
                 st.success("Note updated!")
             else:
-                notes.insert(0, note)  # Newest first
+                notes.insert(0, note)
                 st.success("Note added!")
             st.session_state[key_notes] = notes
             save_notes_to_db(student_code, notes)
-            st.session_state["notebook_radio"] = "📚 My Notes Library"  # After save, show library
-            st.rerun()
+            st.session_state["switch_to_library"] = True
+            st.experimental_rerun()
 
         if cancel_btn:
             for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                 if k in st.session_state: del st.session_state[k]
-            st.session_state["notebook_radio"] = "📚 My Notes Library"
-            st.rerun()
+            st.session_state["switch_to_library"] = True
+            st.experimental_rerun()
 
-    ### --- Notes Library Subtab ---
+    # === Notes Library Subtab ===
     elif subtab == "📚 My Notes Library":
         st.markdown("#### 📚 All My Notes")
 
         if not notes:
             st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
-            # -- Search Notes ---
             search_term = st.text_input("🔎 Search your notes…", "")
             if search_term.strip():
                 filtered = []
@@ -4897,8 +4910,7 @@ if tab == "My Learning Notes":
             else:
                 notes_to_show = notes
 
-            # --- Download All Notes Buttons (TXT, PDF, DOCX, supports umlauts) ---
-            # Prepare all notes as TXT
+            # --- Download Buttons (TXT, PDF, DOCX) ---
             all_notes = []
             for n in notes_to_show:
                 note_text = f"Title: {n.get('title','')}\n"
@@ -4917,7 +4929,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download (with German character support) ---
+            # --- PDF Download ---
             import tempfile
             from fpdf import FPDF
             class PDF(FPDF):
@@ -4931,14 +4943,12 @@ if tab == "My Learning Notes":
             pdf.add_page()
             pdf.set_auto_page_break(auto=True, margin=15)
             pdf.set_font("Arial", size=12)
-            # Table of Contents
             pdf.set_font("Arial", "B", 13)
             pdf.cell(0, 10, "Table of Contents", ln=1)
             pdf.set_font("Arial", "", 11)
             for idx, note in enumerate(notes_to_show):
                 pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
             pdf.ln(5)
-            # Actual Notes
             for n in notes_to_show:
                 pdf.set_font("Arial", "B", 13)
                 pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
@@ -4966,7 +4976,8 @@ if tab == "My Learning Notes":
                 file_name=f"{student_code}_notes.pdf",
                 mime="application/pdf"
             )
-            # --- DOCX Download (full Unicode) ---
+
+            # --- DOCX Download ---
             from docx import Document
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
@@ -4995,8 +5006,8 @@ if tab == "My Learning Notes":
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
             os.remove(docx_path)
+
             st.markdown("---")
-            # --- Show pinned notes first, then others ---
             pinned_notes = [n for n in notes_to_show if n.get("pinned")]
             other_notes = [n for n in notes_to_show if not n.get("pinned")]
             show_list = pinned_notes + other_notes
@@ -5018,15 +5029,15 @@ if tab == "My Learning Notes":
                         st.session_state["edit_note_title"] = note["title"]
                         st.session_state["edit_note_text"] = note["text"]
                         st.session_state["edit_note_tag"] = note.get("tag", "")
-                        st.session_state["notebook_radio"] = "➕ Add/Edit Note"  # Force switch tab
-                        st.rerun()
+                        st.session_state["switch_to_edit_note"] = True
+                        st.experimental_rerun()
                 with cols[1]:
                     if st.button("🗑️ Delete", key=f"del_{i}"):
                         notes.remove(note)
                         st.session_state[key_notes] = notes
                         save_notes_to_db(student_code, notes)
                         st.success("Note deleted.")
-                        st.rerun()
+                        st.experimental_rerun()
                 with cols[2]:
                     if note.get("pinned"):
                         if st.button("📌 Unpin", key=f"unpin_{i}"):
@@ -5042,7 +5053,6 @@ if tab == "My Learning Notes":
                             st.rerun()
                 with cols[3]:
                     st.caption("")
-
 # ---------------------- END TAB -------------------------
 
 
