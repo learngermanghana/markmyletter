@@ -3972,7 +3972,6 @@ def init_student_session():
         # Update tracker
         st.session_state["prev_student_code"] = code
 
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -3989,6 +3988,19 @@ if tab == "Schreiben Trainer":
         ''',
         unsafe_allow_html=True
     )
+
+    st.info(
+        """
+        ✍️ **This section is for Writing (Schreiben) only.**
+
+        - Practice your German letters, emails, and essays for A1–C1 exams.
+        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
+          👉 Go to **Exam Mode & Custom Chat** (tab above)!
+        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
+        """,
+        icon="✉️"
+    )
+
     st.divider()
 
     # --- STUDENT SESSION MANAGEMENT (per user) ---
