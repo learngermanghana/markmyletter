@@ -1,31 +1,32 @@
 # ==== Standard Library ====
-import os
-import random
-import difflib
-import sqlite3
-import atexit
-import json
-import re
+import os                  # OS file ops
+import random              # Randomization
+import difflib             # Optional: For fuzzy matching
+import sqlite3             # Optional: Local DB (not needed if using Firestore only)
+import atexit              # Optional: Exit hooks
+import json                # JSON ops
+import re                  # Regex
 from datetime import date, datetime, timedelta
-import time
-import io
-import tempfile
-import urllib.parse   # <-- Added
+import time                # Timing
+import io                  # IO streams
+import tempfile            # Temp file creation
+import urllib.parse        # URL encoding/decoding
 
 # ==== Third-Party Packages ====
-import pandas as pd
-import streamlit as st
-import matplotlib.pyplot as plt
-import requests
-from openai import OpenAI
-import firebase_admin
-from firebase_admin import credentials, firestore
-from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
-from docx import Document  # Optional, for DOCX notes download
+import pandas as pd                        # Data handling
+import streamlit as st                     # App framework
+import matplotlib.pyplot as plt            # Charts/plots
+import requests                            # HTTP requests (for Google Sheets, etc)
+from openai import OpenAI                  # OpenAI API client
+import firebase_admin                      # Firebase app
+from firebase_admin import credentials, firestore    # Firestore DB
+from fpdf import FPDF                      # PDF export
+from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
+from docx import Document                  # Optional: DOCX notes download
+from gtts import gTTS                      # Text-to-speech for vocab audio
 
-from gtts import gTTS              # <-- NEW: For text-to-speech
-
+# If you ever add fuzzy matching, you can use:
+# from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
 
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
@@ -3943,15 +3944,25 @@ if tab == "Vocab Trainer":
     if isinstance(total, int) and idx < total:
         word, answer = st.session_state.vt_list[idx]
 
-        # ---- AUDIO BUTTON (OPTION 1) ----
         from gtts import gTTS
         import tempfile
 
-        if st.button("🔊 Hear Pronunciation", key=f"tts_{idx}"):
+        # ---- AUDIO BUTTON + DOWNLOAD ----
+        if st.button("🔊 Play & Download Pronunciation", key=f"tts_{idx}"):
             tts = gTTS(word, lang='de')
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
                 tts.save(fp.name)
                 st.audio(fp.name, format='audio/mp3')
+                # Move file pointer to beginning to read bytes for download
+                fp.seek(0)
+                audio_bytes = fp.read()
+            st.download_button(
+                label=f"⬇️ Download '{word}' Pronunciation (MP3)",
+                data=audio_bytes,
+                file_name=f"{word}.mp3",
+                mime="audio/mp3",
+                key=f"tts_dl_{idx}"
+            )
 
         # Your regular question UI
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
@@ -3977,6 +3988,7 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+
 
 
 #Schreiben
