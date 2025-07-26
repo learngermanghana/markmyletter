@@ -3179,6 +3179,7 @@ if tab == "Exams Mode & Custom Chat":
             icon="ℹ️"
         )
 
+
         mode = st.radio(
             "How would you like to practice?",
             [
@@ -3220,7 +3221,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
         st.stop()
-
 
     if st.session_state.get("falowen_mode") == "Geführte Prüfungssimulation (Exam Mode)":
         level = st.session_state["falowen_level"]
@@ -3429,8 +3429,9 @@ if tab == "Exams Mode & Custom Chat":
                 random.shuffle(st.session_state["remaining_topics"])
                 st.session_state["used_topics"] = []
                 st.rerun()
+#
 
-                    
+
     # ==========================
     # FIRESTORE CHAT HELPERS
     # ==========================
