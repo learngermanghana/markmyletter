@@ -4236,21 +4236,35 @@ if tab == "Schreiben Trainer":
 
         # Error Correction Loop
         if st.session_state.get("awaiting_correction") and st.session_state.get("last_feedback"):
-            st.info("👉 Try to fix your mistakes using the feedback above, then resubmit below for a bonus!")
-            correction = st.text_area(
-                "Your corrected version:",
-                key="correction_input",
-                height=180,
-                value=""
-            )
-            col1, col2 = st.columns(2)
-            try_correction = col1.button("Submit My Correction", key="submit_correction")
-            show_model = col2.button("Show me a correct version (I tried myself first!)", key="show_model_btn")
+            st.info("👉 Try to fix your mistakes using the feedback and resubmit below for a bonus! (You can edit only the right box)")
+
+            col_feedback, col_edit = st.columns([2, 3])  # Wider edit area
+
+            with col_feedback:
+                st.markdown("#### 📝 Last Feedback")
+                st.markdown(
+                    highlight_feedback(st.session_state["last_feedback"]),
+                    unsafe_allow_html=True,
+                )
+
+            with col_edit:
+                st.markdown("**Your corrected version:**")
+                correction = st.text_area(
+                    "",
+                    key="correction_input",
+                    height=180,
+                    value=""
+                )
+                submit, model = st.columns(2)
+                try_correction = submit.button("Submit My Correction", key="submit_correction")
+                show_model = model.button("Show me a correct version (I tried myself first!)", key="show_model_btn")
 
             if try_correction and correction.strip():
                 ai_prompt2 = (
                     f"As Herr Felix, the student has tried to fix their errors after feedback. "
                     "Give a brief review ONLY on what was improved or still needs fixing, and give up to 2 bonus points if you see clear corrections. "
+                    "Always talk as the tutor and directly to the student"
+                    "When student submit more than 3 times and dont improve and scores below the pass mark, end the sessions and encourage them to try tomorrow"
                     "Do NOT regrade from scratch. Reward visible fixes, encourage, and then show the corrected score as: Score: [old score]+[bonus] / 25."
                 )
                 with st.spinner("🧑‍🏫 Reviewing your corrections..."):
@@ -4263,7 +4277,7 @@ if tab == "Schreiben Trainer":
                         temperature=0.5,
                     )
                     feedback2 = completion2.choices[0].message.content
-                st.session_state["correction_points"] += 1  # Simple bonus system, or parse bonus from feedback2
+                st.session_state["correction_points"] += 1
                 st.markdown("#### 📝 Correction Feedback")
                 st.markdown(feedback2)
 
@@ -4272,8 +4286,6 @@ if tab == "Schreiben Trainer":
                 ai_prompt3 = (
                     f"As Herr Felix, write a model-correct version of the student's letter at level {schreiben_level}. "
                     "ONLY show one correct example of their letter, using simple, direct German for their level."
-                    "Always talk as the tutor"
-                    "1.When the student dont improve after 3rd try, advice the student in a nice way and end the chat"
                 )
                 with st.spinner("🧑‍🏫 Herr Felix is preparing a model answer..."):
                     completion3 = client.chat.completions.create(
@@ -4287,6 +4299,8 @@ if tab == "Schreiben Trainer":
                     model_answer = completion3.choices[0].message.content
                 st.success("✅ Here is one correct version (for learning!):")
                 st.markdown(model_answer)
+
+
 
         # PDF + WhatsApp sharing
         if st.session_state.get("last_feedback") and st.session_state.get("last_user_letter"):
