@@ -25,7 +25,6 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from docx import Document  # Optional, for DOCX notes download
 
 from gtts import gTTS              # <-- NEW: For text-to-speech
-from pydub import AudioSegment     # <-- NEW: Optional, for audio file handling
 
 
 
