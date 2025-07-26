@@ -4176,8 +4176,8 @@ if tab == "Schreiben Trainer":
             """, unsafe_allow_html=True
         )
 
-        # Submission Limit (max 3 per day)
-        MARK_LIMIT = 3
+        # Submission Limit (max 5 per day)
+        MARK_LIMIT = 5
 
         def get_schreiben_usage(student_code):
             today = datetime.now().date()
