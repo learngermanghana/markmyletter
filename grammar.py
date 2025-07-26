@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 import time
 import io
 import tempfile
-import urllib.parse   # <-- Add here
+import urllib.parse   # <-- Added
 
 # ==== Third-Party Packages ====
 import pandas as pd
@@ -22,7 +22,11 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from streamlit_cookies_manager import EncryptedCookieManager
-from docx import Document  # (optional, for DOCX notes download)
+from docx import Document  # Optional, for DOCX notes download
+
+from gtts import gTTS              # <-- NEW: For text-to-speech
+from pydub import AudioSegment     # <-- NEW: Optional, for audio file handling
+
 
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
@@ -3719,6 +3723,15 @@ if tab == "Exams Mode & Custom Chat":
 # =========================================
 
 
+def play_word_audio(word, lang='de'):
+    tts = gTTS(text=word, lang=lang)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        tts.save(fp.name)
+        st.audio(fp.name, format='audio/mp3')
+
+if st.button("Play Beispiel"):
+    play_word_audio("Beispiel")
+
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
 # =========================================
@@ -3930,6 +3943,18 @@ if tab == "Vocab Trainer":
     idx = st.session_state.vt_index
     if isinstance(total, int) and idx < total:
         word, answer = st.session_state.vt_list[idx]
+
+        # ---- AUDIO BUTTON (OPTION 1) ----
+        from gtts import gTTS
+        import tempfile
+
+        if st.button("🔊 Hear Pronunciation", key=f"tts_{idx}"):
+            tts = gTTS(word, lang='de')
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
+                tts.save(fp.name)
+                st.audio(fp.name, format='audio/mp3')
+
+        # Your regular question UI
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
         if user_input and st.button("Check", key=f"vt_check_{idx}"):
             st.session_state.vt_history.append(("user", user_input))
@@ -3953,6 +3978,7 @@ if tab == "Vocab Trainer":
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
+
 
 #Schreiben
 def init_student_session():
