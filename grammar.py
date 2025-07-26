@@ -3729,8 +3729,6 @@ def play_word_audio(word, lang='de'):
         tts.save(fp.name)
         st.audio(fp.name, format='audio/mp3')
 
-if st.button("Play Beispiel"):
-    play_word_audio("Beispiel")
 
 # =========================================
 # VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
