@@ -4230,7 +4230,7 @@ if tab == "Schreiben Trainer":
         st.session_state["schreiben_input"] = stats.get("last_letter", "")
         st.session_state["prev_student_code"] = student_code
 
-        # ===== Inserted: Show writing stats summary =====
+        # Show writing stats summary if available
         if stats:
             total = stats.get("total", 0)
             passed = stats.get("passed", 0)
@@ -4244,6 +4244,7 @@ if tab == "Schreiben Trainer":
             st.write(f"- Pass Rate: {pass_rate:.1f}%")
         else:
             st.info("No writing stats found yet.")
+
 
     # Sub-tabs
     sub_tab = st.radio(
