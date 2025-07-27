@@ -4270,17 +4270,17 @@ if tab == "Schreiben Trainer":
     # For example:
     # st.session_state[f"{student_code}_last_feedback"] = feedback
 
-
-    # ----------- 1. MARK MY LETTER -----------
+    # ----------- 1. MARK MY LETTER (NAMESPACED) -----------
     if sub_tab == "Mark My Letter":
         MARK_LIMIT = 1
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
 
+        # Namespaced key for student input
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
-            key="schreiben_input",
-            value=st.session_state.get("schreiben_input", ""),
+            key=f"{student_code}_schreiben_input",
+            value=st.session_state.get(f"{student_code}_schreiben_input", ""),
             disabled=(daily_so_far >= MARK_LIMIT),
             height=400,
             placeholder="Write your German letter here..."
@@ -4302,7 +4302,7 @@ if tab == "Schreiben Trainer":
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-        # Correction state
+        # Namespaced correction state per student
         for k, v in [
             ("last_feedback", None),
             ("last_user_letter", None),
@@ -4310,8 +4310,9 @@ if tab == "Schreiben Trainer":
             ("improved_letter", ""),
             ("awaiting_correction", False),
         ]:
-            if k not in st.session_state:
-                st.session_state[k] = v
+            session_key = f"{student_code}_{k}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = v
 
         submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
         feedback_btn = st.button(
@@ -4323,7 +4324,7 @@ if tab == "Schreiben Trainer":
 
         # Initial feedback logic
         if feedback_btn:
-            st.session_state["awaiting_correction"] = True
+            st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
                 f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
                 f"The student has submitted a {schreiben_level} German letter or essay. "
@@ -4357,9 +4358,9 @@ if tab == "Schreiben Trainer":
                         temperature=0.6,
                     )
                     feedback = completion.choices[0].message.content
-                    st.session_state["last_feedback"] = feedback
-                    st.session_state["last_user_letter"] = user_letter
-                    st.session_state["delta_compare_feedback"] = None  # Reset
+                    st.session_state[f"{student_code}_last_feedback"] = feedback
+                    st.session_state[f"{student_code}_last_user_letter"] = user_letter
+                    st.session_state[f"{student_code}_delta_compare_feedback"] = None  # Reset
                 except Exception as e:
                     st.error("AI feedback failed. Please check your OpenAI setup.")
                     feedback = None
@@ -4369,7 +4370,7 @@ if tab == "Schreiben Trainer":
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
                 st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
-                st.session_state["awaiting_correction"] = True
+                st.session_state[f"{student_code}_awaiting_correction"] = True
 
                 # Save stats
                 import datetime, re
@@ -4378,12 +4379,12 @@ if tab == "Schreiben Trainer":
                 passed = score >= 17
                 save_submission(student_code, score, passed, datetime.datetime.now())
 
-        # ------------- DELTA IMPROVEMENT LOGIC + PDF/WHATSAPP -------------
-        if st.session_state.get("last_feedback") and st.session_state.get("last_user_letter"):
+        # DELTA IMPROVEMENT LOGIC + PDF/WHATSAPP, per student
+        if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
             st.markdown("---")
             st.markdown("#### 📝 Feedback from Herr Felix (Reference)")
             st.markdown(
-                highlight_feedback(st.session_state["last_feedback"]),
+                highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
                 unsafe_allow_html=True
             )
             st.markdown(
@@ -4399,7 +4400,7 @@ if tab == "Schreiben Trainer":
             )
             improved_letter = st.text_area(
                 "Your improved version (try to fix the mistakes Herr Felix mentioned):",
-                key="improved_letter",
+                key=f"{student_code}_improved_letter",
                 height=400,
                 placeholder="Paste your improved letter here..."
             )
@@ -4409,15 +4410,15 @@ if tab == "Schreiben Trainer":
                 ai_compare_prompt = (
                     "You are Herr Felix, a supportive German writing coach. "
                     "A student first submitted this letter:\n\n"
-                    f"{st.session_state['last_user_letter']}\n\n"
+                    f"{st.session_state[f'{student_code}_last_user_letter']}\n\n"
                     "Your feedback was:\n"
-                    f"{st.session_state['last_feedback']}\n\n"
+                    f"{st.session_state[f'{student_code}_last_feedback']}\n\n"
                     "Now the student has submitted an improved version below.\n"
                     "Compare both versions and:\n"
                     "- Tell the student exactly what they improved, and which mistakes were fixed.\n"
                     "- Point out if there are still errors left, with new tips for further improvement.\n"
                     "- Encourage the student. If the improvement is significant, say so.\n"
-                     "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
+                    "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
                     "- Give a revised score out of 25 (Score: X/25)."
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
@@ -4431,15 +4432,15 @@ if tab == "Schreiben Trainer":
                             temperature=0.5,
                         )
                         compare_feedback = result.choices[0].message.content
-                        st.session_state["delta_compare_feedback"] = compare_feedback
-                        st.session_state["final_improved_letter"] = improved_letter
+                        st.session_state[f"{student_code}_delta_compare_feedback"] = compare_feedback
+                        st.session_state[f"{student_code}_final_improved_letter"] = improved_letter
                     except Exception as e:
-                        st.session_state["delta_compare_feedback"] = f"Sorry, there was an error comparing your letters: {e}"
+                        st.session_state[f"{student_code}_delta_compare_feedback"] = f"Sorry, there was an error comparing your letters: {e}"
 
-            if st.session_state.get("delta_compare_feedback"):
+            if st.session_state.get(f"{student_code}_delta_compare_feedback"):
                 st.markdown("---")
                 st.markdown("### 📝 Improvement Feedback from Herr Felix")
-                st.markdown(highlight_feedback(st.session_state["delta_compare_feedback"]), unsafe_allow_html=True)
+                st.markdown(highlight_feedback(st.session_state[f"{student_code}_delta_compare_feedback"]), unsafe_allow_html=True)
 
                 # PDF & WhatsApp buttons only appear after successful improvement compare
                 from fpdf import FPDF
@@ -4452,8 +4453,8 @@ if tab == "Schreiben Trainer":
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Arial", size=12)
-                improved_letter = st.session_state.get("final_improved_letter", "")
-                improved_feedback = st.session_state["delta_compare_feedback"]
+                improved_letter = st.session_state.get(f"{student_code}_final_improved_letter", "")
+                improved_feedback = st.session_state[f"{student_code}_delta_compare_feedback"]
                 pdf.multi_cell(0, 10, f"Your Improved Letter:\n\n{sanitize_text(improved_letter)}\n\nFeedback from Herr Felix:\n\n{sanitize_text(improved_feedback)}")
                 pdf_output = f"Feedback_{student_code}_{schreiben_level}_improved.pdf"
                 pdf.output(pdf_output)
@@ -4471,7 +4472,7 @@ if tab == "Schreiben Trainer":
                 wa_message = (
                     f"Hi, here is my IMPROVED German letter and AI feedback:\n\n"
                     f"{improved_letter}\n\n"
-                    f"Feedback:\n{st.session_state['delta_compare_feedback']}"
+                    f"Feedback:\n{st.session_state[f'{student_code}_delta_compare_feedback']}"
                 )
                 wa_url = (
                     "https://api.whatsapp.com/send"
@@ -4482,6 +4483,7 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
+#
 
 
 
