@@ -4201,7 +4201,6 @@ def bubble(role, text):
             <b>{name}:</b><br>{text}
         </div>
     """
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4232,16 +4231,28 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- Writing stats summary (minimal) ---
+    # --- Writing stats summary with titles ---
     student_code = st.session_state.get("student_code", "demo")
     stats = get_schreiben_stats(student_code)
     if stats:
         total = stats.get("total", 0)
         passed = stats.get("passed", 0)
         pass_rate = stats.get("pass_rate", 0)
+        # Title logic
+        if total <= 2:
+            writer_title = "🟡 Beginner Writer"
+        elif total <= 5 or pass_rate < 60:
+            writer_title = "🟡 Rising Writer"
+        elif total <= 7 or (60 <= pass_rate < 80):
+            writer_title = "🔵 Confident Writer"
+        elif total >= 8 and pass_rate >= 80:
+            writer_title = "🟢 Advanced Writer"
+        if total >= 10 and pass_rate >= 95:
+            writer_title = "🏅 Master Writer!"
         st.markdown(
             f"""
             <div style="background:#f6f8fb;padding:16px;border-radius:10px;margin-bottom:8px;">
+                <span style="font-weight:bold;font-size:1.25rem;">{writer_title}</span><br>
                 <span style="font-weight:bold;font-size:1.09rem;">📊 Your Writing Stats</span><br>
                 <span style="color:#2e7d32;"><b>Total Attempts:</b> {total}</span><br>
                 <span style="color:#1976d2;"><b>Passed:</b> {passed}</span><br>
