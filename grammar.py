@@ -4129,37 +4129,40 @@ def init_student_session():
 import re
 import datetime
 
+
 def highlight_feedback(text):
-    """
-    Converts [highlight]...[/highlight] to Streamlit-friendly styled spans:
-    - Errors with ❌ and yellow background (existing)
-    - Correct phrases with ✔️ and green color (added)
-    Also formats correction statements.
-    """
-    import re
-
-    # 1. Replace [highlight]...[/highlight] with yellow background + ❌ (existing)
-    def highlight_repl(match):
+    # Highlight errors: red X, orange background
+    def error_repl(match):
         highlighted = match.group(1)
-        return (f'<span style="background:#fff59d; color:#bf360c; '
-                f'font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>')
+        return f'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>'
+    
+    # Highlight correct phrases: green check, green background
+    def correct_repl(match):
+        highlighted = match.group(1)
+        return f'<span style="background:#d0f0c0; color:#006400; font-weight:bold; border-radius:4px; padding:2px 4px;">✔️ {highlighted}</span>'
 
-    text = re.sub(r'\[highlight\](.*?)\[/highlight\]', highlight_repl, text, flags=re.DOTALL)
+    # Replace error highlights first
+    text = re.sub(r'\[error\](.*?)\[/error\]', error_repl, text, flags=re.DOTALL)
+    # Then replace correct highlights
+    text = re.sub(r'\[correct\](.*?)\[/correct\]', correct_repl, text, flags=re.DOTALL)
 
-    # 2. Replace correction statements ("It should be ..." or "Correction: ...")
-    #    with green color, bold, ✔️ sign (new)
-    def correction_repl(match):
-        corrected = match.group(1)
-        return (f'<span style="color:#006400; font-weight:bold; background:#d0f0c0; '
-                f'border-radius:4px; padding:2px 4px;">✔️ {corrected}</span>')
+    # Optionally, replace "It should be" or "Correction:" with green check mark
+    text = re.sub(
+        r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
+        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
+        text
+    )
+    text = re.sub(
+        r'Correction:\s*["“”]?(.*?)["“”]?(?=[\.\n])',
+        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
+        text
+    )
 
-    text = re.sub(r'(It should be|Correction:)\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-                  lambda m: correction_repl(m), text)
-
-    # 3. Bullet formatting for feedback
+    # Bullet formatting for feedback (optional)
     text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
 
     return text
+
 
 
 def save_submission(student_code, score, passed, date):
@@ -4347,7 +4350,6 @@ if tab == "Schreiben Trainer":
             disabled=submit_disabled,
             key=f"feedback_btn_{student_code}"
         )
-
         # Initial feedback logic
         if feedback_btn:
             st.session_state["awaiting_correction"] = True
