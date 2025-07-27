@@ -4224,11 +4224,26 @@ if tab == "Schreiben Trainer":
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
 
-    # On student change, load last letter/draft
+    # On student change, load last letter/draft and stats
     if student_code != prev_student_code:
         stats = get_schreiben_stats(student_code)
         st.session_state["schreiben_input"] = stats.get("last_letter", "")
         st.session_state["prev_student_code"] = student_code
+
+        # ===== Inserted: Show writing stats summary =====
+        if stats:
+            total = stats.get("total", 0)
+            passed = stats.get("passed", 0)
+            average_score = stats.get("average_score", 0)
+            pass_rate = stats.get("pass_rate", 0)
+
+            st.markdown("### 📊 Your Writing Stats")
+            st.write(f"- Total Attempts: {total}")
+            st.write(f"- Passed: {passed}")
+            st.write(f"- Average Score: {average_score:.1f} / 25")
+            st.write(f"- Pass Rate: {pass_rate:.1f}%")
+        else:
+            st.info("No writing stats found yet.")
 
     # Sub-tabs
     sub_tab = st.radio(
