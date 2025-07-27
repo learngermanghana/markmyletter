@@ -4183,10 +4183,29 @@ def save_submission(student_code, score, passed, date):
     })
     doc_ref.set({"submissions": submissions}, merge=True)
 
-def get_schreiben_stats(student_code):
-    doc_ref = db.collection("schreiben_stats").document(student_code)
+def update_schreiben_stats(student_code):
+    """
+    After each submission, update the summary stats for the student.
+    """
+    # Get all submissions
+    doc_ref = db.collection("schreiben_submissions").document(student_code)
     doc = doc_ref.get()
-    return doc.to_dict() if doc.exists else {}
+    data = doc.to_dict() if doc.exists else {}
+    submissions = data.get("submissions", [])
+    total = len(submissions)
+    passed = sum(1 for x in submissions if x.get("passed"))
+    pass_rate = (passed / total * 100) if total else 0.0
+
+    # Save the summary in schreiben_stats
+    stats_ref = db.collection("schreiben_stats").document(student_code)
+    stats_data = stats_ref.get().to_dict() if stats_ref.get().exists else {}
+    stats_data.update({
+        "total": total,
+        "passed": passed,
+        "pass_rate": pass_rate
+    })
+    stats_ref.set(stats_data, merge=True)
+
 
 
 
@@ -4433,6 +4452,7 @@ if tab == "Schreiben Trainer":
                 score = int(score_match.group(1)) if score_match else 0
                 passed = score >= 17
                 save_submission(student_code, score, passed, datetime.datetime.now())
+                update_schreiben_stats(student_code)
 
         # DELTA IMPROVEMENT LOGIC + PDF/WHATSAPP, per student
         if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
@@ -4538,7 +4558,7 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-
+#
 
 
     if sub_tab == "Ideas Generator (Letter Coach)":
