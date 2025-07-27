@@ -4405,6 +4405,7 @@ if tab == "Schreiben Trainer":
             "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
             "6. Also check for AI usage or if the student wrote with their own effort. "
             "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+            "8. For A1 , A2 formal and informal letter should be between 30 to 40 words. Anything less give low marks for that. For B1 to C1, use your intelligence to check if the letter is too short or too long."
             "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
             "Grammar: [score/5, one-sentence tip]\n"
             "Vocabulary: [score/5, one-sentence tip]\n"
