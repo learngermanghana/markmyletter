@@ -4105,8 +4105,7 @@ if tab == "Vocab Trainer":
 
 
 
-# Schreiben
-
+#Schreiben
 def init_student_session():
     """
     Reset and load per-student state when the logged-in student_code changes.
@@ -4121,90 +4120,46 @@ def init_student_session():
         st.session_state[f"{code}_letter_coach_prompt"] = ""
         st.session_state[f"{code}_letter_coach_chat"] = []
         st.session_state[f"{code}_letter_coach_stage"] = 0
-        # Reset writing stats in session state to force refresh
-        st.session_state["writing_stats"] = None
         # Update tracker
         st.session_state["prev_student_code"] = code
 
+
 import re
-import datetime
 
 def highlight_feedback(text):
     """
-    Converts [highlight]...[/highlight] to Streamlit-friendly styled text with emoji.
-    - Errors get a red X with orange-yellow background.
-    - Correct phrases get a green checkmark with light green background.
+    Converts [highlight]...[/highlight] to Streamlit-friendly bold text with emoji.
+    Also formats wrong/correct pairs for feedback clarity.
     """
-    import re
-
-    def error_repl(match):
+    # 1. Replace [highlight]...[/highlight] with bold, colored span & emoji
+    def highlight_repl(match):
         highlighted = match.group(1)
-        # Red X mark, orange background for errors
+        # Use background color (yellow), bold and emoji for error
         return f'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>'
 
-    def correct_repl(match):
-        highlighted = match.group(1)
-        # Green check mark, light green background for correct phrases
-        return f'<span style="background:#d0f0c0; color:#006400; font-weight:bold; border-radius:4px; padding:2px 4px;">✔️ {highlighted}</span>'
+    # Replace all [highlight]...[/highlight]
+    text = re.sub(r'\[highlight\](.*?)\[/highlight\]', highlight_repl, text, flags=re.DOTALL)
 
-    # First replace all error highlights
-    text = re.sub(r'\[highlight\](.*?)\[/highlight\]', error_repl, text, flags=re.DOTALL)
-
-    # Then replace correct phrase markers, e.g. "It should be ..." or "Correction: ..."
+    # 2. (Optional) Replace "It should be" or "Correction:" with ✔️ and green
     text = re.sub(
         r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        lambda m: correct_repl(m),
+        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
         text
     )
     text = re.sub(
         r'Correction:\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        lambda m: correct_repl(m),
+        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
         text
     )
 
-    # Optional: bullet formatting for clarity
+    # 3. (Optional) Bullet formatting for feedback
     text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
 
     return text
 
-
-def color_headings(text):
-    """
-    Add custom colored styles for the three main headings in feedback:
-    - 'What you did well:' in green
-    - 'Areas for improvement:' in orange
-    - 'Tips for improvement:' in blue
-    """
-
-    import re
-
-    # Green for 'What you did well:'
-    text = re.sub(
-        r'(1\.\s*What you did well:)',
-        r'<span style="color:#2e7d32; font-weight:bold;">\1</span>',
-        text
-    )
-
-    # Orange for 'Areas for improvement:'
-    text = re.sub(
-        r'(2\.\s*Areas for improvement:)',
-        r'<span style="color:#ef6c00; font-weight:bold;">\1</span>',
-        text
-    )
-
-    # Blue for 'Tips for improvement:'
-    text = re.sub(
-        r'(3\.\s*Tips for improvement:)',
-        r'<span style="color:#1565c0; font-weight:bold;">\1</span>',
-        text
-    )
-
-    return text
-
-
 def save_submission(student_code, score, passed, date):
     """
-    Save a letter submission for this student and update stats.
+    Save a letter submission for this student.
     """
     doc_ref = db.collection("schreiben_submissions").document(student_code)
     doc = doc_ref.get()
@@ -4216,73 +4171,15 @@ def save_submission(student_code, score, passed, date):
         "date": date.strftime("%Y-%m-%d")
     })
     doc_ref.set({"submissions": submissions}, merge=True)
-    update_schreiben_stats(student_code)
-
-def update_schreiben_stats(student_code):
-    """
-    Aggregate stats from submissions and save in schreiben_stats.
-    """
-    doc_ref = db.collection("schreiben_submissions").document(student_code)
-    doc = doc_ref.get()
-    if not doc.exists:
-        return
-    submissions = doc.to_dict().get("submissions", [])
-    if not submissions:
-        return
-
-    total = len(submissions)
-    passed = sum(1 for s in submissions if s.get("passed"))
-    average_score = sum(s.get("score", 0) for s in submissions) / total
-    pass_rate = (passed / total) * 100
-
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    stats_ref.set({
-        "total": total,
-        "passed": passed,
-        "average_score": average_score,
-        "pass_rate": pass_rate,
-        "last_letter": st.session_state.get("schreiben_input", "")
-    }, merge=True)
 
 def get_schreiben_stats(student_code):
     doc_ref = db.collection("schreiben_stats").document(student_code)
     doc = doc_ref.get()
     return doc.to_dict() if doc.exists else {}
 
-def style_feedback_breakdown(text):
-    """
-    Style the feedback breakdown text with colors for each category.
-    Input text format example:
-    Grammar: 4/5, Good use of verbs.
-    Vocabulary: 3/5, Needs more variety.
-    Spelling: 5/5, Almost perfect.
-    Structure: 4/5, Logical flow.
-    """
-    import re
-
-    def replacer(match):
-        category = match.group(1)
-        score = match.group(2)
-        tip = match.group(3)
-        colors = {
-            "Grammar": "#2e7d32",     # green
-            "Vocabulary": "#1565c0",  # blue
-            "Spelling": "#ef6c00",    # orange
-            "Structure": "#6a1b9a"    # purple
-        }
-        color = colors.get(category, "#000000")
-        return (
-            f'<p style="color:{color}; font-weight:bold; margin:0;">{category}: '
-            f'<span style="color:#000;">{score}</span>, '
-            f'<span style="font-weight:normal;">{tip}</span></p>'
-        )
-
-    pattern = re.compile(r'(\w+):\s*(\d+/5),\s*(.*)')
-    styled_text = pattern.sub(replacer, text)
-    # Wrap in div with some spacing
-    return f'<div style="margin-top:1em;">{styled_text}</div>'
 
 
+# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
     color = "#7b2ff2" if role == "assistant" else "#222"
     bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
@@ -4327,29 +4224,11 @@ if tab == "Schreiben Trainer":
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
 
-    # On student change, load last letter/draft and reset stats in session_state
+    # On student change, load last letter/draft
     if student_code != prev_student_code:
         stats = get_schreiben_stats(student_code)
         st.session_state["schreiben_input"] = stats.get("last_letter", "")
         st.session_state["prev_student_code"] = student_code
-        st.session_state["writing_stats"] = stats  # load stats for current student
-
-    # Display stats from session state (immediate refresh)
-    stats = st.session_state.get("writing_stats", {})
-    if stats:
-        total = stats.get("total", 0)
-        passed = stats.get("passed", 0)
-        average_score = stats.get("average_score", 0)
-        pass_rate = stats.get("pass_rate", 0)
-
-        st.markdown("### 📊 Your Writing Stats")
-        st.write(f"- Total Attempts: {total}")
-        st.write(f"- Passed: {passed}")
-        st.write(f"- Average Score: {average_score:.1f} / 25")
-        st.write(f"- Pass Rate: {pass_rate:.1f}%")
-    else:
-        st.info("No writing stats found yet.")
-
 
     # Sub-tabs
     sub_tab = st.radio(
@@ -4421,6 +4300,7 @@ if tab == "Schreiben Trainer":
             disabled=submit_disabled,
             key=f"feedback_btn_{student_code}"
         )
+
         # Initial feedback logic
         if feedback_btn:
             st.session_state["awaiting_correction"] = True
@@ -4439,9 +4319,6 @@ if tab == "Schreiben Trainer":
                 "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
                 "6. Also check for AI usage or if the student wrote with their own effort. "
                 "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                f"8. For A1 and A2 only, When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use absagen to cancel appointments. "
-                f"9. For A1 and A2 only, When the letter is about enquiries or registrations, teach students how they can use  Anfrage stellen for the Ich schreibe. "
-                f"10. For A1 and A2 only, When the letter is about registrations like course, teach students how they can use  anfangen, beginnen. "
                 "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
                 "Grammar: [score/5, one-sentence tip]\n"
                 "Vocabulary: [score/5, one-sentence tip]\n"
