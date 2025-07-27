@@ -4232,9 +4232,9 @@ if tab == "Schreiben Trainer":
         st.session_state[f"{student_code}_last_feedback"] = None
         st.session_state[f"{student_code}_last_user_letter"] = None
         st.session_state[f"{student_code}_delta_compare_feedback"] = None
-        st.session_state[f"{student_code}_improved_letter"] = ""
+        st.session_state[f"{student_code}_final_improved_letter"] = ""
         st.session_state[f"{student_code}_awaiting_correction"] = False
-        # Update tracker
+        st.session_state[f"{student_code}_improved_letter"] = ""
         st.session_state["prev_student_code"] = student_code
 
     # Sub-tabs
@@ -4257,18 +4257,6 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_level"] = schreiben_level
 
     st.divider()
-
-    # Example usage of namespaced input key:
-    user_letter = st.text_area(
-        "Paste or type your German letter/essay here.",
-        key=f"{student_code}_schreiben_input",
-        value=st.session_state.get(f"{student_code}_schreiben_input", ""),
-        height=400,
-    )
-
-    # Use similarly namespaced keys when saving feedback, comparing improvements, etc.
-    # For example:
-    # st.session_state[f"{student_code}_last_feedback"] = feedback
 
     # ----------- 1. MARK MY LETTER (NAMESPACED) -----------
     if sub_tab == "Mark My Letter":
@@ -4309,6 +4297,7 @@ if tab == "Schreiben Trainer":
             ("delta_compare_feedback", None),
             ("improved_letter", ""),
             ("awaiting_correction", False),
+            ("final_improved_letter", "")
         ]:
             session_key = f"{student_code}_{k}"
             if session_key not in st.session_state:
@@ -4404,7 +4393,7 @@ if tab == "Schreiben Trainer":
                 height=400,
                 placeholder="Paste your improved letter here..."
             )
-            compare_clicked = st.button("Compare My Improvement")
+            compare_clicked = st.button("Compare My Improvement", key=f"compare_btn_{student_code}")
 
             if compare_clicked and improved_letter.strip():
                 ai_compare_prompt = (
@@ -4483,7 +4472,6 @@ if tab == "Schreiben Trainer":
                     f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
                     unsafe_allow_html=True
                 )
-#
 
 
 
