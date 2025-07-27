@@ -4201,6 +4201,7 @@ def bubble(role, text):
             <b>{name}:</b><br>{text}
         </div>
     """
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4231,24 +4232,34 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- Writing stats summary with titles ---
+    # --- Writing stats summary with titles and milestone ---
     student_code = st.session_state.get("student_code", "demo")
     stats = get_schreiben_stats(student_code)
     if stats:
         total = stats.get("total", 0)
         passed = stats.get("passed", 0)
         pass_rate = stats.get("pass_rate", 0)
-        # Title logic
+
+        # Milestone and title logic
         if total <= 2:
             writer_title = "🟡 Beginner Writer"
+            milestone = "Write 3 letters to become a Rising Writer!"
         elif total <= 5 or pass_rate < 60:
             writer_title = "🟡 Rising Writer"
+            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
         elif total <= 7 or (60 <= pass_rate < 80):
             writer_title = "🔵 Confident Writer"
-        elif total >= 8 and pass_rate >= 80:
+            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
+        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
             writer_title = "🟢 Advanced Writer"
-        if total >= 10 and pass_rate >= 95:
+            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
+        elif total >= 10 and pass_rate >= 95:
             writer_title = "🏅 Master Writer!"
+            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
+        else:
+            writer_title = "✏️ Active Writer"
+            milestone = "Keep going to unlock your next milestone!"
+
         st.markdown(
             f"""
             <div style="background:#f6f8fb;padding:16px;border-radius:10px;margin-bottom:8px;">
@@ -4256,13 +4267,15 @@ if tab == "Schreiben Trainer":
                 <span style="font-weight:bold;font-size:1.09rem;">📊 Your Writing Stats</span><br>
                 <span style="color:#2e7d32;"><b>Total Attempts:</b> {total}</span><br>
                 <span style="color:#1976d2;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#6d4c41;"><b>Pass Rate:</b> {pass_rate:.1f}%</span>
+                <span style="color:#6d4c41;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#d63384;font-weight:bold;">{milestone}</span>
             </div>
             """,
             unsafe_allow_html=True
         )
     else:
         st.info("No writing stats found yet. Write your first letter to see progress!")
+
 
 
     student_code = st.session_state.get("student_code", "demo")
