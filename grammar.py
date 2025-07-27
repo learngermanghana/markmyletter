@@ -4168,6 +4168,38 @@ def highlight_feedback(text):
     return text
 
 
+def color_headings(text):
+    """
+    Add custom colored styles for the three main headings in feedback:
+    - 'What you did well:' in green
+    - 'Areas for improvement:' in orange
+    - 'Tips for improvement:' in blue
+    """
+
+    import re
+
+    # Green for 'What you did well:'
+    text = re.sub(
+        r'(1\.\s*What you did well:)',
+        r'<span style="color:#2e7d32; font-weight:bold;">\1</span>',
+        text
+    )
+
+    # Orange for 'Areas for improvement:'
+    text = re.sub(
+        r'(2\.\s*Areas for improvement:)',
+        r'<span style="color:#ef6c00; font-weight:bold;">\1</span>',
+        text
+    )
+
+    # Blue for 'Tips for improvement:'
+    text = re.sub(
+        r'(3\.\s*Tips for improvement:)',
+        r'<span style="color:#1565c0; font-weight:bold;">\1</span>',
+        text
+    )
+
+    return text
 
 
 def save_submission(student_code, score, passed, date):
