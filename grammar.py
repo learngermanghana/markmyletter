@@ -4224,10 +4224,17 @@ if tab == "Schreiben Trainer":
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
 
-    # On student change, load last letter/draft
+    # On student change, load last letter/draft and update session state keys
     if student_code != prev_student_code:
         stats = get_schreiben_stats(student_code)
-        st.session_state["schreiben_input"] = stats.get("last_letter", "")
+        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
+        # Reset or initialize other student-specific states as needed
+        st.session_state[f"{student_code}_last_feedback"] = None
+        st.session_state[f"{student_code}_last_user_letter"] = None
+        st.session_state[f"{student_code}_delta_compare_feedback"] = None
+        st.session_state[f"{student_code}_improved_letter"] = ""
+        st.session_state[f"{student_code}_awaiting_correction"] = False
+        # Update tracker
         st.session_state["prev_student_code"] = student_code
 
     # Sub-tabs
@@ -4250,6 +4257,19 @@ if tab == "Schreiben Trainer":
     st.session_state["schreiben_level"] = schreiben_level
 
     st.divider()
+
+    # Example usage of namespaced input key:
+    user_letter = st.text_area(
+        "Paste or type your German letter/essay here.",
+        key=f"{student_code}_schreiben_input",
+        value=st.session_state.get(f"{student_code}_schreiben_input", ""),
+        height=400,
+    )
+
+    # Use similarly namespaced keys when saving feedback, comparing improvements, etc.
+    # For example:
+    # st.session_state[f"{student_code}_last_feedback"] = feedback
+
 
     # ----------- 1. MARK MY LETTER -----------
     if sub_tab == "Mark My Letter":
