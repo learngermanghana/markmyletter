@@ -4105,7 +4105,8 @@ if tab == "Vocab Trainer":
 
 
 
-#Schreiben
+# Schreiben
+
 def init_student_session():
     """
     Reset and load per-student state when the logged-in student_code changes.
@@ -4120,46 +4121,50 @@ def init_student_session():
         st.session_state[f"{code}_letter_coach_prompt"] = ""
         st.session_state[f"{code}_letter_coach_chat"] = []
         st.session_state[f"{code}_letter_coach_stage"] = 0
+        # Reset writing stats in session state to force refresh
+        st.session_state["writing_stats"] = None
         # Update tracker
         st.session_state["prev_student_code"] = code
 
-
 import re
+import datetime
 
 def highlight_feedback(text):
     """
-    Converts [highlight]...[/highlight] to Streamlit-friendly bold text with emoji.
-    Also formats wrong/correct pairs for feedback clarity.
+    Converts [highlight]...[/highlight] to Streamlit-friendly styled spans:
+    - Errors with ❌ and yellow background (existing)
+    - Correct phrases with ✔️ and green color (added)
+    Also formats correction statements.
     """
-    # 1. Replace [highlight]...[/highlight] with bold, colored span & emoji
+    import re
+
+    # 1. Replace [highlight]...[/highlight] with yellow background + ❌ (existing)
     def highlight_repl(match):
         highlighted = match.group(1)
-        # Use background color (yellow), bold and emoji for error
-        return f'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>'
+        return (f'<span style="background:#fff59d; color:#bf360c; '
+                f'font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>')
 
-    # Replace all [highlight]...[/highlight]
     text = re.sub(r'\[highlight\](.*?)\[/highlight\]', highlight_repl, text, flags=re.DOTALL)
 
-    # 2. (Optional) Replace "It should be" or "Correction:" with ✔️ and green
-    text = re.sub(
-        r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
-        text
-    )
-    text = re.sub(
-        r'Correction:\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
-        text
-    )
+    # 2. Replace correction statements ("It should be ..." or "Correction: ...")
+    #    with green color, bold, ✔️ sign (new)
+    def correction_repl(match):
+        corrected = match.group(1)
+        return (f'<span style="color:#006400; font-weight:bold; background:#d0f0c0; '
+                f'border-radius:4px; padding:2px 4px;">✔️ {corrected}</span>')
 
-    # 3. (Optional) Bullet formatting for feedback
+    text = re.sub(r'(It should be|Correction:)\s*["“”]?(.*?)["“”]?(?=[\.\n])',
+                  lambda m: correction_repl(m), text)
+
+    # 3. Bullet formatting for feedback
     text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
 
     return text
 
+
 def save_submission(student_code, score, passed, date):
     """
-    Save a letter submission for this student.
+    Save a letter submission for this student and update stats.
     """
     doc_ref = db.collection("schreiben_submissions").document(student_code)
     doc = doc_ref.get()
@@ -4171,15 +4176,39 @@ def save_submission(student_code, score, passed, date):
         "date": date.strftime("%Y-%m-%d")
     })
     doc_ref.set({"submissions": submissions}, merge=True)
+    update_schreiben_stats(student_code)
+
+def update_schreiben_stats(student_code):
+    """
+    Aggregate stats from submissions and save in schreiben_stats.
+    """
+    doc_ref = db.collection("schreiben_submissions").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return
+    submissions = doc.to_dict().get("submissions", [])
+    if not submissions:
+        return
+
+    total = len(submissions)
+    passed = sum(1 for s in submissions if s.get("passed"))
+    average_score = sum(s.get("score", 0) for s in submissions) / total
+    pass_rate = (passed / total) * 100
+
+    stats_ref = db.collection("schreiben_stats").document(student_code)
+    stats_ref.set({
+        "total": total,
+        "passed": passed,
+        "average_score": average_score,
+        "pass_rate": pass_rate,
+        "last_letter": st.session_state.get("schreiben_input", "")
+    }, merge=True)
 
 def get_schreiben_stats(student_code):
     doc_ref = db.collection("schreiben_stats").document(student_code)
     doc = doc_ref.get()
     return doc.to_dict() if doc.exists else {}
 
-
-
-# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
     color = "#7b2ff2" if role == "assistant" else "#222"
     bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
@@ -4224,26 +4253,28 @@ if tab == "Schreiben Trainer":
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
 
-    # On student change, load last letter/draft and stats
+    # On student change, load last letter/draft and reset stats in session_state
     if student_code != prev_student_code:
         stats = get_schreiben_stats(student_code)
         st.session_state["schreiben_input"] = stats.get("last_letter", "")
         st.session_state["prev_student_code"] = student_code
+        st.session_state["writing_stats"] = stats  # load stats for current student
 
-        # Show writing stats summary if available
-        if stats:
-            total = stats.get("total", 0)
-            passed = stats.get("passed", 0)
-            average_score = stats.get("average_score", 0)
-            pass_rate = stats.get("pass_rate", 0)
+    # Display stats from session state (immediate refresh)
+    stats = st.session_state.get("writing_stats", {})
+    if stats:
+        total = stats.get("total", 0)
+        passed = stats.get("passed", 0)
+        average_score = stats.get("average_score", 0)
+        pass_rate = stats.get("pass_rate", 0)
 
-            st.markdown("### 📊 Your Writing Stats")
-            st.write(f"- Total Attempts: {total}")
-            st.write(f"- Passed: {passed}")
-            st.write(f"- Average Score: {average_score:.1f} / 25")
-            st.write(f"- Pass Rate: {pass_rate:.1f}%")
-        else:
-            st.info("No writing stats found yet.")
+        st.markdown("### 📊 Your Writing Stats")
+        st.write(f"- Total Attempts: {total}")
+        st.write(f"- Passed: {passed}")
+        st.write(f"- Average Score: {average_score:.1f} / 25")
+        st.write(f"- Pass Rate: {pass_rate:.1f}%")
+    else:
+        st.info("No writing stats found yet.")
 
 
     # Sub-tabs
