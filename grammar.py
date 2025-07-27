@@ -4317,7 +4317,7 @@ if tab == "Schreiben Trainer":
 
     # ----------- 1. MARK MY LETTER (NAMESPACED) -----------
     if sub_tab == "Mark My Letter":
-        MARK_LIMIT = 1
+        MARK_LIMIT = 3
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
 
