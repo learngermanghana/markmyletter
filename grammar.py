@@ -4319,6 +4319,9 @@ if tab == "Schreiben Trainer":
                 "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
                 "6. Also check for AI usage or if the student wrote with their own effort. "
                 "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                f"8. For A1 and A2 only, When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use absagen to cancel appointments. "
+                f"9. For A1 and A2 only, When the letter is about enquiries or registrations, teach students how they can use  Anfrage stellen for the Ich schreibe. "
+                f"10. For A1 and A2 only, When the letter is about registrations like course, teach students how they can use  anfangen, beginnen. "
                 "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
                 "Grammar: [score/5, one-sentence tip]\n"
                 "Vocabulary: [score/5, one-sentence tip]\n"
@@ -4499,12 +4502,16 @@ if tab == "Schreiben Trainer":
                 f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
                 f"2. For conjunctions, only suggest weil,deshalb, ich möchte wissen,ob and ich mochte wissen, wann. Dont recommend, da, dass and relative clauses "
                 f"3. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
-                f"4. Ich schreibe Ihnen/dir for formal and informal letter, guide them how they can use weil with ich and end with möchte or any modal verb mostly to prevent mistakes. Be strict with this"
+                f"4. Ich schreibe Ihnen/dir for formal and informal letter, guide them how they can use weil with ich and end with only möchte mostly to prevent mistakes. Be strict with this"
                 f"5. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. "
                 f"6. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
                 f"7. Always add your ideas after student submmit their sentence if necessary "
                 f"8. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
                 f"9. Always be sure that students complete letter is between 30 to 40 words "
+                f"10. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use absagen to cancel appointments. "
+                f"11. When the letter is about enquiries or registrations, teach students how they can use  Anfrage stellen for the Ich schreibe. "
+                f"12. When the letter is about registrations like course, teach students how they can use  anfangen, beginnen. "
+                f"13. Asking for price, teach them how to use wie viel kostet and how they should ask for price always when is about enquires. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "If it's a continuation, review their writing so far and guide them to the next step. "
                 "If it's a new prompt, give a brief, simple overview (in English) of how to build their letter (greeting, introduction, reason, request, closing), with short examples for each. "
@@ -4527,6 +4534,10 @@ if tab == "Schreiben Trainer":
                 f"4. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. Students shouldnt write more than 7 to 8 words in a sentence. Divide for them with full stops "
                 f"5. Always be sure that students complete letter is between 30 to 40 words "
                 f"6. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
+                f"7. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use absagen to cancel appointments. "
+                f"8. When the letter is about enquiries or registrations, teach students how they can use  Anfrage stellen for the Ich schreibe. "
+                f"9. When the letter is about registrations like course, teach students how they can use  anfangen, beginnen. "
+                f"10. Asking for price, teach them how to use wie viel kostet and how they should ask for price always when is about enquires. "
                 "For a prompt, give a short, clear overview (in English) of the structure (greeting, introduction, reason, request, closing), with classic examples for each. "
                 "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
@@ -4904,10 +4915,6 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 
-
-import streamlit as st
-from datetime import datetime
-import os
 
 # --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
