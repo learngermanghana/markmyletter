@@ -57,7 +57,7 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # === YouTube Data API Settings ===
-YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "your-fallback-key")
+YOUTUBE_API_KEY = st.secrets["YOUTUBE_API_KEY"]
 
 
 YOUTUBE_PLAYLIST_IDS = {
