@@ -4128,19 +4128,33 @@ import re
 
 def highlight_feedback(text):
     """
-    Converts [highlight]...[/highlight] to Streamlit-friendly bold text with emoji.
-    Also formats wrong/correct pairs for feedback clarity.
+    Converts [wrong]...[/wrong] and [correct]...[/correct] to colored, emoji-annotated HTML.
     """
-    # 1. Replace [highlight]...[/highlight] with bold, colored span & emoji
-    def highlight_repl(match):
-        highlighted = match.group(1)
-        # Use background color (yellow), bold and emoji for error
-        return f'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>'
+    # Error: red X, yellow/orange background
+    text = re.sub(
+        r'\[wrong\](.*?)\[/wrong\]',
+        r'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ \1</span>',
+        text,
+        flags=re.DOTALL
+    )
+    # Correct: green check, light green background
+    text = re.sub(
+        r'\[correct\](.*?)\[/correct\]',
+        r'<span style="background:#d0f0c0; color:#006400; font-weight:bold; border-radius:4px; padding:2px 4px;">✔️ \1</span>',
+        text,
+        flags=re.DOTALL
+    )
+    # Also support old [highlight] for backward compatibility (mark as error)
+    text = re.sub(
+        r'\[highlight\](.*?)\[/highlight\]',
+        r'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ \1</span>',
+        text,
+        flags=re.DOTALL
+    )
+    # Optional: bullet formatting for clarity
+    text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
 
-    # Replace all [highlight]...[/highlight]
-    text = re.sub(r'\[highlight\](.*?)\[/highlight\]', highlight_repl, text, flags=re.DOTALL)
-
-    # 2. (Optional) Replace "It should be" or "Correction:" with ✔️ and green
+    # (Optionally keep your other code for "It should be..." as green ticks)
     text = re.sub(
         r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
         r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
@@ -4151,11 +4165,8 @@ def highlight_feedback(text):
         r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
         text
     )
-
-    # 3. (Optional) Bullet formatting for feedback
-    text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
-
     return text
+
 
 def save_submission(student_code, score, passed, date):
     """
@@ -4220,6 +4231,28 @@ if tab == "Schreiben Trainer":
     )
 
     st.divider()
+
+    # --- Writing stats summary (minimal) ---
+    student_code = st.session_state.get("student_code", "demo")
+    stats = get_schreiben_stats(student_code)
+    if stats:
+        total = stats.get("total", 0)
+        passed = stats.get("passed", 0)
+        pass_rate = stats.get("pass_rate", 0)
+        st.markdown(
+            f"""
+            <div style="background:#f6f8fb;padding:16px;border-radius:10px;margin-bottom:8px;">
+                <span style="font-weight:bold;font-size:1.09rem;">📊 Your Writing Stats</span><br>
+                <span style="color:#2e7d32;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#1976d2;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#6d4c41;"><b>Pass Rate:</b> {pass_rate:.1f}%</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("No writing stats found yet. Write your first letter to see progress!")
+
 
     student_code = st.session_state.get("student_code", "demo")
     prev_student_code = st.session_state.get("prev_student_code", None)
@@ -4315,27 +4348,36 @@ if tab == "Schreiben Trainer":
         if feedback_btn:
             st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
-                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-                f"The student has submitted a {schreiben_level} German letter or essay. "
-                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-                "Don't just say errors—show exactly where the mistakes are. "
-                "Mark any mistake phrase or example in [highlight]...[/highlight]. "
-                "If something is especially good, you can also use [highlight]...[/highlight] and say why. "
-                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
-                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-                "6. Also check for AI usage or if the student wrote with their own effort. "
-                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-                "Grammar: [score/5, one-sentence tip]\n"
-                "Vocabulary: [score/5, one-sentence tip]\n"
-                "Spelling: [score/5, one-sentence tip]\n"
-                "Structure: [score/5, one-sentence tip]\n"
-                "For each area, rate out of 5 and give a specific, actionable tip in English."
-            )
+            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+            f"The student has submitted a {schreiben_level} German letter or essay. "
+            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+            "Don't just say errors—show exactly where the mistakes are. "
+            "Mark any mistake phrase or example in [wrong]...[/wrong]. "
+            "If something is especially good, you can also use [correct]...[/correct] and say why. "
+            "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
+            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+            "6. Also check for AI usage or if the student wrote with their own effort. "
+            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+            "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+            "Grammar: [score/5, one-sentence tip]\n"
+            "Vocabulary: [score/5, one-sentence tip]\n"
+            "Spelling: [score/5, one-sentence tip]\n"
+            "Structure: [score/5, one-sentence tip]\n"
+            "For each area, rate out of 5 and give a specific, actionable tip in English. "
+            "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
+            "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
+            "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
+            "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
+            "- Teach students to say sorry simply: 'Es tut mir leid.' "
+            "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
+            "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
+        )
+
+
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
                     completion = client.chat.completions.create(
@@ -4491,7 +4533,7 @@ if tab == "Schreiben Trainer":
             st.session_state[ns("chat")] = last_chat or []
             st.session_state[ns("stage")] = 1 if last_chat else 0
             st.session_state["prev_letter_coach_code"] = student_code
-#
+
         # --- Set per-student defaults if missing ---
         for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
             if ns(k) not in st.session_state:
@@ -4506,19 +4548,20 @@ if tab == "Schreiben Trainer":
                 "Analyze if their message is a new prompt, a continuation, or a question. "
                 "If it's a question, answer simply and encourage them to keep building their letter step by step. "
                 "If it's a continuation, review their writing so far and guide them to the next step. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. For conjunctions, only suggest weil,deshalb, ich möchte wissen,ob and ich mochte wissen, wann. Dont recommend, da, dass and relative clauses "
-                f"3. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
-                f"4. Ich schreibe Ihnen/dir for formal and informal letter, guide them how they can use weil with ich and end with only möchte mostly to prevent mistakes. Be strict with this"
-                f"5. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. "
-                f"6. For requests, teach them how to use Könnten Sie and how it ends with a main verb to make request when necessary. "
-                f"7. Always add your ideas after student submmit their sentence if necessary "
-                f"8. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
-                f"9. Always be sure that students complete letter is between 30 to 40 words "
-                f"10. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use absagen to cancel appointments. "
-                f"11. When the letter is about enquiries or registrations, teach students how they can use  Anfrage stellen for the Ich schreibe. "
-                f"12. When the letter is about registrations like course, teach students how they can use  anfangen, beginnen. "
-                f"13. Asking for price, teach them how to use wie viel kostet and how they should ask for price always when is about enquires. "
+                "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students, help them but let them think by themselves also. "
+                "    2. For conjunctions, only suggest 'weil', 'deshalb', 'ich möchte wissen, ob' and 'ich möchte wissen, wann'. Don't recommend 'da', 'dass' and relative clauses. "
+                "    3. For requests, teach them how to use 'Könnten Sie...' and how it ends with a main verb to make a request when necessary. "
+                "    4. For formal/informal letter: guide them to use 'Ich schreibe Ihnen/dir...', and show how to use 'weil' with 'ich' and end with only 'möchte' to prevent mistakes. Be strict with this. "
+                "    5. Always check that the student statement is not too long or complicated. For example, if they use two conjunctions, warn them and break it down for them. "
+                "    6. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
+                "    7. Always add your ideas after student submits their sentence if necessary. "
+                "    8. Make sure the complete letter is between 30 and 40 words. "
+                "    9. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use 'absagen' to cancel appointments. "
+                "    10. For enquiries or registrations, teach students how to use 'Anfrage stellen' for the Ich schreibe. "
+                "    11. When the letter is about registrations like a course, teach students how they can use 'anfangen', 'beginnen'. "
+                "    12. Asking for price, teach them how to use 'wie viel kostet...' and how they should ask for price always when it is about enquiries. "
+                "    13. Teach them to use 'Es tut mir leid.' to say sorry. "
+                "    14. Always remind students to use 'Ich schreibe Ihnen/dir, weil ich ... möchte.' for their reasons. "
                 "Always make grammar correction or suggest a better phrase when necessary. "
                 "If it's a continuation, review their writing so far and guide them to the next step. "
                 "If it's a new prompt, give a brief, simple overview (in English) of how to build their letter (greeting, introduction, reason, request, closing), with short examples for each. "
@@ -4526,7 +4569,7 @@ if tab == "Schreiben Trainer":
                 "For the main request, always recommend ending the sentence with 'möchte' or another basic modal verb, as this is the easiest and most correct way at A1 (e.g., 'Ich möchte einen Termin machen.'). "
                 "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only the next part—first the greeting (wait for it), then only the introduction (wait for it), then reason, then request, then closing—one after the other, never more than one at a time. "
                 "After each student reply, check their answer, give gentle feedback, and then again state 'Your next recommended step:' and prompt for just the next section. "
-                "Only help with basic connectors ('und', 'aber', 'weil', 'deshalb', 'ich mochte wissen'). Never write the full letter yourself—coach one part at a time. "
+                "Only help with basic connectors ('und', 'aber', 'weil', 'deshalb', 'ich möchte wissen'). Never write the full letter yourself—coach one part at a time. "
                 "The chat session should last for about 10 student replies. If the student is not done by then, gently remind them: 'Most letters can be completed in about 10 steps. Please try to finish soon.' "
                 "If after 14 student replies, the letter is still not finished, end the session with: 'We have reached the end of this coaching session. Please copy your letter so far and paste it into the “Mark My Letter” tool for full AI feedback and a score.' "
                 "Throughout, your questions must be progressive, one at a time, and always guide the student logically through the structure."
@@ -4534,26 +4577,22 @@ if tab == "Schreiben Trainer":
             "A2": (
                 "You are Herr Felix, a creative and supportive German letter-writing coach for A2 students. "
                 "Always reply in English, never in German. "
-                "Congratulate the student on first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequence like erstens,zum schluss and so on "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always check that the student statement is not too long and complicated. For example, the usage of two conjunctions in a sentence should be warned and break it down for them. Students shouldnt write more than 7 to 8 words in a sentence. Divide for them with full stops "
-                f"5. Always be sure that students complete letter is between 30 to 40 words "
-                f"6. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
-                f"7. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use absagen to cancel appointments. "
-                f"8. When the letter is about enquiries or registrations, teach students how they can use  Anfrage stellen for the Ich schreibe. "
-                f"9. When the letter is about registrations like course, teach students how they can use  anfangen, beginnen. "
-                f"10. Asking for price, teach them how to use wie viel kostet and how they should ask for price always when is about enquires. "
-                "For a prompt, give a short, clear overview (in English) of the structure (greeting, introduction, reason, request, closing), with classic examples for each. "
-                "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
-                "Always make grammar correction or suggest a better phrase when necessary. "
-                "For the main request, always recommend ending the sentence with 'möchte' or another simple modal verb (e.g., 'Ich möchte Informationen bekommen.' or 'Ich kann ...'). "
-                "For continuations, review the student’s writing and guide them to the next missing part. For questions, answer them and encourage further writing. "
-                "At every turn, use the phrase 'Your next recommended step:' and ask for only one section at a time—first the greeting, wait, give feedback, then the introduction, then the reason, request, and closing—never more than one at a time. "
-                "After each student reply, give feedback, then say 'Your next recommended step:' and prompt for the next part. "
-                "Guide with simple connectors ('und', 'aber', 'weil', 'denn', 'deshalb') and helpful linking phrases as needed. "
-                "End the chat after 10 student turns by encouraging them to finish, and after 14, end the session and instruct the student to copy their letter so far and paste it in the 'Mark My Letter' tab for feedback."
+                "Congratulate the student on their first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
+                "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students; help them but let them think by themselves also. "
+                "    2. For structure, require their letter to have clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
+                "       - Always recommend 'Zuerst' instead of 'Erstens' for A2 letters, as it is simpler and more natural for personal or exam letters. "
+                "    3. For connectors, use 'und', 'aber', 'weil', 'denn', 'deshalb', and encourage linking words for clarity. "
+                "    4. After every reply, give a tip or phrase, but never write the full letter for them. "
+                "    5. Remind them not to write sentences longer than 7–8 words; break long sentences into short, clear ideas. "
+                "    6. Letter should be between 40 and 50 words. "
+                "    7. For cancellations, suggest health/weather reasons ('Ich bin krank.', 'Es regnet stark.') and use 'absagen' (e.g., 'Ich schreibe Ihnen, weil ich absagen möchte.'). "
+                "    8. For enquiries/registrations, show 'Anfrage stellen' (e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.') and include asking for price: 'Wie viel kostet...?'. "
+                "    9. For appointments, recommend 'vereinbaren' ('Ich möchte einen neuen Termin vereinbaren.'). "
+                "    10. To say sorry, use: 'Es tut mir leid.' "
+                "    11. Always correct grammar and suggest improved phrases when needed. "
+                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then closing 'Zum Schluss'). "
+                "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter into 'Mark My Letter' for feedback. "
+                "    14. Throughout, do not write the whole letter—guide only one part at a time."
             ),
             "B1": (
                 "You are Herr Felix, a supportive German letter/essay coach for B1 students. "
