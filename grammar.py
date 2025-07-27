@@ -4129,39 +4129,44 @@ def init_student_session():
 import re
 import datetime
 
-
 def highlight_feedback(text):
-    # Highlight errors: red X, orange background
+    """
+    Converts [highlight]...[/highlight] to Streamlit-friendly styled text with emoji.
+    - Errors get a red X with orange-yellow background.
+    - Correct phrases get a green checkmark with light green background.
+    """
+    import re
+
     def error_repl(match):
         highlighted = match.group(1)
+        # Red X mark, orange background for errors
         return f'<span style="background:#fff59d; color:#bf360c; font-weight:bold; border-radius:4px; padding:2px 4px;">❌ {highlighted}</span>'
-    
-    # Highlight correct phrases: green check, green background
+
     def correct_repl(match):
         highlighted = match.group(1)
+        # Green check mark, light green background for correct phrases
         return f'<span style="background:#d0f0c0; color:#006400; font-weight:bold; border-radius:4px; padding:2px 4px;">✔️ {highlighted}</span>'
 
-    # Replace error highlights first
-    text = re.sub(r'\[error\](.*?)\[/error\]', error_repl, text, flags=re.DOTALL)
-    # Then replace correct highlights
-    text = re.sub(r'\[correct\](.*?)\[/correct\]', correct_repl, text, flags=re.DOTALL)
+    # First replace all error highlights
+    text = re.sub(r'\[highlight\](.*?)\[/highlight\]', error_repl, text, flags=re.DOTALL)
 
-    # Optionally, replace "It should be" or "Correction:" with green check mark
+    # Then replace correct phrase markers, e.g. "It should be ..." or "Correction: ..."
     text = re.sub(
         r'It should be\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
+        lambda m: correct_repl(m),
         text
     )
     text = re.sub(
         r'Correction:\s*["“”]?(.*?)["“”]?(?=[\.\n])',
-        r'<span style="color:#006400; font-weight:bold;">✔️ \1</span>',
+        lambda m: correct_repl(m),
         text
     )
 
-    # Bullet formatting for feedback (optional)
+    # Optional: bullet formatting for clarity
     text = re.sub(r'^\s*-\s*', '• ', text, flags=re.MULTILINE)
 
     return text
+
 
 
 
