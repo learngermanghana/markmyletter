@@ -4249,6 +4249,40 @@ def get_schreiben_stats(student_code):
     doc = doc_ref.get()
     return doc.to_dict() if doc.exists else {}
 
+def style_feedback_breakdown(text):
+    """
+    Style the feedback breakdown text with colors for each category.
+    Input text format example:
+    Grammar: 4/5, Good use of verbs.
+    Vocabulary: 3/5, Needs more variety.
+    Spelling: 5/5, Almost perfect.
+    Structure: 4/5, Logical flow.
+    """
+    import re
+
+    def replacer(match):
+        category = match.group(1)
+        score = match.group(2)
+        tip = match.group(3)
+        colors = {
+            "Grammar": "#2e7d32",     # green
+            "Vocabulary": "#1565c0",  # blue
+            "Spelling": "#ef6c00",    # orange
+            "Structure": "#6a1b9a"    # purple
+        }
+        color = colors.get(category, "#000000")
+        return (
+            f'<p style="color:{color}; font-weight:bold; margin:0;">{category}: '
+            f'<span style="color:#000;">{score}</span>, '
+            f'<span style="font-weight:normal;">{tip}</span></p>'
+        )
+
+    pattern = re.compile(r'(\w+):\s*(\d+/5),\s*(.*)')
+    styled_text = pattern.sub(replacer, text)
+    # Wrap in div with some spacing
+    return f'<div style="margin-top:1em;">{styled_text}</div>'
+
+
 def bubble(role, text):
     color = "#7b2ff2" if role == "assistant" else "#222"
     bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
