@@ -3586,13 +3586,6 @@ if tab == "Exams Mode & Custom Chat":
                 "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
             )
-        if level in ["A1", "A2", "B1", "B2"]:
-        correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-        total_questions = st.number_input(
-            "How many questions would you like in your session?",
-            min_value=4, max_value=20, value=10, step=1,
-            help="Most students find 8–12 questions ideal for practice."
-        )
         return (
             f"You are Herr Felix, a supportive and innovative German teacher. "
             f"The student's first input is their chosen topic. Only give suggestions, phrases, tips and ideas at first in English, no corrections. "
