@@ -4704,10 +4704,10 @@ if tab == "Schreiben Trainer":
             <div style="background:#f6f8fb;padding:16px;border-radius:10px;margin-bottom:8px;">
                 <span style="font-weight:bold;font-size:1.25rem;">{writer_title}</span><br>
                 <span style="font-weight:bold;font-size:1.09rem;">📊 Your Writing Stats</span><br>
-                <span style="color:#2e7d32;"><b>Total Attempts:</b> {total}</span><br>
-                <span style="color:#1976d2;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#6d4c41;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
-                <span style="color:#d63384;font-weight:bold;">{milestone}</span>
+                <span style="color:#222;font-weight:bold;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#222;font-weight:bold;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#222;font-weight:bold;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#b3006f;font-weight:bold;">{milestone}</span>
             </div>
             """,
             unsafe_allow_html=True
