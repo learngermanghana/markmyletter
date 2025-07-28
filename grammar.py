@@ -1053,6 +1053,75 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
+            # ==== CLASS SCHEDULES DICTIONARY ====
+        GROUP_SCHEDULES = {
+            "A1 Munich Klasse": {
+                "days": ["Monday", "Tuesday", "Wednesday"],
+                "time": "6:00pm–7:00pm",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+            "A1 Berlin Klasse": {
+                "days": ["Thursday", "Friday", "Saturday"],
+                "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+            "A1 Koln Klasse": {
+                "days": ["Monday", "Tuesday", "Wednesday"],
+                "time": "6:00pm–7:00pm",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+            "A2 Munich Klasse": {
+                "days": ["Monday", "Tuesday", "Wednesday"],
+                "time": "7:30pm–9:00pm",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+            "A2 Berlin Klasse": {
+                "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+            "A2 Koln Klasse": {
+                "days": ["Wednesday", "Thursday", "Friday"],
+                "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+            "B1 Munich Klasse": {
+                "days": ["Thursday", "Friday"],
+                "time": "7:30pm–9:00pm",
+                "start_date": "", "end_date": "", "doc_url": ""
+            },
+        }
+
+        # ==== SHOW UPCOMING CLASSES CARD ====
+        class_name = (student_row.get("ClassName") or "").strip()
+        class_schedule = GROUP_SCHEDULES.get(class_name)
+        if class_schedule:
+            from datetime import timedelta
+            week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            today_idx = datetime.today().weekday()
+            day_indices = [week_days.index(day) for day in class_schedule["days"] if day in week_days]
+            next_classes = []
+            for add_day in range(7):
+                day = (today_idx + add_day) % 7
+                if day in day_indices:
+                    next_classes.append((week_days[day], (datetime.today() + timedelta(days=add_day)).strftime("%d %b")))
+                    if len(next_classes) == 3:
+                        break
+            st.markdown(
+                f"""
+                <div style='border:2px solid #0c749e; border-radius:12px; padding:12px 10px; margin-bottom:10px; background: #fafdff; font-size:1.02em;'>
+                    <b>🗓️ Your Next Classes ({class_name}):</b><br>
+                    <ul style='padding-left:15px; margin:8px 0 0 0;'>
+                        {''.join([f"<li><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
+                    </ul>
+                    {'<a href="' + class_schedule['doc_url'] + '" target="_blank" style="font-size:0.97em;color:#17617a;text-decoration:underline;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
+
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
