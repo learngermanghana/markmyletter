@@ -3513,7 +3513,7 @@ if tab == "Exams Mode & Custom Chat":
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, an A2 examiner. Give a topic. Student gives a short monologue. Correct errors (in English), give suggestions, and follow up with one question."
-                    "Always let the student know that you are here to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
                     "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
                     "2. Use phrases like your next recommended question to ask for the next question"
                     "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
@@ -3524,16 +3524,16 @@ if tab == "Exams Mode & Custom Chat":
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, an A2 examiner. Plan something together (e.g., going to the cinema). Check student's suggestions, correct errors, and keep the conversation going."
-                     "Always let the student know that you are here to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
-                     "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
-                     "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not"
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
+                    "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not"
                 )
         if level == "B1":
             if "Teil 1" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
                     "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
                     "1. Give short answers that encourages the student to also type back"
                     "2. After student input, let the student know you will ask just 5 questions and after give a score out of 25 marks "
                     "3. Ask only 5 questions and try and end the conversation"
@@ -3543,7 +3543,7 @@ if tab == "Exams Mode & Custom Chat":
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
                     "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
                     "2. Ask only 3 questions and one question at a time"
                     "3. Dont make your reply too long and complicated but friendly"
