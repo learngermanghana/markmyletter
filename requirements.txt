@@ -9,4 +9,5 @@ thefuzz
 firebase-admin>=6.0.0
 python-docx
 gtts
-
+bcrypt>=4.0.1
+streamlit-oauth>=0.1.5
