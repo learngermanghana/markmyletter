@@ -1108,12 +1108,12 @@ if st.session_state.get("logged_in"):
             "A1 Munich Klasse": {
                 "days": ["Monday", "Tuesday", "Wednesday"],
                 "time": "6:00pm–7:00pm",
-                "start_date": "", "end_date": "", "doc_url": ""
+                "2025-07-08": "", "2025-09-02": "", "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing": ""
             },
             "A1 Berlin Klasse": {
                 "days": ["Thursday", "Friday", "Saturday"],
                 "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
-                "start_date": "", "end_date": "", "doc_url": ""
+                "2025-06-14": "", "2025-08-09": "", "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing": ""
             },
             "A1 Koln Klasse": {
                 "days": ["Monday", "Tuesday", "Wednesday"],
