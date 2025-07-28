@@ -1100,7 +1100,7 @@ if tab == "Dashboard":
         bal = float(student_row.get("Balance", 0))
         if bal > 0:
             st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-    except Exception:
+    except:
         pass
 
     # ==== CLASS SCHEDULES DICTIONARY ====
@@ -1122,48 +1122,52 @@ if tab == "Dashboard":
         "A1 Koln Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
             "time": "6:00pm–7:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
         },
         "A2 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
             "time": "7:30pm–9:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
         },
         "A2 Berlin Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
             "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
         },
         "A2 Koln Klasse": {
             "days": ["Wednesday", "Thursday", "Friday"],
             "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
         },
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
-            "start_date": "2025-07-08",
-            "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
         },
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
     class_name = (student_row.get("ClassName") or "").strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
-    from datetime import datetime, timedelta, date
+    from datetime import datetime, timedelta
 
     if class_schedule:
-        # Check if class has ended
-        end_date_str = class_schedule.get("end_date", "")
+        # Safely get values, may be empty
+        start_date_str = class_schedule.get("start_date", "")
+        end_date_str   = class_schedule.get("end_date", "")
+        doc_url        = class_schedule.get("doc_url", "")
+
+        # If end_date is present and passed, show ended
         if end_date_str:
             try:
                 end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
@@ -1172,7 +1176,7 @@ if tab == "Dashboard":
                         f"❌ Your class ({class_name}) ended on {end_date.strftime('%d %b %Y')}. Please contact the office for renewal or next steps."
                     )
                 else:
-                    # Still ongoing, show next classes
+                    # Ongoing: show class info
                     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
                     today_idx = datetime.today().weekday()
                     day_indices = [week_days.index(day) for day in class_schedule["days"] if day in week_days]
@@ -1183,25 +1187,35 @@ if tab == "Dashboard":
                             next_classes.append((week_days[day], (datetime.today() + timedelta(days=add_day)).strftime("%d %b")))
                             if len(next_classes) == 3:
                                 break
+
+                    # Build info row
+                    extra = []
+                    if start_date_str:
+                        extra.append(f"<b>Start:</b> {start_date_str}")
+                    if end_date_str:
+                        extra.append(f"<b>End:</b> {end_date_str}")
+                    extra_html = " &nbsp; ".join(extra)
+                    doc_html = f'<a href="{doc_url}" target="_blank" style="font-size:0.98em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if doc_url else ''
+
                     st.markdown(
                         f"""
-                        <div style='border:2px solid #17617a; border-radius:14px; padding:13px 11px; margin-bottom:13px; background: #eaf6fb; font-size:1.15em; line-height:1.65; color:#232323;'>
-                            <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-                            <ul style='padding-left:16px; margin:9px 0 0 0;'>
-                                {''.join([f"<li style='margin-bottom:6px;'><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
+                        <div style='border:2px solid #17617a; border-radius:14px; padding:12px 10px; margin-bottom:14px; background: #ddeffd; font-size:1.12em; line-height:1.62; color:#18232d;'>
+                            <b style="font-size:1.05em;">🗓️ Your Next Classes ({class_name}):</b><br>
+                            <ul style='padding-left:17px; margin:8px 0 0 0;'>
+                                {''.join([f"<li style='margin-bottom:5px;'><b>{d}</b> <span style='color:#17617a;'>{dt}</span> <span style='color:#444;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
                             </ul>
-                            <div style="font-size:0.98em;margin-top:6px;">
-                                <b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}
+                            <div style="font-size:0.98em;margin-top:5px;">
+                                {extra_html}
                             </div>
-                            {f'<a href="{class_schedule["doc_url"]}" target="_blank" style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
+                            {doc_html}
                         </div>
                         """,
                         unsafe_allow_html=True
                     )
             except Exception:
                 st.info("Could not parse your class end date.")
-        else:
-            # No end date set
+        # If no end_date, show ongoing
+        if (not end_date_str) or (end_date_str and datetime.today().date() <= datetime.strptime(end_date_str, "%Y-%m-%d").date()):
             week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
             today_idx = datetime.today().weekday()
             day_indices = [week_days.index(day) for day in class_schedule["days"] if day in week_days]
@@ -1212,23 +1226,33 @@ if tab == "Dashboard":
                     next_classes.append((week_days[day], (datetime.today() + timedelta(days=add_day)).strftime("%d %b")))
                     if len(next_classes) == 3:
                         break
+
+            extra = []
+            if start_date_str:
+                extra.append(f"<b>Start:</b> {start_date_str}")
+            if end_date_str:
+                extra.append(f"<b>End:</b> {end_date_str}")
+            extra_html = " &nbsp; ".join(extra)
+            doc_html = f'<a href="{doc_url}" target="_blank" style="font-size:0.98em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if doc_url else ''
+
             st.markdown(
                 f"""
-                <div style='border:2px solid #17617a; border-radius:14px; padding:13px 11px; margin-bottom:13px; background: #eaf6fb; font-size:1.15em; line-height:1.65; color:#232323;'>
-                    <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-                    <ul style='padding-left:16px; margin:9px 0 0 0;'>
-                        {''.join([f"<li style='margin-bottom:6px;'><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
+                <div style='border:2px solid #17617a; border-radius:14px; padding:12px 10px; margin-bottom:14px; background: #ddeffd; font-size:1.12em; line-height:1.62; color:#18232d;'>
+                    <b style="font-size:1.05em;">🗓️ Your Next Classes ({class_name}):</b><br>
+                    <ul style='padding-left:17px; margin:8px 0 0 0;'>
+                        {''.join([f"<li style='margin-bottom:5px;'><b>{d}</b> <span style='color:#17617a;'>{dt}</span> <span style='color:#444;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
                     </ul>
-                    <div style="font-size:0.98em;margin-top:6px;">
-                        <b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}
+                    <div style="font-size:0.98em;margin-top:5px;">
+                        {extra_html}
                     </div>
-                    {f'<a href="{class_schedule["doc_url"]}" target="_blank" style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
+                    {doc_html}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
     else:
         st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
+
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
     GOETHE_EXAM_DATES = {
