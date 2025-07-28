@@ -1103,50 +1103,102 @@ if st.session_state.get("logged_in"):
         except:
             pass
 
-                # ==== CLASS SCHEDULES DICTIONARY ====
-        GROUP_SCHEDULES = {
-            "A1 Munich Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday"],
-                "time": "6:00pm–7:00pm",
-                "2025-07-08": "", "2025-09-02": "", "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing": ""
-            },
-            "A1 Berlin Klasse": {
-                "days": ["Thursday", "Friday", "Saturday"],
-                "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
-                "2025-06-14": "", "2025-08-09": "", "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing": ""
-            },
-            "A1 Koln Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday"],
-                "time": "6:00pm–7:00pm",
-                "start_date": "", "end_date": "", "doc_url": ""
-            },
-            "A2 Munich Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday"],
-                "time": "7:30pm–9:00pm",
-                "start_date": "", "end_date": "", "doc_url": ""
-            },
-            "A2 Berlin Klasse": {
-                "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
-                "start_date": "", "end_date": "", "doc_url": ""
-            },
-            "A2 Koln Klasse": {
-                "days": ["Wednesday", "Thursday", "Friday"],
-                "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
-                "start_date": "", "end_date": "", "doc_url": ""
-            },
-            "B1 Munich Klasse": {
-                "days": ["Thursday", "Friday"],
-                "time": "7:30pm–9:00pm",
-                "start_date": "", "end_date": "", "doc_url": ""
-            },
-        }
+    # ==== CLASS SCHEDULES DICTIONARY ====
+    GROUP_SCHEDULES = {
+        "A1 Munich Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "6:00pm–7:00pm",
+            "start_date": "2025-07-08",
+            "end_date": "2025-09-02",
+            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+        },
+        "A1 Berlin Klasse": {
+            "days": ["Thursday", "Friday", "Saturday"],
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
+            "start_date": "2025-06-14",
+            "end_date": "2025-08-09",
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+        },
+        "A1 Koln Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "6:00pm–7:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "A2 Munich Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "A2 Berlin Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "A2 Koln Klasse": {
+            "days": ["Wednesday", "Thursday", "Friday"],
+            "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "B1 Munich Klasse": {
+            "days": ["Thursday", "Friday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+    }
 
-        # ==== SHOW UPCOMING CLASSES CARD ====
-        class_name = (student_row.get("ClassName") or "").strip()
-        class_schedule = GROUP_SCHEDULES.get(class_name)
-        if class_schedule:
-            from datetime import timedelta
+    # ==== SHOW UPCOMING CLASSES CARD ====
+    class_name = (student_row.get("ClassName") or "").strip()
+    class_schedule = GROUP_SCHEDULES.get(class_name)
+
+    from datetime import datetime, timedelta
+
+    if class_schedule:
+        # Check if class has ended
+        end_date_str = class_schedule.get("end_date", "")
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                if datetime.today().date() > end_date:
+                    st.error(f"❌ Your class ({class_name}) has ended on {end_date.strftime('%d %b %Y')}. Please contact the office to renew or for next steps.")
+                else:
+                    # Still ongoing, show next classes
+                    week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+                    today_idx = datetime.today().weekday()
+                    day_indices = [week_days.index(day) for day in class_schedule["days"] if day in week_days]
+                    next_classes = []
+                    for add_day in range(7):
+                        day = (today_idx + add_day) % 7
+                        if day in day_indices:
+                            next_classes.append((week_days[day], (datetime.today() + timedelta(days=add_day)).strftime("%d %b")))
+                            if len(next_classes) == 3:
+                                break
+                    st.markdown(
+                        f"""
+                        <div style='border:2px solid #0c749e; border-radius:12px; padding:12px 10px; margin-bottom:10px; background: #fafdff; font-size:1.02em;'>
+                            <b>🗓️ Your Next Classes ({class_name}):</b><br>
+                            <ul style='padding-left:15px; margin:8px 0 0 0;'>
+                                {''.join([f"<li><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
+                            </ul>
+                            <span style="font-size:0.95em;color:#333;"><b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}</span><br>
+                            {'<a href="' + class_schedule['doc_url'] + '" target="_blank" style="font-size:0.97em;color:#17617a;text-decoration:underline;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+            except Exception:
+                st.info("Could not parse your class end date.")
+        else:
+            # No end date set
             week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
             today_idx = datetime.today().weekday()
             day_indices = [week_days.index(day) for day in class_schedule["days"] if day in week_days]
@@ -1164,14 +1216,14 @@ if st.session_state.get("logged_in"):
                     <ul style='padding-left:15px; margin:8px 0 0 0;'>
                         {''.join([f"<li><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
                     </ul>
+                    <span style="font-size:0.95em;color:#333;"><b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}</span><br>
                     {'<a href="' + class_schedule['doc_url'] + '" target="_blank" style="font-size:0.97em;color:#17617a;text-decoration:underline;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
-        else:
-            st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
-
+    else:
+        st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
 
         # --- Goethe Exam Countdown & Video of the Day (per level) ---
         GOETHE_EXAM_DATES = {
