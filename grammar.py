@@ -1053,7 +1053,57 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
-            # ==== CLASS SCHEDULES DICTIONARY ====
+
+    # ---------- Tab Tips Section (only on Dashboard) ----------
+    DASHBOARD_REMINDERS = [
+        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
+        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
+        "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
+        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
+        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
+        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
+    ]
+    import random
+    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
+    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
+
+    # --- Main Tab Selection ---
+    tab = st.radio(
+        "How do you want to practice?",
+        [
+            "Dashboard",
+            "Course Book",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+            "My Learning Notes",
+        ],
+        key="main_tab_select"
+    )
+
+    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
+    if tab == "Dashboard":
+        # --- Student Information & Balance ---
+        st.markdown(f"### 👤 {student_row.get('Name','')}")
+        st.markdown(
+            f"- **Level:** {student_row.get('Level','')}\n"
+            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+            f"- **Email:** {student_row.get('Email','')}\n"
+            f"- **Phone:** {student_row.get('Phone','')}\n"
+            f"- **Location:** {student_row.get('Location','')}\n"
+            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+            f"- **Status:** {student_row.get('Status','')}"
+        )
+        try:
+            bal = float(student_row.get("Balance", 0))
+            if bal > 0:
+                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+        except:
+            pass
+
+                # ==== CLASS SCHEDULES DICTIONARY ====
         GROUP_SCHEDULES = {
             "A1 Munich Klasse": {
                 "days": ["Monday", "Tuesday", "Wednesday"],
@@ -1122,54 +1172,6 @@ if st.session_state.get("logged_in"):
         else:
             st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
 
-    # ---------- Tab Tips Section (only on Dashboard) ----------
-    DASHBOARD_REMINDERS = [
-        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
-        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-        "📝 **Have you used Exams Mode & Custom Chat?** Practice real exam questions or ask your own. Get instant writing feedback and AI help!",
-        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
-        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
-        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
-    ]
-    import random
-    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
-
-    # --- Main Tab Selection ---
-    tab = st.radio(
-        "How do you want to practice?",
-        [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-            "My Learning Notes",
-        ],
-        key="main_tab_select"
-    )
-
-    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
-    if tab == "Dashboard":
-        # --- Student Information & Balance ---
-        st.markdown(f"### 👤 {student_row.get('Name','')}")
-        st.markdown(
-            f"- **Level:** {student_row.get('Level','')}\n"
-            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-            f"- **Email:** {student_row.get('Email','')}\n"
-            f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Location:** {student_row.get('Location','')}\n"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-            f"- **Status:** {student_row.get('Status','')}"
-        )
-        try:
-            bal = float(student_row.get("Balance", 0))
-            if bal > 0:
-                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-        except:
-            pass
 
         # --- Goethe Exam Countdown & Video of the Day (per level) ---
         GOETHE_EXAM_DATES = {
