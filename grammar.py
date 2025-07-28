@@ -1083,33 +1083,45 @@ if st.session_state.get("logged_in"):
     )
 
 if tab == "Dashboard":
-    # --- Ensure student_row is a dict-like mapping ---
-    if not student_row:
-        st.info("🚩 No student selected. Please select a student to view dashboard.")
-        st.stop()  # exit this block early
-    # If it's a pandas Series or similar, convert to dict
-    if hasattr(student_row, "to_dict"):
-        student_row = student_row.to_dict()
-    elif not isinstance(student_row, dict):
+    # --- Helper to avoid AttributeError on any row type ---
+    def safe_get(row, key, default=""):
+        # mapping-style
         try:
-            student_row = dict(student_row)
+            return row.get(key, default)
         except Exception:
-            student_row = {}
-    
-    # --- Student Information & Balance ---
-    st.markdown(f"### 👤 {student_row.get('Name','')}")
+            pass
+        # attribute-style
+        try:
+            return getattr(row, key, default)
+        except Exception:
+            pass
+        # index/key access
+        try:
+            return row[key]
+        except Exception:
+            return default
+
+    # --- Ensure student_row is something we can call safe_get() on ---
+    if not student_row:
+        st.info("🚩 No student selected.")
+        st.stop()
+    # (no need to convert to dict—safe_get covers all cases)
+
+    # --- Student Info & Balance ---
+    name = safe_get(student_row, "Name")
+    st.markdown(f"### 👤 {name}")
     st.markdown(
-        f"- **Level:** {student_row.get('Level','')}\n"
-        f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-        f"- **Email:** {student_row.get('Email','')}\n"
-        f"- **Phone:** {student_row.get('Phone','')}\n"
-        f"- **Location:** {student_row.get('Location','')}\n"
-        f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-        f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-        f"- **Status:** {student_row.get('Status','')}"
+        f"- **Level:** {safe_get(student_row, 'Level')}\n"
+        f"- **Code:** `{safe_get(student_row, 'StudentCode')}`\n"
+        f"- **Email:** {safe_get(student_row, 'Email')}\n"
+        f"- **Phone:** {safe_get(student_row, 'Phone')}\n"
+        f"- **Location:** {safe_get(student_row, 'Location')}\n"
+        f"- **Contract:** {safe_get(student_row, 'ContractStart')} ➔ {safe_get(student_row, 'ContractEnd')}\n"
+        f"- **Enroll Date:** {safe_get(student_row, 'EnrollDate')}\n"
+        f"- **Status:** {safe_get(student_row, 'Status')}"
     )
     try:
-        bal = float(student_row.get("Balance", 0))
+        bal = float(safe_get(student_row, "Balance", 0))
         if bal > 0:
             st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
     except Exception:
@@ -1130,42 +1142,41 @@ if tab == "Dashboard":
     # ==== SHOW UPCOMING CLASSES CARD ====
     from datetime import datetime, timedelta, date
 
-    # Now safe: student_row is a dict
-    class_name = (student_row.get("ClassName") or "").strip()
+    # use safe_get instead of direct .get()
+    class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     if not class_name or not class_schedule:
         st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
     else:
-        start_date = class_schedule.get("start_date", "")
-        end_date   = class_schedule.get("end_date", "")
-        time_str   = class_schedule.get("time", "")
-        doc_url    = class_schedule.get("doc_url", "")
-        days       = class_schedule.get("days", [])
+        days      = class_schedule.get("days", [])
+        time_str  = class_schedule.get("time", "")
+        start_dt  = class_schedule.get("start_date", "")
+        end_dt    = class_schedule.get("end_date", "")
+        doc_url   = class_schedule.get("doc_url", "")
 
-        # Defensive lookup of day indices
+        # map day names → indices
         day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # Check if class has ended
-        class_is_over = False
+        # check if class ended
+        class_over = False
         end_date_obj = None
-        if end_date:
+        if end_dt:
             try:
-                end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
-                if datetime.today().date() > end_date_obj:
-                    class_is_over = True
+                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+                class_over = datetime.today().date() > end_date_obj
             except Exception:
                 pass
 
-        if class_is_over:
+        if class_over:
             st.error(
                 f"❌ Your class ({class_name}) ended on "
-                f"{end_date_obj.strftime('%d %b %Y') if end_date_obj else end_date}. "
-                "Please contact the office for renewal or next steps."
+                f"{end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt}. "
+                "Please contact the office for next steps."
             )
         else:
-            # Find up to 3 upcoming class days
+            # build next up to 3 sessions
             next_classes = []
             if day_indices:
                 today_idx = datetime.today().weekday()
@@ -1174,7 +1185,7 @@ if tab == "Dashboard":
                     if idx in day_indices:
                         next_classes.append((
                             week_days[idx],
-                            (datetime.today() + timedelta(days=offset)).strftime("%d %b")
+                            (datetime.today() + timedelta(days=offset)).strftime("%d %b")
                         ))
                         if len(next_classes) == 3:
                             break
@@ -1194,7 +1205,7 @@ if tab == "Dashboard":
                     ]) + '</ul>' if next_classes else
                       '<span style="color:#c62828;">Schedule not set yet.</span>'}
                     <div style="font-size:0.98em; margin-top:6px;">
-                        <b>Course period:</b> {start_date or '[not set]'} to {end_date or '[not set]'}
+                        <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
                     </div>
                     {f'<a href="{doc_url}" target="_blank" '
                       f'style="font-size:1em;color:#17617a;'
