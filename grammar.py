@@ -1082,7 +1082,7 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-    # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
+# ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
 if tab == "Dashboard":
     # --- Student Information & Balance ---
     st.markdown(f"### 👤 {student_row.get('Name','')}")
@@ -1100,7 +1100,7 @@ if tab == "Dashboard":
         bal = float(student_row.get("Balance", 0))
         if bal > 0:
             st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-    except:
+    except Exception:
         pass
 
     # ==== CLASS SCHEDULES DICTIONARY ====
@@ -1159,7 +1159,7 @@ if tab == "Dashboard":
     # ==== SHOW UPCOMING CLASSES CARD ====
     class_name = (student_row.get("ClassName") or "").strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, date
 
     if class_schedule:
         # Check if class has ended
@@ -1230,79 +1230,76 @@ if tab == "Dashboard":
     else:
         st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
 
+    # --- Goethe Exam Countdown & Video of the Day (per level) ---
+    GOETHE_EXAM_DATES = {
+        "A1": (date(2025, 10, 13), 2850, None),
+        "A2": (date(2025, 10, 14), 2400, None),
+        "B1": (date(2025, 10, 15), 2750, 880),
+        "B2": (date(2025, 10, 16), 2500, 840),
+        "C1": (date(2025, 10, 17), 2450, 700),
+    }
+    level = (student_row.get("Level", "") or "").upper().replace(" ", "")
+    exam_info = GOETHE_EXAM_DATES.get(level)
 
-        # --- Goethe Exam Countdown & Video of the Day (per level) ---
-        GOETHE_EXAM_DATES = {
-            "A1": (date(2025, 10, 13), 2850, None),
-            "A2": (date(2025, 10, 14), 2400, None),
-            "B1": (date(2025, 10, 15), 2750, 880),
-            "B2": (date(2025, 10, 16), 2500, 840),
-            "C1": (date(2025, 10, 17), 2450, 700),
-        }
-        level = (student_row.get("Level", "") or "").upper().replace(" ", "")
-        exam_info = GOETHE_EXAM_DATES.get(level)
-
-        st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
-        if exam_info:
-            exam_date, fee, module_fee = exam_info
-            days_to_exam = (exam_date - date.today()).days
-            fee_text = f"**Fee:** ₵{fee:,}"
-            if module_fee:
-                fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
-            if days_to_exam > 0:
-                st.info(
-                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
-                    f"{fee_text}  \n"
-                    "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
-                )
-            elif days_to_exam == 0:
-                st.success("🚀 Exam is today! Good luck!")
-            else:
-                st.error(
-                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
-                    f"{fee_text}"
-                )
-
-            # ---- Per-level YouTube Playlist ----
-            playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
-            if playlist_id:
-                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
-                if video_list:
-                    today_idx = date.today().toordinal()
-                    pick = today_idx % len(video_list)
-                    video = video_list[pick]
-                    st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
-                    st.video(video['url'])
-                else:
-                    st.info("No videos found for your level’s playlist. Check back soon!")
-            else:
-                st.info("No playlist found for your level yet. Stay tuned!")
+    st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
+    if exam_info:
+        exam_date, fee, module_fee = exam_info
+        days_to_exam = (exam_date - date.today()).days
+        fee_text = f"**Fee:** ₵{fee:,}"
+        if module_fee:
+            fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
+        if days_to_exam > 0:
+            st.info(
+                f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                f"{fee_text}  \n"
+                "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+            )
+        elif days_to_exam == 0:
+            st.success("🚀 Exam is today! Good luck!")
         else:
-            st.warning("No exam date configured for your level.")
-
-        # --- Reviews Section ---
-        st.markdown("### 🗣️ What Our Students Say")
-        reviews = load_reviews()
-        if reviews.empty:
-            st.info("No reviews yet. Be the first to share your experience!")
-        else:
-            rev_list = reviews.to_dict("records")
-            if "rev_idx" not in st.session_state:
-                st.session_state["rev_idx"] = 0
-                st.session_state["rev_last_time"] = time.time()
-            if time.time() - st.session_state["rev_last_time"] > 8:
-                st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-                st.session_state["rev_last_time"] = time.time()
-                st.rerun()
-            r = rev_list[st.session_state["rev_idx"]]
-            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
-            st.markdown(
-                f"> {r.get('review_text','')}\n"
-                f"> — **{r.get('student_name','')}**  \n"
-                f"> {stars}"
+            st.error(
+                f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                f"{fee_text}"
             )
 
+        # ---- Per-level YouTube Playlist ----
+        playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
+        if playlist_id:
+            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+            if video_list:
+                today_idx = date.today().toordinal()
+                pick = today_idx % len(video_list)
+                video = video_list[pick]
+                st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
+                st.video(video['url'])
+            else:
+                st.info("No videos found for your level’s playlist. Check back soon!")
+        else:
+            st.info("No playlist found for your level yet. Stay tuned!")
+    else:
+        st.warning("No exam date configured for your level.")
 
+    # --- Reviews Section ---
+    st.markdown("### 🗣️ What Our Students Say")
+    reviews = load_reviews()
+    if reviews.empty:
+        st.info("No reviews yet. Be the first to share your experience!")
+    else:
+        rev_list = reviews.to_dict("records")
+        if "rev_idx" not in st.session_state:
+            st.session_state["rev_idx"] = 0
+            st.session_state["rev_last_time"] = time.time()
+        if time.time() - st.session_state["rev_last_time"] > 8:
+            st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
+            st.session_state["rev_last_time"] = time.time()
+            st.rerun()
+        r = rev_list[st.session_state["rev_idx"]]
+        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        st.markdown(
+            f"> {r.get('review_text','')}\n"
+            f"> — **{r.get('student_name','')}**  \n"
+            f"> {stars}"
+        )
 
 
 
