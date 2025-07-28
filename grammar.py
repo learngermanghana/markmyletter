@@ -2119,345 +2119,346 @@ def get_a2_schedule():
 
 def get_b1_schedule():
     return [
-        # DAY 1
+        # TAG 1
         {
             "day": 1,
             "topic": "Traumwelten (Übung) 1.1",
             "chapter": "1.1",
-            "goal": "Sprich über Traumwelten und Vorstellungskraft.",
+            "goal": "Über Traumwelten und Fantasie sprechen.",
             "assignment": True,
-            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präsens & Perfekt",
             "video": "https://youtu.be/wMrdW2DhD5o",
             "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
-        # DAY 2
+        # TAG 2
         {
             "day": 2,
             "topic": "Freunde fürs Leben (Übung) 1.2",
             "chapter": "1.2",
-            "goal": "Sprich über Freundschaften und wichtige Eigenschaften.",
+            "goal": "Freundschaften und wichtige Eigenschaften beschreiben.",
             "assignment": True,
-            "instruction": "Sieh dir das Video an, wiederhole die Grammatik und bearbeite dein Arbeitsheft.",
-            "grammar_topic": "Präteritum (Simple Past) – Erzählen von vergangenen Erlebnissen",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": ""
         },
-        # DAY 3
+        # TAG 3
         {
             "day": 3,
-            "topic": "Vergangenheit erzählen 1.3",
+            "topic": "Erfolgsgeschichten (Übung) 1.3",
             "chapter": "1.3",
-            "goal": "Tell stories about the past.",
+            "goal": "Über Erfolge und persönliche Erlebnisse berichten.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 4
+        # TAG 4
         {
             "day": 4,
-            "topic": "Wohnen und Zusammenleben 2.4",
+            "topic": "Wohnung suchen (Übung) 2.4",
             "chapter": "2.4",
-            "goal": "Discuss housing and living together.",
+            "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 5
+        # TAG 5
         {
             "day": 5,
-            "topic": "Feste feiern 2.5",
+            "topic": "Der Besichtigungstermin (Übung) 2.5",
             "chapter": "2.5",
-            "goal": "Talk about festivals and celebrations.",
+            "goal": "Einen Besichtigungstermin beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 6
+        # TAG 6
         {
             "day": 6,
-            "topic": "Mein Traumjob 2.6",
+            "topic": "Leben in der Stadt oder auf dem Land? 2.6",
             "chapter": "2.6",
-            "goal": "Describe your dream job.",
+            "goal": "Stadtleben und Landleben vergleichen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 7
+        # TAG 7
         {
             "day": 7,
-            "topic": "Gesund bleiben 3.7",
+            "topic": "Fast Food vs. Hausmannskost 3.7",
             "chapter": "3.7",
-            "goal": "Learn how to talk about health and fitness.",
+            "goal": "Fast Food und Hausmannskost vergleichen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 8
+        # TAG 8
         {
             "day": 8,
-            "topic": "Arztbesuch und Gesundheitstipps 3.8",
+            "topic": "Alles für die Gesundheit 3.8",
             "chapter": "3.8",
-            "goal": "Communicate with a doctor and give health tips.",
+            "goal": "Tipps für Gesundheit geben und Arztbesuche besprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 9
+        # TAG 9
         {
             "day": 9,
-            "topic": "Erinnerungen und Kindheit 3.9",
+            "topic": "Work-Life-Balance im modernen Arbeitsumfeld 3.9",
             "chapter": "3.9",
-            "goal": "Talk about childhood memories.",
+            "goal": "Über Work-Life-Balance und Stress sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 10
+        # TAG 10
         {
             "day": 10,
-            "topic": "Typisch deutsch? Kultur und Alltag 4.10",
+            "topic": "Digitale Auszeit und Selbstfürsorge 4.10",
             "chapter": "4.10",
-            "goal": "Discuss cultural habits and everyday life.",
+            "goal": "Über digitale Auszeiten und Selbstfürsorge sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 11
+        # TAG 11
         {
             "day": 11,
-            "topic": "Wünsche und Träume 4.11",
+            "topic": "Teamspiele und Kooperative Aktivitäten 4.11",
             "chapter": "4.11",
-            "goal": "Express wishes and dreams.",
+            "goal": "Über Teamarbeit und kooperative Aktivitäten sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 12
+        # TAG 12
         {
             "day": 12,
-            "topic": "Medien und Kommunikation 4.12",
+            "topic": "Abenteuer in der Natur 4.12",
             "chapter": "4.12",
-            "goal": "Talk about media and communication.",
+            "goal": "Abenteuer und Erlebnisse in der Natur beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 13
+        # TAG 13
         {
             "day": 13,
-            "topic": "Reisen und Verkehr 5.13",
+            "topic": "Eigene Filmkritik schreiben 4.13",
             "chapter": "4.13",
-            "goal": "Discuss travel and transportation.",
+            "goal": "Eine Filmkritik schreiben und Filme bewerten.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 14
+        # TAG 14
         {
             "day": 14,
-            "topic": "Stadt oder Land 5.14",
+            "topic": "Traditionelles vs. digitales Lernen 5.14",
             "chapter": "5.14",
-            "goal": "Compare life in the city and the countryside.",
+            "goal": "Traditionelles und digitales Lernen vergleichen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 15
+        # TAG 15
         {
             "day": 15,
-            "topic": "Wohnungssuche und Umzug 5.15",
+            "topic": "Medien und Arbeiten im Homeoffice 5.15",
             "chapter": "5.15",
-            "goal": "Talk about searching for an apartment and moving.",
+            "goal": "Über Mediennutzung und Homeoffice sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 16
+        # TAG 16
         {
             "day": 16,
-            "topic": "Natur und Umwelt 5.16",
+            "topic": "Prüfungsangst und Stressbewältigung 5.16",
             "chapter": "5.16",
-            "goal": "Learn to discuss nature and the environment.",
+            "goal": "Prüfungsangst und Strategien zur Stressbewältigung besprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 17
+        # TAG 17
         {
             "day": 17,
-            "topic": "Probleme und Lösungen 5.17",
+            "topic": "Wie lernt man am besten? 5.17",
             "chapter": "5.17",
-            "goal": "Describe problems and find solutions.",
+            "goal": "Lerntipps geben und Lernstrategien vorstellen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 18
+        # TAG 18
         {
             "day": 18,
-            "topic": "Arbeit und Finanzen 6.18",
+            "topic": "Wege zum Wunschberuf 6.18",
             "chapter": "6.18",
-            "goal": "Talk about work and finances.",
+            "goal": "Über Wege zum Wunschberuf sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 19
+        # TAG 19
         {
             "day": 19,
-            "topic": "Berufliche Zukunft 6.19",
+            "topic": "Das Vorstellungsgespräch 6.19",
             "chapter": "6.19",
-            "goal": "Discuss future career plans.",
+            "goal": "Über Vorstellungsgespräche berichten und Tipps geben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 20
+        # TAG 20
         {
             "day": 20,
-            "topic": "Bildung und Weiterbildung 6.20",
+            "topic": "Wie wird man …? (Ausbildung und Qu) 6.20",
             "chapter": "6.20",
-            "goal": "Talk about education and further studies.",
+            "goal": "Über Ausbildung und Qualifikationen sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 21
+        # TAG 21
         {
             "day": 21,
-            "topic": "Familie und Gesellschaft 7.21",
+            "topic": "Lebensformen heute – Familie, Wohnge 7.21",
             "chapter": "7.21",
-            "goal": "Discuss family and society.",
+            "goal": "Lebensformen, Familie und Wohngemeinschaften beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 22
+        # TAG 22
         {
             "day": 22,
-            "topic": "Konsum und Werbung 7.22",
+            "topic": "Was ist dir in einer Beziehung wichtig? 7.22",
             "chapter": "7.22",
-            "goal": "Talk about consumption and advertising.",
+            "goal": "Über Werte in Beziehungen sprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 23
+        # TAG 23
         {
             "day": 23,
-            "topic": "Globalisierung 7.23",
+            "topic": "Erstes Date – Typische Situationen 7.23",
             "chapter": "7.23",
-            "goal": "Discuss globalization and its effects.",
+            "goal": "Typische Situationen beim ersten Date beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
-        # DAY 24
+        # TAG 24
         {
             "day": 24,
-            "topic": "Kulturelle Unterschiede 8.24",
+            "topic": "Konsum und Nachhaltigkeit 8.24",
             "chapter": "8.24",
-            "goal": "Talk about cultural differences.",
+            "goal": "Nachhaltigen Konsum und Umweltschutz diskutieren.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1x8IM6xcjR2hv3jbnnNudjyxLWPiT0-VL/view?usp=sharing"
         },
-        # DAY 25
+        # TAG 25
         {
             "day": 25,
-            "topic": "Lebenslauf schreiben 8.25",
+            "topic": "Online einkaufen – Rechte und Risiken 8.25",
             "chapter": "8.25",
-            "goal": "Write a CV and cover letter.",
+            "goal": "Rechte und Risiken beim Online-Shopping besprechen.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1If0R3cIT8KwjeXjouWlQ-VT03QGYOSZz/view?usp=sharing"
         },
-        # DAY 26
+        # TAG 26
         {
             "day": 26,
-            "topic": "Präsentationen halten 9.26",
+            "topic": "Reiseprobleme und Lösungen 9.26",
             "chapter": "9.26",
-            "goal": "Learn to give presentations.",
+            "goal": "Reiseprobleme und Lösungen beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1BMwDDkfPJVEhL3wHNYqGMAvjOts9tv24/view?usp=sharing"
         },
-        # DAY 27
+        # TAG 27
         {
             "day": 27,
-            "topic": "Zusammenfassen und Berichten 9.27",
+            "topic": "Umweltfreundlich im Alltag 10.27",
             "chapter": "10.27",
-            "goal": "Practice summarizing and reporting.",
+            "goal": "Umweltfreundliches Verhalten im Alltag beschreiben.",
             "assignment": True,
-            "instruction": "Watch the video, review grammar, and complete your workbook.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
-        # DAY 28
+        # TAG 28
         {
             "day": 28,
-            "topic": "Abschlussprüfungsvorbereitung 10.28",
+            "topic": "Klimafreundlich leben 10.28",
             "chapter": "10.28",
-            "goal": "Prepare for the final exam.",
+            "goal": "Klimafreundliche Lebensweisen vorstellen.",
             "assignment": True,
-            "instruction": "Review all topics, watch the revision video, and complete your mock exam.",
+            "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
     ]
+
 
 # === B2 Schedule Template ===
 def get_b2_schedule():
