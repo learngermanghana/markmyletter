@@ -3501,7 +3501,7 @@ if tab == "Exams Mode & Custom Chat":
             if "Teil 1" in teil:
                 return (
                     "You are Herr Felix, a Goethe A2 examiner. Give a topic from the A2 list. "
-                    "Always let the student know that you are here to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
                     "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
                     "2. Use phrases like your next recommended question to ask for the next question"
                     "Ask the student to ask and answer a question on it. Always correct their German (explain errors in English), show the correct version, and encourage."
@@ -3580,7 +3580,7 @@ if tab == "Exams Mode & Custom Chat":
                     "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
                 )
         return ""
-
+#
     def build_custom_chat_prompt(level):
         if level == "C1":
             return (
