@@ -4671,7 +4671,7 @@ if tab == "Schreiben Trainer":
 
     st.divider()
 
-    # --- Writing stats summary with titles and milestone ---
+    # --- Writing stats summary with high-contrast background and dark text ---
     student_code = st.session_state.get("student_code", "demo")
     stats = get_schreiben_stats(student_code)
     if stats:
@@ -4701,19 +4701,21 @@ if tab == "Schreiben Trainer":
 
         st.markdown(
             f"""
-            <div style="background:#f6f8fb;padding:16px;border-radius:10px;margin-bottom:8px;">
-                <span style="font-weight:bold;font-size:1.25rem;">{writer_title}</span><br>
-                <span style="font-weight:bold;font-size:1.09rem;">📊 Your Writing Stats</span><br>
-                <span style="color:#222;font-weight:bold;"><b>Total Attempts:</b> {total}</span><br>
-                <span style="color:#222;font-weight:bold;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#222;font-weight:bold;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
-                <span style="color:#b3006f;font-weight:bold;">{milestone}</span>
+            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
+                        box-shadow:0 1px 6px #00000010;">
+                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
+                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
             </div>
             """,
             unsafe_allow_html=True
         )
     else:
         st.info("No writing stats found yet. Write your first letter to see progress!")
+
 
 
 
