@@ -3501,15 +3501,29 @@ if tab == "Exams Mode & Custom Chat":
             if "Teil 1" in teil:
                 return (
                     "You are Herr Felix, a Goethe A2 examiner. Give a topic from the A2 list. "
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
                     "Ask the student to ask and answer a question on it. Always correct their German (explain errors in English), show the correct version, and encourage."
+                    "Ask one question at a time"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not"
                 )
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, an A2 examiner. Give a topic. Student gives a short monologue. Correct errors (in English), give suggestions, and follow up with one question."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not"
+                    
                 )
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, an A2 examiner. Plan something together (e.g., going to the cinema). Check student's suggestions, correct errors, and keep the conversation going."
+                     "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
+                     "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not"
                 )
         if level == "B1":
             if "Teil 1" in teil:
@@ -3517,23 +3531,28 @@ if tab == "Exams Mode & Custom Chat":
                     "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
                     "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
                     "1. Give short answers that encourages the student to also type back"
-                    "2. Ask only 5 questions and try and end the conversation"
-                    "3. Give score after every presentation whether the reply was okay or not"
+                    "2. After student input, let the student know you will ask just 5 questions and after give a score out of 25 marks "
+                    "3. Ask only 5 questions and try and end the conversation"
+                    "4. Give score after every presentation whether they passed or not"
+                    "5. Use phrases like your next recommended question to ask for the next question"
                 )
             elif "Teil 2" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
-                    "2. Ask only 3 questions one at a time"
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Ask only 3 questions and one question at a time"
                     "3. Dont make your reply too long and complicated but friendly"
                     "4. After your third question, mark and give the student their scores"
+                    "5. Use phrases like your next recommended question to ask for the next question"
                 )
             elif "Teil 3" in teil:
                 return (
                     "You are Herr Felix, a Goethe B1 examiner. Student answers questions about their presentation. "
                     "Give exam-style feedback (in German and English), correct language, and motivate."
-                    "1. Ask only 3 questions one at a time"
+                    "1. Ask only 3 questions and one question at a time"
                     "2. Dont make your reply too long and complicated but friendly"
                     "3. After your third question, mark and give the student their scores"
+                    "4. Use phrases like your next recommended question to ask for the next question"
                 )
         if level == "B2":
             if "Teil 1" in teil:
@@ -3568,21 +3587,25 @@ if tab == "Exams Mode & Custom Chat":
                 "Help student progress from B2 to C1 with your support and guidance"
             )
         if level in ["A1", "A2", "B1", "B2"]:
-            correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-            return (
-                f"You are Herr Felix, a supportive and innovative German teacher. "
-                f"The student's first input is their chosen topic. Only give suggestions, phrases, tips and ideas at first in English, no corrections. "
-                f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
-                f"For each keyword, ask the student up to 3 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
-                f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
-                f"1. Explain difficult words when level is A1,A2,B1,B2. "
-                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 20 questions in total). "
-                f"Never ask more than 3 questions about the same keyword. "
-                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
-                f"All feedback and corrections should be {correction_lang}. "
-                f"Encourage the student and keep the chat motivating. "
-            )
-        return ""
+        correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
+        total_questions = st.number_input(
+            "How many questions would you like in your session?",
+            min_value=4, max_value=20, value=10, step=1,
+            help="Most students find 8–12 questions ideal for practice."
+        )
+        return (
+            f"You are Herr Felix, a supportive and innovative German teacher. "
+            f"The student's first input is their chosen topic. Only give suggestions, phrases, tips and ideas at first in English, no corrections. "
+            f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
+            f"For each keyword, ask the student up to 3 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
+            f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
+            f"1. Explain difficult words when level is A1,A2,B1,B2. "
+            f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach {int(total_questions)} questions in total). "
+            f"Never ask more than 3 questions about the same keyword. "
+            f"After the student answers {int(total_questions) - 2} questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+            f"All feedback and corrections should be {correction_lang}. "
+            f"Encourage the student and keep the chat motivating. "
+        )
 
     # ---- USAGE LIMIT CHECK ----
     if not has_falowen_quota(student_code):
@@ -4690,10 +4713,45 @@ if tab == "Schreiben Trainer":
             data["last_letter"] = user_letter
             doc_ref.set(data, merge=True)
 
+        # --- Word count and Goethe exam rules ---
+        import re
+        def get_level_requirements(level):
+            reqs = {
+                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
+                "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
+                "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
+            }
+            return reqs.get(level.upper(), reqs["A1"])
+
+        def count_words(text):
+            return len(re.findall(r'\b\w+\b', text))
+
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+            # -- Apply Goethe writing rules here --
+            requirements = get_level_requirements(schreiben_level)
+            word_count = count_words(user_letter)
+            min_wc = requirements["min"]
+            max_wc = requirements["max"]
+
+            # --- Block too-short answers for A1/A2, warn for B1–C1
+            if schreiben_level in ("A1", "A2"):
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc:
+                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects 20–40 words.")
+            else:
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
 
         # Namespaced correction state per student
         for k, v in [
@@ -4720,37 +4778,36 @@ if tab == "Schreiben Trainer":
         if feedback_btn:
             st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
-            f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
-            f"The student has submitted a {schreiben_level} German letter or essay. "
-            "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
-            "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
-            "Don't just say errors—show exactly where the mistakes are. "
-            "Mark any mistake phrase or example in [wrong]...[/wrong]. "
-            "If something is especially good, you can also use [correct]...[/correct] and say why. "
-            "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
-            "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
-            "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
-            "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
-            "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
-            "6. Also check for AI usage or if the student wrote with their own effort. "
-            "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
-            "8. For A1 , A2 formal and informal letter should be between 30 to 40 words. Anything less give low marks for that. For B1 to C1, use your intelligence to check if the letter is too short or too long."
-            "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
-            "Grammar: [score/5, one-sentence tip]\n"
-            "Vocabulary: [score/5, one-sentence tip]\n"
-            "Spelling: [score/5, one-sentence tip]\n"
-            "Structure: [score/5, one-sentence tip]\n"
-            "For each area, rate out of 5 and give a specific, actionable tip in English. "
-            "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
-            "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
-            "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
-            "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
-            "- Teach students to say sorry simply: 'Es tut mir leid.' "
-            "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
-            "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
-        )
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                f"The student has submitted a {schreiben_level} German letter or essay. "
+                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                "Don't just say errors—show exactly where the mistakes are. "
+                "Mark any mistake phrase or example in [wrong]...[/wrong]. "
+                "If something is especially good, you can also use [correct]...[/correct] and say why. "
+                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
+                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                "6. Also check for AI usage or if the student wrote with their own effort. "
+                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                "Grammar: [score/5, one-sentence tip]\n"
+                "Vocabulary: [score/5, one-sentence tip]\n"
+                "Spelling: [score/5, one-sentence tip]\n"
+                "Structure: [score/5, one-sentence tip]\n"
+                "For each area, rate out of 5 and give a specific, actionable tip in English. "
+                "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
+                "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
+                "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
+                "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
+                "- Teach students to say sorry simply: 'Es tut mir leid.' "
+                "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
+                "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
+            )
 
-
+# 
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
                     completion = client.chat.completions.create(
