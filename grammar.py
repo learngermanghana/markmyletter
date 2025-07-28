@@ -3586,20 +3586,23 @@ if tab == "Exams Mode & Custom Chat":
                 "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
             )
-        return (
-            f"You are Herr Felix, a supportive and innovative German teacher. "
-            f"The student's first input is their chosen topic. Only give suggestions, phrases, tips and ideas at first in English, no corrections. "
-            f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
-            f"For each keyword, ask the student up to 3 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
-            f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
-            f"1. Explain difficult words when level is A1,A2,B1,B2. "
-            f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach {int(total_questions)} questions in total). "
-            f"Never ask more than 3 questions about the same keyword. "
-            f"After the student answers {int(total_questions) - 2} questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
-            f"All feedback and corrections should be {correction_lang}. "
-            f"Encourage the student and keep the chat motivating. "
-        )
-
+        if level in ["A1", "A2", "B1", "B2"]:
+            correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
+            return (
+                f"You are Herr Felix, a supportive and innovative German teacher. "
+                f"The student's first input is their chosen topic. Only give suggestions, phrases, tips and ideas at first in English, no corrections. "
+                f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
+                f"For each keyword, ask the student up to 3 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
+                f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
+                f"1. Explain difficult words when level is A1,A2,B1,B2. "
+                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 20 questions in total). "
+                f"Never ask more than 3 questions about the same keyword. "
+                f"After the student answers 18 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"All feedback and corrections should be {correction_lang}. "
+                f"Encourage the student and keep the chat motivating. "
+            )
+        return ""
+#
     # ---- USAGE LIMIT CHECK ----
     if not has_falowen_quota(student_code):
         st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
