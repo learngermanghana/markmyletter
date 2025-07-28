@@ -1083,25 +1083,25 @@ if st.session_state.get("logged_in"):
     )
 
     # ==== SHOW THE BELOW ONLY ON "Dashboard" TAB ====
-    if tab == "Dashboard":
-        # --- Student Information & Balance ---
-        st.markdown(f"### 👤 {student_row.get('Name','')}")
-        st.markdown(
-            f"- **Level:** {student_row.get('Level','')}\n"
-            f"- **Code:** `{student_row.get('StudentCode','')}`\n"
-            f"- **Email:** {student_row.get('Email','')}\n"
-            f"- **Phone:** {student_row.get('Phone','')}\n"
-            f"- **Location:** {student_row.get('Location','')}\n"
-            f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
-            f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
-            f"- **Status:** {student_row.get('Status','')}"
-        )
-        try:
-            bal = float(student_row.get("Balance", 0))
-            if bal > 0:
-                st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
-        except:
-            pass
+if tab == "Dashboard":
+    # --- Student Information & Balance ---
+    st.markdown(f"### 👤 {student_row.get('Name','')}")
+    st.markdown(
+        f"- **Level:** {student_row.get('Level','')}\n"
+        f"- **Code:** `{student_row.get('StudentCode','')}`\n"
+        f"- **Email:** {student_row.get('Email','')}\n"
+        f"- **Phone:** {student_row.get('Phone','')}\n"
+        f"- **Location:** {student_row.get('Location','')}\n"
+        f"- **Contract:** {student_row.get('ContractStart','')} ➔ {student_row.get('ContractEnd','')}\n"
+        f"- **Enroll Date:** {student_row.get('EnrollDate','')}\n"
+        f"- **Status:** {student_row.get('Status','')}"
+    )
+    try:
+        bal = float(student_row.get("Balance", 0))
+        if bal > 0:
+            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+    except:
+        pass
 
     # ==== CLASS SCHEDULES DICTIONARY ====
     GROUP_SCHEDULES = {
@@ -1159,7 +1159,6 @@ if st.session_state.get("logged_in"):
     # ==== SHOW UPCOMING CLASSES CARD ====
     class_name = (student_row.get("ClassName") or "").strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
-
     from datetime import datetime, timedelta
 
     if class_schedule:
@@ -1169,7 +1168,9 @@ if st.session_state.get("logged_in"):
             try:
                 end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
                 if datetime.today().date() > end_date:
-                    st.error(f"❌ Your class ({class_name}) has ended on {end_date.strftime('%d %b %Y')}. Please contact the office to renew or for next steps.")
+                    st.error(
+                        f"❌ Your class ({class_name}) ended on {end_date.strftime('%d %b %Y')}. Please contact the office for renewal or next steps."
+                    )
                 else:
                     # Still ongoing, show next classes
                     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -1184,13 +1185,15 @@ if st.session_state.get("logged_in"):
                                 break
                     st.markdown(
                         f"""
-                        <div style='border:2px solid #0c749e; border-radius:12px; padding:12px 10px; margin-bottom:10px; background: #fafdff; font-size:1.02em;'>
-                            <b>🗓️ Your Next Classes ({class_name}):</b><br>
-                            <ul style='padding-left:15px; margin:8px 0 0 0;'>
-                                {''.join([f"<li><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
+                        <div style='border:2px solid #17617a; border-radius:14px; padding:13px 11px; margin-bottom:13px; background: #eaf6fb; font-size:1.15em; line-height:1.65; color:#232323;'>
+                            <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+                            <ul style='padding-left:16px; margin:9px 0 0 0;'>
+                                {''.join([f"<li style='margin-bottom:6px;'><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
                             </ul>
-                            <span style="font-size:0.95em;color:#333;"><b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}</span><br>
-                            {'<a href="' + class_schedule['doc_url'] + '" target="_blank" style="font-size:0.97em;color:#17617a;text-decoration:underline;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
+                            <div style="font-size:0.98em;margin-top:6px;">
+                                <b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}
+                            </div>
+                            {f'<a href="{class_schedule["doc_url"]}" target="_blank" style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -1211,19 +1214,22 @@ if st.session_state.get("logged_in"):
                         break
             st.markdown(
                 f"""
-                <div style='border:2px solid #0c749e; border-radius:12px; padding:12px 10px; margin-bottom:10px; background: #fafdff; font-size:1.02em;'>
-                    <b>🗓️ Your Next Classes ({class_name}):</b><br>
-                    <ul style='padding-left:15px; margin:8px 0 0 0;'>
-                        {''.join([f"<li><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
+                <div style='border:2px solid #17617a; border-radius:14px; padding:13px 11px; margin-bottom:13px; background: #eaf6fb; font-size:1.15em; line-height:1.65; color:#232323;'>
+                    <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+                    <ul style='padding-left:16px; margin:9px 0 0 0;'>
+                        {''.join([f"<li style='margin-bottom:6px;'><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{class_schedule['time']}</span></li>" for d, dt in next_classes])}
                     </ul>
-                    <span style="font-size:0.95em;color:#333;"><b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}</span><br>
-                    {'<a href="' + class_schedule['doc_url'] + '" target="_blank" style="font-size:0.97em;color:#17617a;text-decoration:underline;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
+                    <div style="font-size:0.98em;margin-top:6px;">
+                        <b>Course period:</b> {class_schedule.get('start_date','')} to {class_schedule.get('end_date','')}
+                    </div>
+                    {f'<a href="{class_schedule["doc_url"]}" target="_blank" style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if class_schedule['doc_url'] else ''}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
     else:
         st.info("No class schedule found for your group yet. Contact your teacher if this is not correct.")
+
 
         # --- Goethe Exam Countdown & Video of the Day (per level) ---
         GOETHE_EXAM_DATES = {
