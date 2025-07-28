@@ -1124,35 +1124,35 @@ if tab == "Dashboard":
             "time": "6:00pm–7:00pm",
             "start_date": "",
             "end_date": "",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "A2 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
             "time": "7:30pm–9:00pm",
             "start_date": "",
             "end_date": "",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "A2 Berlin Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
             "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
             "start_date": "",
             "end_date": "",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "A2 Koln Klasse": {
             "days": ["Wednesday", "Thursday", "Friday"],
             "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
             "start_date": "",
             "end_date": "",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
             "start_date": "",
             "end_date": "",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
     }
 
