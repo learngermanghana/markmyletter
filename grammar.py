@@ -788,7 +788,7 @@ if not st.session_state["logged_in"]:
     # (You can move/remove if you want only password login!)
     GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI         = "falowen.streamlit.app/"  # Your deployed Streamlit URL
+    REDIRECT_URI         = "falowen.streamlit.app"  # Your deployed Streamlit URL
 
     def get_query_params():
         return st.query_params
