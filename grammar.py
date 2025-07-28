@@ -1083,6 +1083,19 @@ if st.session_state.get("logged_in"):
     )
 
 if tab == "Dashboard":
+    # --- Ensure student_row is a dict-like mapping ---
+    if not student_row:
+        st.info("🚩 No student selected. Please select a student to view dashboard.")
+        st.stop()  # exit this block early
+    # If it's a pandas Series or similar, convert to dict
+    if hasattr(student_row, "to_dict"):
+        student_row = student_row.to_dict()
+    elif not isinstance(student_row, dict):
+        try:
+            student_row = dict(student_row)
+        except Exception:
+            student_row = {}
+    
     # --- Student Information & Balance ---
     st.markdown(f"### 👤 {student_row.get('Name','')}")
     st.markdown(
@@ -1109,42 +1122,32 @@ if tab == "Dashboard":
             "time": "6:00pm–7:00pm",
             "start_date": "2025-07-08",
             "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+            "doc_url": "https://drive.google.com/…"
         },
-        "A1 Berlin Klasse": {
-            "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
-            "start_date": "2025-06-14",
-            "end_date": "2025-08-09",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
-        },
-        # ... (other classes) ...
+        # … your other classes …
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
     from datetime import datetime, timedelta, date
 
+    # Now safe: student_row is a dict
     class_name = (student_row.get("ClassName") or "").strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
-
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     if not class_name or not class_schedule:
         st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
     else:
         start_date = class_schedule.get("start_date", "")
-        end_date = class_schedule.get("end_date", "")
-        time_str = class_schedule.get("time", "")
-        doc_url = class_schedule.get("doc_url", "")
-        days = class_schedule.get("days", [])
+        end_date   = class_schedule.get("end_date", "")
+        time_str   = class_schedule.get("time", "")
+        doc_url    = class_schedule.get("doc_url", "")
+        days       = class_schedule.get("days", [])
 
-        # Defensive for missing/wrong days
-        day_indices = []
-        if isinstance(days, list):
-            day_indices = [week_days.index(day) for day in days if day in week_days]
+        # Defensive lookup of day indices
+        day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # Check if class is over
-        next_classes = []
+        # Check if class has ended
         class_is_over = False
         end_date_obj = None
         if end_date:
@@ -1153,45 +1156,56 @@ if tab == "Dashboard":
                 if datetime.today().date() > end_date_obj:
                     class_is_over = True
             except Exception:
-                end_date_obj = None
+                pass
 
         if class_is_over:
             st.error(
-                f"❌ Your class ({class_name}) ended on {end_date_obj.strftime('%d %b %Y') if end_date_obj else end_date}. "
+                f"❌ Your class ({class_name}) ended on "
+                f"{end_date_obj.strftime('%d %b %Y') if end_date_obj else end_date}. "
                 "Please contact the office for renewal or next steps."
             )
         else:
-            # Find next class days
+            # Find up to 3 upcoming class days
+            next_classes = []
             if day_indices:
                 today_idx = datetime.today().weekday()
-                for add_day in range(7):
-                    day = (today_idx + add_day) % 7
-                    if day in day_indices:
+                for offset in range(7):
+                    idx = (today_idx + offset) % 7
+                    if idx in day_indices:
                         next_classes.append((
-                            week_days[day],
-                            (datetime.today() + timedelta(days=add_day)).strftime("%d %b")
+                            week_days[idx],
+                            (datetime.today() + timedelta(days=offset)).strftime("%d %b")
                         ))
                         if len(next_classes) == 3:
                             break
 
             st.markdown(
                 f"""
-                <div style='border:2px solid #17617a; border-radius:14px; padding:13px 11px; margin-bottom:13px; background: #eaf6fb; font-size:1.15em; line-height:1.65; color:#232323;'>
+                <div style='border:2px solid #17617a; border-radius:14px;
+                            padding:13px 11px; margin-bottom:13px;
+                            background:#eaf6fb; font-size:1.15em;
+                            line-height:1.65; color:#232323;'>
                     <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
                     {'<ul style="padding-left:16px; margin:9px 0 0 0;">' + ''.join([
-                        f"<li style='margin-bottom:6px;'><b>{d}</b> <span style='color:#1976d2;'>{dt}</span> <span style='color:#333;'>{time_str}</span></li>"
+                        f"<li style='margin-bottom:6px;'><b>{d}</b> "
+                        f"<span style='color:#1976d2;'>{dt}</span> "
+                        f"<span style='color:#333;'>{time_str}</span></li>"
                         for d, dt in next_classes
-                    ]) + '</ul>' if next_classes else '<span style="color:#c62828;">Schedule not set yet.</span>'}
-                    <div style="font-size:0.98em;margin-top:6px;">
+                    ]) + '</ul>' if next_classes else
+                      '<span style="color:#c62828;">Schedule not set yet.</span>'}
+                    <div style="font-size:0.98em; margin-top:6px;">
                         <b>Course period:</b> {start_date or '[not set]'} to {end_date or '[not set]'}
                     </div>
-                    {f'<a href="{doc_url}" target="_blank" style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if doc_url else ''}
+                    {f'<a href="{doc_url}" target="_blank" '
+                      f'style="font-size:1em;color:#17617a;'
+                      f'text-decoration:underline;margin-top:6px;'
+                      f'display:inline-block;">📄 View/download full class schedule</a>'
+                      if doc_url else ''}
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-  
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
     GOETHE_EXAM_DATES = {
