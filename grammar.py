@@ -4483,19 +4483,50 @@ def bubble(role, text):
         </div>
     """
 
-# existing highlight_keywords...
-def highlight_keywords(text, words):
-    import re
-    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
-    return re.sub(pattern,
-                  r"<span style='color:#d63384;font-weight:600'>\1</span>",
-                  text, flags=re.IGNORECASE)
+import re
 
-# ──────────────────────────────────────────────
-# NEW: alias so your schreiben tab can call it directly
+# the same list of keywords you were using
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-def highlight_feedback(text):
-    return highlight_keywords(text, highlight_words)
+
+def highlight_feedback(text: str) -> str:
+    # 1) Highlight “[correct]…[/correct]” spans in green
+    text = re.sub(
+        r"\[correct\](.+?)\[/correct\]",
+        r"<span style="
+        r"'background-color:#d4edda;"
+        r"color:#155724;"
+        r"border-radius:4px;"
+        r"padding:2px 6px;"
+        r"margin:0 2px;"
+        r"font-weight:600;"
+        r"'>\1</span>",
+        text,
+        flags=re.DOTALL
+    )
+
+    # 2) Highlight “[wrong]…[/wrong]” spans in red with strikethrough
+    text = re.sub(
+        r"\[wrong\](.+?)\[/wrong\]",
+        r"<span style="
+        r"'background-color:#f8d7da;"
+        r"color:#721c24;"
+        r"border-radius:4px;"
+        r"padding:2px 6px;"
+        r"margin:0 2px;"
+        r"text-decoration:line-through;"
+        r"font-weight:600;"
+        r"'>\1</span>",
+        text,
+        flags=re.DOTALL
+    )
+
+    # 3) (Optional) Bold any of your highlight_words elsewhere
+    def repl_kw(m):
+        return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
+    pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
+    text = re.sub(pattern, repl_kw, text, flags=re.IGNORECASE)
+
+    return text
 
 
 if tab == "Schreiben Trainer":
