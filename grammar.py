@@ -1796,7 +1796,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on German Indefinite Pronouns",
-            "video": "",
+            "video": "https://youtu.be/Xjp2A1hU1ag",
             "grammarbook_link": "https://drive.google.com/file/d/1O040UoSuBdy4llTK7MbGIsib63uNNcrV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vsdVR_ubbu5gbXnm70vZS5xGFivjBYoA/view?usp=sharing"
         },
