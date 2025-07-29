@@ -4259,23 +4259,24 @@ if tab == "Exams Mode & Custom Chat":
 
 
 
-def play_word_audio(word, lang='de'):
-    tts = gTTS(text=word, lang=lang)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        tts.save(fp.name)
-        st.audio(fp.name, format='audio/mp3')
-
-
 # =========================================
-# VOCAB TRAINER TAB (A1–C1) — MOBILE OPTIMIZED
+# Vocab
 # =========================================
+
 
 # ---- Your Google Sheets Link ----
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 sheet_name = "Sheet1"
 csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
-# ---- Mobile-friendly message bubble ----
+def play_word_audio(word, lang='de'):
+    tts = gTTS(text=word, lang=lang)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        tts.save(fp.name)
+        st.audio(fp.name, format='audio/mp3')
+        fp.seek(0)
+        return fp.read()
+
 def render_message(role, msg):
     align = "left" if role == "assistant" else "right"
     bgcolor = "#FAFAFA" if role == "assistant" else "#D2F8D2"
@@ -4294,23 +4295,19 @@ def render_message(role, msg):
         unsafe_allow_html=True
     )
 
-# ---- Helper functions ----
 def clean_text(text):
     return text.replace('the ', '').replace(',', '').replace('.', '').strip().lower()
 
 def is_correct_answer(user_input, answer):
-    # Accept any valid answer separated by ',', '/', or ';'
     possible = [a.strip().lower() for a in re.split(r'[,/;]', answer)]
     given = clean_text(user_input)
-    if given in possible:
-        return True
-    # Optional: fuzzy matching for typo tolerance
-    # return any(fuzz.ratio(given, a) > 85 for a in possible)
-    return False
+    return given in possible
 
 @st.cache_data
 def load_vocab_lists():
     df = pd.read_csv(csv_url)
+    # Normalize headers to avoid KeyError
+    df.columns = df.columns.str.strip().str.title()
     lists = {}
     for lvl in df['Level'].unique():
         sub = df[df['Level'] == lvl]
@@ -4318,10 +4315,6 @@ def load_vocab_lists():
     return lists
 
 VOCAB_LISTS = load_vocab_lists()
-
-# ==========================
-# FIRESTORE STATS HELPERS
-# ==========================
 
 def save_vocab_attempt(student_code, level, total, correct, practiced_words):
     doc_ref = db.collection("vocab_stats").document(student_code)
@@ -4363,9 +4356,9 @@ def get_vocab_stats(student_code):
             "total_sessions": 0,
         }
 
-# =========================================
+# ==========================
 # VOCAB TRAINER TAB (A1–C1)
-# =========================================
+# ==========================
 
 if tab == "Vocab Trainer":
     st.markdown(
@@ -4397,7 +4390,6 @@ if tab == "Vocab Trainer":
     for key, val in defaults.items():
         st.session_state.setdefault(key, val)
 
-    # Student code (from session)
     student_code = st.session_state.get("student_code", "demo")
 
     # ===== Show Vocab Stats =====
@@ -4416,7 +4408,6 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
 
-    # ---- Load vocab lists ----
     level = st.selectbox("Choose level", list(VOCAB_LISTS.keys()), key="vt_level")
     vocab_items = VOCAB_LISTS.get(level, [])
     max_words = len(vocab_items)
@@ -4426,23 +4417,19 @@ if tab == "Vocab Trainer":
         st.warning(f"No vocabulary available for level {level}. Please add entries in your sheet.")
         st.stop()
 
-    # Show how many you haven't done yet
     not_done = [pair for pair in vocab_items if pair[0] not in completed_set]
     st.info(f"You have {len(not_done)} words NOT yet practiced at {level}.")
 
-    # Start new practice resets
     if st.button("🔁 Start New Practice", key="vt_reset"):
         for k in defaults:
             st.session_state[k] = defaults[k]
 
-    # Option to practice only new or all words
     practice_mode = st.radio("Choose word selection:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
     if practice_mode == "Only new words":
         session_vocab = not_done.copy()
     else:
         session_vocab = vocab_items.copy()
 
-    # Step 1: ask how many words to practice
     if st.session_state.vt_total is None:
         max_count = len(session_vocab)
         if max_count == 0:
@@ -4466,30 +4453,18 @@ if tab == "Vocab Trainer":
                 ("assistant", f"Hallo! Ich bin {HERR_FELIX}. Let's start with {count} words!")
             ]
 
-    # Display chat history
     if st.session_state.vt_history:
         st.markdown("### 🗨️ Practice Chat")
         for who, message in st.session_state.vt_history:
             render_message(who, message)
 
-    # Practice loop
     total = st.session_state.vt_total
     idx = st.session_state.vt_index
     if isinstance(total, int) and idx < total:
         word, answer = st.session_state.vt_list[idx]
-
-        from gtts import gTTS
-        import tempfile
-
-        # ---- AUDIO BUTTON + DOWNLOAD ----
+        # AUDIO BUTTON + DOWNLOAD
         if st.button("🔊 Play & Download Pronunciation", key=f"tts_{idx}"):
-            tts = gTTS(word, lang='de')
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
-                tts.save(fp.name)
-                st.audio(fp.name, format='audio/mp3')
-                # Move file pointer to beginning to read bytes for download
-                fp.seek(0)
-                audio_bytes = fp.read()
+            audio_bytes = play_word_audio(word, lang='de')
             st.download_button(
                 label=f"⬇️ Download '{word}' Pronunciation (MP3)",
                 data=audio_bytes,
@@ -4498,7 +4473,6 @@ if tab == "Vocab Trainer":
                 key=f"tts_dl_{idx}"
             )
 
-        # Your regular question UI
         user_input = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
         if user_input and st.button("Check", key=f"vt_check_{idx}"):
             st.session_state.vt_history.append(("user", user_input))
@@ -4510,19 +4484,14 @@ if tab == "Vocab Trainer":
             st.session_state.vt_history.append(("assistant", fb))
             st.session_state.vt_index += 1
 
-    # Show results when done
     if isinstance(total, int) and idx >= total:
         score = st.session_state.vt_score
         practiced_words = [pair[0] for pair in st.session_state.vt_list]
         st.markdown(f"### 🏁 Finished! You got {score}/{total} correct.")
-
-        # Save to Firestore!
         save_vocab_attempt(student_code, level, total, score, practiced_words)
-
         if st.button("Practice Again", key="vt_again"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-
 
 
 #Schreiben
