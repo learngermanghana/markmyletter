@@ -1963,7 +1963,7 @@ def get_b1_schedule():
             "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
-            "workbook_link": ""
+            "workbook_link": "https://drive.google.com/file/d/1AgjhFYw07JYvsgVP1MBKYEMFBjeAwQ1e/view?usp=sharing"
         },
         # TAG 3
         {
