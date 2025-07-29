@@ -4576,6 +4576,70 @@ if tab == "Schreiben Trainer":
             placeholder="Write your German letter here..."
         )
 
+        # AUTOSAVE LOGIC (save every edit that's different from last_letter)
+        if (
+            user_letter.strip() and
+            user_letter != get_schreiben_stats(student_code).get("last_letter", "")
+        ):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            data["last_letter"] = user_letter
+            doc_ref.set(data, merge=True)
+
+        # --- Word count and Goethe exam rules ---
+        import re
+        def get_level_requirements(level):
+            reqs = {
+                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
+                "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
+                "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
+            }
+            return reqs.get(level.upper(), reqs["A1"])
+
+        def count_words(text):
+            return len(re.findall(r'\b\w+\b', text))
+
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+            # -- Apply Goethe writing rules here --
+            requirements = get_level_requirements(schreiben_level)
+            word_count = count_words(user_letter)
+            min_wc = requirements["min"]
+            max_wc = requirements["max"]
+
+            # --- Block too-short answers for A1/A2, warn for B1–C1
+            if schreiben_level in ("A1", "A2"):
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc:
+                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects 20–40 words.")
+            else:
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
+
+        # Namespaced correction state per student (reset on session)
+        for k, v in [
+            ("last_feedback", None),
+            ("last_user_letter", None),
+            ("delta_compare_feedback", None),
+            ("improved_letter", ""),
+            ("awaiting_correction", False),
+            ("final_improved_letter", "")
+        ]:
+            session_key = f"{student_code}_{k}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = v
+
         submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
         feedback_btn = st.button(
             "Get Feedback",
@@ -4631,7 +4695,6 @@ if tab == "Schreiben Trainer":
                 st.session_state[f"{student_code}_awaiting_correction"] = True
 
                 # --- Save to Firestore ---
-                import re
                 score_match = re.search(r"Score[: ]+(\d+)", feedback)
                 score = int(score_match.group(1)) if score_match else 0
                 passed = score >= 17
@@ -4644,6 +4707,8 @@ if tab == "Schreiben Trainer":
                     letter=user_letter
                 )
                 update_schreiben_stats(student_code)
+
+
 
         # --- Improvement section: Compare, download, WhatsApp ---
         if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
