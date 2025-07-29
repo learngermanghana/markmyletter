@@ -1733,7 +1733,7 @@ def get_a1_schedule():
             "grammar_topic": "German Conjunctions",
             "assignment": False,
             "schreiben_sprechen": {
-                "video": "",
+                "video": "https://drive.google.com/file/d/1LE1b9ilkLLobE5Uw0TVLG0RIVpLK5k1t/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1smb4IuRqSKndoGf_ujEi5IiaYyXOTj4t/view?usp=sharing"
             }
         },
