@@ -185,24 +185,6 @@ def init_db():
             PRIMARY KEY (student_code, date)
         )
     """)
-    # Letter Coach Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS letter_coach_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    # Schreiben Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
     conn.commit()
 
 init_db()  # <<-- Make sure this is before any other DB calls!
@@ -331,136 +313,6 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
-def get_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM schreiben_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO schreiben_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-def get_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO letter_coach_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-def get_writing_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*), SUM(score>=17) FROM schreiben_progress WHERE student_code=?
-    """, (student_code,))
-    result = c.fetchone()
-    attempted = result[0] or 0
-    passed = result[1] if result[1] is not None else 0
-    accuracy = round(100 * passed / attempted) if attempted > 0 else 0
-    return attempted, passed, accuracy
-
-def get_student_stats(student_code):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT level, SUM(score >= 17), COUNT(*) 
-        FROM schreiben_progress 
-        WHERE student_code=?
-        GROUP BY level
-    """, (student_code,))
-    stats = {}
-    for level, correct, attempted in c.fetchall():
-        stats[level] = {"correct": int(correct or 0), "attempted": int(attempted or 0)}
-    return stats
-
-# --- ALIAS for legacy code (use this so your old code works without errors!) ---
-has_falowen_quota = has_sprechen_quota
-
-
-def get_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM letter_coach_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-from datetime import datetime
-# (you already have `from firebase_admin import firestore as db`)
-
-def save_submission(student_code: str,
-                    score: int,
-                    passed: bool,
-                    timestamp: datetime,
-                    level: str):
-    """
-    Save a student’s Schreiben submission to Firestore.
-    """
-    payload = {
-        "student_code": student_code,
-        "score": score,
-        "passed": passed,
-        "date": firestore.SERVER_TIMESTAMP,  # server‐side timestamp
-        "level": level,
-        "assignment": "Schreiben Trainer"
-    }
-    db.collection("schreiben_submissions").add(payload)
-
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO letter_coach_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 
@@ -507,37 +359,8 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-# ==== FIRESTORE HELPERS (LETTER COACH, SCHREIBEN STATS) ====
 
-def save_letter_coach_progress(student_code, schreiben_level, letter_coach_prompt, chat_history):
-    """Auto-saves the student's Letter Coach progress in Firestore."""
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
-        "level": schreiben_level,
-        "prompt": letter_coach_prompt,
-        "chat": chat_history,
-        "last_update": firestore.SERVER_TIMESTAMP
-    })
 
-def load_letter_coach_progress(student_code):
-    """Loads most recent Letter Coach progress from Firestore."""
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    return "", []
-
-def get_schreiben_stats(student_code):
-    doc_ref = db.collection("schreiben_stats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        return {
-            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
-            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
-        }
 
 
 
@@ -4480,9 +4303,12 @@ def bubble(role, text):
         </div>
     """
 
-#Defschreiben
 
-# the same list of keywords you were using
+# ===== Schreiben =====
+
+db = firestore.client()
+
+# -- Feedback HTML Highlight Helper --
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
 
 def highlight_feedback(text: str) -> str:
@@ -4517,7 +4343,7 @@ def highlight_feedback(text: str) -> str:
         flags=re.DOTALL
     )
 
-    # 3) Bold any of your highlight_words elsewhere
+    # 3) Bold keywords
     def repl_kw(m):
         return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
     pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
@@ -4545,6 +4371,86 @@ def highlight_feedback(text: str) -> str:
 
     return text
 
+# -- Firestore-only: Usage Limit (Daily Mark My Letter) --
+def get_schreiben_usage(student_code):
+    today = str(date.today())
+    doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
+    return doc.to_dict().get("count", 0) if doc.exists else 0
+
+def inc_schreiben_usage(student_code):
+    today = str(date.today())
+    doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
+    doc = doc_ref.get()
+    if doc.exists:
+        doc_ref.update({"count": firestore.Increment(1)})
+    else:
+        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+
+# -- Firestore-only: Submission + Full letter (Saves for feedback & stats) --
+def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str):
+    payload = {
+        "student_code": student_code,
+        "score": score,
+        "passed": passed,
+        "date": firestore.SERVER_TIMESTAMP,  # Always use server time
+        "level": level,
+        "assignment": "Schreiben Trainer",
+        "letter": letter,
+    }
+    db.collection("schreiben_submissions").add(payload)
+
+# -- Firestore-only: Recalculate All Schreiben Stats (called after every submission) --
+def update_schreiben_stats(student_code: str):
+    """
+    Recalculates stats for a student after every submission.
+    """
+    submissions = db.collection("schreiben_submissions").where(
+        "student_code", "==", student_code
+    ).stream()
+
+    total = 0
+    passed = 0
+    scores = []
+    last_letter = ""
+    last_attempt = None
+
+    for doc in submissions:
+        data = doc.to_dict()
+        total += 1
+        score = data.get("score", 0)
+        scores.append(score)
+        if data.get("passed"):
+            passed += 1
+        last_letter = data.get("letter", "") or last_letter
+        last_attempt = data.get("date", last_attempt)
+
+    pass_rate = (passed / total * 100) if total > 0 else 0
+    best_score = max(scores) if scores else 0
+    average_score = sum(scores) / total if scores else 0
+
+    stats_ref = db.collection("schreiben_stats").document(student_code)
+    stats_ref.set({
+        "total": total,
+        "passed": passed,
+        "pass_rate": pass_rate,
+        "best_score": best_score,
+        "average_score": average_score,
+        "last_attempt": last_attempt,
+        "last_letter": last_letter,
+        "attempts": scores
+    }, merge=True)
+
+# -- Firestore-only: Fetch stats for display (for status panel etc) --
+def get_schreiben_stats(student_code: str):
+    stats_ref = db.collection("schreiben_stats").document(student_code)
+    doc = stats_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return {
+            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+        }
 
 if tab == "Schreiben Trainer":
     st.markdown(
@@ -4736,111 +4642,387 @@ if sub_tab == "Mark My Letter":
             update_schreiben_stats(student_code)
 
 
-        # DELTA IMPROVEMENT LOGIC + PDF/WHATSAPP, per student
-        if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
-            st.markdown("---")
-            st.markdown("#### 📝 Feedback from Herr Felix (Reference)")
-            st.markdown(
-                highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
-                unsafe_allow_html=True
-            )
-            st.markdown(
-                """
-                <div style="background:#e3f7da; border-left:7px solid #44c767; 
-                color:#295327; padding:1.15em; margin-top:1em; border-radius:10px; font-size:1.09em;">
-                    🔁 <b>Try to improve your letter!</b><br>
-                    Paste your improved version below and click <b>Compare My Improvement</b>.<br>
-                    The AI will highlight what’s better, what’s still not fixed, and give extra tips.<br>
-                    <b>You can download or share the improved version & new feedback below.</b>
-                </div>
-                """, unsafe_allow_html=True
-            )
-            improved_letter = st.text_area(
-                "Your improved version (try to fix the mistakes Herr Felix mentioned):",
-                key=f"{student_code}_improved_letter",
-                height=400,
-                placeholder="Paste your improved letter here..."
-            )
-            compare_clicked = st.button("Compare My Improvement", key=f"compare_btn_{student_code}")
+      if tab == "Schreiben Trainer":
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
 
-            if compare_clicked and improved_letter.strip():
-                ai_compare_prompt = (
-                    "You are Herr Felix, a supportive German writing coach. "
-                    "A student first submitted this letter:\n\n"
-                    f"{st.session_state[f'{student_code}_last_user_letter']}\n\n"
-                    "Your feedback was:\n"
-                    f"{st.session_state[f'{student_code}_last_feedback']}\n\n"
-                    "Now the student has submitted an improved version below.\n"
-                    "Compare both versions and:\n"
-                    "- Tell the student exactly what they improved, and which mistakes were fixed.\n"
-                    "- Point out if there are still errors left, with new tips for further improvement.\n"
-                    "- Encourage the student. If the improvement is significant, say so.\n"
-                    "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
-                    "- Give a revised score out of 25 (Score: X/25)."
-                )
-                with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
-                    try:
-                        result = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": ai_compare_prompt},
-                                {"role": "user", "content": improved_letter}
-                            ],
-                            temperature=0.5,
-                        )
-                        compare_feedback = result.choices[0].message.content
-                        st.session_state[f"{student_code}_delta_compare_feedback"] = compare_feedback
-                        st.session_state[f"{student_code}_final_improved_letter"] = improved_letter
-                    except Exception as e:
-                        st.session_state[f"{student_code}_delta_compare_feedback"] = f"Sorry, there was an error comparing your letters: {e}"
+    st.info(
+        """
+        ✍️ **This section is for Writing (Schreiben) only.**
+        - Practice your German letters, emails, and essays for A1–C1 exams.
+        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
+          👉 Go to **Exam Mode & Custom Chat** (tab above)!
+        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
+        """,
+        icon="✉️"
+    )
 
-            if st.session_state.get(f"{student_code}_delta_compare_feedback"):
+    st.divider()
+
+    # --- Writing stats summary with Firestore ---
+    student_code = st.session_state.get("student_code", "demo")
+    stats = get_schreiben_stats(student_code)
+    if stats:
+        total = stats.get("total", 0)
+        passed = stats.get("passed", 0)
+        pass_rate = stats.get("pass_rate", 0)
+
+        # Milestone and title logic
+        if total <= 2:
+            writer_title = "🟡 Beginner Writer"
+            milestone = "Write 3 letters to become a Rising Writer!"
+        elif total <= 5 or pass_rate < 60:
+            writer_title = "🟡 Rising Writer"
+            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
+        elif total <= 7 or (60 <= pass_rate < 80):
+            writer_title = "🔵 Confident Writer"
+            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
+        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
+            writer_title = "🟢 Advanced Writer"
+            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
+        elif total >= 10 and pass_rate >= 95:
+            writer_title = "🏅 Master Writer!"
+            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
+        else:
+            writer_title = "✏️ Active Writer"
+            milestone = "Keep going to unlock your next milestone!"
+
+        st.markdown(
+            f"""
+            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
+                        box-shadow:0 1px 6px #00000010;">
+                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
+                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("No writing stats found yet. Write your first letter to see progress!")
+
+    # --- Update session states for new student (preserves drafts, etc) ---
+    prev_student_code = st.session_state.get("prev_student_code", None)
+    if student_code != prev_student_code:
+        stats = get_schreiben_stats(student_code)
+        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
+        st.session_state[f"{student_code}_last_feedback"] = None
+        st.session_state[f"{student_code}_last_user_letter"] = None
+        st.session_state[f"{student_code}_delta_compare_feedback"] = None
+        st.session_state[f"{student_code}_final_improved_letter"] = ""
+        st.session_state[f"{student_code}_awaiting_correction"] = False
+        st.session_state[f"{student_code}_improved_letter"] = ""
+        st.session_state["prev_student_code"] = student_code
+
+    # --- Sub-tabs for the Trainer ---
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key="schreiben_sub_tab"
+    )
+
+    # --- Level picker ---
+    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
+    prev_level = st.session_state.get("schreiben_level", "A1")
+    schreiben_level = st.selectbox(
+        "Choose your writing level:",
+        schreiben_levels,
+        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
+        key="schreiben_level_selector"
+    )
+    st.session_state["schreiben_level"] = schreiben_level
+
+    st.divider()
+
+    # ----------- 1. MARK MY LETTER -----------
+    if sub_tab == "Mark My Letter":
+        MARK_LIMIT = 3
+        daily_so_far = get_schreiben_usage(student_code)
+        st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
+
+        user_letter = st.text_area(
+            "Paste or type your German letter/essay here.",
+            key=f"{student_code}_schreiben_input",
+            value=st.session_state.get(f"{student_code}_schreiben_input", ""),
+            disabled=(daily_so_far >= MARK_LIMIT),
+            height=400,
+            placeholder="Write your German letter here..."
+        )
+
+        submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
+        feedback_btn = st.button(
+            "Get Feedback",
+            type="primary",
+            disabled=submit_disabled,
+            key=f"feedback_btn_{student_code}"
+        )
+
+        # AUTOSAVE LOGIC
+        if (
+            user_letter.strip() and
+            user_letter != get_schreiben_stats(student_code).get("last_letter", "")
+        ):
+            doc_ref = db.collection("schreiben_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            data["last_letter"] = user_letter
+            doc_ref.set(data, merge=True)
+
+        # --- Word count and Goethe exam rules ---
+        import re
+        def get_level_requirements(level):
+            reqs = {
+                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
+                "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
+                "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
+            }
+            return reqs.get(level.upper(), reqs["A1"])
+
+        def count_words(text):
+            return len(re.findall(r'\b\w+\b', text))
+
+        if user_letter.strip():
+            words = re.findall(r'\b\w+\b', user_letter)
+            chars = len(user_letter)
+            st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
+
+            # -- Apply Goethe writing rules here --
+            requirements = get_level_requirements(schreiben_level)
+            word_count = count_words(user_letter)
+            min_wc = requirements["min"]
+            max_wc = requirements["max"]
+
+            # --- Block too-short answers for A1/A2, warn for B1–C1
+            if schreiben_level in ("A1", "A2"):
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc:
+                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects 20–40 words.")
+            else:
+                if word_count < min_wc:
+                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.stop()
+                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
+
+        # Namespaced correction state per student
+        for k, v in [
+            ("last_feedback", None),
+            ("last_user_letter", None),
+            ("delta_compare_feedback", None),
+            ("improved_letter", ""),
+            ("awaiting_correction", False),
+            ("final_improved_letter", "")
+        ]:
+            session_key = f"{student_code}_{k}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = v
+
+        submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
+        feedback_btn = st.button(
+            "Get Feedback",
+            type="primary",
+            disabled=submit_disabled,
+            key=f"feedback_btn_{student_code}"
+        )
+
+        # Initial feedback logic
+        if feedback_btn:
+            st.session_state[f"{student_code}_awaiting_correction"] = True
+            ai_prompt = (
+                f"You are Herr Felix, a supportive and innovative German letter writing trainer. "
+                f"The student has submitted a {schreiben_level} German letter or essay. "
+                "Write a brief comment in English about what the student did well and what they should improve while highlighting their points so they understand. "
+                "Check if the letter matches their level. Talk as Herr Felix talking to a student and highlight the phrases with errors so they see it. "
+                "Don't just say errors—show exactly where the mistakes are. "
+                "Mark any mistake phrase or example in [wrong]...[/wrong]. "
+                "If something is especially good, you can also use [correct]...[/correct] and say why. "
+                "1. Give a score out of 25 marks and always display the score clearly as: Score: X / 25. "
+                "2. If the score is 17 or more, write: '**Passed: You may submit to your tutor!**'. "
+                "3. If the score is 16 or less, write: '**Keep improving before you submit.**'. "
+                "4. Only write one of these two sentences, never both, and place it on a separate bolded line at the end of your feedback. "
+                "5. Always explain why you gave the student that score based on grammar, spelling, vocabulary, coherence, and so on. "
+                "6. Also check for AI usage or if the student wrote with their own effort. "
+                "7. List and show the phrases to improve on with tips, suggestions, and what they should do. Let the student use your suggestions to correct the letter, but don't write the full corrected letter for them. "
+                "8. After your feedback, give a clear breakdown in this format (always use the same order):\n"
+                "Grammar: [score/5, one-sentence tip]\n"
+                "Vocabulary: [score/5, one-sentence tip]\n"
+                "Spelling: [score/5, one-sentence tip]\n"
+                "Structure: [score/5, one-sentence tip]\n"
+                "For each area, rate out of 5 and give a specific, actionable tip in English. "
+                "IMPORTANT: For A1 and A2 ONLY, follow these extra rules: "
+                "- If the topic is about cancelling appointments, show students how to use simple reasons connected to health or weather, like 'Ich habe Bauchschmerzen' or 'Es regnet stark.' Avoid complex reasons. Teach them to use 'absagen' in their letter, for example, 'Ich schreibe Ihnen, weil ich den Termin absagen möchte.' "
+                "- For registration or enquiries, remind students to ask for price using phrases like 'Wie viel kostet...?' and to use 'Anfrage stellen' in the phrase, e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.' "
+                "- For setting a new appointment, use 'vereinbaren,' e.g., 'Ich möchte einen neuen Termin vereinbaren.' "
+                "- Teach students to say sorry simply: 'Es tut mir leid.' "
+                "- Remind students to start their reason with 'Ich schreibe Ihnen/dir, weil ich...' and usually end with 'möchte' to keep it simple and safe for A1/A2. "
+                "Whenever you see these themes, always encourage the simplest phrasing and provide clear examples for the student to copy. Do NOT encourage complex sentence structures at A1/A2 level."
+            )
+
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                try:
+                    completion = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": ai_prompt},
+                            {"role": "user", "content": user_letter},
+                        ],
+                        temperature=0.6,
+                    )
+                    feedback = completion.choices[0].message.content
+                    st.session_state[f"{student_code}_last_feedback"] = feedback
+                    st.session_state[f"{student_code}_last_user_letter"] = user_letter
+                    st.session_state[f"{student_code}_delta_compare_feedback"] = None
+                except Exception as e:
+                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    feedback = None
+
+            if feedback:
+                inc_schreiben_usage(student_code)
                 st.markdown("---")
-                st.markdown("### 📝 Improvement Feedback from Herr Felix")
-                st.markdown(highlight_feedback(st.session_state[f"{student_code}_delta_compare_feedback"]), unsafe_allow_html=True)
+                st.markdown("#### 📝 Feedback from Herr Felix")
+                st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
+                st.session_state[f"{student_code}_awaiting_correction"] = True
 
-                # PDF & WhatsApp buttons only appear after successful improvement compare
-                from fpdf import FPDF
-                import urllib.parse, os
-
-                def sanitize_text(text):
-                    return text.encode('latin-1', errors='replace').decode('latin-1')
-
-                # Generate the PDF with the improved letter and improvement feedback
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                improved_letter = st.session_state.get(f"{student_code}_final_improved_letter", "")
-                improved_feedback = st.session_state[f"{student_code}_delta_compare_feedback"]
-                pdf.multi_cell(0, 10, f"Your Improved Letter:\n\n{sanitize_text(improved_letter)}\n\nFeedback from Herr Felix:\n\n{sanitize_text(improved_feedback)}")
-                pdf_output = f"Feedback_{student_code}_{schreiben_level}_improved.pdf"
-                pdf.output(pdf_output)
-                with open(pdf_output, "rb") as f:
-                    pdf_bytes = f.read()
-                st.download_button(
-                    "⬇️ Download Improved Version + Feedback (PDF)",
-                    pdf_bytes,
-                    file_name=pdf_output,
-                    mime="application/pdf"
+                # --- Save to Firestore ---
+                import re
+                score_match = re.search(r"Score[: ]+(\d+)", feedback)
+                score = int(score_match.group(1)) if score_match else 0
+                passed = score >= 17
+                save_submission(
+                    student_code=student_code,
+                    score=score,
+                    passed=passed,
+                    timestamp=None,  # Not needed
+                    level=schreiben_level,
+                    letter=user_letter
                 )
-                os.remove(pdf_output)
+                update_schreiben_stats(student_code)
 
-                # WhatsApp share
-                wa_message = (
-                    f"Hi, here is my IMPROVED German letter and AI feedback:\n\n"
-                    f"{improved_letter}\n\n"
-                    f"Feedback:\n{st.session_state[f'{student_code}_delta_compare_feedback']}"
-                )
-                wa_url = (
-                    "https://api.whatsapp.com/send"
-                    "?phone=233205706589"
-                    f"&text={urllib.parse.quote(wa_message)}"
-                )
+            # --- Improvement section: Compare, download, WhatsApp ---
+            if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
+                st.markdown("---")
+                st.markdown("#### 📝 Feedback from Herr Felix (Reference)")
                 st.markdown(
-                    f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
+                    highlight_feedback(st.session_state[f"{student_code}_last_feedback"]),
                     unsafe_allow_html=True
                 )
-#
+                st.markdown(
+                    """
+                    <div style="background:#e3f7da; border-left:7px solid #44c767; 
+                    color:#295327; padding:1.15em; margin-top:1em; border-radius:10px; font-size:1.09em;">
+                        🔁 <b>Try to improve your letter!</b><br>
+                        Paste your improved version below and click <b>Compare My Improvement</b>.<br>
+                        The AI will highlight what’s better, what’s still not fixed, and give extra tips.<br>
+                        <b>You can download or share the improved version & new feedback below.</b>
+                    </div>
+                    """, unsafe_allow_html=True
+                )
+                improved_letter = st.text_area(
+                    "Your improved version (try to fix the mistakes Herr Felix mentioned):",
+                    key=f"{student_code}_improved_letter",
+                    height=400,
+                    placeholder="Paste your improved letter here..."
+                )
+                compare_clicked = st.button("Compare My Improvement", key=f"compare_btn_{student_code}")
+
+                if compare_clicked and improved_letter.strip():
+                    ai_compare_prompt = (
+                        "You are Herr Felix, a supportive German writing coach. "
+                        "A student first submitted this letter:\n\n"
+                        f"{st.session_state[f'{student_code}_last_user_letter']}\n\n"
+                        "Your feedback was:\n"
+                        f"{st.session_state[f'{student_code}_last_feedback']}\n\n"
+                        "Now the student has submitted an improved version below.\n"
+                        "Compare both versions and:\n"
+                        "- Tell the student exactly what they improved, and which mistakes were fixed.\n"
+                        "- Point out if there are still errors left, with new tips for further improvement.\n"
+                        "- Encourage the student. If the improvement is significant, say so.\n"
+                        "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
+                        "- Give a revised score out of 25 (Score: X/25)."
+                    )
+                    with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
+                        try:
+                            result = client.chat.completions.create(
+                                model="gpt-4o",
+                                messages=[
+                                    {"role": "system", "content": ai_compare_prompt},
+                                    {"role": "user", "content": improved_letter}
+                                ],
+                                temperature=0.5,
+                            )
+                            compare_feedback = result.choices[0].message.content
+                            st.session_state[f"{student_code}_delta_compare_feedback"] = compare_feedback
+                            st.session_state[f"{student_code}_final_improved_letter"] = improved_letter
+                        except Exception as e:
+                            st.session_state[f"{student_code}_delta_compare_feedback"] = f"Sorry, there was an error comparing your letters: {e}"
+
+                if st.session_state.get(f"{student_code}_delta_compare_feedback"):
+                    st.markdown("---")
+                    st.markdown("### 📝 Improvement Feedback from Herr Felix")
+                    st.markdown(highlight_feedback(st.session_state[f"{student_code}_delta_compare_feedback"]), unsafe_allow_html=True)
+
+                    # PDF & WhatsApp buttons
+                    from fpdf import FPDF
+                    import urllib.parse, os
+
+                    def sanitize_text(text):
+                        return text.encode('latin-1', errors='replace').decode('latin-1')
+
+                    # PDF
+                    pdf = FPDF()
+                    pdf.add_page()
+                    pdf.set_font("Arial", size=12)
+                    improved_letter = st.session_state.get(f"{student_code}_final_improved_letter", "")
+                    improved_feedback = st.session_state[f"{student_code}_delta_compare_feedback"]
+                    pdf.multi_cell(0, 10, f"Your Improved Letter:\n\n{sanitize_text(improved_letter)}\n\nFeedback from Herr Felix:\n\n{sanitize_text(improved_feedback)}")
+                    pdf_output = f"Feedback_{student_code}_{schreiben_level}_improved.pdf"
+                    pdf.output(pdf_output)
+                    with open(pdf_output, "rb") as f:
+                        pdf_bytes = f.read()
+                    st.download_button(
+                        "⬇️ Download Improved Version + Feedback (PDF)",
+                        pdf_bytes,
+                        file_name=pdf_output,
+                        mime="application/pdf"
+                    )
+                    os.remove(pdf_output)
+
+                    # WhatsApp share
+                    wa_message = (
+                        f"Hi, here is my IMPROVED German letter and AI feedback:\n\n"
+                        f"{improved_letter}\n\n"
+                        f"Feedback:\n{st.session_state[f'{student_code}_delta_compare_feedback']}"
+                    )
+                    wa_url = (
+                        "https://api.whatsapp.com/send"
+                        "?phone=233205706589"
+                        f"&text={urllib.parse.quote(wa_message)}"
+                    )
+                    st.markdown(
+                        f"[📲 Send Improved Letter & Feedback to Tutor on WhatsApp]({wa_url})",
+                        unsafe_allow_html=True
+                    )
 
 
     if sub_tab == "Ideas Generator (Letter Coach)":
