@@ -153,19 +153,7 @@ def init_db():
             date TEXT
         )
     """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
-        )
-    """)
+
     # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
@@ -270,19 +258,6 @@ def init_db():
             score INTEGER,
             feedback TEXT,
             date TEXT
-        )
-    """)
-    # Scores Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS scores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            assignment TEXT,
-            score REAL,
-            comments TEXT,
-            date TEXT,
-            level TEXT
         )
     """)
     # Exam Progress Table
@@ -448,6 +423,28 @@ def get_letter_coach_usage(student_code):
     )
     row = c.fetchone()
     return row[0] if row else 0
+
+from datetime import datetime
+# (you already have `from firebase_admin import firestore as db`)
+
+def save_submission(student_code: str,
+                    score: int,
+                    passed: bool,
+                    timestamp: datetime,
+                    level: str):
+    """
+    Save a student’s Schreiben submission to Firestore.
+    """
+    payload = {
+        "student_code": student_code,
+        "score": score,
+        "passed": passed,
+        "date": firestore.SERVER_TIMESTAMP,  # server‐side timestamp
+        "level": level,
+        "assignment": "Schreiben Trainer"
+    }
+    db.collection("schreiben_submissions").add(payload)
+
 
 def inc_letter_coach_usage(student_code):
     today = str(date.today())
