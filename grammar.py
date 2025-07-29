@@ -4483,23 +4483,19 @@ def bubble(role, text):
         </div>
     """
 
-import re
+
 
 # the same list of keywords you were using
 highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+
+import re
 
 def highlight_feedback(text: str) -> str:
     # 1) Highlight “[correct]…[/correct]” spans in green
     text = re.sub(
         r"\[correct\](.+?)\[/correct\]",
-        r"<span style="
-        r"'background-color:#d4edda;"
-        r"color:#155724;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"font-weight:600;"
-        r"'>\1</span>",
+        r"<span style='background-color:#d4edda; color:#155724; "
+        r"border-radius:4px; padding:2px 6px; margin:0 2px; font-weight:600;'>\1</span>",
         text,
         flags=re.DOTALL
     )
@@ -4507,26 +4503,39 @@ def highlight_feedback(text: str) -> str:
     # 2) Highlight “[wrong]…[/wrong]” spans in red with strikethrough
     text = re.sub(
         r"\[wrong\](.+?)\[/wrong\]",
-        r"<span style="
-        r"'background-color:#f8d7da;"
-        r"color:#721c24;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"text-decoration:line-through;"
-        r"font-weight:600;"
-        r"'>\1</span>",
+        r"<span style='background-color:#f8d7da; color:#721c24; "
+        r"border-radius:4px; padding:2px 6px; margin:0 2px; "
+        r"text-decoration:line-through; font-weight:600;'>\1</span>",
         text,
         flags=re.DOTALL
     )
 
-    # 3) (Optional) Bold any of your highlight_words elsewhere
+    # 3) Bold your keywords
     def repl_kw(m):
         return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
     pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
     text = re.sub(pattern, repl_kw, text, flags=re.IGNORECASE)
 
+    # 4) Wrap the 4‑line breakdown in a nice bullet list
+    def wrap_breakdown(m):
+        lines = m.group(0).splitlines()
+        items = "".join(f"<li style='margin-bottom:4px'>{line}</li>" for line in lines)
+        return (
+            "<ul style='background:#eef5ff; padding:8px 12px; "
+            "border-radius:6px; margin:8px 0; list-style:disc;'>"
+            + items +
+            "</ul>"
+        )
+
+    text = re.sub(
+        r"(Grammar:.*?Structure:.*?$)",
+        wrap_breakdown,
+        text,
+        flags=re.MULTILINE | re.DOTALL
+    )
+
     return text
+
 
 
 if tab == "Schreiben Trainer":
