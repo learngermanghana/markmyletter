@@ -330,6 +330,10 @@ YOUTUBE_PLAYLIST_IDS = {
     "B1": [
         "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
         "PLB92CD6B288E5DB61",
+    "B2": [
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
     ],
 }
 
