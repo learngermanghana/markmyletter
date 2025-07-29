@@ -312,7 +312,7 @@ def inc_sprechen_usage(student_code):
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
-
+    
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 
@@ -324,18 +324,20 @@ YOUTUBE_PLAYLIST_IDS = {
     ],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
         "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
     ],
     "B1": [
         "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
         "PLB92CD6B288E5DB61",
+    ],
     "B2": [
         "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
         "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
         "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
     ],
 }
+
 
 @st.cache_data(ttl=43200)  # cache for 12 hours
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
