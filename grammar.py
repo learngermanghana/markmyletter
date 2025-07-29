@@ -1711,7 +1711,7 @@ def get_a1_schedule():
         # DAY 23
         {
             "day": 23,
-            "topic": "Lesen & Hören 14.2 and Schreiben and Sprechen",
+            "topic": "Lesen & Hören 14.2",
             "chapter": "14.2",
             "goal": "Understand adjective declension and dative verbs",
             "instruction": " This chapter has no assignment. Only grammar",
@@ -1726,8 +1726,8 @@ def get_a1_schedule():
         # DAY 24
         {
             "day": 24,
-            "topic": "Schreiben & Sprechen 8.13",
-            "chapter": "8.13",
+            "topic": "Schreiben & Sprechen 5.10",
+            "chapter": "5.10",
             "goal": "Learn about conjunctions and how to apply them in your exams",
             "instruction": "This chapter has no assignments. It gives you ideas to progress for A2 and how to use conjunctions",
             "grammar_topic": "German Conjunctions",
