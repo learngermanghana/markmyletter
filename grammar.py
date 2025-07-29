@@ -4546,17 +4546,6 @@ def highlight_feedback(text: str) -> str:
     return text
 
 
-def save_submission(student_code: str, score: int, passed: bool, timestamp: datetime):
-    # e.g. write into your SQLite or Firestore
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO scores (student_code, score, passed, date) VALUES (?, ?, ?, ?)",
-        (student_code, score, int(passed), timestamp.isoformat())
-    )
-    conn.commit()
-
-
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
