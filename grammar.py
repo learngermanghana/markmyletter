@@ -3482,11 +3482,7 @@ if tab == "Exams Mode & Custom Chat":
                 f"Encourage the student and keep the chat motivating. "
             )
         return ""
-#
-    # ---- USAGE LIMIT CHECK ----
-    if not has_falowen_quota(student_code):
-        st.warning("You have reached your daily practice limit for this section. Please come back tomorrow.")
-        st.stop()
+
 
 # ---- SESSION STATE DEFAULTS ----
     default_state = {
@@ -4784,6 +4780,7 @@ if tab == "Schreiben Trainer":
                     "- Point out if there are still errors left, with new tips for further improvement.\n"
                     "- Encourage the student. If the improvement is significant, say so.\n"
                     "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
+                    "2. Always explain your feeback in English for them to understand. You can still highlight their german phrases. But your correction should be english\n"
                     "- Give a revised score out of 25 (Score: X/25)."
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
