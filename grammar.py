@@ -4452,6 +4452,40 @@ def get_schreiben_stats(student_code: str):
             "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
         }
 
+# -- Firestore-only: Usage Limit (Daily Letter Coach) --
+def get_letter_coach_usage(student_code):
+    today = str(date.today())
+    doc = db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
+    return doc.to_dict().get("count", 0) if doc.exists else 0
+
+def inc_letter_coach_usage(student_code):
+    today = str(date.today())
+    doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
+    doc = doc_ref.get()
+    if doc.exists:
+        doc_ref.update({"count": firestore.Increment(1)})
+    else:
+        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+
+# -- Firestore: Save/load Letter Coach progress --
+def save_letter_coach_progress(student_code, level, prompt, chat):
+    doc_ref = db.collection("letter_coach_progress").document(student_code)
+    doc_ref.set({
+        "student_code": student_code,
+        "level": level,
+        "prompt": prompt,
+        "chat": chat,
+        "date": firestore.SERVER_TIMESTAMP
+    })
+
+def load_letter_coach_progress(student_code):
+    doc = db.collection("letter_coach_progress").document(student_code).get()
+    if doc.exists:
+        data = doc.to_dict()
+        return data.get("prompt", ""), data.get("chat", [])
+    else:
+        return "", []
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -4591,8 +4625,8 @@ if tab == "Schreiben Trainer":
         import re
         def get_level_requirements(level):
             reqs = {
-                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 20–40 words. Cover all bullet points."},
-                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 20–40 words. Cover all bullet points."},
+                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 25–35 words. Cover all bullet points."},
+                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
                 "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
                 "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
                 "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
@@ -4993,6 +5027,12 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
+        IDEAS_LIMIT = 14
+        ideas_so_far = get_letter_coach_usage(student_code)
+        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
+        if ideas_so_far >= IDEAS_LIMIT:
+            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
+            st.stop()
 
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
