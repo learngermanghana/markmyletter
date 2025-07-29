@@ -4306,13 +4306,22 @@ def is_correct_answer(user_input, answer):
 @st.cache_data
 def load_vocab_lists():
     df = pd.read_csv(csv_url)
-    # Normalize headers to avoid KeyError
-    df.columns = df.columns.str.strip().str.title()
+    # Normalize all column headers (strip spaces, lower, title)
+    df.columns = [c.strip().title() for c in df.columns]
+    # Find the right column names by "closest match"
+    level_col = next((c for c in df.columns if c.lower() == "level"), None)
+    german_col = next((c for c in df.columns if "german" in c.lower()), None)
+    english_col = next((c for c in df.columns if "english" in c.lower()), None)
+    # Check for missing columns
+    if not level_col or not german_col or not english_col:
+        st.error(f"CSV is missing a required column. Found columns: {df.columns}")
+        st.stop()
     lists = {}
-    for lvl in df['Level'].unique():
-        sub = df[df['Level'] == lvl]
-        lists[lvl] = list(zip(sub['German'], sub['English']))
+    for lvl in df[level_col].unique():
+        sub = df[df[level_col] == lvl]
+        lists[lvl] = list(zip(sub[german_col], sub[english_col]))
     return lists
+
 
 VOCAB_LISTS = load_vocab_lists()
 
