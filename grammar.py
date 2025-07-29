@@ -4483,6 +4483,21 @@ def bubble(role, text):
         </div>
     """
 
+# existing highlight_keywords...
+def highlight_keywords(text, words):
+    import re
+    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
+    return re.sub(pattern,
+                  r"<span style='color:#d63384;font-weight:600'>\1</span>",
+                  text, flags=re.IGNORECASE)
+
+# ──────────────────────────────────────────────
+# NEW: alias so your schreiben tab can call it directly
+highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+def highlight_feedback(text):
+    return highlight_keywords(text, highlight_words)
+
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
