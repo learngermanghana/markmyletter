@@ -1325,7 +1325,7 @@ def get_a1_schedule():
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
-                "video": "https://youtu.be/5qnB2Gocp8s",
+                "video": "https://youtu.be/lw9SsojpKf8",
                 "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing",
                 "assignment": False,
             }
@@ -2280,31 +2280,318 @@ def get_b1_schedule():
     ]
 
 
-# === B2 Schedule Template ===
 def get_b2_schedule():
     return [
         {
             "day": 1,
-            "topic": "B2 Welcome & Orientation",
-            "chapter": "0.0",
-            "goal": "Get familiar with the B2 curriculum and course expectations.",
-            "instruction": "Read the course orientation material and introduce yourself in the chat.",
+            "topic": "Persönliche Identität und Selbstverständnis",
+            "chapter": "1.1",
+            "goal": "Express your personal identity and values.",
+            "instruction": "Write a self-description and discuss your core values.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "",
+            "grammar_topic": "Adjektivdeklination (adjective endings after definite/indefinite articles)"
         },
         {
             "day": 2,
-            "topic": "B2 Diagnostic Test (Optional)",
-            "chapter": "0.1",
-            "goal": "Assess your current level before starting.",
-            "instruction": "Take the B2 diagnostic or placement test if available.",
+            "topic": "Beziehungen und Kommunikation",
+            "chapter": "1.2",
+            "goal": "Discuss types of relationships and communication strategies.",
+            "instruction": "Roleplay a conversation about resolving a conflict.",
             "video": "",
             "grammarbook_link": "",
-            "workbook_link": ""
+            "workbook_link": "",
+            "grammar_topic": "Konjunktiv II (polite requests & hypothetical situations)"
+        },
+        {
+            "day": 3,
+            "topic": "Öffentliches vs. Privates Leben",
+            "chapter": "1.3",
+            "goal": "Compare public and private life in Germany and your country.",
+            "instruction": "Debate privacy issues and share experiences.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Passiv (Präsens und Vergangenheit)"
+        },
+        {
+            "day": 4,
+            "topic": "Beruf und Karriere",
+            "chapter": "1.4",
+            "goal": "Talk about professions, CVs, and interviews.",
+            "instruction": "Prepare a CV and practice interview questions.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Partizip I & II as adjectives"
+        },
+        {
+            "day": 5,
+            "topic": "Bildung und Lernen",
+            "chapter": "1.5",
+            "goal": "Discuss the education system and lifelong learning.",
+            "instruction": "Compare schools and share learning tips.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Nominalisierung von Verben (turning verbs into nouns)"
+        },
+        {
+            "day": 6,
+            "topic": "Migration und Integration",
+            "chapter": "2.1",
+            "goal": "Explore migration, integration, and cultural identity.",
+            "instruction": "Share or research a migration story and discuss challenges.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Temporale Nebensätze (als, wenn, nachdem, während, bevor)"
+        },
+        {
+            "day": 7,
+            "topic": "Gesellschaftliche Vielfalt",
+            "chapter": "2.2",
+            "goal": "Examine diversity and inclusion in modern societies.",
+            "instruction": "Discuss experiences with cultural diversity.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Relativsätze mit Präpositionen (relative clauses with prepositions)"
+        },
+        {
+            "day": 8,
+            "topic": "Politik und Engagement",
+            "chapter": "2.3",
+            "goal": "Learn about political systems and civic participation.",
+            "instruction": "Debate the importance of voting and activism.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Finale und kausale Nebensätze (damit, um...zu, weil, da)"
+        },
+        {
+            "day": 9,
+            "topic": "Technologie und Digitalisierung",
+            "chapter": "2.4",
+            "goal": "Discuss digital transformation and its impact.",
+            "instruction": "Present pros and cons of new technologies.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Infinitivkonstruktionen mit zu (ohne zu, anstatt zu, um zu, etc.)"
+        },
+        {
+            "day": 10,
+            "topic": "Umwelt und Nachhaltigkeit",
+            "chapter": "2.5",
+            "goal": "Talk about environmental protection and sustainability.",
+            "instruction": "Suggest ways to live more sustainably.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Konjunktiv II Vergangenheit (hypothetical past)"
+        },
+        {
+            "day": 11,
+            "topic": "Gesundheit und Wohlbefinden",
+            "chapter": "3.1",
+            "goal": "Describe health, wellness, and lifestyle choices.",
+            "instruction": "Discuss health tips and roleplay a doctor's visit.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Reflexive Verben und Pronomen"
+        },
+        {
+            "day": 12,
+            "topic": "Konsum und Medien",
+            "chapter": "3.2",
+            "goal": "Analyze media influence and consumption habits.",
+            "instruction": "Talk about advertising and social media.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Modalverben im Passiv"
+        },
+        {
+            "day": 13,
+            "topic": "Reisen und Mobilität",
+            "chapter": "3.3",
+            "goal": "Plan trips and discuss transportation.",
+            "instruction": "Create a travel itinerary.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Präpositionen mit Genitiv"
+        },
+        {
+            "day": 14,
+            "topic": "Wohnen und Zusammenleben",
+            "chapter": "3.4",
+            "goal": "Compare different living situations and communities.",
+            "instruction": "Debate renting vs. buying and describe your dream home.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Steigerung der Adjektive (comparative & superlative)"
+        },
+        {
+            "day": 15,
+            "topic": "Kunst und Kultur",
+            "chapter": "3.5",
+            "goal": "Explore art, literature, and cultural events.",
+            "instruction": "Present on a favorite artist or book.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Satzbau und Satzstellung (word order in main/subordinate clauses)"
+        },
+        {
+            "day": 16,
+            "topic": "Wissenschaft und Forschung",
+            "chapter": "4.1",
+            "goal": "Discuss scientific discoveries and research.",
+            "instruction": "Summarize a science article.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Partizipialkonstruktionen (participial constructions)"
+        },
+        {
+            "day": 17,
+            "topic": "Feste und Traditionen",
+            "chapter": "4.2",
+            "goal": "Describe traditional festivals and customs.",
+            "instruction": "Share a festival from your culture.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 18,
+            "topic": "Freizeit und Hobbys",
+            "chapter": "4.3",
+            "goal": "Talk about leisure time and hobbies.",
+            "instruction": "Interview a partner about their hobbies.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Pronominaladverbien (darauf, worüber, etc.)"
+        },
+        {
+            "day": 19,
+            "topic": "Ernährung und Esskultur",
+            "chapter": "4.4",
+            "goal": "Discuss food, diet, and eating habits.",
+            "instruction": "Describe a traditional meal.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Indirekte Rede (reported speech)"
+        },
+        {
+            "day": 20,
+            "topic": "Mode und Lebensstil",
+            "chapter": "4.5",
+            "goal": "Examine fashion and lifestyle trends.",
+            "instruction": "Discuss style and its role in society.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 21,
+            "topic": "Werte und Normen",
+            "chapter": "5.1",
+            "goal": "Analyze values, norms, and their impact.",
+            "instruction": "Debate ethical questions.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Negation: kein-, nicht, ohne, weder...noch"
+        },
+        {
+            "day": 22,
+            "topic": "Sprache und Kommunikation",
+            "chapter": "5.2",
+            "goal": "Discuss language learning and communication strategies.",
+            "instruction": "Share your experiences learning languages.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Nominalstil vs. Verbalstil (nominal vs. verbal style)"
+        },
+        {
+            "day": 23,
+            "topic": "Innovation und Zukunft",
+            "chapter": "5.3",
+            "goal": "Speculate about the future and innovation.",
+            "instruction": "Predict changes in technology and society.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Futur I und II"
+        },
+        {
+            "day": 24,
+            "topic": "Gesellschaftliche Herausforderungen",
+            "chapter": "5.4",
+            "goal": "Discuss social challenges and possible solutions.",
+            "instruction": "Brainstorm how to address a major problem.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Subjekt- und Objektive Sätze"
+        },
+        {
+            "day": 25,
+            "topic": "Globalisierung und internationale Beziehungen",
+            "chapter": "5.5",
+            "goal": "Explore globalization and its effects.",
+            "instruction": "Debate pros and cons of globalization.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": "Partizipialattribute (participle attributes)"
+        },
+        {
+            "day": 26,
+            "topic": "Kreatives Schreiben & Projekte",
+            "chapter": "6.1",
+            "goal": "Develop creative writing skills.",
+            "instruction": "Write a short story or blog post.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 27,
+            "topic": "Prüfungstraining & Wiederholung",
+            "chapter": "6.2",
+            "goal": "Review B2 topics and practice exam formats.",
+            "instruction": "Take a mock exam and review your answers.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
+        },
+        {
+            "day": 28,
+            "topic": "Abschlusspräsentation & Feedback",
+            "chapter": "6.3",
+            "goal": "Summarize course topics and reflect on progress.",
+            "instruction": "Give a final presentation and provide feedback.",
+            "video": "",
+            "grammarbook_link": "",
+            "workbook_link": "",
+            "grammar_topic": ""
         }
-        # You can add more B2 lessons here in the future
     ]
+
 
 # === C1 Schedule Template ===
 def get_c1_schedule():
