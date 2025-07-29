@@ -4993,13 +4993,6 @@ if tab == "Schreiben Trainer":
             unsafe_allow_html=True
         )
 
- 
-        IDEAS_LIMIT = 14
-        ideas_so_far = get_letter_coach_usage(student_code)
-        st.markdown(f"**Daily usage:** {ideas_so_far} / {IDEAS_LIMIT}")
-        if ideas_so_far >= IDEAS_LIMIT:
-            st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
-            st.stop()
 
         # --- Stage 0: Prompt input ---
         if st.session_state[ns("stage")] == 0:
