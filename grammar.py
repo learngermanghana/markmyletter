@@ -5584,9 +5584,10 @@ if tab == "Schreiben Trainer":
                 )
                 st.rerun()
 
+from datetime import datetime
+from streamlit_quill import st_quill
 
-
-# Firestore helpers (keep your actual Firestore client/init above)
+# --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
@@ -5596,7 +5597,8 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-# =========== MAIN TAB ===========
+# ======================================
+# == Main Tab Logic ==
 if tab == "My Learning Notes":
     st.markdown("""
         <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -5606,14 +5608,14 @@ if tab == "My Learning Notes":
     """, unsafe_allow_html=True)
 
     student_code = st.session_state.get("student_code", "demo001")
-    key_notes = f"notes_{student_code}"
+    key_notes     = f"notes_{student_code}"
 
-    # Load notes first time
+    # ---- Load notes from Firestore on first tab entry ---
     if key_notes not in st.session_state:
         st.session_state[key_notes] = load_notes_from_db(student_code)
     notes = st.session_state[key_notes]
 
-    # Tab switching logic
+    # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
     if st.session_state.get("switch_to_edit_note"):
         st.session_state["notebook_radio"] = "➕ Add/Edit Note"
         del st.session_state["switch_to_edit_note"]
@@ -5628,15 +5630,63 @@ if tab == "My Learning Notes":
         key="notebook_radio"
     )
 
-    # === ADD/EDIT NOTE ===
+    # === Add/Edit Note Subtab ===
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
         editing = st.session_state.get("edit_note_idx", None) is not None
         if editing:
-            idx = st.session_state["edit_note_idx"]
+            idx   = st.session_state["edit_note_idx"]
             title = st.session_state.get("edit_note_title", "")
-            tag = st.session_state.get("edit_note_tag", "")
-            text = st.session_state.get("edit_note_text", "")
+            tag   = st.session_state.get("edit_note_tag", "")
+            text  = st.session_state.get("edit_note_text", "")
+        else:
+            title, tag, text = "", "", ""
+
+        with st.form("note_form", clear_on_submit=not editing):
+            new_title = st.text_input("Note Title", value=title, max_chars=50)
+            new_tag   = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
+            new_text  = st_quill(label="Your Note", html=True, value=text, key="quill_note")
+            save_btn  = st.form_submit_button("💾 Save Note")
+            cancel_btn= editing and st.form_submit_button("❌ Cancel Edit")
+
+        if save_btn:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            if not new_title.strip():
+                st.warning("Please enter a title.")
+                st.stop()
+            note = {
+                "title":   new_title.strip().title(),
+                "tag":     new_tag.strip().title(),
+                "text":    new_text.strip(),
+                "pinned":  False,
+                "created": timestamp,
+                "updated": timestamp
+            }
+            if editing:
+                notes[idx] = note
+                for k in ["edit_note_idx","edit_note_title","edit_note_text","edit_note_tag"]:
+                    st.session_state.pop(k, None)
+                st.success("Note updated!")
+            else:
+                notes.insert(0, note)
+                st.success("Note added!")
+            st.session_state[key_notes] = notes
+            save_notes_to_db(student_code, notes)
+            st.session_state["switch_to_library"] = True
+            st.rerun()
+
+        if cancel_btn:
+            for k in ["edit_note_idx","edit_note_title","edit_note_text","edit_note_tag"]:
+                st.session_state.pop(k, None)
+            st.session_state["switch_to_library"] = True
+            st.experimental_rerun()
+
+    # === Notes Library Subtab ===
+    elif subtab == "📚 My Notes Library":
+        st.markdown("#### 📚 All My Notes")
+
+        if not notes:
+            st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
             title, tag, text = "", "", ""
 
