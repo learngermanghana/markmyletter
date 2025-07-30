@@ -5671,7 +5671,7 @@ if tab == "My Learning Notes":
             st.session_state[key_notes] = notes
             save_notes_to_db(student_code, notes)
             st.session_state["switch_to_library"] = True
-            st.experimental_rerun()
+            st.rerun()
 
         if cancel_btn:
             for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
