@@ -1809,7 +1809,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on Opening a Bank Account in Germany",
-            "video": "",
+            "video": "https://youtu.be/ahIUVAbsuxU",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
         },
@@ -5631,6 +5631,16 @@ if tab == "My Learning Notes":
     # === Add/Edit Note Subtab ===
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
+        st.markdown("""
+        <div style='background:#e3f2fd;padding:8px 16px;margin-bottom:10px;border-radius:8px;'>
+        <b>Formatting:</b> Use <code>*italic*</code>, <code>**bold**</code>, and <code>- Bullet list item</code> in your note text.<br>
+        Example:<br>
+        <code>
+        - **Bold bullet**<br>
+        - *Italic bullet*<br>
+        </code>
+        </div>
+        """, unsafe_allow_html=True)
         editing = st.session_state.get("edit_note_idx", None) is not None
         if editing:
             idx = st.session_state["edit_note_idx"]
