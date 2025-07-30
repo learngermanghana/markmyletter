@@ -5584,6 +5584,7 @@ if tab == "Schreiben Trainer":
 
 
 
+
 # --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
@@ -5613,7 +5614,6 @@ if tab == "My Learning Notes":
     notes = st.session_state[key_notes]
 
     # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
-    # If flags are set, switch tab before rendering radio
     if st.session_state.get("switch_to_edit_note"):
         st.session_state["notebook_radio"] = "➕ Add/Edit Note"
         del st.session_state["switch_to_edit_note"]
@@ -5701,7 +5701,7 @@ if tab == "My Learning Notes":
             else:
                 notes_to_show = notes
 
-            # --- Download Buttons (TXT, PDF, DOCX) ---
+            # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
             all_notes = []
             for n in notes_to_show:
                 note_text = f"Title: {n.get('title','')}\n"
@@ -5720,9 +5720,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download ---
-            import tempfile
-            from fpdf import FPDF
+            # --- PDF Download (all notes) ---
             class PDF(FPDF):
                 def header(self):
                     self.set_font('Arial', 'B', 16)
@@ -5768,8 +5766,7 @@ if tab == "My Learning Notes":
                 mime="application/pdf"
             )
 
-            # --- DOCX Download ---
-            from docx import Document
+            # --- DOCX Download (all notes) ---
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
                 doc.add_heading("My Learning Notes", 0)
@@ -5813,6 +5810,66 @@ if tab == "My Learning Notes":
                     f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
                     unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
+
+                # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
+                download_cols = st.columns([1,1,1])
+                with download_cols[0]:
+                    # TXT per note
+                    txt_note = f"Title: {note.get('title','')}\n"
+                    if note.get('tag'):
+                        txt_note += f"Tag: {note['tag']}\n"
+                    txt_note += note.get('text', '') + "\n"
+                    txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
+                    st.download_button(
+                        label="⬇️ TXT",
+                        data=txt_note.encode("utf-8"),
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.txt",
+                        mime="text/plain",
+                        key=f"download_txt_{i}"
+                    )
+                with download_cols[1]:
+                    # PDF per note
+                    class SingleNotePDF(FPDF):
+                        def header(self):
+                            self.set_font('Arial', 'B', 13)
+                            self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
+                            self.ln(2)
+                    pdf_note = SingleNotePDF()
+                    pdf_note.add_page()
+                    pdf_note.set_font("Arial", size=12)
+                    if note.get("tag"):
+                        pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+                    for line in note.get('text','').split("\n"):
+                        pdf_note.multi_cell(0, 7, line)
+                    pdf_note.ln(1)
+                    pdf_note.set_font("Arial", "I", 11)
+                    pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
+                    pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
+                    st.download_button(
+                        label="⬇️ PDF",
+                        data=pdf_bytes_single,
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        key=f"download_pdf_{i}"
+                    )
+                with download_cols[2]:
+                    # DOCX per note
+                    doc_single = Document()
+                    doc_single.add_heading(note.get('title','(No Title)'), level=1)
+                    if note.get("tag"):
+                        doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                    doc_single.add_paragraph(note.get('text', ''))
+                    doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
+                    single_docx_io = io.BytesIO()
+                    doc_single.save(single_docx_io)
+                    st.download_button(
+                        label="⬇️ DOCX",
+                        data=single_docx_io.getvalue(),
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_docx_{i}"
+                    )
+
                 cols = st.columns([1,1,1,1])
                 with cols[0]:
                     if st.button("✏️ Edit", key=f"edit_{i}"):
