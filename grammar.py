@@ -2306,8 +2306,8 @@ def get_b2_schedule():
             "goal": "Discuss types of relationships and communication strategies.",
             "instruction": "Roleplay a conversation about resolving a conflict.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1Mlt-cK6YqPuJe9iCWfqT9DOG9oKhJBdK/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1XCLW0y-MMyIu_bNO3EkKIgp-8QLKgEek/view?usp=sharing",
             "grammar_topic": "Konjunktiv II (polite requests & hypothetical situations)"
         },
         {
