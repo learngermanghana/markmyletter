@@ -25,6 +25,8 @@ from fpdf import FPDF                      # PDF export
 from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
 from docx import Document                  # Optional: DOCX notes download
 from gtts import gTTS                      # Text-to-speech for vocab audio
+from streamlit_quill import st_quill            # WYSIWYG note editor
+from bs4 import BeautifulSoup                   # HTML parsing/clean export for TXT/PDF/DOCX
 
 # If you ever add fuzzy matching, you can use:
 # from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
@@ -5584,7 +5586,6 @@ if tab == "Schreiben Trainer":
 
 
 
-
 # --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
@@ -5631,16 +5632,6 @@ if tab == "My Learning Notes":
     # === Add/Edit Note Subtab ===
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
-        st.markdown("""
-        <div style='background:#e3f2fd;padding:8px 16px;margin-bottom:10px;border-radius:8px;'>
-        <b>Formatting:</b> Use <code>*italic*</code>, <code>**bold**</code>, and <code>- Bullet list item</code> in your note text.<br>
-        Example:<br>
-        <code>
-        - **Bold bullet**<br>
-        - *Italic bullet*<br>
-        </code>
-        </div>
-        """, unsafe_allow_html=True)
         editing = st.session_state.get("edit_note_idx", None) is not None
         if editing:
             idx = st.session_state["edit_note_idx"]
@@ -5653,7 +5644,7 @@ if tab == "My Learning Notes":
         with st.form("note_form", clear_on_submit=not editing):
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
-            new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
+            new_text = st_quill(label="Your Note", html=True, value=text)
             save_btn = st.form_submit_button("💾 Save Note")
             cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
 
@@ -5665,7 +5656,7 @@ if tab == "My Learning Notes":
             note = {
                 "title": new_title.strip().title(),
                 "tag": new_tag.strip().title(),
-                "text": new_text.strip(),
+                "text": new_text.strip() if new_text else "",
                 "pinned": False,
                 "created": timestamp,
                 "updated": timestamp
@@ -5703,7 +5694,7 @@ if tab == "My Learning Notes":
                 for n in notes:
                     if (search_term.lower() in n.get("title","").lower() or 
                         search_term.lower() in n.get("tag","").lower() or 
-                        search_term.lower() in n.get("text","").lower()):
+                        search_term.lower() in (n.get("text","") or "").lower()):
                         filtered.append(n)
                 notes_to_show = filtered
                 if not filtered:
@@ -5711,13 +5702,20 @@ if tab == "My Learning Notes":
             else:
                 notes_to_show = notes
 
-            # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
+            # --- Download Buttons (TXT, PDF, DOCX) ---
+            import tempfile, os
+            from fpdf import FPDF
+            from docx import Document
+
             all_notes = []
             for n in notes_to_show:
+                # Remove HTML tags for TXT version
+                from bs4 import BeautifulSoup
+                plain_text = BeautifulSoup(n.get('text', ''), "html.parser").get_text(separator="\n")
                 note_text = f"Title: {n.get('title','')}\n"
                 if n.get('tag'):
                     note_text += f"Tag: {n['tag']}\n"
-                note_text += n.get('text','') + "\n"
+                note_text += plain_text + "\n"
                 note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
                 note_text += "-"*32 + "\n"
                 all_notes.append(note_text)
@@ -5730,7 +5728,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download (all notes) ---
+            # --- PDF Download ---
             class PDF(FPDF):
                 def header(self):
                     self.set_font('Arial', 'B', 16)
@@ -5755,7 +5753,9 @@ if tab == "My Learning Notes":
                 if n.get("tag"):
                     pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
                 pdf.set_font("Arial", "", 12)
-                for line in n.get('text','').split("\n"):
+                # Remove HTML for PDF export
+                from bs4 import BeautifulSoup
+                for line in BeautifulSoup(n.get('text',''), "html.parser").get_text(separator="\n").split("\n"):
                     pdf.multi_cell(0, 7, safe_latin1(line))
                 pdf.ln(1)
                 pdf.set_font("Arial", "I", 11)
@@ -5776,7 +5776,7 @@ if tab == "My Learning Notes":
                 mime="application/pdf"
             )
 
-            # --- DOCX Download (all notes) ---
+            # --- DOCX Download ---
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
                 doc.add_heading("My Learning Notes", 0)
@@ -5788,7 +5788,9 @@ if tab == "My Learning Notes":
                     doc.add_heading(note.get('title','(No Title)'), level=1)
                     if note.get("tag"):
                         doc.add_paragraph(f"Tag: {note.get('tag','')}")
-                    doc.add_paragraph(note.get('text', ''))
+                    # Remove HTML for DOCX export
+                    from bs4 import BeautifulSoup
+                    doc.add_paragraph(BeautifulSoup(note.get('text', ''), "html.parser").get_text(separator="\n"))
                     doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
                     doc.add_paragraph('-' * 40)
                     doc.add_paragraph("")
@@ -5816,70 +5818,11 @@ if tab == "My Learning Notes":
                     f"</div>", unsafe_allow_html=True)
                 if note.get("tag"):
                     st.caption(f"🏷️ Tag: {note['tag']}")
+                # Render with HTML formatting
                 st.markdown(
                     f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
                     unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
-
-                # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
-                download_cols = st.columns([1,1,1])
-                with download_cols[0]:
-                    # TXT per note
-                    txt_note = f"Title: {note.get('title','')}\n"
-                    if note.get('tag'):
-                        txt_note += f"Tag: {note['tag']}\n"
-                    txt_note += note.get('text', '') + "\n"
-                    txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
-                    st.download_button(
-                        label="⬇️ TXT",
-                        data=txt_note.encode("utf-8"),
-                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.txt",
-                        mime="text/plain",
-                        key=f"download_txt_{i}"
-                    )
-                with download_cols[1]:
-                    # PDF per note
-                    class SingleNotePDF(FPDF):
-                        def header(self):
-                            self.set_font('Arial', 'B', 13)
-                            self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
-                            self.ln(2)
-                    pdf_note = SingleNotePDF()
-                    pdf_note.add_page()
-                    pdf_note.set_font("Arial", size=12)
-                    if note.get("tag"):
-                        pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
-                    for line in note.get('text','').split("\n"):
-                        pdf_note.multi_cell(0, 7, line)
-                    pdf_note.ln(1)
-                    pdf_note.set_font("Arial", "I", 11)
-                    pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
-                    pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
-                    st.download_button(
-                        label="⬇️ PDF",
-                        data=pdf_bytes_single,
-                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
-                        mime="application/pdf",
-                        key=f"download_pdf_{i}"
-                    )
-                with download_cols[2]:
-                    # DOCX per note
-                    doc_single = Document()
-                    doc_single.add_heading(note.get('title','(No Title)'), level=1)
-                    if note.get("tag"):
-                        doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
-                    doc_single.add_paragraph(note.get('text', ''))
-                    doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
-                    single_docx_io = io.BytesIO()
-                    doc_single.save(single_docx_io)
-                    st.download_button(
-                        label="⬇️ DOCX",
-                        data=single_docx_io.getvalue(),
-                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"download_docx_{i}"
-                    )
-
                 cols = st.columns([1,1,1,1])
                 with cols[0]:
                     if st.button("✏️ Edit", key=f"edit_{i}"):
@@ -5911,7 +5854,9 @@ if tab == "My Learning Notes":
                             st.rerun()
                 with cols[3]:
                     st.caption("")
+
 # ---------------------- END TAB -------------------------
+
 
 
 
