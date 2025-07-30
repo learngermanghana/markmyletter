@@ -5586,7 +5586,7 @@ if tab == "Schreiben Trainer":
 
 
 
-# --- Helper functions for Firestore ---
+# Firestore helpers (keep your actual Firestore client/init above)
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
@@ -5596,8 +5596,7 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-# ======================================
-# == Main Tab Logic ==
+# =========== MAIN TAB ===========
 if tab == "My Learning Notes":
     st.markdown("""
         <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -5609,12 +5608,12 @@ if tab == "My Learning Notes":
     student_code = st.session_state.get("student_code", "demo001")
     key_notes = f"notes_{student_code}"
 
-    # ---- Load notes from Firestore on first tab entry ---
+    # Load notes first time
     if key_notes not in st.session_state:
         st.session_state[key_notes] = load_notes_from_db(student_code)
     notes = st.session_state[key_notes]
 
-    # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
+    # Tab switching logic
     if st.session_state.get("switch_to_edit_note"):
         st.session_state["notebook_radio"] = "➕ Add/Edit Note"
         del st.session_state["switch_to_edit_note"]
@@ -5629,7 +5628,7 @@ if tab == "My Learning Notes":
         key="notebook_radio"
     )
 
-    # === Add/Edit Note Subtab ===
+    # === ADD/EDIT NOTE ===
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
         editing = st.session_state.get("edit_note_idx", None) is not None
@@ -5644,7 +5643,7 @@ if tab == "My Learning Notes":
         with st.form("note_form", clear_on_submit=not editing):
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
-            new_text = st_quill(label="Your Note", html=True, value=text)
+            new_text = st_quill(label="Your Note", html=True, value=text, key="quill_note")
             save_btn = st.form_submit_button("💾 Save Note")
             cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
 
@@ -5680,42 +5679,30 @@ if tab == "My Learning Notes":
             st.session_state["switch_to_library"] = True
             st.experimental_rerun()
 
-    # === Notes Library Subtab ===
+    # === NOTES LIBRARY ===
     elif subtab == "📚 My Notes Library":
         st.markdown("#### 📚 All My Notes")
-
         if not notes:
             st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
             search_term = st.text_input("🔎 Search your notes…", "")
             if search_term.strip():
-                filtered = []
-                st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
-                for n in notes:
-                    if (search_term.lower() in n.get("title","").lower() or 
-                        search_term.lower() in n.get("tag","").lower() or 
-                        search_term.lower() in (n.get("text","") or "").lower()):
-                        filtered.append(n)
-                notes_to_show = filtered
-                if not filtered:
+                notes_to_show = [n for n in notes if 
+                    (search_term.lower() in n.get("title", "").lower() or 
+                     search_term.lower() in n.get("tag", "").lower() or 
+                     search_term.lower() in (n.get("text", "") or "").lower())
+                ]
+                if not notes_to_show:
                     st.warning("No matching notes found!")
             else:
                 notes_to_show = notes
 
-            # --- Download Buttons (TXT, PDF, DOCX) ---
-            import tempfile, os
-            from fpdf import FPDF
-            from docx import Document
-
+            # ---- Download Buttons ----
             all_notes = []
             for n in notes_to_show:
-                # Remove HTML tags for TXT version
-                from bs4 import BeautifulSoup
-                plain_text = BeautifulSoup(n.get('text', ''), "html.parser").get_text(separator="\n")
                 note_text = f"Title: {n.get('title','')}\n"
-                if n.get('tag'):
-                    note_text += f"Tag: {n['tag']}\n"
-                note_text += plain_text + "\n"
+                if n.get('tag'): note_text += f"Tag: {n['tag']}\n"
+                note_text += (n.get('text','') or '') + "\n"
                 note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
                 note_text += "-"*32 + "\n"
                 all_notes.append(note_text)
@@ -5728,7 +5715,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download ---
+            # PDF Download
             class PDF(FPDF):
                 def header(self):
                     self.set_font('Arial', 'B', 16)
@@ -5753,9 +5740,7 @@ if tab == "My Learning Notes":
                 if n.get("tag"):
                     pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
                 pdf.set_font("Arial", "", 12)
-                # Remove HTML for PDF export
-                from bs4 import BeautifulSoup
-                for line in BeautifulSoup(n.get('text',''), "html.parser").get_text(separator="\n").split("\n"):
+                for line in (n.get('text','') or '').split("\n"):
                     pdf.multi_cell(0, 7, safe_latin1(line))
                 pdf.ln(1)
                 pdf.set_font("Arial", "I", 11)
@@ -5776,7 +5761,7 @@ if tab == "My Learning Notes":
                 mime="application/pdf"
             )
 
-            # --- DOCX Download ---
+            # DOCX Download
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
                 doc.add_heading("My Learning Notes", 0)
@@ -5788,9 +5773,7 @@ if tab == "My Learning Notes":
                     doc.add_heading(note.get('title','(No Title)'), level=1)
                     if note.get("tag"):
                         doc.add_paragraph(f"Tag: {note.get('tag','')}")
-                    # Remove HTML for DOCX export
-                    from bs4 import BeautifulSoup
-                    doc.add_paragraph(BeautifulSoup(note.get('text', ''), "html.parser").get_text(separator="\n"))
+                    doc.add_paragraph(note.get('text', '') or '')
                     doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
                     doc.add_paragraph('-' * 40)
                     doc.add_paragraph("")
@@ -5818,10 +5801,8 @@ if tab == "My Learning Notes":
                     f"</div>", unsafe_allow_html=True)
                 if note.get("tag"):
                     st.caption(f"🏷️ Tag: {note['tag']}")
-                # Render with HTML formatting
-                st.markdown(
-                    f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
-                    unsafe_allow_html=True)
+                # Show formatted HTML note (supports bold, italic, bullets, etc)
+                st.markdown(note.get("text", ""), unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
                 cols = st.columns([1,1,1,1])
                 with cols[0]:
@@ -5838,7 +5819,7 @@ if tab == "My Learning Notes":
                         st.session_state[key_notes] = notes
                         save_notes_to_db(student_code, notes)
                         st.success("Note deleted.")
-                        st.experimental_rerun()
+                        st.rerun()
                 with cols[2]:
                     if note.get("pinned"):
                         if st.button("📌 Unpin", key=f"unpin_{i}"):
@@ -5855,7 +5836,6 @@ if tab == "My Learning Notes":
                 with cols[3]:
                     st.caption("")
 
-# ---------------------- END TAB -------------------------
 
 
 
