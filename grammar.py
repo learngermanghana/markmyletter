@@ -5586,7 +5586,7 @@ if tab == "Schreiben Trainer":
 
 
 
-# --- Firestore helper functions ---
+# --- Helper functions for Firestore ---
 def load_notes_from_db(student_code):
     ref = db.collection("learning_notes").document(student_code)
     doc = ref.get()
@@ -5633,40 +5633,20 @@ if tab == "My Learning Notes":
     if subtab == "➕ Add/Edit Note":
         st.markdown("#### ✍️ Create a new note or update an old one")
         editing = st.session_state.get("edit_note_idx", None) is not None
-
-        # Keep text in session_state for live toolbar edits
         if editing:
             idx = st.session_state["edit_note_idx"]
             title = st.session_state.get("edit_note_title", "")
             tag = st.session_state.get("edit_note_tag", "")
-            if "note_text" not in st.session_state:
-                st.session_state["note_text"] = st.session_state.get("edit_note_text", "")
+            text = st.session_state.get("edit_note_text", "")
         else:
-            title, tag = "", ""
-            if "note_text" not in st.session_state:
-                st.session_state["note_text"] = ""
+            title, tag, text = "", "", ""
 
-        # --- Formatting Toolbar ---
-        st.markdown("**Formatting:**")
-        bold_col, italic_col, bullet_col = st.columns(3)
-        with bold_col:
-            if st.button("**Bold**"):
-                st.session_state["note_text"] += "**bold**"
-        with italic_col:
-            if st.button("*Italic*"):
-                st.session_state["note_text"] += "*italic*"
-        with bullet_col:
-            if st.button("• Bullet"):
-                st.session_state["note_text"] += "\n- "
-
-        with st.form("note_form", clear_on_submit=False):
+        with st.form("note_form", clear_on_submit=not editing):
             new_title = st.text_input("Note Title", value=title, max_chars=50)
             new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
-            new_text = st.text_area("Your Note", value=st.session_state["note_text"], height=200, max_chars=3000)
+            new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
             save_btn = st.form_submit_button("💾 Save Note")
-            cancel_btn = st.form_submit_button("❌ Cancel Edit") if editing else st.form_submit_button("❌ Cancel")
-
-        st.session_state["note_text"] = new_text  # Sync textarea back
+            cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
 
         if save_btn:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -5683,13 +5663,11 @@ if tab == "My Learning Notes":
             }
             if editing:
                 notes[idx] = note
-                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag", "note_text"]:
+                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                     if k in st.session_state: del st.session_state[k]
                 st.success("Note updated!")
             else:
                 notes.insert(0, note)
-                for k in ["note_text"]:
-                    if k in st.session_state: del st.session_state[k]
                 st.success("Note added!")
             st.session_state[key_notes] = notes
             save_notes_to_db(student_code, notes)
@@ -5697,7 +5675,7 @@ if tab == "My Learning Notes":
             st.rerun()
 
         if cancel_btn:
-            for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag", "note_text"]:
+            for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                 if k in st.session_state: del st.session_state[k]
             st.session_state["switch_to_library"] = True
             st.experimental_rerun()
@@ -5705,6 +5683,7 @@ if tab == "My Learning Notes":
     # === Notes Library Subtab ===
     elif subtab == "📚 My Notes Library":
         st.markdown("#### 📚 All My Notes")
+
         if not notes:
             st.info("No notes yet. Add your first note in the ➕ tab!")
         else:
@@ -5723,7 +5702,7 @@ if tab == "My Learning Notes":
             else:
                 notes_to_show = notes
 
-            # --- Download Buttons (TXT, PDF, DOCX) ---
+            # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
             all_notes = []
             for n in notes_to_show:
                 note_text = f"Title: {n.get('title','')}\n"
@@ -5742,8 +5721,7 @@ if tab == "My Learning Notes":
                 mime="text/plain"
             )
 
-            # --- PDF Download ---
-            from fpdf import FPDF
+            # --- PDF Download (all notes) ---
             class PDF(FPDF):
                 def header(self):
                     self.set_font('Arial', 'B', 16)
@@ -5789,8 +5767,7 @@ if tab == "My Learning Notes":
                 mime="application/pdf"
             )
 
-            # --- DOCX Download ---
-            from docx import Document
+            # --- DOCX Download (all notes) ---
             def export_notes_to_docx(notes, student_code="student"):
                 doc = Document()
                 doc.add_heading("My Learning Notes", 0)
@@ -5834,6 +5811,66 @@ if tab == "My Learning Notes":
                     f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
                     unsafe_allow_html=True)
                 st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
+
+                # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
+                download_cols = st.columns([1,1,1])
+                with download_cols[0]:
+                    # TXT per note
+                    txt_note = f"Title: {note.get('title','')}\n"
+                    if note.get('tag'):
+                        txt_note += f"Tag: {note['tag']}\n"
+                    txt_note += note.get('text', '') + "\n"
+                    txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
+                    st.download_button(
+                        label="⬇️ TXT",
+                        data=txt_note.encode("utf-8"),
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.txt",
+                        mime="text/plain",
+                        key=f"download_txt_{i}"
+                    )
+                with download_cols[1]:
+                    # PDF per note
+                    class SingleNotePDF(FPDF):
+                        def header(self):
+                            self.set_font('Arial', 'B', 13)
+                            self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
+                            self.ln(2)
+                    pdf_note = SingleNotePDF()
+                    pdf_note.add_page()
+                    pdf_note.set_font("Arial", size=12)
+                    if note.get("tag"):
+                        pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+                    for line in note.get('text','').split("\n"):
+                        pdf_note.multi_cell(0, 7, line)
+                    pdf_note.ln(1)
+                    pdf_note.set_font("Arial", "I", 11)
+                    pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
+                    pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
+                    st.download_button(
+                        label="⬇️ PDF",
+                        data=pdf_bytes_single,
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
+                        mime="application/pdf",
+                        key=f"download_pdf_{i}"
+                    )
+                with download_cols[2]:
+                    # DOCX per note
+                    doc_single = Document()
+                    doc_single.add_heading(note.get('title','(No Title)'), level=1)
+                    if note.get("tag"):
+                        doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                    doc_single.add_paragraph(note.get('text', ''))
+                    doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
+                    single_docx_io = io.BytesIO()
+                    doc_single.save(single_docx_io)
+                    st.download_button(
+                        label="⬇️ DOCX",
+                        data=single_docx_io.getvalue(),
+                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_docx_{i}"
+                    )
+
                 cols = st.columns([1,1,1,1])
                 with cols[0]:
                     if st.button("✏️ Edit", key=f"edit_{i}"):
@@ -5842,27 +5879,27 @@ if tab == "My Learning Notes":
                         st.session_state["edit_note_text"] = note["text"]
                         st.session_state["edit_note_tag"] = note.get("tag", "")
                         st.session_state["switch_to_edit_note"] = True
-                        st.experimental_rerun()
+                        st.rerun()
                 with cols[1]:
                     if st.button("🗑️ Delete", key=f"del_{i}"):
                         notes.remove(note)
                         st.session_state[key_notes] = notes
                         save_notes_to_db(student_code, notes)
                         st.success("Note deleted.")
-                        st.experimental_rerun()
+                        st.rerun()
                 with cols[2]:
                     if note.get("pinned"):
                         if st.button("📌 Unpin", key=f"unpin_{i}"):
                             note["pinned"] = False
                             st.session_state[key_notes] = notes
                             save_notes_to_db(student_code, notes)
-                            st.experimental_rerun()
+                            st.rerun()
                     else:
                         if st.button("📍 Pin", key=f"pin_{i}"):
                             note["pinned"] = True
                             st.session_state[key_notes] = notes
                             save_notes_to_db(student_code, notes)
-                            st.experimental_rerun()
+                            st.rerun()
                 with cols[3]:
                     st.caption("")
 # ---------------------- END TAB -------------------------
