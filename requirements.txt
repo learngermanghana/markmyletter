@@ -12,3 +12,4 @@ gtts
 bcrypt>=4.0.1
 streamlit-oauth>=0.1.5
 streamlit-quill
+beautifulsoup4
