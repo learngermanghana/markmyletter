@@ -1980,9 +1980,10 @@ def get_b1_schedule():
             "goal": "Über Erfolge und persönliche Erlebnisse berichten.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1EWI2vwqoIkao1Rh5cHahEql4R8Dj81nf/view?usp=sharing"
         },
         # TAG 4
         {
