@@ -993,10 +993,10 @@ if tab == "Dashboard":
         },
         "A2 Koln Klasse": {
             "days": ["Wednesday", "Thursday", "Friday"],
-            "time": "Wed: 2:00pm–3:00pm, Thu/Fri: 11:00am–12:00pm",
+            "time": "11:00am–12:00pm",
             "start_date": "2025-08-06",
             "end_date": "2025-10-08",
-            "doc_url": ""
+            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
         },
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
