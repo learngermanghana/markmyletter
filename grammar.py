@@ -4498,6 +4498,27 @@ if tab == "Exams Mode & Custom Chat":
         # Student code
         student_code = st.session_state.get("student_code", "demo")
 
+    # Only show exam image in Exam Mode and only before chat starts
+    if (
+        mode == "Geführte Prüfungssimulation (Exam Mode)"
+        and level and teil
+        and not st.session_state["falowen_messages"]
+    ):
+        teil_short = ""
+        if "Teil 1" in teil:
+            teil_short = "Teil 1"
+        elif "Teil 2" in teil:
+            teil_short = "Teil 2"
+        elif "Teil 3" in teil:
+            teil_short = "Teil 3"
+        key = (level, teil_short)
+        if key in image_map:
+            img = image_map[key]
+            st.image(img["url"], width=380, caption=img["caption"])
+
+
+
+
         # ---- Usage check ----
         used_today = get_sprechen_usage(student_code)
         st.info(f"Today: {used_today} / {FALOWEN_DAILY_LIMIT} Falowen chat messages used.")
@@ -4686,6 +4707,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
+#
 
     # =========================================
     # ---- STAGE 5: SHOW SUMMARY ----
