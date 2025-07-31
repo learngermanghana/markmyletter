@@ -3862,8 +3862,6 @@ if tab == "Exams Mode & Custom Chat":
     if "falowen_practiced_topics" not in st.session_state:
         st.session_state["falowen_practiced_topics"] = []
 
-
-        
     # 🗣️ Compact tab header
     st.markdown(
         '''
@@ -3883,14 +3881,14 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
-    # ---- Exam Sample Images (A1/A2 Template) ----
+    # Exam Sample Images (use only inside chat logic, not here globally!)
     image_map = {
         ("A1", "Teil 1"): {
             "url": "https://i.imgur.com/sKQDrpx.png",
             "caption": "Sample – A1 Teil 1"
         },
         ("A1", "Teil 2"): {
-            "url": "https://i.imgur.com/xTTIUME.png",  # Replace with real image if you get a valid link!
+            "url": "https://i.imgur.com/xTTIUME.png",
             "caption": "Sample – A1 Teil 2"
         },
         ("A1", "Teil 3"): {
