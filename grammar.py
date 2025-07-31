@@ -2652,9 +2652,6 @@ def load_level_schedules():
 
 # --- Helpers ---
 def render_assignment_reminder():
-    """
-    Render a responsive, mobile-friendly assignment reminder box with clear contrast.
-    """
     st.markdown(
         '''
         <div style="
@@ -2698,7 +2695,6 @@ def build_wa_message(name, code, level, day, chapter, answer):
     )
 
 def highlight_terms(text, terms):
-    """Wrap each term in <span> for highlight in markdown/html."""
     if not text: return ""
     for term in terms:
         if not term.strip():
@@ -2708,7 +2704,6 @@ def highlight_terms(text, terms):
     return text
 
 def filter_matches(lesson, terms):
-    """Check if ANY term appears in ANY searchable field."""
     searchable = (
         str(lesson.get('topic', '')).lower() +
         str(lesson.get('chapter', '')).lower() +
@@ -2745,7 +2740,6 @@ def render_section(day_info, key, title, icon):
                 render_link("🔗 Extra", ex)
 
 def to_latin1(text):
-    """Convert any text to latin1, replacing non-latin1 chars with '?'."""
     if not isinstance(text, str):
         text = str(text)
     return text.encode('latin1', 'replace').decode('latin1')
@@ -2769,53 +2763,14 @@ def save_notes_to_db(student_code, notes):
     ref.set({"notes": notes}, merge=True)
 
 # --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
-
 if tab == "Course Book":
-    # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
+    # --- Handle session state switching before any widget ---
     if st.session_state.get("switch_to_notes"):
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        st.session_state["main_coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
         st.rerun()
-    if "coursebook_subtab" not in st.session_state:
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-
-    # === Course Book Main Banner ===
-    st.markdown(
-        '''
-        <div style="
-            padding: 16px;
-            background: #007bff;
-            color: #ffffff;
-            border-radius: 8px;
-            text-align: center;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        ">
-            <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
-        </div>
-        ''', unsafe_allow_html=True
-    )
-    st.divider()
-
-    # === Subtab Selector ===
-    cb_subtab = st.radio(
-        "Select section:",
-        ["📘 Course Book", "📒 Learning Notes"],
-        horizontal=True,
-        key="coursebook_subtab"
-    )
-
-
-
-# --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
-if tab == "Course Book":
-    # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-    if st.session_state.get("switch_to_notes"):
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-        del st.session_state["switch_to_notes"]
-        st.rerun()
-    if "coursebook_subtab" not in st.session_state:
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+    if "main_coursebook_subtab" not in st.session_state:
+        st.session_state["main_coursebook_subtab"] = "📒 Learning Notes"
 
     st.markdown(
         '''
@@ -2838,7 +2793,7 @@ if tab == "Course Book":
         "Select section:",
         ["📘 Course Book", "📒 Learning Notes"],
         horizontal=True,
-        key="coursebook_subtab"
+        key="main_coursebook_subtab"  # <-- UNIQUE KEY!
     )
 
     # =============== COURSE BOOK SUBTAB ===============
@@ -2863,7 +2818,7 @@ if tab == "Course Book":
         schedules = load_level_schedules()
         schedule = schedules.get(student_level, schedules.get('A1', []))
 
-        query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
+        query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…", key="coursebook_search_query")
         search_terms = [q for q in query.strip().lower().split() if q] if query else []
 
         if search_terms:
@@ -2880,16 +2835,18 @@ if tab == "Course Book":
                 "Lessons:",
                 list(range(len(matches))),
                 format_func=lambda i: labels[i],
-                key="course_search_sel"
+                key="coursebook_search_sel"
             )
             idx = matches[sel][0]
         else:
             idx = st.selectbox(
                 "Choose your lesson/day:",
                 range(len(schedule)),
-                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
+                key="coursebook_day_sel"
             )
 
+        # --- Progress Bar ---
         total_assignments = len(schedule)
         assignments_done = idx + 1
         percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
@@ -2979,7 +2936,6 @@ if tab == "Course Book":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
-        # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
             doc_ref.set({lesson_key: text}, merge=True)
@@ -2997,14 +2953,14 @@ if tab == "Course Book":
             "Answer (or attach on WhatsApp)",
             value=st.session_state.get(lesson_key, ""),
             height=500,
-            key=lesson_key,
+            key=f"coursebook_answer_{lesson_key}",
             on_change=autosave_draft,
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("Draft autosaved!")
 
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-        name = st.text_input("Name", value=student_row.get('Name', ''))
+        name = st.text_input("Name", value=student_row.get('Name', ''), key="coursebook_name_input")
         msg = build_wa_message(
             name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
         )
@@ -3012,13 +2968,13 @@ if tab == "Course Book":
 
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("📤 Send via WhatsApp"):
+            if st.button("📤 Send via WhatsApp", key="coursebook_send_whatsapp"):
                 st.success("Click link below to open WhatsApp.")
                 st.markdown(f"[📨 Open WhatsApp]({url})")
                 st.caption("You can also save your answer as a note for future reference.")
 
         with col2:
-            if st.button("📝 Add Answer to Notes"):
+            if st.button("📝 Add Answer to Notes", key="coursebook_add_to_notes"):
                 st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
                 st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
                 st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
@@ -3026,7 +2982,7 @@ if tab == "Course Book":
                 st.session_state["switch_to_notes"] = True
                 st.rerun()
 
-        st.text_area("📋 Copy message:", msg, height=500)
+        st.text_area("📋 Copy message:", msg, height=500, key="coursebook_copy_msg")
 
         st.info(
             """
@@ -3054,17 +3010,17 @@ if tab == "Course Book":
         notes = st.session_state[key_notes]
 
         if st.session_state.get("switch_to_edit_note"):
-            st.session_state["course_notes_radio"] = "➕ Add/Edit Note"
+            st.session_state["notes_course_notes_radio"] = "➕ Add/Edit Note"
             del st.session_state["switch_to_edit_note"]
         elif st.session_state.get("switch_to_library"):
-            st.session_state["course_notes_radio"] = "📚 My Notes Library"
+            st.session_state["notes_course_notes_radio"] = "📚 My Notes Library"
             del st.session_state["switch_to_library"]
 
         notes_subtab = st.radio(
             "Notebook",
             ["➕ Add/Edit Note", "📚 My Notes Library"],
             horizontal=True,
-            key="course_notes_radio"
+            key="notes_course_notes_radio"  # <-- UNIQUE KEY!
         )
 
         if notes_subtab == "➕ Add/Edit Note":
@@ -3083,9 +3039,9 @@ if tab == "Course Book":
             st.markdown("#### ✍️ Create a new note or update an old one")
 
             with st.form("note_form", clear_on_submit=not editing):
-                new_title = st.text_input("Note Title", value=title, max_chars=50)
-                new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
-                new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
+                new_title = st.text_input("Note Title", value=title, max_chars=50, key="addedit_note_title")
+                new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20, key="addedit_note_tag")
+                new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000, key="addedit_note_text")
                 save_btn = st.form_submit_button("💾 Save Note")
                 cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
 
@@ -3127,7 +3083,7 @@ if tab == "Course Book":
             if not notes:
                 st.info("No notes yet. Add your first note in the ➕ tab!")
             else:
-                search_term = st.text_input("🔎 Search your notes…", "")
+                search_term = st.text_input("🔎 Search your notes…", "", key="search_notes_input")
                 if search_term.strip():
                     filtered = []
                     st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
@@ -3142,7 +3098,7 @@ if tab == "Course Book":
                 else:
                     notes_to_show = notes
 
-                # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
+                # --- Download All Notes as TXT ---
                 all_notes = []
                 for n in notes_to_show:
                     note_text = f"Title: {n.get('title','')}\n"
@@ -3157,10 +3113,11 @@ if tab == "Course Book":
                     label="⬇️ Download All Notes (TXT)",
                     data=txt_data.encode("utf-8"),
                     file_name=f"{student_code}_notes.txt",
-                    mime="text/plain"
+                    mime="text/plain",
+                    key="download_all_notes_txt"
                 )
 
-                # --- PDF Download (all notes) ---
+                # --- Download All Notes as PDF ---
                 class PDF(FPDF):
                     def header(self):
                         self.set_font('Arial', 'B', 16)
@@ -3201,10 +3158,11 @@ if tab == "Course Book":
                     label="⬇️ Download All Notes (PDF)",
                     data=pdf_bytes,
                     file_name=f"{student_code}_notes.pdf",
-                    mime="application/pdf"
+                    mime="application/pdf",
+                    key="download_all_notes_pdf"
                 )
 
-                # --- Per-Note Download (PDF) ---
+                # --- Per-Note Download (PDF, for example) ---
                 for i, note in enumerate(notes_to_show):
                     download_cols = st.columns([1,1,1])
                     with download_cols[1]:
@@ -3231,6 +3189,7 @@ if tab == "Course Book":
                             mime="application/pdf",
                             key=f"download_pdf_{i}"
                         )
+
 
 
 
