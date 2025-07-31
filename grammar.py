@@ -5206,7 +5206,7 @@ if tab == "Schreiben Trainer":
                 "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students; help them but let them think by themselves also. "
                 "    2. For structure, require their letter to use clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
                 "       - Always recommend 'Zuerst' instead of 'Erstens' for A2 letters, as it is simpler and more natural for personal or exam letters. "
-                "    3. For connectors, use 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich mochte wissen, ob', 'ich mochte wissen, wann', 'ich mochte wissen, wo', and encourage linking words for clarity. "
+                "    3. For connectors, use 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich mochte wissen, ob', 'ich mochte wissen, wann', 'ich mochte wissen, wo', and encourage linking words for clarity. Recommend one at a time in a statement to prevent mistakes. When a student use two or more conjucntion in one statement less than 7 words, simplify for them to use just once to prevent errors"
                 "    4. After every reply, give a tip or phrase, but never write the full letter for them. "
                 "    5. Remind them not to write sentences longer than 7–8 words; break long sentences into short, clear ideas. "
                 "    6. Letter should be between 30 and 40 words. "
@@ -5215,7 +5215,7 @@ if tab == "Schreiben Trainer":
                 "    9. For appointments, recommend 'vereinbaren' ('Ich möchte einen neuen Termin vereinbaren.'). "
                 "    10. To say sorry, use: 'Es tut mir leid.' "
                 "    11. Always correct grammar and suggest improved phrases when needed. "
-                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then closing 'Zum Schluss'). "
+                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then closing 'Zum Schluss'for finla points and Ich freue mich for final closing). "
                 "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter into 'Mark My Letter' for feedback. "
                 "    14. Throughout, do not write the whole letter—guide only one part at a time."
             ),
