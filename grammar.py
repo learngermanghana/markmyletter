@@ -3897,9 +3897,20 @@ if tab == "Exams Mode & Custom Chat":
             "url": "https://i.imgur.com/MxBUCR8.png",
             "caption": "Sample – A1 Teil 3"
         },
-        # Add A2 etc:
-        # ("A2", "Teil 1"): { ... }
+        ("A2", "Teil 1"): {
+            "url": "https://i.imgur.com/gmmu7Sn.png",
+            "caption": "Sample – A2 Teil 1"
+        },
+        ("A2", "Teil 2"): {
+            "url": "https://i.imgur.com/m6eBJu7.png",
+            "caption": "Sample – A2 Teil 2"
+        },
+        ("A2", "Teil 3"): {
+            "url": "https://i.imgur.com/1uDLrCY.png",
+            "caption": "Sample – A2 Teil 3"
+        },
     }
+
 
     # Display image only for selected level/teil and at the start of chat
     level = st.session_state.get("falowen_level")
@@ -5568,6 +5579,7 @@ if tab == "Schreiben Trainer":
                 "Always reply in English, never in German. "
                 "When a student submits something, first congratulate them with ideas about how to go about the letter. "
                 "Analyze if their message is a new prompt, a continuation, or a question. "
+                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "If it's a question, answer simply and encourage them to keep building their letter step by step. "
                 "If it's a continuation, review their writing so far and guide them to the next step. "
                 "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students, help them but let them think by themselves also. "
@@ -5600,6 +5612,7 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, a creative and supportive German letter-writing coach for A2 students. "
                 "Always reply in English, never in German. "
                 "Congratulate the student on their first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
+                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students; help them but let them think by themselves also. "
                 "    2. For structure, require their letter to use clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
                 "       - Always recommend 'Zuerst' instead of 'Erstens' for A2 letters, as it is simpler and more natural for personal or exam letters. "
@@ -5620,6 +5633,7 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, a supportive German letter/essay coach for B1 students. "
                 "Always reply in English, never in German. "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of submission, and determine whether it is a formal letter, informal letter, or opinion essay. "
+                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "If you are not sure, politely ask the student what type of writing they need help with. "
                 f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
                 f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
@@ -5639,6 +5653,7 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, a supportive German writing coach for B2 students. "
                 "Always reply in English, never in German. "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an opinion/argumentative essay. "
+                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "If you are not sure, politely ask the student what type of writing they need help with. "
                 f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
                 f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
