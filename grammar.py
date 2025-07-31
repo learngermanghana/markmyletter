@@ -2744,6 +2744,13 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+def to_latin1(text):
+    """Convert any text to latin1, replacing non-latin1 chars with '?'."""
+    if not isinstance(text, str):
+        text = str(text)
+    return text.encode('latin1', 'replace').decode('latin1')
+
+
 RESOURCE_LABELS = {
     'video': '🎥 Video',
     'grammarbook_link': '📘 Grammar',
@@ -3005,13 +3012,6 @@ if tab == "Course Book":
             """
         )
 
-    # Add this helper at the top of your file (once)
-    def to_latin1(text):
-        """Convert any text to latin1, replacing non-latin1 chars with '?'."""
-        if not isinstance(text, str):
-            text = str(text)
-        return text.encode('latin1', 'replace').decode('latin1')
-
     # =============== LEARNING NOTES SUBTAB ===============
     elif cb_subtab == "📒 Learning Notes":
         st.markdown("""
@@ -3137,34 +3137,36 @@ if tab == "Course Book":
                     mime="text/plain"
                 )
 
-                # --- PDF Download (all notes, now using to_latin1) ---
+                # --- PDF Download (all notes) ---
                 class PDF(FPDF):
                     def header(self):
                         self.set_font('Arial', 'B', 16)
-                        self.cell(0, 12, to_latin1("My Learning Notes"), align="C", ln=1)
+                        self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                         self.ln(5)
+                def safe_latin1(text):
+                    return text.encode("latin1", "replace").decode("latin1")
                 pdf = PDF()
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 pdf.set_font("Arial", size=12)
                 pdf.set_font("Arial", "B", 13)
-                pdf.cell(0, 10, to_latin1("Table of Contents"), ln=1)
+                pdf.cell(0, 10, "Table of Contents", ln=1)
                 pdf.set_font("Arial", "", 11)
                 for idx, note in enumerate(notes_to_show):
-                    pdf.cell(0, 8, to_latin1(f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}"), ln=1)
+                    pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
                 pdf.ln(5)
                 for n in notes_to_show:
                     pdf.set_font("Arial", "B", 13)
-                    pdf.cell(0, 10, to_latin1(f"Title: {n.get('title','')}"), ln=1)
+                    pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
                     pdf.set_font("Arial", "I", 11)
                     if n.get("tag"):
-                        pdf.cell(0, 8, to_latin1(f"Tag: {n['tag']}"), ln=1)
+                        pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
                     pdf.set_font("Arial", "", 12)
                     for line in n.get('text','').split("\n"):
-                        pdf.multi_cell(0, 7, to_latin1(line))
+                        pdf.multi_cell(0, 7, safe_latin1(line))
                     pdf.ln(1)
                     pdf.set_font("Arial", "I", 11)
-                    pdf.cell(0, 8, to_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
+                    pdf.cell(0, 8, safe_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
                     pdf.ln(5)
                     pdf.set_font("Arial", "", 10)
                     pdf.cell(0, 4, '-' * 55, ln=1)
@@ -3245,18 +3247,18 @@ if tab == "Course Book":
                         class SingleNotePDF(FPDF):
                             def header(self):
                                 self.set_font('Arial', 'B', 13)
-                                self.cell(0, 10, to_latin1(note.get('title','Note')), ln=True, align='C')
+                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
                                 self.ln(2)
                         pdf_note = SingleNotePDF()
                         pdf_note.add_page()
                         pdf_note.set_font("Arial", size=12)
                         if note.get("tag"):
-                            pdf_note.cell(0, 8, to_latin1(f"Tag: {note.get('tag','')}"), ln=1)
+                            pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
                         for line in note.get('text','').split("\n"):
-                            pdf_note.multi_cell(0, 7, to_latin1(line))
+                            pdf_note.multi_cell(0, 7, line)
                         pdf_note.ln(1)
                         pdf_note.set_font("Arial", "I", 11)
-                        pdf_note.cell(0, 8, to_latin1(f"Date: {note.get('updated', note.get('created',''))}"), ln=1)
+                        pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
                         pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
                         st.download_button(
                             label="⬇️ PDF",
@@ -3313,8 +3315,6 @@ if tab == "Course Book":
                                 st.rerun()
                     with cols[3]:
                         st.caption("")
-#
-
 
 
 
