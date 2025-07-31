@@ -4551,14 +4551,15 @@ if tab == "Exams Mode & Custom Chat":
 
         # PDF + TXT download
         if st.session_state["falowen_messages"]:
+            teil_str = str(teil) if teil else "chat"
             pdf_bytes = falowen_download_pdf(
                 st.session_state["falowen_messages"],
-                f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}"
+                f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}"
             )
             st.download_button(
                 "⬇️ Download Chat as PDF",
                 pdf_bytes,
-                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.pdf",
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
                 mime="application/pdf"
             )
             chat_as_text = "\n".join([
@@ -4568,7 +4569,7 @@ if tab == "Exams Mode & Custom Chat":
             st.download_button(
                 "⬇️ Download Chat as TXT",
                 chat_as_text.encode("utf-8"),
-                file_name=f"Falowen_Chat_{level}_{teil.replace(' ', '_') if teil else 'chat'}.txt",
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
                 mime="text/plain"
             )
 
@@ -4670,14 +4671,15 @@ if tab == "Exams Mode & Custom Chat":
 
         # Download options (PDF/TXT)
         if st.session_state.get("falowen_messages"):
+            teil_str = str(st.session_state.get('falowen_teil', '')) if st.session_state.get('falowen_teil', '') else "chat"
             pdf_bytes = falowen_download_pdf(
                 st.session_state["falowen_messages"],
-                f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{st.session_state.get('falowen_teil','').replace(' ','_') or 'chat'}"
+                f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}"
             )
             st.download_button(
                 "⬇️ Download Chat as PDF",
                 pdf_bytes,
-                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{st.session_state.get('falowen_teil','').replace(' ','_') or 'chat'}.pdf",
+                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.pdf",
                 mime="application/pdf"
             )
             chat_as_text = "\n".join([
@@ -4687,7 +4689,7 @@ if tab == "Exams Mode & Custom Chat":
             st.download_button(
                 "⬇️ Download Chat as TXT",
                 chat_as_text.encode("utf-8"),
-                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{st.session_state.get('falowen_teil','').replace(' ','_') or 'chat'}.txt",
+                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.txt",
                 mime="text/plain"
             )
 
@@ -4707,6 +4709,9 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back to Exam Menu"):
                 st.session_state["falowen_stage"] = 2  # or 3, depending on your flow
                 st.rerun()
+
+
+
 
             
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
