@@ -3764,7 +3764,8 @@ if tab == "Exams Mode & Custom Chat":
             return (
                 f"You are Herr Felix, a supportive and innovative German teacher. "
                 f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
-                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They only have to be consistent "
+                f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
+                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
                 f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
                 f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
@@ -3772,7 +3773,7 @@ if tab == "Exams Mode & Custom Chat":
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 10 questions in total). "
                 f"Never ask more than 2 questions about the same keyword. "
                 f"After the student answers 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
-                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell to improve on it and learn to speak without reading "
+                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
             )
@@ -5215,7 +5216,7 @@ if tab == "Schreiben Trainer":
                 "    9. For appointments, recommend 'vereinbaren' ('Ich möchte einen neuen Termin vereinbaren.'). "
                 "    10. To say sorry, use: 'Es tut mir leid.' "
                 "    11. Always correct grammar and suggest improved phrases when needed. "
-                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then closing 'Zum Schluss'for finla points and Ich freue mich for final closing). "
+                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then final point 'Zum Schluss', then polite closing phrase 'Ich freue mich'). "
                 "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter into 'Mark My Letter' for feedback. "
                 "    14. Throughout, do not write the whole letter—guide only one part at a time."
             ),
