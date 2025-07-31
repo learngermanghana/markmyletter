@@ -905,7 +905,6 @@ if st.session_state.get("logged_in"):
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
             "Schreiben Trainer",
-            "My Learning Notes",
         ],
         key="main_tab_select"
     )
@@ -2636,8 +2635,6 @@ if "student_row" not in st.session_state:
         "StudentCode": "demo001"
     }
 
-
-
 student_row = st.session_state.get("student_row", {})
 student_level = student_row.get("Level", "A1").upper()
 
@@ -2653,7 +2650,6 @@ def load_level_schedules():
     }
 
 # --- Helpers ---
-
 def render_assignment_reminder():
     """
     Render a responsive, mobile-friendly assignment reminder box with clear contrast.
@@ -2699,7 +2695,6 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Date: {timestamp}\n"
         f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
     )
-
 
 def highlight_terms(text, terms):
     """Wrap each term in <span> for highlight in markdown/html."""
@@ -2755,7 +2750,27 @@ RESOURCE_LABELS = {
     'extra_resources': '🔗 Extra'
 }
 
+# ---- Firestore Helpers ----
+def load_notes_from_db(student_code):
+    ref = db.collection("learning_notes").document(student_code)
+    doc = ref.get()
+    return doc.to_dict().get("notes", []) if doc.exists else []
+
+def save_notes_to_db(student_code, notes):
+    ref = db.collection("learning_notes").document(student_code)
+    ref.set({"notes": notes}, merge=True)
+
+# --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
+    # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
+    # (If flagged to switch, set subtab and rerun BEFORE widgets)
+    if st.session_state.get("switch_to_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["switch_to_notes"]
+        st.rerun()
+    if "coursebook_subtab" not in st.session_state:
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+
     st.markdown(
         '''
         <div style="
@@ -2773,158 +2788,539 @@ if tab == "Course Book":
     )
     st.divider()
 
-    schedules = load_level_schedules()
-    schedule = schedules.get(student_level, schedules.get('A1', []))
-
-    query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
-    search_terms = [q for q in query.strip().lower().split() if q] if query else []
-
-    if search_terms:
-        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
-        if not matches:
-            st.warning("No matching lessons. Try simpler terms or check spelling.")
-            st.stop()
-        labels = []
-        for _, d in matches:
-            title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
-            grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
-            labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
-        sel = st.selectbox("Lessons:", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
-        idx = matches[sel][0]
-    else:
-        idx = st.selectbox(
-            "Choose your lesson/day:",
-            range(len(schedule)),
-            format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
-        )
-
-    # ===== Progress Bar (just for scrolling/selection) =====
-    total_assignments = len(schedule)
-    assignments_done = idx + 1
-    percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
-    st.progress(percent)
-    st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
-
-    # ===== Estimated time for just this lesson =====
-    LEVEL_TIME = {
-        "A1": 15,
-        "A2": 25,
-        "B1": 30,
-        "B2": 40,
-        "C1": 45
-    }
-    current_time = LEVEL_TIME.get(student_level, 20)
-    st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
-
-    # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
-    contract_start_str = student_row.get('ContractStart', '')
-    contract_start_date = None
-    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-        try:
-            contract_start_date = datetime.strptime(contract_start_str, fmt).date()
-            break
-        except Exception:
-            continue
-
-    if contract_start_date:
-        # 3 per week
-        weeks_3 = (total_assignments + 2) // 3
-        end_3 = contract_start_date + timedelta(weeks=weeks_3)
-        # 2 per week
-        weeks_2 = (total_assignments + 1) // 2
-        end_2 = contract_start_date + timedelta(weeks=weeks_2)
-        # 1 per week
-        weeks_1 = total_assignments
-        end_1 = contract_start_date + timedelta(weeks=weeks_1)
-
-        st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
-        st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
-        st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
-        st.caption("Stay consistent – choose your pace and finish on time.")
-    else:
-        st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
-
-
-    info = schedule[idx]
-    st.markdown(
-        f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
-        unsafe_allow_html=True
+    cb_subtab = st.radio(
+        "Select section:",
+        ["📘 Course Book", "📒 Learning Notes"],
+        horizontal=True,
+        key="coursebook_subtab"
     )
-    if info.get('grammar_topic'):
-        st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-    if info.get('goal'):
-        st.markdown(f"**🎯 Goal:**  {info['goal']}")
-    if info.get('instruction'):
-        st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-    render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
-    render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
-
-    if student_level in ['A2', 'B1', 'B2', 'C1']:
-        for res, label in RESOURCE_LABELS.items():
-            val = info.get(res)
-            if val:
-                if res == 'video':
-                    st.video(val)
-                else:
-                    st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+    # === COURSE BOOK SUBTAB ===
+    if cb_subtab == "📘 Course Book":
         st.markdown(
-            '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+            '''
+            <div style="
+                padding: 16px;
+                background: #007bff;
+                color: #ffffff;
+                border-radius: 8px;
+                text-align: center;
+                margin-bottom: 16px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">
+                <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
+            </div>
+            ''', unsafe_allow_html=True
+        )
+        st.divider()
+
+        schedules = load_level_schedules()
+        schedule = schedules.get(student_level, schedules.get('A1', []))
+
+        query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
+        search_terms = [q for q in query.strip().lower().split() if q] if query else []
+
+        if search_terms:
+            matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
+            if not matches:
+                st.warning("No matching lessons. Try simpler terms or check spelling.")
+                st.stop()
+            labels = []
+            for _, d in matches:
+                title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
+                grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
+                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+            sel = st.selectbox(
+                "Lessons:",
+                list(range(len(matches))),
+                format_func=lambda i: labels[i],
+                key="course_search_sel"
+            )
+            idx = matches[sel][0]
+        else:
+            idx = st.selectbox(
+                "Choose your lesson/day:",
+                range(len(schedule)),
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+            )
+
+        # ===== Progress Bar (just for scrolling/selection) =====
+        total_assignments = len(schedule)
+        assignments_done = idx + 1
+        percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
+        st.progress(percent)
+        st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
+
+        # ===== Estimated time for just this lesson =====
+        LEVEL_TIME = {
+            "A1": 15,
+            "A2": 25,
+            "B1": 30,
+            "B2": 40,
+            "C1": 45
+        }
+        current_time = LEVEL_TIME.get(student_level, 20)
+        st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
+
+        # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
+        contract_start_str = student_row.get('ContractStart', '')
+        contract_start_date = None
+        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                contract_start_date = datetime.strptime(contract_start_str, fmt).date()
+                break
+            except Exception:
+                continue
+
+        if contract_start_date:
+            # 3 per week
+            weeks_3 = (total_assignments + 2) // 3
+            end_3 = contract_start_date + timedelta(weeks=weeks_3)
+            # 2 per week
+            weeks_2 = (total_assignments + 1) // 2
+            end_2 = contract_start_date + timedelta(weeks=weeks_2)
+            # 1 per week
+            weeks_1 = total_assignments
+            end_1 = contract_start_date + timedelta(weeks=weeks_1)
+
+            st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
+            st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
+            st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
+            st.caption("Stay consistent – choose your pace and finish on time.")
+        else:
+            st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
+
+        info = schedule[idx]
+        st.markdown(
+            f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
+        if info.get('grammar_topic'):
+            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        if info.get('goal'):
+            st.markdown(f"**🎯 Goal:**  {info['goal']}")
+        if info.get('instruction'):
+            st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-    st.divider()
+        render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
+        render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-    st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
+        if student_level in ['A2', 'B1', 'B2', 'C1']:
+            for res, label in RESOURCE_LABELS.items():
+                val = info.get(res)
+                if val:
+                    if res == 'video':
+                        st.video(val)
+                    else:
+                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
 
-    with st.expander("🎬 Video of the Day for Your Level"):
-        playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
-        if playlist_id:
-            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
-            if video_list:
-                today_idx = date.today().toordinal()
-                pick = today_idx % len(video_list)
-                video = video_list[pick]
-                st.markdown(f"**{video['title']}**")
-                st.video(video['url'])
+        # --- Translation Links Only ---
+        st.markdown("---")
+        st.markdown(
+            '**Need translation?** '
+            '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
+            '[🌐 Google Translate](https://translate.google.com)',
+            unsafe_allow_html=True
+        )
+        st.caption("Copy any text from the course book and paste it into your preferred translator.")
+
+
+        st.divider()
+
+        st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
+
+        with st.expander("🎬 Video of the Day for Your Level"):
+            playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
+            if playlist_id:
+                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+                if video_list:
+                    today_idx = date.today().toordinal()
+                    pick = today_idx % len(video_list)
+                    video = video_list[pick]
+                    st.markdown(f"**{video['title']}**")
+                    st.video(video['url'])
+                else:
+                    st.info("No videos found for your level’s playlist. Check back soon!")
             else:
-                st.info("No videos found for your level’s playlist. Check back soon!")
-        else:
-            st.info("No playlist found for your level yet. Stay tuned!")
+                st.info("No playlist found for your level yet. Stay tuned!")
 
-    st.header("📲 Submit Assignment (WhatsApp)")
 
-    def render_whatsapp():
-        st.subheader("👤 Your Name & Code")
-        name = st.text_input("Name", value=student_row.get('Name',''))
-        code = st.text_input("Code", value=student_row.get('StudentCode',''))
-        st.subheader("✍️ Your Answer")
-        ans = st.text_area("Answer (or attach on WhatsApp)", height=500)
-        msg = build_wa_message(name, code, student_level, info['day'], info['chapter'], ans)
+        # --- Save Draft to Firestore (using global db instance) ---
+        def save_draft_to_db(code, lesson_key, text):
+            doc_ref = db.collection('draft_answers').document(code)
+            doc_ref.set({lesson_key: text}, merge=True)
+
+        code = student_row.get('StudentCode', 'demo001')
+        lesson_key = f"draft_{info['chapter']}"
+
+        def autosave_draft():
+            text = st.session_state.get(lesson_key, "")
+            save_draft_to_db(code, lesson_key, text)
+            st.session_state[f"{lesson_key}_saved"] = True
+
+        st.subheader("✍️ Your Answer (Autosaves)")
+        st.text_area(
+            "Answer (or attach on WhatsApp)",
+            value=st.session_state.get(lesson_key, ""),
+            height=500,
+            key=lesson_key,
+            on_change=autosave_draft,
+        )
+        if st.session_state.get(f"{lesson_key}_saved", False):
+            st.success("Draft autosaved!")
+
+        # --- WhatsApp Submission + Add to Notes ---
+        chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+        name = st.text_input("Name", value=student_row.get('Name', ''))
+        msg = build_wa_message(
+            name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
+        )
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
-        if st.button("📤 Send via WhatsApp"):
-            st.success("Click link below to open WhatsApp.")
-            st.markdown(f"[📨 Open WhatsApp]({url})")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📤 Send via WhatsApp"):
+                st.success("Click link below to open WhatsApp.")
+                st.markdown(f"[📨 Open WhatsApp]({url})")
+                st.caption("You can also save your answer as a note for future reference.")
+
+        with col2:
+            if st.button("📝 Add Answer to Notes"):
+                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+                st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
+                st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+                st.session_state["switch_to_notes"] = True
+                st.rerun()
+
         st.text_area("📋 Copy message:", msg, height=500)
 
-    render_whatsapp()
 
-    st.info(
-        """
-    - Tap the links above to open resources in a new tab.
-    - Mention which task you're submitting.
-    - Use your correct name and code.
-        """
-    )
+        st.info(
+            """
+            - Use the links above to access your lesson resources in a new tab.
+            - Make sure to say which day or task you are submitting in your answer.
+            - Enter your correct name and code before sending.
+            - After submitting via WhatsApp, you can also save your answer as a note for future use.
+            """
+        )
 
 
-    st.info(
-        """
-- Tap the links above to open resources in a new tab.
-- Mention which task you're submitting.
-- Use your correct name and code.
-        """
-    )
+
+    # === LEARNING NOTES SUBTAB ===
+    elif cb_subtab == "📒 Learning Notes":
+        st.markdown("""
+            <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
+            text-align:center; font-size:1.5rem; font-weight:700; margin-bottom:16px; letter-spacing:.5px;">
+            📒 My Learning Notes
+            </div>
+        """, unsafe_allow_html=True)
+
+        student_code = st.session_state.get("student_code", "demo001")
+        key_notes = f"notes_{student_code}"
+
+        if key_notes not in st.session_state:
+            st.session_state[key_notes] = load_notes_from_db(student_code)
+        notes = st.session_state[key_notes]
+
+        if st.session_state.get("switch_to_edit_note"):
+            st.session_state["course_notes_radio"] = "➕ Add/Edit Note"
+            del st.session_state["switch_to_edit_note"]
+        elif st.session_state.get("switch_to_library"):
+            st.session_state["course_notes_radio"] = "📚 My Notes Library"
+            del st.session_state["switch_to_library"]
+
+        notes_subtab = st.radio(
+            "Notebook",
+            ["➕ Add/Edit Note", "📚 My Notes Library"],
+            horizontal=True,
+            key="course_notes_radio"
+        )
+
+        if notes_subtab == "➕ Add/Edit Note":
+            # >>>> New helper message for pre-filled note context <<<<
+            editing = st.session_state.get("edit_note_idx", None) is not None
+            if editing:
+                idx = st.session_state["edit_note_idx"]
+                title = st.session_state.get("edit_note_title", "")
+                tag = st.session_state.get("edit_note_tag", "")
+                text = st.session_state.get("edit_note_text", "")
+            else:
+                title, tag, text = "", "", ""
+
+            if title and tag:
+                st.info(f"You're adding a note for **{title}** ({tag}).")
+
+            st.markdown("#### ✍️ Create a new note or update an old one")
+
+            with st.form("note_form", clear_on_submit=not editing):
+                new_title = st.text_input("Note Title", value=title, max_chars=50)
+                new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
+                new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
+                save_btn = st.form_submit_button("💾 Save Note")
+                cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
+
+            if save_btn:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                if not new_title.strip():
+                    st.warning("Please enter a title.")
+                    st.stop()
+                note = {
+                    "title": new_title.strip().title(),
+                    "tag": new_tag.strip().title(),
+                    "text": new_text.strip(),
+                    "pinned": False,
+                    "created": timestamp,
+                    "updated": timestamp
+                }
+                if editing:
+                    notes[idx] = note
+                    for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                        if k in st.session_state: del st.session_state[k]
+                    st.success("Note updated!")
+                else:
+                    notes.insert(0, note)
+                    st.success("Note added!")
+                st.session_state[key_notes] = notes
+                save_notes_to_db(student_code, notes)
+                st.session_state["switch_to_library"] = True
+                st.rerun()
+
+            if cancel_btn:
+                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
+                    if k in st.session_state: del st.session_state[k]
+                st.session_state["switch_to_library"] = True
+                st.rerun()
+
+
+        elif notes_subtab == "📚 My Notes Library":
+            st.markdown("#### 📚 All My Notes")
+
+            if not notes:
+                st.info("No notes yet. Add your first note in the ➕ tab!")
+            else:
+                search_term = st.text_input("🔎 Search your notes…", "")
+                if search_term.strip():
+                    filtered = []
+                    st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
+                    for n in notes:
+                        if (search_term.lower() in n.get("title","").lower() or 
+                            search_term.lower() in n.get("tag","").lower() or 
+                            search_term.lower() in n.get("text","").lower()):
+                            filtered.append(n)
+                    notes_to_show = filtered
+                    if not filtered:
+                        st.warning("No matching notes found!")
+                else:
+                    notes_to_show = notes
+
+                # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
+                all_notes = []
+                for n in notes_to_show:
+                    note_text = f"Title: {n.get('title','')}\n"
+                    if n.get('tag'):
+                        note_text += f"Tag: {n['tag']}\n"
+                    note_text += n.get('text','') + "\n"
+                    note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
+                    note_text += "-"*32 + "\n"
+                    all_notes.append(note_text)
+                txt_data = "\n".join(all_notes)
+
+                st.download_button(
+                    label="⬇️ Download All Notes (TXT)",
+                    data=txt_data.encode("utf-8"),
+                    file_name=f"{student_code}_notes.txt",
+                    mime="text/plain"
+                )
+
+                # --- PDF Download (all notes) ---
+                class PDF(FPDF):
+                    def header(self):
+                        self.set_font('Arial', 'B', 16)
+                        self.cell(0, 12, "My Learning Notes", align="C", ln=1)
+                        self.ln(5)
+                def safe_latin1(text):
+                    return text.encode("latin1", "replace").decode("latin1")
+                pdf = PDF()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=15)
+                pdf.set_font("Arial", size=12)
+                pdf.set_font("Arial", "B", 13)
+                pdf.cell(0, 10, "Table of Contents", ln=1)
+                pdf.set_font("Arial", "", 11)
+                for idx, note in enumerate(notes_to_show):
+                    pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
+                pdf.ln(5)
+                for n in notes_to_show:
+                    pdf.set_font("Arial", "B", 13)
+                    pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
+                    pdf.set_font("Arial", "I", 11)
+                    if n.get("tag"):
+                        pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
+                    pdf.set_font("Arial", "", 12)
+                    for line in n.get('text','').split("\n"):
+                        pdf.multi_cell(0, 7, safe_latin1(line))
+                    pdf.ln(1)
+                    pdf.set_font("Arial", "I", 11)
+                    pdf.cell(0, 8, safe_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
+                    pdf.ln(5)
+                    pdf.set_font("Arial", "", 10)
+                    pdf.cell(0, 4, '-' * 55, ln=1)
+                    pdf.ln(8)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    pdf.output(tmp_pdf.name)
+                    tmp_pdf.seek(0)
+                    pdf_bytes = tmp_pdf.read()
+                os.remove(tmp_pdf.name)
+                st.download_button(
+                    label="⬇️ Download All Notes (PDF)",
+                    data=pdf_bytes,
+                    file_name=f"{student_code}_notes.pdf",
+                    mime="application/pdf"
+                )
+
+                # --- DOCX Download (all notes) ---
+                def export_notes_to_docx(notes, student_code="student"):
+                    doc = Document()
+                    doc.add_heading("My Learning Notes", 0)
+                    doc.add_heading("Table of Contents", level=1)
+                    for idx, note in enumerate(notes):
+                        doc.add_paragraph(f"{idx+1}. {note.get('title', '(No Title)')} - {note.get('created', note.get('updated',''))}")
+                    doc.add_page_break()
+                    for note in notes:
+                        doc.add_heading(note.get('title','(No Title)'), level=1)
+                        if note.get("tag"):
+                            doc.add_paragraph(f"Tag: {note.get('tag','')}")
+                        doc.add_paragraph(note.get('text', ''))
+                        doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
+                        doc.add_paragraph('-' * 40)
+                        doc.add_paragraph("")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
+                        doc.save(f.name)
+                        return f.name
+                docx_path = export_notes_to_docx(notes_to_show, student_code)
+                with open(docx_path, "rb") as f:
+                    st.download_button(
+                        label="⬇️ Download All Notes (DOCX)",
+                        data=f.read(),
+                        file_name=f"{student_code}_notes.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                os.remove(docx_path)
+
+                st.markdown("---")
+                pinned_notes = [n for n in notes_to_show if n.get("pinned")]
+                other_notes = [n for n in notes_to_show if not n.get("pinned")]
+                show_list = pinned_notes + other_notes
+                for i, note in enumerate(show_list):
+                    st.markdown(
+                        f"<div style='padding:12px 0 6px 0; font-weight:600; color:#7c3aed; font-size:1.18rem;'>"
+                        f"{'📌 ' if note.get('pinned') else ''}{note.get('title','(No Title)')}"
+                        f"</div>", unsafe_allow_html=True)
+                    if note.get("tag"):
+                        st.caption(f"🏷️ Tag: {note['tag']}")
+                    st.markdown(
+                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
+                        unsafe_allow_html=True)
+                    st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
+
+                    # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
+                    download_cols = st.columns([1,1,1])
+                    with download_cols[0]:
+                        # TXT per note
+                        txt_note = f"Title: {note.get('title','')}\n"
+                        if note.get('tag'):
+                            txt_note += f"Tag: {note['tag']}\n"
+                        txt_note += note.get('text', '') + "\n"
+                        txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
+                        st.download_button(
+                            label="⬇️ TXT",
+                            data=txt_note.encode("utf-8"),
+                            file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.txt",
+                            mime="text/plain",
+                            key=f"download_txt_{i}"
+                        )
+                    with download_cols[1]:
+                        # PDF per note
+                        class SingleNotePDF(FPDF):
+                            def header(self):
+                                self.set_font('Arial', 'B', 13)
+                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
+                                self.ln(2)
+                        pdf_note = SingleNotePDF()
+                        pdf_note.add_page()
+                        pdf_note.set_font("Arial", size=12)
+                        if note.get("tag"):
+                            pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+                        for line in note.get('text','').split("\n"):
+                            pdf_note.multi_cell(0, 7, line)
+                        pdf_note.ln(1)
+                        pdf_note.set_font("Arial", "I", 11)
+                        pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
+                        pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
+                        st.download_button(
+                            label="⬇️ PDF",
+                            data=pdf_bytes_single,
+                            file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
+                            mime="application/pdf",
+                            key=f"download_pdf_{i}"
+                        )
+                    with download_cols[2]:
+                        # DOCX per note
+                        doc_single = Document()
+                        doc_single.add_heading(note.get('title','(No Title)'), level=1)
+                        if note.get("tag"):
+                            doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                        doc_single.add_paragraph(note.get('text', ''))
+                        doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
+                        single_docx_io = io.BytesIO()
+                        doc_single.save(single_docx_io)
+                        st.download_button(
+                            label="⬇️ DOCX",
+                            data=single_docx_io.getvalue(),
+                            file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"download_docx_{i}"
+                        )
+
+                    cols = st.columns([1,1,1,1])
+                    with cols[0]:
+                        if st.button("✏️ Edit", key=f"edit_{i}"):
+                            st.session_state["edit_note_idx"] = i
+                            st.session_state["edit_note_title"] = note["title"]
+                            st.session_state["edit_note_text"] = note["text"]
+                            st.session_state["edit_note_tag"] = note.get("tag", "")
+                            st.session_state["switch_to_edit_note"] = True
+                            st.rerun()
+                    with cols[1]:
+                        if st.button("🗑️ Delete", key=f"del_{i}"):
+                            notes.remove(note)
+                            st.session_state[key_notes] = notes
+                            save_notes_to_db(student_code, notes)
+                            st.success("Note deleted.")
+                            st.rerun()
+                    with cols[2]:
+                        if note.get("pinned"):
+                            if st.button("📌 Unpin", key=f"unpin_{i}"):
+                                note["pinned"] = False
+                                st.session_state[key_notes] = notes
+                                save_notes_to_db(student_code, notes)
+                                st.rerun()
+                        else:
+                            if st.button("📍 Pin", key=f"pin_{i}"):
+                                note["pinned"] = True
+                                st.session_state[key_notes] = notes
+                                save_notes_to_db(student_code, notes)
+                                st.rerun()
+                    with cols[3]:
+                        st.caption("")
+#
+
+
 
 
 
@@ -5585,325 +5981,6 @@ if tab == "Schreiben Trainer":
                 )
                 st.rerun()
 
-
-
-# --- Helper functions for Firestore ---
-def load_notes_from_db(student_code):
-    ref = db.collection("learning_notes").document(student_code)
-    doc = ref.get()
-    return doc.to_dict().get("notes", []) if doc.exists else []
-
-def save_notes_to_db(student_code, notes):
-    ref = db.collection("learning_notes").document(student_code)
-    ref.set({"notes": notes}, merge=True)
-
-# ======================================
-# == Main Tab Logic ==
-if tab == "My Learning Notes":
-    st.markdown("""
-        <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
-        text-align:center; font-size:1.5rem; font-weight:700; margin-bottom:16px; letter-spacing:.5px;">
-        📒 My Learning Notes
-        </div>
-    """, unsafe_allow_html=True)
-
-    student_code = st.session_state.get("student_code", "demo001")
-    key_notes = f"notes_{student_code}"
-
-    # ---- Load notes from Firestore on first tab entry ---
-    if key_notes not in st.session_state:
-        st.session_state[key_notes] = load_notes_from_db(student_code)
-    notes = st.session_state[key_notes]
-
-    # ----- PROGRAMMATIC TAB SWITCH HANDLING -----
-    if st.session_state.get("switch_to_edit_note"):
-        st.session_state["notebook_radio"] = "➕ Add/Edit Note"
-        del st.session_state["switch_to_edit_note"]
-    elif st.session_state.get("switch_to_library"):
-        st.session_state["notebook_radio"] = "📚 My Notes Library"
-        del st.session_state["switch_to_library"]
-
-    subtab = st.radio(
-        "Notebook", 
-        ["➕ Add/Edit Note", "📚 My Notes Library"], 
-        horizontal=True, 
-        key="notebook_radio"
-    )
-
-    # === Add/Edit Note Subtab ===
-    if subtab == "➕ Add/Edit Note":
-        st.markdown("#### ✍️ Create a new note or update an old one")
-        editing = st.session_state.get("edit_note_idx", None) is not None
-        if editing:
-            idx = st.session_state["edit_note_idx"]
-            title = st.session_state.get("edit_note_title", "")
-            tag = st.session_state.get("edit_note_tag", "")
-            text = st.session_state.get("edit_note_text", "")
-        else:
-            title, tag, text = "", "", ""
-
-        with st.form("note_form", clear_on_submit=not editing):
-            new_title = st.text_input("Note Title", value=title, max_chars=50)
-            new_tag = st.text_input("Category/Tag (optional)", value=tag, max_chars=20)
-            new_text = st.text_area("Your Note", value=text, height=200, max_chars=3000)
-            save_btn = st.form_submit_button("💾 Save Note")
-            cancel_btn = editing and st.form_submit_button("❌ Cancel Edit")
-
-        if save_btn:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            if not new_title.strip():
-                st.warning("Please enter a title.")
-                st.stop()
-            note = {
-                "title": new_title.strip().title(),
-                "tag": new_tag.strip().title(),
-                "text": new_text.strip(),
-                "pinned": False,
-                "created": timestamp,
-                "updated": timestamp
-            }
-            if editing:
-                notes[idx] = note
-                for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                    if k in st.session_state: del st.session_state[k]
-                st.success("Note updated!")
-            else:
-                notes.insert(0, note)
-                st.success("Note added!")
-            st.session_state[key_notes] = notes
-            save_notes_to_db(student_code, notes)
-            st.session_state["switch_to_library"] = True
-            st.rerun()
-
-        if cancel_btn:
-            for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                if k in st.session_state: del st.session_state[k]
-            st.session_state["switch_to_library"] = True
-            st.experimental_rerun()
-
-    # === Notes Library Subtab ===
-    elif subtab == "📚 My Notes Library":
-        st.markdown("#### 📚 All My Notes")
-
-        if not notes:
-            st.info("No notes yet. Add your first note in the ➕ tab!")
-        else:
-            search_term = st.text_input("🔎 Search your notes…", "")
-            if search_term.strip():
-                filtered = []
-                st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
-                for n in notes:
-                    if (search_term.lower() in n.get("title","").lower() or 
-                        search_term.lower() in n.get("tag","").lower() or 
-                        search_term.lower() in n.get("text","").lower()):
-                        filtered.append(n)
-                notes_to_show = filtered
-                if not filtered:
-                    st.warning("No matching notes found!")
-            else:
-                notes_to_show = notes
-
-            # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
-            all_notes = []
-            for n in notes_to_show:
-                note_text = f"Title: {n.get('title','')}\n"
-                if n.get('tag'):
-                    note_text += f"Tag: {n['tag']}\n"
-                note_text += n.get('text','') + "\n"
-                note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
-                note_text += "-"*32 + "\n"
-                all_notes.append(note_text)
-            txt_data = "\n".join(all_notes)
-
-            st.download_button(
-                label="⬇️ Download All Notes (TXT)",
-                data=txt_data.encode("utf-8"),
-                file_name=f"{student_code}_notes.txt",
-                mime="text/plain"
-            )
-
-            # --- PDF Download (all notes) ---
-            class PDF(FPDF):
-                def header(self):
-                    self.set_font('Arial', 'B', 16)
-                    self.cell(0, 12, "My Learning Notes", align="C", ln=1)
-                    self.ln(5)
-            def safe_latin1(text):
-                return text.encode("latin1", "replace").decode("latin1")
-            pdf = PDF()
-            pdf.add_page()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.set_font("Arial", size=12)
-            pdf.set_font("Arial", "B", 13)
-            pdf.cell(0, 10, "Table of Contents", ln=1)
-            pdf.set_font("Arial", "", 11)
-            for idx, note in enumerate(notes_to_show):
-                pdf.cell(0, 8, f"{idx+1}. {safe_latin1(note.get('title',''))} - {note.get('created', note.get('updated',''))}", ln=1)
-            pdf.ln(5)
-            for n in notes_to_show:
-                pdf.set_font("Arial", "B", 13)
-                pdf.cell(0, 10, safe_latin1(f"Title: {n.get('title','')}"), ln=1)
-                pdf.set_font("Arial", "I", 11)
-                if n.get("tag"):
-                    pdf.cell(0, 8, safe_latin1(f"Tag: {n['tag']}"), ln=1)
-                pdf.set_font("Arial", "", 12)
-                for line in n.get('text','').split("\n"):
-                    pdf.multi_cell(0, 7, safe_latin1(line))
-                pdf.ln(1)
-                pdf.set_font("Arial", "I", 11)
-                pdf.cell(0, 8, safe_latin1(f"Date: {n.get('updated', n.get('created',''))}"), ln=1)
-                pdf.ln(5)
-                pdf.set_font("Arial", "", 10)
-                pdf.cell(0, 4, '-' * 55, ln=1)
-                pdf.ln(8)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                pdf.output(tmp_pdf.name)
-                tmp_pdf.seek(0)
-                pdf_bytes = tmp_pdf.read()
-            os.remove(tmp_pdf.name)
-            st.download_button(
-                label="⬇️ Download All Notes (PDF)",
-                data=pdf_bytes,
-                file_name=f"{student_code}_notes.pdf",
-                mime="application/pdf"
-            )
-
-            # --- DOCX Download (all notes) ---
-            def export_notes_to_docx(notes, student_code="student"):
-                doc = Document()
-                doc.add_heading("My Learning Notes", 0)
-                doc.add_heading("Table of Contents", level=1)
-                for idx, note in enumerate(notes):
-                    doc.add_paragraph(f"{idx+1}. {note.get('title', '(No Title)')} - {note.get('created', note.get('updated',''))}")
-                doc.add_page_break()
-                for note in notes:
-                    doc.add_heading(note.get('title','(No Title)'), level=1)
-                    if note.get("tag"):
-                        doc.add_paragraph(f"Tag: {note.get('tag','')}")
-                    doc.add_paragraph(note.get('text', ''))
-                    doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
-                    doc.add_paragraph('-' * 40)
-                    doc.add_paragraph("")
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
-                    doc.save(f.name)
-                    return f.name
-            docx_path = export_notes_to_docx(notes_to_show, student_code)
-            with open(docx_path, "rb") as f:
-                st.download_button(
-                    label="⬇️ Download All Notes (DOCX)",
-                    data=f.read(),
-                    file_name=f"{student_code}_notes.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            os.remove(docx_path)
-
-            st.markdown("---")
-            pinned_notes = [n for n in notes_to_show if n.get("pinned")]
-            other_notes = [n for n in notes_to_show if not n.get("pinned")]
-            show_list = pinned_notes + other_notes
-            for i, note in enumerate(show_list):
-                st.markdown(
-                    f"<div style='padding:12px 0 6px 0; font-weight:600; color:#7c3aed; font-size:1.18rem;'>"
-                    f"{'📌 ' if note.get('pinned') else ''}{note.get('title','(No Title)')}"
-                    f"</div>", unsafe_allow_html=True)
-                if note.get("tag"):
-                    st.caption(f"🏷️ Tag: {note['tag']}")
-                st.markdown(
-                    f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
-                    unsafe_allow_html=True)
-                st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
-
-                # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
-                download_cols = st.columns([1,1,1])
-                with download_cols[0]:
-                    # TXT per note
-                    txt_note = f"Title: {note.get('title','')}\n"
-                    if note.get('tag'):
-                        txt_note += f"Tag: {note['tag']}\n"
-                    txt_note += note.get('text', '') + "\n"
-                    txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
-                    st.download_button(
-                        label="⬇️ TXT",
-                        data=txt_note.encode("utf-8"),
-                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.txt",
-                        mime="text/plain",
-                        key=f"download_txt_{i}"
-                    )
-                with download_cols[1]:
-                    # PDF per note
-                    class SingleNotePDF(FPDF):
-                        def header(self):
-                            self.set_font('Arial', 'B', 13)
-                            self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
-                            self.ln(2)
-                    pdf_note = SingleNotePDF()
-                    pdf_note.add_page()
-                    pdf_note.set_font("Arial", size=12)
-                    if note.get("tag"):
-                        pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
-                    for line in note.get('text','').split("\n"):
-                        pdf_note.multi_cell(0, 7, line)
-                    pdf_note.ln(1)
-                    pdf_note.set_font("Arial", "I", 11)
-                    pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
-                    pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
-                    st.download_button(
-                        label="⬇️ PDF",
-                        data=pdf_bytes_single,
-                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.pdf",
-                        mime="application/pdf",
-                        key=f"download_pdf_{i}"
-                    )
-                with download_cols[2]:
-                    # DOCX per note
-                    doc_single = Document()
-                    doc_single.add_heading(note.get('title','(No Title)'), level=1)
-                    if note.get("tag"):
-                        doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
-                    doc_single.add_paragraph(note.get('text', ''))
-                    doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
-                    single_docx_io = io.BytesIO()
-                    doc_single.save(single_docx_io)
-                    st.download_button(
-                        label="⬇️ DOCX",
-                        data=single_docx_io.getvalue(),
-                        file_name=f"{student_code}_{note.get('title','note').replace(' ','_')}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"download_docx_{i}"
-                    )
-
-                cols = st.columns([1,1,1,1])
-                with cols[0]:
-                    if st.button("✏️ Edit", key=f"edit_{i}"):
-                        st.session_state["edit_note_idx"] = i
-                        st.session_state["edit_note_title"] = note["title"]
-                        st.session_state["edit_note_text"] = note["text"]
-                        st.session_state["edit_note_tag"] = note.get("tag", "")
-                        st.session_state["switch_to_edit_note"] = True
-                        st.rerun()
-                with cols[1]:
-                    if st.button("🗑️ Delete", key=f"del_{i}"):
-                        notes.remove(note)
-                        st.session_state[key_notes] = notes
-                        save_notes_to_db(student_code, notes)
-                        st.success("Note deleted.")
-                        st.rerun()
-                with cols[2]:
-                    if note.get("pinned"):
-                        if st.button("📌 Unpin", key=f"unpin_{i}"):
-                            note["pinned"] = False
-                            st.session_state[key_notes] = notes
-                            save_notes_to_db(student_code, notes)
-                            st.rerun()
-                    else:
-                        if st.button("📍 Pin", key=f"pin_{i}"):
-                            note["pinned"] = True
-                            st.session_state[key_notes] = notes
-                            save_notes_to_db(student_code, notes)
-                            st.rerun()
-                with cols[3]:
-                    st.caption("")
-# ---------------------- END TAB -------------------------
 
 
 
