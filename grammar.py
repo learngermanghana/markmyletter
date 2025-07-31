@@ -3010,9 +3010,7 @@ if tab == "Course Book":
             """
         )
 
-
-
-         # === LEARNING NOTES SUBTAB ===
+        # === LEARNING NOTES SUBTAB ===
         elif cb_subtab == "📒 Learning Notes":
                 st.markdown("""
                     <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
