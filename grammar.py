@@ -4761,7 +4761,7 @@ if tab == "Exams Mode & Custom Chat":
 
             def download_vocaroo_audio(url):
                 try:
-                    if "vocaroo.com" not in url:
+                    if ("voca.ro" not in url) and ("vocaroo.com" not in url):
                         return None, "Not a Vocaroo link."
                     # Get the Vocaroo ID
                     voca_id = url.rstrip("/").split("/")[-1]
