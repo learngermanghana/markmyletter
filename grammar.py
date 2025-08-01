@@ -4737,7 +4737,7 @@ if tab == "Exams Mode & Custom Chat":
         )
 
         # Upload (or record via phone/Vocaroo and upload) with 60 s limit
-        audio_file = st.file_uploader("Upload a WAV/MP3 file (≤ 60 sec)", type=["wav", "mp3"], "m4a")
+        audio_file = st.file_uploader("Upload a WAV/MP3/M4a file (≤ 60 sec)", type=["wav", "mp3", "m4a"])
         if audio_file:
             st.audio(audio_file)
 
