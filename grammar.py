@@ -1983,7 +1983,7 @@ def get_b1_schedule():
             "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
             "video": "",
             "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
-            "workbook_link": "https://drive.google.com/file/d/1EWI2vwqoIkao1Rh5cHahEql4R8Dj81nf/view?usp=sharing"
+            "workbook_link": "https://drive.google.com/file/d/1qVANqTLg4FOU40_WfLZyVTu5KBluzYrh/view?usp=sharing"
         },
         # TAG 4
         {
@@ -1993,6 +1993,7 @@ def get_b1_schedule():
             "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
             "video": "",
             "grammarbook_link": "",
             "workbook_link": ""
