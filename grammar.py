@@ -4746,25 +4746,32 @@ if tab == "Exams Mode & Custom Chat":
             key="pron_audio_uploader"
         )
 
-        if audio_file:
-            # Accept only wav or mp3 (extra check)
-            if not (
-                audio_file.type in ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/x-m4a"]
-                or audio_file.name.lower().endswith((".mp3", ".wav", ".m4a"))
-            ):
-                st.error("Please upload a WAV or MP3 audio file (you may need to select the correct type in your file picker).")
-            else:
-                st.audio(audio_file)
-                # Transcribe with Whisper
-                try:
-                    transcript_resp = client.audio.transcriptions.create(
-                        file=audio_file,
-                        model="whisper-1"
-                    )
-                    transcript_text = transcript_resp.text
-                except Exception as e:
-                    st.error(f"Sorry, could not process audio: {e}")
-                    st.stop()
+    if audio_file:
+        # Accept only wav, mp3, or m4a (extra check)
+        allowed_types = [
+            "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+            "audio/x-m4a", "audio/m4a", "audio/mp4"
+        ]
+        allowed_exts = (".mp3", ".wav", ".m4a")
+        # Sometimes the MIME type can be non-standard, so check both
+        if not (
+            audio_file.type in allowed_types
+            or audio_file.name.lower().endswith(allowed_exts)
+        ):
+            st.error("Please upload a .mp3, .wav, or .m4a audio file. If you can't see your file, use your phone's Files app or change browsers.")
+        else:
+            st.audio(audio_file)
+            # Transcribe with Whisper
+            try:
+                transcript_resp = client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1"
+                )
+                transcript_text = transcript_resp.text
+            except Exception as e:
+                st.error(f"Sorry, could not process audio: {e}")
+                st.stop()
+
 
                 # Show what the AI heard
                 st.markdown(f"**I heard you say:**  \n> {transcript_text}")
