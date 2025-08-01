@@ -4734,7 +4734,7 @@ if tab == "Exams Mode & Custom Chat":
             Record or upload your speaking sample below (max 60 seconds).  
             • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your phone.  
             • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3/M4A audio file.  
-            (Vocaroo sharing links are **not** supported.)
+            (Vocaroo sharing links are **not** supported. If you can't see your file, use your phone's Files app or change browsers.)
             """
         )
 
@@ -4821,6 +4821,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 
