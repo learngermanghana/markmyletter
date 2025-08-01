@@ -4713,12 +4713,8 @@ if tab == "Exams Mode & Custom Chat":
 
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
-        import datetime
-        import requests
-        import tempfile
-        import os
 
-        # ====== DAILY LIMIT ENFORCEMENT BLOCK ======
+        # ====== DAILY LIMIT ENFORCEMENT BLOCK (AT THE TOP) ======
         today_str = datetime.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
         doc = uploads_ref.get()
@@ -4730,100 +4726,85 @@ if tab == "Exams Mode & Custom Chat":
         if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
             st.stop()
-        # ============================================
+        # =======================================================
 
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            Record or upload your speaking sample (max 60 seconds), **OR paste a Vocaroo link below**.  
+            Record or upload your speaking sample below (max 60 seconds).  
             You’ll see what I understood, plus feedback on pronunciation, grammar, and fluency.
             """
         )
 
-        tab1, tab2 = st.tabs(["Upload File", "Paste Vocaroo Link"])
+        def download_vocaroo_audio(url):
+            try:
+                if ("voca.ro" not in url) and ("vocaroo.com" not in url):
+                    return None, "Not a Vocaroo link."
+                voca_id = url.rstrip("/").split("/")[-1]
+                mp3_url = f"https://media.vocaroo.com/mp3/{voca_id}"
+                ogg_url = f"https://media.vocaroo.com/ogg/{voca_id}"
+                headers = {
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/115.0.0.0 Safari/537.36"
+                    )
+                }
+                # Try MP3 first
+                r = requests.get(mp3_url, headers=headers)
+                if r.status_code == 200 and r.content[:2] == b'ID':
+                    tf = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+                    tf.write(r.content)
+                    tf.close()
+                    return tf.name, None
+                # Try OGG
+                r = requests.get(ogg_url, headers=headers)
+                if r.status_code == 200 and r.content[:4] == b'OggS':
+                    tf = tempfile.NamedTemporaryFile(delete=False, suffix=".ogg")
+                    tf.write(r.content)
+                    tf.close()
+                    return tf.name, None
+                return None, "Could not download audio from Vocaroo link. Try recording again or wait a minute."
+            except Exception as e:
+                return None, f"Error downloading: {e}"
 
-        # --------- Tab 1: File Upload ---------
-        with tab1:
-            audio_file = st.file_uploader("Upload a WAV/MP3 file (≤ 60 sec)", type=["wav", "mp3"])
-            file_ready = False
-            audio_path = None
+        # File uploader or Vocaroo link
+        st.markdown("**Option 1:** Upload a WAV/MP3 file (≤ 60 sec)")
+        audio_file = st.file_uploader("", type=["wav", "mp3"])
 
-            if audio_file:
-                st.audio(audio_file)
-                file_ready = True
-                audio_path = None  # use audio_file directly
+        st.markdown("---")
+        st.markdown("**Option 2:** Paste a [Vocaroo](https://vocaroo.com/) link (public)")
+        voca_link = st.text_input("Paste your Vocaroo link here (https://voca.ro/...)")
 
-        # --------- Tab 2: Vocaroo Link ---------
-        with tab2:
-            vocaroo_url = st.text_input("Paste your Vocaroo link here (e.g. https://vocaroo.com/...)")
-            file_ready = False
-            audio_path = None
+        audio_path = None
+        error_msg = None
 
-            def download_vocaroo_audio(url):
-                try:
-                    if ("voca.ro" not in url) and ("vocaroo.com" not in url):
-                        return None, "Not a Vocaroo link."
-                    # Get the Vocaroo ID
-                    voca_id = url.rstrip("/").split("/")[-1]
-                    # Try both MP3 and OGG endpoints (Vocaroo changed format sometimes)
-                    mp3_url = f"https://media.vocaroo.com/mp3/{voca_id}"
-                    ogg_url = f"https://media.vocaroo.com/ogg/{voca_id}"
-                    # Try MP3 first
-                    r = requests.get(mp3_url)
-                    if r.status_code == 200 and r.content[:2] == b'ID':
-                        # Looks like MP3 file
-                        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-                        tf.write(r.content)
-                        tf.close()
-                        return tf.name, None
-                    # Try OGG
-                    r = requests.get(ogg_url)
-                    if r.status_code == 200 and r.content[:4] == b'OggS':
-                        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".ogg")
-                        tf.write(r.content)
-                        tf.close()
-                        return tf.name, None
-                    return None, "Could not download audio from Vocaroo link. Try recording again."
-                except Exception as e:
-                    return None, f"Error downloading: {e}"
+        if audio_file:
+            # Save uploaded audio to a temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tf:
+                tf.write(audio_file.read())
+                audio_path = tf.name
 
-            if vocaroo_url and vocaroo_url.strip():
-                with st.spinner("Downloading from Vocaroo..."):
-                    audio_path, error = download_vocaroo_audio(vocaroo_url.strip())
-                    if error:
-                        st.error(error)
-                        file_ready = False
-                    else:
-                        st.success("Audio downloaded!")
-                        file_ready = True
+        elif voca_link.strip():
+            with st.spinner("Downloading audio from Vocaroo..."):
+                audio_path, error_msg = download_vocaroo_audio(voca_link.strip())
+                if error_msg:
+                    st.error(error_msg)
 
-        # --------- TRANSCRIBE AND EVALUATE ---------
-        if file_ready:
-            # Use audio_file from upload, or audio_path from vocaroo
-            if audio_file:
-                audio_to_send = audio_file
-            else:
-                audio_to_send = open(audio_path, "rb")
-
-            st.audio(audio_to_send)
-
+        if audio_path and not error_msg:
+            st.audio(audio_path)
             # Transcribe with Whisper
             try:
                 transcript_resp = client.audio.transcriptions.create(
-                    file=audio_to_send,
+                    file=open(audio_path, "rb"),
                     model="whisper-1"
                 )
                 transcript_text = transcript_resp.text
             except Exception as e:
                 st.error(f"Sorry, could not process audio: {e}")
-                if audio_path:
-                    os.remove(audio_path)
                 st.stop()
 
-            if audio_path:
-                audio_to_send.close()
-                os.remove(audio_path)
-
+            # Show what the AI heard
             st.markdown(f"**I heard you say:**  \n> {transcript_text}")
 
             # Now run a chat-completion to evaluate
@@ -4857,14 +4838,14 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
 
         else:
-            st.info("No audio uploaded yet. You can upload, or record on your phone or at www.vocaroo.com and paste the link above.")
+            if not error_msg:
+                st.info("No audio uploaded yet. You can record on your phone, at www.vocaroo.com, and then upload or paste the Vocaroo link.")
 
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-
-
 #
+
 # =========================================
 # End
 # =========================================
