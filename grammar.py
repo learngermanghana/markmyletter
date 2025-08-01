@@ -1993,10 +1993,10 @@ def get_b1_schedule():
             "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
-            "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
+            "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
         # TAG 5
         {
