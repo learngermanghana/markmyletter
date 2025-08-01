@@ -4733,45 +4733,44 @@ if tab == "Exams Mode & Custom Chat":
             """
             Record or upload your speaking sample below (max 60 seconds).  
             • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your phone.  
-            • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3 audio file.  
+            • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3/M4A audio file.  
             (Vocaroo sharing links are **not** supported.)
             """
         )
 
         # --- General file uploader: allow all files for easier selection on mobile ---
         audio_file = st.file_uploader(
-            "Upload your audio file (≤ 60 seconds, WAV/MP3 preferred). Tap 'Browse' to use your phone's file manager.",
+            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A preferred). Tap 'Browse' to use your phone's file manager.",
             type=None,  # Allow ALL file types so phone users see all files
             accept_multiple_files=False,
             key="pron_audio_uploader"
         )
 
-    if audio_file:
-        # Accept only wav, mp3, or m4a (extra check)
-        allowed_types = [
-            "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
-            "audio/x-m4a", "audio/m4a", "audio/mp4"
-        ]
-        allowed_exts = (".mp3", ".wav", ".m4a")
-        # Sometimes the MIME type can be non-standard, so check both
-        if not (
-            audio_file.type in allowed_types
-            or audio_file.name.lower().endswith(allowed_exts)
-        ):
-            st.error("Please upload a .mp3, .wav, or .m4a audio file. If you can't see your file, use your phone's Files app or change browsers.")
-        else:
-            st.audio(audio_file)
-            # Transcribe with Whisper
-            try:
-                transcript_resp = client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-1"
-                )
-                transcript_text = transcript_resp.text
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
-
+        if audio_file:
+            # Accept only wav, mp3, or m4a (extra check)
+            allowed_types = [
+                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                "audio/x-m4a", "audio/m4a", "audio/mp4"
+            ]
+            allowed_exts = (".mp3", ".wav", ".m4a")
+            # Sometimes the MIME type can be non-standard, so check both
+            if not (
+                audio_file.type in allowed_types
+                or audio_file.name.lower().endswith(allowed_exts)
+            ):
+                st.error("Please upload a .mp3, .wav, or .m4a audio file. If you can't see your file, use your phone's Files app or change browsers.")
+            else:
+                st.audio(audio_file)
+                # Transcribe with Whisper
+                try:
+                    transcript_resp = client.audio.transcriptions.create(
+                        file=audio_file,
+                        model="whisper-1"
+                    )
+                    transcript_text = transcript_resp.text
+                except Exception as e:
+                    st.error(f"Sorry, could not process audio: {e}")
+                    st.stop()
 
                 # Show what the AI heard
                 st.markdown(f"**I heard you say:**  \n> {transcript_text}")
@@ -4815,7 +4814,7 @@ if tab == "Exams Mode & Custom Chat":
 
         else:
             st.info(
-                "No audio uploaded yet. You can use your phone's recorder app or vocaroo.com, then download and upload the WAV/MP3 file here."
+                "No audio uploaded yet. You can use your phone's recorder app or vocaroo.com, then download and upload the WAV/MP3/M4A file here."
             )
 
         if st.button("⬅️ Back to Main Menu"):
