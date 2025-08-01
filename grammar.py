@@ -4731,67 +4731,97 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            Record or upload your speaking sample below (max 60 seconds).  
-            You’ll see what I understood, plus feedback on pronunciation, grammar, and fluency.
+            Record or upload your speaking sample below (max 60 seconds).  
+            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your phone.  
+            • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3/M4A audio file.  
+            (Vocaroo sharing links are **not** supported. If you can't see your file, use your phone's Files app or change browsers.)
             """
         )
 
-        # Upload (or record via phone/Vocaroo and upload) with 60 s limit
-        audio_file = st.file_uploader("Upload a WAV/MP3/M4a file (≤ 60 sec)", type=["wav", "mp3", "m4a"])
+        # --- General file uploader: allow all files for easier selection on mobile ---
+        audio_file = st.file_uploader(
+            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A preferred). Tap 'Browse' to use your phone's file manager.",
+            type=None,  # Allow ALL file types so phone users see all files
+            accept_multiple_files=False,
+            key="pron_audio_uploader"
+        )
+
         if audio_file:
-            st.audio(audio_file)
+            # Accept only wav, mp3, or m4a (extra check)
+            allowed_types = [
+                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                "audio/x-m4a", "audio/m4a", "audio/mp4"
+            ]
+            allowed_exts = (".mp3", ".wav", ".m4a")
+            # Sometimes the MIME type can be non-standard, so check both
+            if not (
+                audio_file.type in allowed_types
+                or audio_file.name.lower().endswith(allowed_exts)
+            ):
+                st.error("Please upload a .mp3, .wav, or .m4a audio file. If you can't see your file, use your phone's Files app or change browsers.")
+            else:
+                st.audio(audio_file)
+                # Transcribe with Whisper
+                try:
+                    transcript_resp = client.audio.transcriptions.create(
+                        file=audio_file,
+                        model="whisper-1"
+                    )
+                    transcript_text = transcript_resp.text
+                except Exception as e:
+                    st.error(f"Sorry, could not process audio: {e}")
+                    st.stop()
 
-            # Transcribe with Whisper
-            try:
-                transcript_resp = client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-1"
+                # Show what the AI heard
+                st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+
+                # Build evaluation prompt
+                eval_prompt = (
+                    "You are a German tutor. The student said:\n"
+                    f'"{transcript_text}"\n\n'
+                    "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
+                    "and then give three concise tips per category. "
+                    "Format as:\n"
+                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
                 )
-                transcript_text = transcript_resp.text
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
 
-            # Show what the AI heard
-            st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+                with st.spinner("Evaluating your sample..."):
+                    try:
+                        eval_resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful German tutor."},
+                                {"role": "user", "content": eval_prompt}
+                            ],
+                            temperature=0.2
+                        )
+                        result_text = eval_resp.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Evaluation error: {e}")
+                        result_text = None
 
-            # Now run a chat-completion to evaluate
-            eval_prompt = (
-                "You are a German tutor. The student said:\n"
-                f"\"{transcript_text}\"\n\n"
-                "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
-                "and then give three concise tips per category. "
-                "Format as:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-            )
-
-            with st.spinner("Evaluating your sample..."):
-                eval_resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful German tutor."},
-                        {"role": "user", "content": eval_prompt}
-                    ],
-                    temperature=0.2
-                )
-            st.markdown(eval_resp.choices[0].message.content)
-
-            # After successful upload/evaluation, increment usage count
-            uploads_ref.set({"count": count + 1, "date": today_str})
-
-            st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
-            if st.button("🔄 Try Another"):
-                st.rerun()
+                if result_text:
+                    st.markdown(result_text)
+                    # After successful upload/evaluation, increment usage count
+                    uploads_ref.set({"count": count + 1, "date": today_str})
+                    st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
+                    if st.button("🔄 Try Another"):
+                        st.rerun()
+                else:
+                    st.error("Could not get feedback. Please try again later.")
 
         else:
-            st.info("No audio uploaded yet. You can record on your phone or at www.vocaroo.com and then upload.")
+            st.info(
+                "No audio uploaded yet. You can use your phone's recorder app or vocaroo.com, then download and upload the WAV/MP3/M4A file here."
+            )
 
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 # =========================================
 # End
