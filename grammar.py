@@ -4713,6 +4713,9 @@ if tab == "Exams Mode & Custom Chat":
 
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
+        import datetime
+        import requests
+        import tempfile
 
         # ====== DAILY LIMIT ENFORCEMENT BLOCK (AT THE TOP) ======
         today_str = datetime.date.today().isoformat()
@@ -4845,6 +4848,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 # =========================================
 # End
