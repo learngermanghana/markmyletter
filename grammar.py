@@ -4710,12 +4710,9 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 2  # or 3, depending on your flow
                 st.rerun()
 
-
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
         import datetime
-        import re
-        import requests
 
         # ====== DAILY LIMIT ENFORCEMENT BLOCK (AT THE TOP) ======
         today_str = datetime.date.today().isoformat()
@@ -4735,134 +4732,89 @@ if tab == "Exams Mode & Custom Chat":
         st.info(
             """
             Record or upload your speaking sample below (max 60 seconds).  
-            You can either:
-              1. Paste a Vocaroo share link (e.g., https://voca.ro/...)  
-              2. Upload a local audio file (WAV or MP3).
-
-            On mobile: tap “Browse” and use the full file picker to manually locate your recording.
+            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your phone.  
+            • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3 audio file.  
+            (Vocaroo sharing links are **not** supported.)
             """
         )
 
-        # ---- Helper to fetch actual audio from a Vocaroo share link ----
-        def fetch_vocaroo_audio(vocaroo_url: str):
-            """
-            Given a Vocaroo share link, try to extract the direct audio URL and return bytes.
-            """
-            try:
-                headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
-                resp = requests.get(vocaroo_url, headers=headers, timeout=10)
-                if not resp.ok:
-                    return None, "Failed to load Vocaroo page."
-
-                html = resp.text
-
-                # Try to locate direct media URL (mp3 or ogg)
-                match = re.search(r'(https?://media\.vocaroo\.com/[^"\']+\.(?:mp3|ogg))', html)
-                if not match:
-                    match = re.search(r'"(https?://media\.vocaroo\.com/[^"]+\.(?:mp3|ogg))"', html)
-                if not match:
-                    return None, "Could not locate the direct audio URL on the Vocaroo page. Try again in a few seconds."
-
-                media_url = match.group(1)
-                media_resp = requests.get(media_url, headers=headers, timeout=10)
-                if not media_resp.ok:
-                    return None, "Failed to download the audio from Vocaroo."
-                return media_resp.content, None
-            except Exception as e:
-                return None, f"Error fetching Vocaroo audio: {e}"
-
-        # ---- Input section ----
-        vocaroo_link = st.text_input("📎 Paste Vocaroo share link (optional)", placeholder="https://voca.ro/...")
+        # --- General file uploader: allow all files for easier selection on mobile ---
         audio_file = st.file_uploader(
-            "Or upload a WAV/MP3 file (≤ 60 seconds) — tap 'Browse' to open full file picker",
-            type=["wav", "mp3"],
+            "Upload your audio file (≤ 60 seconds, WAV/MP3 preferred). Tap 'Browse' to use your phone's file manager.",
+            type=None,  # Allow ALL file types so phone users see all files
             accept_multiple_files=False,
             key="pron_audio_uploader"
         )
 
-        final_audio_bytes = None
-        source_label = None
-
-        if vocaroo_link and vocaroo_link.strip():
-            with st.spinner("Fetching audio from Vocaroo..."):
-                vocaroo_bytes, error = fetch_vocaroo_audio(vocaroo_link.strip())
-                if vocaroo_bytes:
-                    final_audio_bytes = vocaroo_bytes
-                    source_label = "Vocaroo"
-                else:
-                    st.error(f"Could not download audio from Vocaroo link. {error}")
-                    st.info("You can try again or upload a local audio file instead.")
-
-        if not final_audio_bytes and audio_file:
-            try:
-                final_audio_bytes = audio_file.read()
-                source_label = "Uploaded File"
-            except Exception as e:
-                st.error(f"Failed to read uploaded audio file: {e}")
-
-        if final_audio_bytes:
-            st.audio(final_audio_bytes, format="audio/mp3" if source_label == "Vocaroo" or (audio_file and audio_file.type == "audio/mpeg") else None)
-
-            # Transcribe with Whisper
-            try:
-                # Build a temporary in-memory file-like object if needed
-                from io import BytesIO
-                temp_audio = BytesIO(final_audio_bytes)
-                temp_audio.name = "upload.mp3"  # whisper may infer from name
-                transcript_resp = client.audio.transcriptions.create(
-                    file=temp_audio,
-                    model="whisper-1"
-                )
-                transcript_text = transcript_resp.text
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
-
-            # Show what the AI heard
-            st.markdown(f"**I heard you say:**  \n> {transcript_text}")
-
-            # Build evaluation prompt
-            eval_prompt = (
-                "You are a German tutor. The student said:\n"
-                f"\"{transcript_text}\"\n\n"
-                "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
-                "and then give three concise tips per category. "
-                "Format as:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-            )
-
-            with st.spinner("Evaluating your sample..."):
+        if audio_file:
+            # Accept only wav or mp3 (extra check)
+            if not (
+                audio_file.type in ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/x-m4a"]
+                or audio_file.name.lower().endswith((".mp3", ".wav", ".m4a"))
+            ):
+                st.error("Please upload a WAV or MP3 audio file (you may need to select the correct type in your file picker).")
+            else:
+                st.audio(audio_file)
+                # Transcribe with Whisper
                 try:
-                    eval_resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {"role": "system", "content": "You are a helpful German tutor."},
-                            {"role": "user", "content": eval_prompt}
-                        ],
-                        temperature=0.2
+                    transcript_resp = client.audio.transcriptions.create(
+                        file=audio_file,
+                        model="whisper-1"
                     )
-                    evaluation_text = eval_resp.choices[0].message.content
+                    transcript_text = transcript_resp.text
                 except Exception as e:
-                    evaluation_text = f"Error during evaluation: {e}"
+                    st.error(f"Sorry, could not process audio: {e}")
+                    st.stop()
 
-            st.markdown(evaluation_text)
+                # Show what the AI heard
+                st.markdown(f"**I heard you say:**  \n> {transcript_text}")
 
-            # After successful upload/evaluation, increment usage count
-            uploads_ref.set({"count": count + 1, "date": today_str})
+                # Build evaluation prompt
+                eval_prompt = (
+                    "You are a German tutor. The student said:\n"
+                    f'"{transcript_text}"\n\n'
+                    "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
+                    "and then give three concise tips per category. "
+                    "Format as:\n"
+                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+                )
 
-            st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
-            if st.button("🔄 Try Another"):
-                st.rerun()
+                with st.spinner("Evaluating your sample..."):
+                    try:
+                        eval_resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {"role": "system", "content": "You are a helpful German tutor."},
+                                {"role": "user", "content": eval_prompt}
+                            ],
+                            temperature=0.2
+                        )
+                        result_text = eval_resp.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Evaluation error: {e}")
+                        result_text = None
+
+                if result_text:
+                    st.markdown(result_text)
+                    # After successful upload/evaluation, increment usage count
+                    uploads_ref.set({"count": count + 1, "date": today_str})
+                    st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
+                    if st.button("🔄 Try Another"):
+                        st.rerun()
+                else:
+                    st.error("Could not get feedback. Please try again later.")
+
         else:
-            st.info("No audio provided yet. Paste a Vocaroo link above or upload a file using the browser picker.")
+            st.info(
+                "No audio uploaded yet. You can use your phone's recorder app or vocaroo.com, then download and upload the WAV/MP3 file here."
+            )
 
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
-
 
 
 # =========================================
