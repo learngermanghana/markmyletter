@@ -5055,6 +5055,7 @@ def bubble(role, text):
     """
 
 
+
 # ===== Schreiben =====
 
 db = firestore.client()
@@ -5237,6 +5238,130 @@ def load_letter_coach_progress(student_code):
     else:
         return "", []
 
+
+# --- Helper: Get level from Google Sheet (public CSV) ---
+
+SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
+
+@st.cache_data(ttl=300)
+def load_sheet():
+    return pd.read_csv(SHEET_URL)
+
+def get_level_from_code(student_code):
+    df = load_sheet()
+    student_code = str(student_code).strip().lower()
+    # Make sure 'StudentCode' column exists and is lowercase
+    if "StudentCode" not in df.columns:
+        df.columns = [c.strip() for c in df.columns]
+    if "StudentCode" in df.columns:
+        matches = df[df["StudentCode"].astype(str).str.strip().str.lower() == student_code]
+        if not matches.empty:
+            # Handles NaN, empty cells
+            level = matches.iloc[0]["Level"]
+            return str(level).strip().upper() if pd.notna(level) else "A1"
+    return "A1"
+
+
+
+
+#Maincode for me
+
+if tab == "Schreiben Trainer":
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #d63384;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;">
+            ✍️ Schreiben Trainer (Writing Practice)
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+
+    st.info(
+        """
+        ✍️ **This section is for Writing (Schreiben) only.**
+        - Practice your German letters, emails, and essays for A1–C1 exams.
+        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
+          👉 Go to **Exam Mode & Custom Chat** (tab above)!
+        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
+        """,
+        icon="✉️"
+    )
+
+    st.divider()
+
+    # --- Writing stats summary with Firestore ---
+    student_code = st.session_state.get("student_code", "demo")
+    stats = get_schreiben_stats(student_code)
+    if stats:
+        total = stats.get("total", 0)
+        passed = stats.get("passed", 0)
+        pass_rate = stats.get("pass_rate", 0)
+
+        # Milestone and title logic
+        if total <= 2:
+            writer_title = "🟡 Beginner Writer"
+            milestone = "Write 3 letters to become a Rising Writer!"
+        elif total <= 5 or pass_rate < 60:
+            writer_title = "🟡 Rising Writer"
+            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
+        elif total <= 7 or (60 <= pass_rate < 80):
+            writer_title = "🔵 Confident Writer"
+            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
+        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
+            writer_title = "🟢 Advanced Writer"
+            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
+        elif total >= 10 and pass_rate >= 95:
+            writer_title = "🏅 Master Writer!"
+            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
+        else:
+            writer_title = "✏️ Active Writer"
+            milestone = "Keep going to unlock your next milestone!"
+
+        st.markdown(
+            f"""
+            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
+                        box-shadow:0 1px 6px #00000010;">
+                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
+                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
+                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.info("No writing stats found yet. Write your first letter to see progress!")
+
+    # --- Update session states for new student (preserves drafts, etc) ---
+    prev_student_code = st.session_state.get("prev_student_code", None)
+    if student_code != prev_student_code:
+        stats = get_schreiben_stats(student_code)
+        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
+        st.session_state[f"{student_code}_last_feedback"] = None
+        st.session_state[f"{student_code}_last_user_letter"] = None
+        st.session_state[f"{student_code}_delta_compare_feedback"] = None
+        st.session_state[f"{student_code}_final_improved_letter"] = ""
+        st.session_state[f"{student_code}_awaiting_correction"] = False
+        st.session_state[f"{student_code}_improved_letter"] = ""
+        st.session_state["prev_student_code"] = student_code
+
+    # --- Sub-tabs for the Trainer ---
+    sub_tab = st.radio(
+        "Choose Mode",
+        ["Mark My Letter", "Ideas Generator (Letter Coach)"],
+        horizontal=True,
+        key=f"schreiben_sub_tab_{student_code}"
+    )
+
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -5333,16 +5458,26 @@ if tab == "Schreiben Trainer":
         key="schreiben_sub_tab"
     )
 
-    # --- Level picker ---
-    schreiben_levels = ["A1", "A2", "B1", "B2", "C1"]
-    prev_level = st.session_state.get("schreiben_level", "A1")
-    schreiben_level = st.selectbox(
-        "Choose your writing level:",
-        schreiben_levels,
-        index=schreiben_levels.index(prev_level) if prev_level in schreiben_levels else 0,
-        key="schreiben_level_selector"
+        # --- Level picker: Auto-detect from student code (manual override removed) ---
+    if student_code:
+        detected_level = get_level_from_code(student_code)
+        # Only apply detected level when first seeing this student code
+        if st.session_state.get("prev_student_code_for_level") != student_code:
+            st.session_state["schreiben_level"] = detected_level
+            st.session_state["prev_student_code_for_level"] = student_code
+    else:
+        detected_level = "A1"
+        if "schreiben_level" not in st.session_state:
+            st.session_state["schreiben_level"] = detected_level
+
+    # Ensure current writing level variable reflects auto-detected one
+    schreiben_level = st.session_state.get("schreiben_level", "A1")
+
+    st.markdown(
+        f"<span style='color:gray;font-size:0.97em;'>Auto-detected level from your code: <b>{detected_level}</b></span>",
+        unsafe_allow_html=True
     )
-    st.session_state["schreiben_level"] = schreiben_level
+
 
     st.divider()
 
@@ -5376,11 +5511,11 @@ if tab == "Schreiben Trainer":
         import re
         def get_level_requirements(level):
             reqs = {
-                "A1": {"min": 20, "max": 40, "desc": "A1 formal/informal letters should be 25–35 words. Cover all bullet points."},
-                "A2": {"min": 20, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
+                "A1": {"min": 25, "max": 40, "desc": "A1 formal/informal letters should be 25–40 words. Cover all bullet points."},
+                "A2": {"min": 30, "max": 40, "desc": "A2 formal/informal letters should be 30–40 words. Cover all bullet points."},
                 "B1": {"min": 80, "max": 150, "desc": "B1 letters/essays should be about 80–150 words, with all points covered and clear structure."},
                 "B2": {"min": 150, "max": 250, "desc": "B2 essays are 180–220 words, opinion essays or reports, with good structure and connectors."},
-                "C1": {"min": 250, "max": 350, "desc": "C1 essays are 250–350+ words. Use advanced structures and express opinions clearly."}
+                "C1": {"min": 230, "max": 350, "desc": "C1 essays are 230–250+ words. Use advanced structures and express opinions clearly."}
             }
             return reqs.get(level.upper(), reqs["A1"])
 
@@ -5393,24 +5528,36 @@ if tab == "Schreiben Trainer":
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
             # -- Apply Goethe writing rules here --
-            requirements = get_level_requirements(schreiben_level)
+            requirements = get_level_requirements(detected_level)  # << USE AUTO-DETECTED LEVEL
             word_count = count_words(user_letter)
             min_wc = requirements["min"]
             max_wc = requirements["max"]
 
-            # --- Block too-short answers for A1/A2, warn for B1–C1
-            if schreiben_level in ("A1", "A2"):
+            if detected_level in ("A1", "A2"):
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your letter is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your letter is too short for {detected_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
                 elif word_count > max_wc:
-                    st.warning(f"ℹ️ Your letter is a bit long for {schreiben_level} ({word_count} words). The exam expects 20–40 words.")
+                    st.warning(f"ℹ️ Your letter is a bit long for {detected_level} ({word_count} words). The exam expects {min_wc}-{max_wc} words.")
             else:
                 if word_count < min_wc:
-                    st.error(f"⚠️ Your essay is too short for {schreiben_level} ({word_count} words). {requirements['desc']}")
+                    st.error(f"⚠️ Your essay is too short for {detected_level} ({word_count} words). {requirements['desc']}")
                     st.stop()
-                elif word_count > max_wc + 40 and schreiben_level in ("B1", "B2"):
-                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {schreiben_level} ({word_count} words). Try to stay within the guidelines.")
+                elif word_count > max_wc + 40 and detected_level in ("B1", "B2"):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {detected_level} ({word_count} words). Try to stay within the guidelines.")
+
+        # --------- Reset correction states (do not indent inside above ifs)
+        for k, v in [
+            ("last_feedback", None),
+            ("last_user_letter", None),
+            ("delta_compare_feedback", None),
+            ("improved_letter", ""),
+            ("awaiting_correction", False),
+            ("final_improved_letter", "")
+        ]:
+            session_key = f"{student_code}_{k}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = v
 
         # Namespaced correction state per student (reset on session)
         for k, v in [
@@ -5631,7 +5778,6 @@ if tab == "Schreiben Trainer":
                 "Always reply in English, never in German. "
                 "When a student submits something, first congratulate them with ideas about how to go about the letter. "
                 "Analyze if their message is a new prompt, a continuation, or a question. "
-                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "If it's a question, answer simply and encourage them to keep building their letter step by step. "
                 "If it's a continuation, review their writing so far and guide them to the next step. "
                 "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students, help them but let them think by themselves also. "
@@ -5664,7 +5810,6 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, a creative and supportive German letter-writing coach for A2 students. "
                 "Always reply in English, never in German. "
                 "Congratulate the student on their first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
-                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students; help them but let them think by themselves also. "
                 "    2. For structure, require their letter to use clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
                 "       - Always recommend 'Zuerst' instead of 'Erstens' for A2 letters, as it is simpler and more natural for personal or exam letters. "
@@ -5685,7 +5830,6 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, a supportive German letter/essay coach for B1 students. "
                 "Always reply in English, never in German. "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of submission, and determine whether it is a formal letter, informal letter, or opinion essay. "
-                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "If you are not sure, politely ask the student what type of writing they need help with. "
                 f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
                 f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
@@ -5705,7 +5849,6 @@ if tab == "Schreiben Trainer":
                 "You are Herr Felix, a supportive German writing coach for B2 students. "
                 "Always reply in English, never in German. "
                 "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an opinion/argumentative essay. "
-                "If their prompt seems like a topic for discussion and not a letter or continuation of letter, prompt that you are only trained to help students write letter so for speaking practice they should go to Exams and Custom Chat Mode and select the right option there"
                 "If you are not sure, politely ask the student what type of writing they need help with. "
                 f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
                 f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
@@ -6047,6 +6190,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
