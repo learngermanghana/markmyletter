@@ -835,13 +835,12 @@ if tab == "Dashboard":
             if before_start and start_date_obj:
                 days_until = (start_date_obj - today).days
                 label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
-                percent = 0
                 bar_html = f"""
     <div style="margin-top:8px; font-size:0.85em;">
-        <div style="margin-bottom:4px;">{label}</div>
-        <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
-            <div style="width:{percent}%; background:#1976d2; height:100%;"></div>
-        </div>
+      <div style="margin-bottom:4px;">{label}</div>
+      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+        <div style="width:3%; background:#1976d2; height:100%;"></div>
+      </div>
     </div>
     """
             elif start_date_obj and end_date_obj:
@@ -853,19 +852,19 @@ if tab == "Dashboard":
                 label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
                 bar_html = f"""
     <div style="margin-top:8px; font-size:0.85em;">
-        <div style="margin-bottom:4px;">{label}</div>
-        <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
-            <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
-        </div>
-        <div style="margin-top:2px; font-size:0.75em;">
-            Progress: {percent}% (started {elapsed} of {total_days} days)
-        </div>
+      <div style="margin-bottom:4px;">{label}</div>
+      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+        <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
+      </div>
+      <div style="margin-top:2px; font-size:0.75em;">
+        Progress: {percent}% (started {elapsed} of {total_days} days)
+      </div>
     </div>
     """
             else:
                 bar_html = f"""
     <div style="margin-top:8px; font-size:0.85em;">
-        <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+      <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
     </div>
     """
 
@@ -892,22 +891,23 @@ if tab == "Dashboard":
                 padding:13px 11px; margin-bottom:13px;
                 background:#eaf6fb; font-size:1.15em;
                 line-height:1.65; color:#232323;'>
-        <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-        {session_items_html}
-        {bar_html}
-        <div style="font-size:0.98em; margin-top:6px;">
-            <b>Course period:</b> {period_str}
-        </div>
-        {f'<a href="{doc_url}" target="_blank" '
-            f'style="font-size:1em;color:#17617a;'
-            f'text-decoration:underline;margin-top:6px;'
-            f'display:inline-block;">📄 View/download full class schedule</a>'
-            if doc_url else ''}
+      <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+      {session_items_html}
+      {bar_html}
+      <div style="font-size:0.98em; margin-top:6px;">
+        <b>Course period:</b> {period_str}
+      </div>
+      {f'<a href="{doc_url}" target="_blank" '
+        f'style="font-size:1em;color:#17617a;'
+        f'text-decoration:underline;margin-top:6px;'
+        f'display:inline-block;">📄 View/download full class schedule</a>'
+        if doc_url else ''}
     </div>
     """,
                 unsafe_allow_html=True,
             )
 #
+
 
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
@@ -6034,6 +6034,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
