@@ -3943,8 +3943,8 @@ if tab == "Exams Mode & Custom Chat":
                 f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
                 f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
-                f"1. Explain difficult words when level is A1,A2,B1,B2. "
-                f"2. If a student asks 3 grammar questions in a row without engaging with your conversation questions, remind them warmly and firmly to check their course book using the search button for grammar explanations. Let them know using their book will help them become more independent learners. Kindly explain you’ll pause further grammar explanations until they have checked the book and tried to answer the conversation questions. Stay positive, but firm about using the resources. If they have a specific, clear question after reading, you will help gladly. "
+                f" Explain difficult words when level is A1,A2,B1,B2. "
+                f"IMPORTANT: If a student asks 3 grammar questions in a row without trying to answer your conversation questions, respond warmly but firmly: remind them to check their course book using the search button for grammar explanations. Explain that reading their book will help them become more independent and confident as a learner. Kindly pause grammar explanations until they have checked the book and tried the conversation questions. Stay positive, but firm about using the resources. If they still have a specific question after reading, gladly help. "
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 8 questions in total). "
                 f"Never ask more than 2 questions about the same keyword. "
                 f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
@@ -3954,7 +3954,7 @@ if tab == "Exams Mode & Custom Chat":
             )
         return ""
 
-
+#
 # ---- SESSION STATE DEFAULTS ----
     default_state = {
         "falowen_stage": 1,
@@ -5964,6 +5964,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
