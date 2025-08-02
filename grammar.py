@@ -2297,7 +2297,7 @@ def get_b2_schedule():
             "chapter": "1.1",
             "goal": "Express your personal identity and values.",
             "instruction": "Write a self-description and discuss your core values.",
-            "video": "",
+            "video": "https://youtu.be/a9LxkxNdnEg",
             "grammarbook_link": "https://drive.google.com/file/d/17pVc0VfLm32z4zmkaaa_cdshKJEQQxYa/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1D1eb-iwfl_WA2sXPOSPD_66NCiTB4o2w/view?usp=sharing",
             "grammar_topic": "Adjektivdeklination (adjective endings after definite/indefinite articles)"
@@ -6190,6 +6190,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
