@@ -103,96 +103,18 @@ def fetch_youtube_playlist_videos(playlist_id, api_key):
             break
     return videos
 
+import sqlite3
+import atexit
+import streamlit as st
+from datetime import date
 
-# ==== DB CONNECTION ====
+# ==== DB CONNECTION & INITIALIZATION ====
+
 def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
-
-# ==== INITIALIZE DB TABLES ====
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # Vocab Progress Table (NO daily limit)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    # Schreiben Progress Table (DAILY LIMIT)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    # Sprechen Progress Table (DAILY LIMIT)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-
-    # Exam Progress Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,
-            used         TEXT,
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    # My Vocab Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    # Sprechen Daily Usage Table
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_usage (
-            student_code TEXT,
-            date TEXT,
-            count INTEGER,
-            PRIMARY KEY (student_code, date)
-        )
-    """)
-    conn.commit()
-
-init_db()  # <<-- Make sure this is before any other DB calls!
-
-# ==== DB CONNECTION ====
-def get_connection():
+    """
+    Return a SQLite connection stored in Streamlit session state.
+    Ensures the same connection is reused during the app session.
+    """
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect(
             "vocab_progress.db", check_same_thread=False
@@ -200,10 +122,14 @@ def get_connection():
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
-# ==== INITIALIZE DB TABLES ====
 def init_db():
+    """
+    Create all required tables if they do not exist.
+    Call this once at startup to guarantee DB schema.
+    """
     conn = get_connection()
     c = conn.cursor()
+
     # Vocab Progress Table (NO daily limit)
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
@@ -217,6 +143,7 @@ def init_db():
             date TEXT
         )
     """)
+
     # Schreiben Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
@@ -230,6 +157,7 @@ def init_db():
             date TEXT
         )
     """)
+
     # Sprechen Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
@@ -244,6 +172,7 @@ def init_db():
             date TEXT
         )
     """)
+
     # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
@@ -255,6 +184,7 @@ def init_db():
             PRIMARY KEY (student_code, level, teil)
         )
     """)
+
     # My Vocab Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
@@ -266,7 +196,8 @@ def init_db():
             date_added TEXT
         )
     """)
-    # Daily Usage Tables
+
+    # Daily Usage Tables (for usage tracking/limits)
     for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
         c.execute(f"""
             CREATE TABLE IF NOT EXISTS {tbl} (
@@ -278,6 +209,8 @@ def init_db():
         """)
     conn.commit()
 
+# Initialize database tables at import
+init_db()
 
 # ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
@@ -314,31 +247,54 @@ def inc_sprechen_usage(student_code):
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
+
     
 
-# ==== YOUTUBE PLAYLIST HELPERS ====
+import streamlit as st
+import requests
 
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+# ==== YOUTUBE CONFIG & HELPER ====
+
+YOUTUBE_API_KEY = st.secrets["youtube_api_key"]  # Or wherever you store your key
 
 YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
-    ],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
-    "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
-    ],
+    "A1": "PL5cbb7kVbA4wFqFkmblK5z7Cwr2AvAxkH",
+    "A2": "PL5cbb7kVbA4yVbLqQNLn3nJLCTCZbFZQI",
+    "B1": "PL5cbb7kVbA4wAZ3sMv6hCyNqSdQTDg8wF",
+    # ... add others as needed
 }
+
+@st.cache_data
+def fetch_youtube_playlist_videos(playlist_id):
+    """
+    Returns a list of video dicts from a YouTube playlist.
+    """
+    videos = []
+    base_url = (
+        f"https://www.googleapis.com/youtube/v3/playlistItems"
+        f"?part=snippet&maxResults=50&playlistId={playlist_id}&key={YOUTUBE_API_KEY}"
+    )
+    next_page = ""
+    while True:
+        url = base_url + (f"&pageToken={next_page}" if next_page else "")
+        res = requests.get(url)
+        if not res.ok:
+            break
+        data = res.json()
+        for item in data.get("items", []):
+            snippet = item["snippet"]
+            video_id = snippet["resourceId"]["videoId"]
+            videos.append({
+                "title": snippet["title"],
+                "video_id": video_id,
+                "url": f"https://www.youtube.com/watch?v={video_id}",
+                "publishedAt": snippet.get("publishedAt", "")
+            })
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
+
 
 
 @st.cache_data(ttl=43200)  # cache for 12 hours
@@ -484,73 +440,6 @@ def highlight_keywords(text, words):
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
 
-    
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv"
-
-@st.cache_data
-def load_student_data():
-    # 1) Fetch CSV
-    try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
-    except Exception:
-        st.error("❌ Could not load student data.")
-        st.stop()
-
-    # 2) Strip whitespace
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-
-    # 3) Drop rows missing a ContractEnd
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-
-    # 4) Parse ContractEnd into datetime (two formats)
-    df["ContractEnd_dt"] = pd.to_datetime(
-        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
-    )
-    # Fallback European format where needed
-    mask = df["ContractEnd_dt"].isna()
-    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
-        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
-    )
-
-    # 5) Sort by latest ContractEnd_dt and drop duplicates
-    df = df.sort_values("ContractEnd_dt", ascending=False)
-    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-
-    # 6) Clean up helper column
-    df = df.drop(columns=["ContractEnd_dt"])
-
-    return df
-
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
-    # Debug lines removed
-
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-
-    # Try known formats
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
-        except ValueError:
-            continue
-
-    # Fallback to pandas auto-parse
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
-        expiry_date = parsed.to_pydatetime()
-
-    today = datetime.now().date()
-    # Debug lines removed
-
-    return expiry_date.date() < today
 
 
 # ---- Cookie & Session Setup ----
@@ -720,7 +609,10 @@ if not st.session_state["logged_in"]:
                     st.error("Account not found. Please create one below.")
                 else:
                     data = doc.to_dict()
-                    if data.get("password") != login_password:
+                    stored_hash = data.get("password", "")
+                    if not stored_hash:
+                        st.error("No password set. Please create an account.")
+                    elif not bcrypt.checkpw(login_password.encode("utf-8"), stored_hash.encode("utf-8")):
                         st.error("Incorrect password.")
                     else:
                         st.session_state.update({
@@ -754,14 +646,16 @@ if not st.session_state["logged_in"]:
             if valid.empty:
                 st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
             else:
+                hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                 db.collection("students").document(new_code).set({
                     "name":     new_name,
                     "email":    new_email,
-                    "password": new_password
+                    "password": hashed
                 })
                 st.success("Account created! Please log in above.")
 
     st.stop()
+
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
@@ -776,14 +670,75 @@ if st.button("Log out"):
 
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data
 def load_student_data():
-    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(csv_url)
+    # 1) Fetch CSV
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+
+    # 2) Normalize column names (trim and remove spaces)
     df.columns = df.columns.str.strip().str.replace(" ", "")
+
+    # 3) Strip whitespace from all cell values
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+
+    # 4) Drop rows missing a ContractEnd
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+
+    # 5) Parse ContractEnd into datetime (two formats)
+    df["ContractEnd_dt"] = pd.to_datetime(
+        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
+    )
+    # Fallback European format where needed
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
+        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
+    )
+
+    # 6) Sort by latest ContractEnd_dt and drop duplicates
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+
+    # 7) Clean up helper column
+    df = df.drop(columns=["ContractEnd_dt"])
     return df
+
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    # Debug lines removed
+
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+
+    # Try known formats
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+
+    # Fallback to pandas auto-parse
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+
+    today = datetime.now().date()
+    # Debug lines removed
+
+    return expiry_date.date() < today
 
 @st.cache_data
 def load_assignment_scores():
@@ -1121,7 +1076,7 @@ if tab == "Dashboard":
         # ---- Per-level YouTube Playlist ----
         playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
         if playlist_id:
-            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+            video_list = fetch_youtube_playlist_videos(playlist_id)
             if video_list:
                 today_idx = date.today().toordinal()
                 pick = today_idx % len(video_list)
@@ -2938,7 +2893,7 @@ if tab == "Course Book":
         with st.expander("🎬 Video of the Day for Your Level"):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
             if playlist_id:
-                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+                video_list = fetch_youtube_playlist_videos(playlist_id)
                 if video_list:
                     today_idx = date.today().toordinal()
                     pick = today_idx % len(video_list)
@@ -4174,6 +4129,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Ask student one question at a time"
                 "Suggest useful phrases student can use to begin their phrases"
                 "Check if student is writing on C1 Level"
+                "After correction, proceed to the next question using the phrase your next recommended question"
                 "When there is error, correct for the student and teach them how to say it correctly"
                 "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
                 "Help student progress from B2 to C1 with your support and guidance"
@@ -4184,14 +4140,14 @@ if tab == "Exams Mode & Custom Chat":
                 f"You are Herr Felix, a supportive and innovative German teacher. "
                 f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
                 f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
-                f"Promise them that if they answer all 10 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
+                f"Promise them that if they answer all 8 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
                 f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
                 f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
                 f"1. Explain difficult words when level is A1,A2,B1,B2. "
-                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 10 questions in total). "
+                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 8 questions in total). "
                 f"Never ask more than 2 questions about the same keyword. "
-                f"After the student answers 10 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
                 f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
                 f"All feedback and corrections should be {correction_lang}. "
                 f"Encourage the student and keep the chat motivating. "
@@ -6208,6 +6164,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
