@@ -3746,7 +3746,7 @@ def save_exam_progress(student_code, progress_items):
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     all_progress = data.get("completed", [])
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for item in progress_items:
         # Only add if not already present (avoid duplicates)
         already = any(
@@ -3786,8 +3786,11 @@ def back_step(to_stage=1):
         ]
     else:
         keys_to_clear = []
+
     for k in keys_to_clear:
-        st.session_state[k] = None
+        st.session_state.pop(k, None)
+    # Ensure no stray None keys remain
+    st.session_state.pop(None, None)
     st.session_state["falowen_stage"] = to_stage
     st.rerun()
 
@@ -3822,10 +3825,26 @@ highlight_words = [
     "Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"
 ]
 
-def highlight_keywords(text, words):
+import re
+
+def highlight_keywords(text, words, ignore_case=True):
+    """
+    Highlights each keyword in the input text with a styled span.
+    - Uses word boundaries to match whole words only.
+    - Escapes each keyword for regex safety.
+    - Allows case-insensitive matching if ignore_case=True.
+    """
+    flags = re.IGNORECASE if ignore_case else 0
     for w in words:
-        text = text.replace(w, f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{w}</span>")
+        pattern = r'\b' + re.escape(w) + r'\b'
+        text = re.sub(
+            pattern,
+            lambda m: f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{m.group(0)}</span>",
+            text,
+            flags=flags,
+        )
     return text
+
 
 if tab == "Exams Mode & Custom Chat":
     # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
@@ -6162,6 +6181,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
