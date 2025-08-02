@@ -769,49 +769,105 @@ if tab == "Dashboard":
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
     if not class_name or not class_schedule:
         st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
     else:
-        days      = class_schedule.get("days", [])
-        time_str  = class_schedule.get("time", "")
-        start_dt  = class_schedule.get("start_date", "")
-        end_dt    = class_schedule.get("end_date", "")
-        doc_url   = class_schedule.get("doc_url", "")
+        days = class_schedule.get("days", [])
+        time_str = class_schedule.get("time", "")
+        start_dt = class_schedule.get("start_date", "")
+        end_dt = class_schedule.get("end_date", "")
+        doc_url = class_schedule.get("doc_url", "")
+
+        # parse dates
+        today = datetime.today().date()
+        start_date_obj = None
+        end_date_obj = None
+        try:
+            if start_dt:
+                start_date_obj = datetime.strptime(start_dt, "%Y-%m-%d").date()
+        except Exception:
+            start_date_obj = None
+        try:
+            if end_dt:
+                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+        except Exception:
+            end_date_obj = None
+
+        # course not started yet
+        before_start = start_date_obj and today < start_date_obj
+        # course already over
+        after_end = end_date_obj and today > end_date_obj
 
         # map day names → indices
         day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # check if class ended
-        class_over = False
-        end_date_obj = None
-        if end_dt:
-            try:
-                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
-                class_over = datetime.today().date() > end_date_obj
-            except Exception:
-                pass
+        # build next up to 3 session dates respecting start and end
+        def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
+            results = []
+            if not weekday_indices:
+                return results
+            check_date = from_date
+            # iterate until enough or past end_date (if given)
+            while len(results) < limit:
+                if end_date and check_date > end_date:
+                    break
+                if check_date.weekday() in weekday_indices:
+                    results.append(check_date)
+                check_date += timedelta(days=1)
+            return results
 
-        if class_over:
+        upcoming_sessions = []
+        if before_start:
+            # show first sessions starting at start_date_obj
+            start_ref = start_date_obj
+            upcoming_sessions = get_next_sessions(start_ref, day_indices, limit=3, end_date=end_date_obj)
+        elif after_end:
+            upcoming_sessions = []
+        else:
+            # course in progress
+            upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
+
+        # course over?
+        if after_end:
+            end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
             st.error(
-                f"❌ Your class ({class_name}) ended on "
-                f"{end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt}. "
+                f"❌ Your class ({class_name}) ended on {end_str}. "
                 "Please contact the office for next steps."
             )
         else:
-            # build next up to 3 sessions
-            next_classes = []
-            if day_indices:
-                today_idx = datetime.today().weekday()
-                for offset in range(7):
-                    idx = (today_idx + offset) % 7
-                    if idx in day_indices:
-                        next_classes.append((
-                            week_days[idx],
-                            (datetime.today() + timedelta(days=offset)).strftime("%d %b")
-                        ))
-                        if len(next_classes) == 3:
-                            break
+            # build status line: starts in / days remaining
+            status_lines = []
+            if before_start and start_date_obj:
+                delta = (start_date_obj - today).days
+                status_lines.append(f"📆 Starts in {delta} day{'s' if delta != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})")
+            if start_date_obj and not before_start:
+                # course started
+                if end_date_obj:
+                    remaining = (end_date_obj - today).days
+                    status_lines.append(f"⏳ {remaining} day{'s' if remaining != 1 else ''} remaining in course")
+            # fallback if no dates
+            if not status_lines:
+                status_lines.append(f"<b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}")
+
+            # render
+            session_items_html = ""
+            if upcoming_sessions:
+                list_items = []
+                for session_date in upcoming_sessions:
+                    weekday_name = week_days[session_date.weekday()]
+                    display_date = session_date.strftime("%d %b")
+                    list_items.append(
+                        f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
+                        f"<span style='color:#1976d2;'>{display_date}</span> "
+                        f"<span style='color:#333;'>{time_str}</span></li>"
+                    )
+                session_items_html = "<ul style=\"padding-left:16px; margin:9px 0 0 0;\">" + "".join(list_items) + "</ul>"
+            else:
+                # if before start but no sessions found (edge), still show first possible days
+                session_items_html = '<span style="color:#c62828;">No upcoming sessions in the visible window.</span>'
+
+            # course period string (still show)
+            period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
 
             st.markdown(
                 f"""
@@ -820,15 +876,12 @@ if tab == "Dashboard":
                             background:#eaf6fb; font-size:1.15em;
                             line-height:1.65; color:#232323;'>
                     <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-                    {'<ul style="padding-left:16px; margin:9px 0 0 0;">' + ''.join([
-                        f"<li style='margin-bottom:6px;'><b>{d}</b> "
-                        f"<span style='color:#1976d2;'>{dt}</span> "
-                        f"<span style='color:#333;'>{time_str}</span></li>"
-                        for d, dt in next_classes
-                    ]) + '</ul>' if next_classes else
-                      '<span style="color:#c62828;">Schedule not set yet.</span>'}
+                    {session_items_html}
                     <div style="font-size:0.98em; margin-top:6px;">
-                        <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+                        {' '.join(status_lines)}
+                    </div>
+                    <div style="font-size:0.98em; margin-top:4px;">
+                        <b>Course period:</b> {period_str}
                     </div>
                     {f'<a href="{doc_url}" target="_blank" '
                       f'style="font-size:1em;color:#17617a;'
@@ -839,6 +892,7 @@ if tab == "Dashboard":
                 """,
                 unsafe_allow_html=True
             )
+#
 
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
@@ -5965,6 +6019,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
