@@ -1,36 +1,32 @@
 # ==== Standard Library ====
-import os                  # OS file ops
-import random              # Randomization
-import difflib             # Optional: For fuzzy matching
-import sqlite3             # Optional: Local DB (not needed if using Firestore only)
-import atexit              # Optional: Exit hooks
-import json                # JSON ops
-import re                  # Regex
+import os
+import random
+import difflib
+import sqlite3
+import atexit
+import json
+import re
 from datetime import date, datetime, timedelta
-import time                # Timing
-import io                  # IO streams
+import time
+import io
 import bcrypt
-import tempfile            # Temp file creation
-import urllib.parse        # URL encoding/decoding
+import tempfile
+import urllib.parse
 
 # ==== Third-Party Packages ====
-import pandas as pd                        # Data handling
-import streamlit as st                     # App framework
-import matplotlib.pyplot as plt            # Charts/plots
-import requests                            # HTTP requests (for Google Sheets, etc)
-from openai import OpenAI                  # OpenAI API client
-import firebase_admin                      # Firebase app
-from firebase_admin import credentials, firestore    # Firestore DB
-from fpdf import FPDF                      # PDF export
-from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
-from docx import Document                  # Optional: DOCX notes download
-from gtts import gTTS                      # Text-to-speech for vocab audio
-from streamlit_quill import st_quill            # WYSIWYG note editor
-from bs4 import BeautifulSoup                   # HTML parsing/clean export for TXT/PDF/DOCX
-
-# If you ever add fuzzy matching, you can use:
-# from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
-
+import pandas as pd
+import streamlit as st
+import matplotlib.pyplot as plt
+import requests
+from openai import OpenAI
+import firebase_admin
+from firebase_admin import credentials, firestore
+from fpdf import FPDF
+from streamlit_cookies_manager import EncryptedCookieManager
+from docx import Document
+from gtts import gTTS
+from streamlit_quill import st_quill
+from bs4 import BeautifulSoup
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
@@ -45,7 +41,6 @@ st.markdown(
 
 # ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
-    # Convert SecretDict to plain dict for Certificate()
     cred_dict = dict(st.secrets["firebase"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
@@ -59,62 +54,8 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
-    ],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
-    # etc.
-}
-
-
-@st.cache_data(ttl=3600*12)  # cache for 12 hours
-def fetch_youtube_playlist_videos(playlist_id, api_key):
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
-    videos = []
-    next_page = ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            url = f"https://www.youtube.com/watch?v={vid}"
-            title = item["snippet"]["title"]
-            videos.append({"title": title, "url": url})
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
-
-import sqlite3
-import atexit
-import streamlit as st
-from datetime import date
-
 # ==== DB CONNECTION & INITIALIZATION ====
-
 def get_connection():
-    """
-    Return a SQLite connection stored in Streamlit session state.
-    Ensures the same connection is reused during the app session.
-    """
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect(
             "vocab_progress.db", check_same_thread=False
@@ -123,14 +64,8 @@ def get_connection():
     return st.session_state["conn"]
 
 def init_db():
-    """
-    Create all required tables if they do not exist.
-    Call this once at startup to guarantee DB schema.
-    """
     conn = get_connection()
     c = conn.cursor()
-
-    # Vocab Progress Table (NO daily limit)
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,8 +78,6 @@ def init_db():
             date TEXT
         )
     """)
-
-    # Schreiben Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,8 +90,6 @@ def init_db():
             date TEXT
         )
     """)
-
-    # Sprechen Progress Table (DAILY LIMIT)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,20 +103,16 @@ def init_db():
             date TEXT
         )
     """)
-
-    # Exam Progress Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
             student_code TEXT,
-            level        TEXT,
-            teil         TEXT,
-            remaining    TEXT,
-            used         TEXT,
+            level TEXT,
+            teil TEXT,
+            remaining TEXT,
+            used TEXT,
             PRIMARY KEY (student_code, level, teil)
         )
     """)
-
-    # My Vocab Table
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,8 +123,6 @@ def init_db():
             date_added TEXT
         )
     """)
-
-    # Daily Usage Tables (for usage tracking/limits)
     for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
         c.execute(f"""
             CREATE TABLE IF NOT EXISTS {tbl} (
@@ -208,16 +133,12 @@ def init_db():
             )
         """)
     conn.commit()
-
-# Initialize database tables at import
 init_db()
 
 # ==== CONSTANTS ====
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
-
-# ==== USAGE COUNTERS ====
 
 def get_sprechen_usage(student_code):
     today = str(date.today())
@@ -248,53 +169,23 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
-    
-
-# ==== YOUTUBE CONFIG & HELPER ====
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-
+# ---- YOUTUBE HELPERS (if you need them) ----
 YOUTUBE_PLAYLIST_IDS = {
-    "A1": "PL5cbb7kVbA4wFqFkmblK5z7Cwr2AvAxkH",
-    "A2": "PL5cbb7kVbA4yVbLqQNLn3nJLCTCZbFZQI",
-    "B1": "PL5cbb7kVbA4wAZ3sMv6hCyNqSdQTDg8wF",
-    # ... add others as needed
+    "A1": [
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
 }
-
-@st.cache_data
-def fetch_youtube_playlist_videos(playlist_id):
-    """
-    Returns a list of video dicts from a YouTube playlist.
-    """
-    videos = []
-    base_url = (
-        f"https://www.googleapis.com/youtube/v3/playlistItems"
-        f"?part=snippet&maxResults=50&playlistId={playlist_id}&key={YOUTUBE_API_KEY}"
-    )
-    next_page = ""
-    while True:
-        url = base_url + (f"&pageToken={next_page}" if next_page else "")
-        res = requests.get(url)
-        if not res.ok:
-            break
-        data = res.json()
-        for item in data.get("items", []):
-            snippet = item["snippet"]
-            video_id = snippet["resourceId"]["videoId"]
-            videos.append({
-                "title": snippet["title"],
-                "video_id": video_id,
-                "url": f"https://www.youtube.com/watch?v={video_id}",
-                "publishedAt": snippet.get("publishedAt", "")
-            })
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
-
-
-
-@st.cache_data(ttl=43200)  # cache for 12 hours
-def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
+@st.cache_data(ttl=43200)
+def fetch_youtube_playlist_videos(playlist_id, api_key=OPENAI_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
         "part": "snippet",
@@ -319,11 +210,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-
-
-
-
-
 # --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -335,9 +221,7 @@ st.set_page_config(
 st.markdown(
     """
     <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-        <!-- Left Flag -->
         <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-        <!-- Center Block -->
         <div style='flex: 1; text-align: center;'>
             <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
                 Falowen App
@@ -357,86 +241,13 @@ st.markdown(
                 Competent German Tutors Team
             </span>
         </div>
-        <!-- Right Flag -->
         <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# ==== 2) Helpers to load & save progress ====
-def load_progress(student_code, level, teil):
-    c.execute(
-        "SELECT remaining, used FROM exam_progress WHERE student_code=? AND level=? AND teil=?",
-        (student_code, level, teil)
-    )
-    row = c.fetchone()
-    if row:
-        return json.loads(row[0]), json.loads(row[1])
-    return None, None
-
-def save_progress(student_code, level, teil, remaining, used):
-    c.execute(
-        "REPLACE INTO exam_progress (student_code, level, teil, remaining, used) VALUES (?,?,?,?,?)",
-        (student_code, level, teil, json.dumps(remaining), json.dumps(used))
-    )
-    conn.commit()
-
-def save_schreiben_attempt(student_code, name, level, score):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO schreiben_progress (student_code, name, level, essay, score, feedback, date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (student_code, name, level, "", score, "", str(date.today()))
-    )
-    conn.commit()
-
-def handle_google_login():
-    query_params = get_query_params()
-    if "code" not in query_params:
-        return False
-    code = query_params["code"]
-    if isinstance(code, list):
-        code = code[0]
-    token_url = "https://oauth2.googleapis.com/token"
-    data = {
-        "code": code,
-        "client_id": GOOGLE_CLIENT_ID,
-        "client_secret": GOOGLE_CLIENT_SECRET,
-        "redirect_uri": REDIRECT_URI,
-        "grant_type": "authorization_code"
-    }
-    try:
-        resp = requests.post(token_url, data=data, timeout=10)
-        if not resp.ok:
-            # Only show the error if it's not the common invalid_grant from reload
-            try:
-                err_json = resp.json()
-                if err_json.get("error") == "invalid_grant":
-                    return False
-                st.error(f"Google login failed. Details: {resp.text}")
-            except Exception:
-                st.error(f"Google login failed. Details: {resp.text}")
-            return False
-        # ... rest of your code goes here ...
-    except Exception as e:
-        st.error(f"Google login failed. Error: {e}")
-        return False
-
-
-# Bubble CSS
-bubble_user = "background:#e3f2fd;padding:12px 20px;border-radius:18px 18px 6px 18px;margin:8px 0;display:inline-block;"
-bubble_assistant = "background:#fff9c4;padding:12px 20px;border-radius:18px 18px 18px 6px;margin:8px 0;display:inline-block;"
-
-# Highlight function and words
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-def highlight_keywords(text, words):
-    import re
-    pattern = r'(' + '|'.join(map(re.escape, words)) + r')'
-    return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
-
-
-
+# ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data
@@ -448,7 +259,6 @@ def load_student_data():
     except Exception:
         st.error("❌ Could not load student data.")
         st.stop()
-
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
@@ -465,6 +275,23 @@ def load_student_data():
     df = df.drop(columns=["ContractEnd_dt"])
     return df
 
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed): return True
+        expiry_date = parsed.to_pydatetime()
+    today = datetime.now().date()
+    return expiry_date.date() < today
 
 # ---- Cookie & Session Setup ----
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
@@ -483,13 +310,10 @@ for key, default in [("logged_in", False), ("student_row", None), ("student_code
 code_from_cookie = cookie_manager.get("student_code") or ""
 code_from_cookie = str(code_from_cookie).strip().lower()
 
-# --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
-    # Normalize for matching
     df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
     df_students["Email"] = df_students["Email"].str.lower().str.strip()
-
     found = df_students[df_students["StudentCode"] == code_from_cookie]
     if not found.empty:
         student_row = found.iloc[0]
@@ -501,14 +325,11 @@ if not st.session_state["logged_in"] and code_from_cookie:
         st.session_state.update({
             "logged_in": True,
             "student_row": student_row.to_dict(),
-            "student_row": student_row.to_dict(),  
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"]
         })
-        
-# --- Manual Login & Account Creation Block ---
+
 if not st.session_state["logged_in"]:
-    # === WELCOME / HELP / INSTRUCTIONS (always at top, always visible) ===
     st.markdown(
         """
         <div style='border-left:4px solid #1976d2; padding:14px 9px 14px 14px; border-radius:7px; margin-bottom:20px; font-size:1.13rem; line-height:1.6; color:#232323; background:rgba(255,255,255,0.96);'>
@@ -525,102 +346,14 @@ if not st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-    # --- 1) (Optional) Google OAuth ---
-    # (You can move/remove if you want only password login!)
-    GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
-    GOOGLE_CLIENT_SECRET = "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"
-    REDIRECT_URI         = "https://falowen.streamlit.app/"  # Your deployed Streamlit URL
-
-    def get_query_params():
-        return st.query_params
-
-    def do_google_oauth():
-        params = {
-            "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "prompt": "select_account"
-        }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(
-            f"""<div style='text-align:center;margin:12px 0;'>
-                <a href="{auth_url}">
-                    <button style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                        Sign in with Google
-                    </button>
-                </a>
-            </div>""",
-            unsafe_allow_html=True
-        )
-
-    def handle_google_login():
-        qp = get_query_params()
-        if "code" not in qp:
-            return False
-        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code"
-        }
-        try:
-            resp = requests.post(token_url, data=data, timeout=10)
-            if not resp.ok:
-                err = resp.json().get("error")
-                if err != "invalid_grant":
-                    st.error(f"Google login failed: {resp.text}")
-                return False
-            access_token = resp.json().get("access_token")
-            if not access_token:
-                return False
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
-            ).json()
-            email = userinfo.get("email", "").lower()
-            df = load_student_data()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            match = df[df["Email"] == email]
-            if match.empty:
-                st.error("No student account found for that Google email.")
-                return False
-            student_row = match.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
-                return False
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Google OAuth error: {e}")
-        return False
-
-    if handle_google_login():
-        st.stop()
-    st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    do_google_oauth()
-
-    # --- 2) Manual Login (Student Code/Email & Password) ---
-    login_id       = st.text_input("Student Code or Email")
+    # --- Login Section ---
+    login_id = st.text_input("Student Code or Email")
     login_password = st.text_input("Password", type="password")
     if st.button("Login"):
         df = load_student_data()
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"]       = df["Email"].str.lower().str.strip()
-        lookup = df[
-            ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
-        ]
+        df["Email"] = df["Email"].str.lower().str.strip()
+        lookup = df[(df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower())]
         if lookup.empty:
             st.error("No matching student code or email found.")
         else:
@@ -650,11 +383,10 @@ if not st.session_state["logged_in"]:
                         st.success(f"Welcome, {student_row['Name']}!")
                         st.rerun()
 
-    # --- 3) Create Account (always visible, always left) ---
     st.markdown("### Create an Account")
-    new_name     = st.text_input("Full Name", key="ca_name")
-    new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-    new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
+    new_name = st.text_input("Full Name", key="ca_name")
+    new_email = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
+    new_code = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
     new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
     if st.button("Create Account"):
         if not (new_name and new_email and new_code and new_password):
@@ -662,24 +394,19 @@ if not st.session_state["logged_in"]:
         else:
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"]       = df["Email"].str.lower().str.strip()
-            valid = df[
-                (df["StudentCode"] == new_code) &
-                (df["Email"] == new_email)
-            ]
+            df["Email"] = df["Email"].str.lower().str.strip()
+            valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
             if valid.empty:
                 st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
             else:
                 hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                 db.collection("students").document(new_code).set({
-                    "name":     new_name,
-                    "email":    new_email,
+                    "name": new_name,
+                    "email": new_email,
                     "password": hashed
                 })
                 st.success("Account created! Please log in above.")
-
     st.stop()
-
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
@@ -6188,6 +5915,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
