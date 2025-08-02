@@ -719,9 +719,9 @@ if tab == "Dashboard":
         },
         "A1 Berlin Klasse": {
             "days": ["Thursday", "Friday", "Saturday"],
-            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 9:00am–10:00am",
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
             "start_date": "2025-06-14",
-            "end_date": "2025-07-09",
+            "end_date": "2025-08-09",
             "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "A1 Koln Klasse": {
@@ -6034,6 +6034,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
