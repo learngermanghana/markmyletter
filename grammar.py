@@ -4279,7 +4279,7 @@ if tab == "Exams Mode & Custom Chat":
         level = st.session_state.get("falowen_level", "A1")
         st.subheader("Step 2: Confirmed Level")
         st.markdown(
-            f"**Your auto-detected exam level:** <span style='color:#ff9800;font-weight:600'>{level}</span>",
+            f"**Your auto-detected level:** <span style='color:#ff9800;font-weight:600'>{level}</span>",
             unsafe_allow_html=True
         )
         st.info(
@@ -4296,17 +4296,20 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
-                # falowen_level is already set
+                # falowen_level is already set automatically
                 if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
                     st.session_state["falowen_stage"] = 3
-                else:
+                elif st.session_state["falowen_mode"] == "Eigenes Thema/Frage (Custom Chat)":
                     st.session_state["falowen_stage"] = 4
+                else:
+                    st.session_state["falowen_stage"] = 4  # fallback
                 st.session_state["falowen_teil"] = None
                 st.session_state["falowen_messages"] = []
                 st.session_state["custom_topic_intro_done"] = False
                 st.rerun()
 
         st.stop()
+
 
      
     # ---- STAGE 3: Choose Exam Part ----
@@ -6209,6 +6212,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
