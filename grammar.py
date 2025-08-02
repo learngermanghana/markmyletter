@@ -762,12 +762,13 @@ if tab == "Dashboard":
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
-    from datetime import datetime, timedelta, date
+    from datetime import datetime, timedelta
 
     # use safe_get instead of direct .get()
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
     if not class_name or not class_schedule:
         st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
     else:
@@ -777,7 +778,7 @@ if tab == "Dashboard":
         end_dt = class_schedule.get("end_date", "")
         doc_url = class_schedule.get("doc_url", "")
 
-        # parse dates
+        # parse dates safely
         today = datetime.today().date()
         start_date_obj = None
         end_date_obj = None
@@ -792,21 +793,18 @@ if tab == "Dashboard":
         except Exception:
             end_date_obj = None
 
-        # course not started yet
-        before_start = start_date_obj and today < start_date_obj
-        # course already over
-        after_end = end_date_obj and today > end_date_obj
+        before_start = bool(start_date_obj and today < start_date_obj)
+        after_end = bool(end_date_obj and today > end_date_obj)
 
         # map day names → indices
         day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # build next up to 3 session dates respecting start and end
+        # helper to get upcoming sessions from a reference date (inclusive)
         def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
             results = []
             if not weekday_indices:
                 return results
             check_date = from_date
-            # iterate until enough or past end_date (if given)
             while len(results) < limit:
                 if end_date and check_date > end_date:
                     break
@@ -815,18 +813,16 @@ if tab == "Dashboard":
                 check_date += timedelta(days=1)
             return results
 
-        upcoming_sessions = []
-        if before_start:
-            # show first sessions starting at start_date_obj
-            start_ref = start_date_obj
-            upcoming_sessions = get_next_sessions(start_ref, day_indices, limit=3, end_date=end_date_obj)
+        # determine upcoming sessions depending on stage
+        if before_start and start_date_obj:
+            upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
         elif after_end:
             upcoming_sessions = []
         else:
-            # course in progress
+            # course in progress (include today if it matches)
             upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
 
-        # course over?
+        # render based on status
         if after_end:
             end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
             st.error(
@@ -834,40 +830,46 @@ if tab == "Dashboard":
                 "Please contact the office for next steps."
             )
         else:
-            # build status line: starts in / days remaining
-            status_lines = []
+            # build status / countdown bar
+            bar_html = ""
             if before_start and start_date_obj:
-                delta = (start_date_obj - today).days
-                status_lines.append(f"📆 Starts in {delta} day{'s' if delta != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})")
-            if start_date_obj and not before_start:
-                # course started
-                if end_date_obj:
-                    total_duration = (end_date_obj - start_date_obj).days
-                    elapsed = (today - start_date_obj).days
-                    remaining = (end_date_obj - today).days
-                    status_lines.append(f"⏳ {remaining} day{'s' if remaining != 1 else ''} remaining in course (elapsed {elapsed}/{total_duration} days)")
-            # fallback if no dates
-            if not status_lines:
-                status_lines.append(f"<b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}")
+                days_until = (start_date_obj - today).days
+                label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
+                percent = 0
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+        <div style="margin-bottom:4px;">{label}</div>
+        <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+            <div style="width:{percent}%; background:#1976d2; height:100%;"></div>
+        </div>
+    </div>
+    """
+            elif start_date_obj and end_date_obj:
+                total_days = (end_date_obj - start_date_obj).days + 1
+                elapsed = max(0, (today - start_date_obj).days + 1) if today >= start_date_obj else 0
+                remaining = max(0, (end_date_obj - today).days)
+                percent = int((elapsed / total_days) * 100) if total_days > 0 else 100
+                percent = min(100, max(0, percent))
+                label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+        <div style="margin-bottom:4px;">{label}</div>
+        <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+            <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
+        </div>
+        <div style="margin-top:2px; font-size:0.75em;">
+            Progress: {percent}% (started {elapsed} of {total_days} days)
+        </div>
+    </div>
+    """
+            else:
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+        <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+    </div>
+    """
 
-            # build countdown bar if course has started and has end
-            progress_bar_html = ""
-            if start_date_obj and end_date_obj and not before_start:
-                total_days = (end_date_obj - start_date_obj).days
-                elapsed_days = (today - start_date_obj).days
-                pct = max(0, min(100, int((elapsed_days / total_days) * 100))) if total_days > 0 else 0
-                progress_bar_html = f"""
-                    <div style="margin-top:8px; font-size:0.85em;">
-                        <div style="margin-bottom:4px;">Course progress:</div>
-                        <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px;">
-                            <div style="width:{pct}%; background:#1976d2; height:100%;"></div>
-                        </div>
-                        <div style="margin-top:2px; font-size:0.75em;">{pct}% complete</div>
-                    </div>
-                """
-
-            # render
-            session_items_html = ""
+            # upcoming session list
             if upcoming_sessions:
                 list_items = []
                 for session_date in upcoming_sessions:
@@ -880,35 +882,30 @@ if tab == "Dashboard":
                     )
                 session_items_html = "<ul style=\"padding-left:16px; margin:9px 0 0 0;\">" + "".join(list_items) + "</ul>"
             else:
-                # if before start but no sessions found (edge), still show first possible days
                 session_items_html = '<span style="color:#c62828;">No upcoming sessions in the visible window.</span>'
 
-            # course period string (still show)
             period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
 
             st.markdown(
                 f"""
-                <div style='border:2px solid #17617a; border-radius:14px;
-                            padding:13px 11px; margin-bottom:13px;
-                            background:#eaf6fb; font-size:1.15em;
-                            line-height:1.65; color:#232323;'>
-                    <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-                    {session_items_html}
-                    <div style="font-size:0.98em; margin-top:6px;">
-                        {' '.join(status_lines)}
-                    </div>
-                    {progress_bar_html}
-                    <div style="font-size:0.98em; margin-top:4px;">
-                        <b>Course period:</b> {period_str}
-                    </div>
-                    {f'<a href="{doc_url}" target="_blank" '
-                      f'style="font-size:1em;color:#17617a;'
-                      f'text-decoration:underline;margin-top:6px;'
-                      f'display:inline-block;">📄 View/download full class schedule</a>'
-                      if doc_url else ''}
-                </div>
-                """,
-                unsafe_allow_html=True
+    <div style='border:2px solid #17617a; border-radius:14px;
+                padding:13px 11px; margin-bottom:13px;
+                background:#eaf6fb; font-size:1.15em;
+                line-height:1.65; color:#232323;'>
+        <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+        {session_items_html}
+        {bar_html}
+        <div style="font-size:0.98em; margin-top:6px;">
+            <b>Course period:</b> {period_str}
+        </div>
+        {f'<a href="{doc_url}" target="_blank" '
+            f'style="font-size:1em;color:#17617a;'
+            f'text-decoration:underline;margin-top:6px;'
+            f'display:inline-block;">📄 View/download full class schedule</a>'
+            if doc_url else ''}
+    </div>
+    """,
+                unsafe_allow_html=True,
             )
 #
 
@@ -6037,6 +6034,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
