@@ -3830,14 +3830,22 @@ def highlight_keywords(text, words):
     return text
 
 def get_level_from_code(student_code):
-    # Basic version: you can make this as smart as you want!
-    # Example: code format like "felix_a2_04" -> level is "A2"
-    code = student_code.lower()
-    for lvl in ["a1", "a2", "b1", "b2", "c1"]:
-        if lvl in code:
-            return lvl.upper()
-    # Default fallback
+    code = (student_code or "").strip().lower()
+    # Common patterns: "a1felix", "b2anna", etc
+    if code.startswith("a1"): return "A1"
+    if code.startswith("a2"): return "A2"
+    if code.startswith("b1"): return "B1"
+    if code.startswith("b2"): return "B2"
+    if code.startswith("c1"): return "C1"
+    # Or check for "-a1", "_a1", etc
+    if "-a1" in code or "_a1" in code: return "A1"
+    if "-a2" in code or "_a2" in code: return "A2"
+    if "-b1" in code or "_b1" in code: return "B1"
+    if "-b2" in code or "_b2" in code: return "B2"
+    if "-c1" in code or "_c1" in code: return "C1"
+    # If not found, default to A1 (or any level)
     return "A1"
+
 
 if tab == "Exams Mode & Custom Chat":
     # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
@@ -6212,6 +6220,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
