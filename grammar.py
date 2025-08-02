@@ -725,11 +725,11 @@ if tab == "Dashboard":
             "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
         },
         "A1 Koln Klasse": {
-            "days": ["Monday", "Tuesday", "Wednesday"],
-            "time": "6:00pm–7:00pm",
-            "start_date": "",
-            "end_date": "",
-            "doc_url": ""
+            "days": ["Thursday", "Friday", "Saturday"],
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+            "start_date": "2025-08-15",
+            "end_date": "2025-10-10",
+            "doc_url": "https://drive.google.com/file/d/1V4TmrxEA6gwQNSCLtC8Kw0_WUoXB6gR9/view?usp=sharing"
         },
         "A2 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -3944,6 +3944,7 @@ if tab == "Exams Mode & Custom Chat":
                 f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
                 f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
                 f"1. Explain difficult words when level is A1,A2,B1,B2. "
+                f"2. If student ask 3 consistent grammar questions without answering your answer, tell them to go back to the course book and use the search bottom to search for the grammar topic. Remind them reading the course book can help them as you are also supporting. Dont support lazy students "
                 f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 8 questions in total). "
                 f"Never ask more than 2 questions about the same keyword. "
                 f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
@@ -5963,6 +5964,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
