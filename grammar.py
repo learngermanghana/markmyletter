@@ -3829,6 +3829,16 @@ def highlight_keywords(text, words):
         text = text.replace(w, f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{w}</span>")
     return text
 
+def get_level_from_code(student_code):
+    # Basic version: you can make this as smart as you want!
+    # Example: code format like "felix_a2_04" -> level is "A2"
+    code = student_code.lower()
+    for lvl in ["a1", "a2", "b1", "b2", "c1"]:
+        if lvl in code:
+            return lvl.upper()
+    # Default fallback
+    return "A1"
+
 if tab == "Exams Mode & Custom Chat":
     # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
     if "student_code" not in st.session_state or not st.session_state["student_code"]:
@@ -6199,6 +6209,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
