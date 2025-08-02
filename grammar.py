@@ -310,10 +310,13 @@ for key, default in [("logged_in", False), ("student_row", None), ("student_code
 code_from_cookie = cookie_manager.get("student_code") or ""
 code_from_cookie = str(code_from_cookie).strip().lower()
 
+# --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
+    # Normalize for matching
     df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
     df_students["Email"] = df_students["Email"].str.lower().str.strip()
+
     found = df_students[df_students["StudentCode"] == code_from_cookie]
     if not found.empty:
         student_row = found.iloc[0]
@@ -325,11 +328,14 @@ if not st.session_state["logged_in"] and code_from_cookie:
         st.session_state.update({
             "logged_in": True,
             "student_row": student_row.to_dict(),
+            "student_row": student_row.to_dict(),  
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"]
         })
-
+        
+# --- Manual Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
+    # === WELCOME / HELP / INSTRUCTIONS (always at top, always visible) ===
     st.markdown(
         """
         <div style='border-left:4px solid #1976d2; padding:14px 9px 14px 14px; border-radius:7px; margin-bottom:20px; font-size:1.13rem; line-height:1.6; color:#232323; background:rgba(255,255,255,0.96);'>
@@ -346,14 +352,102 @@ if not st.session_state["logged_in"]:
         unsafe_allow_html=True
     )
 
-    # --- Login Section ---
-    login_id = st.text_input("Student Code or Email")
+    # --- 1) (Optional) Google OAuth ---
+    # (You can move/remove if you want only password login!)
+    GOOGLE_CLIENT_ID     = "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com"
+    GOOGLE_CLIENT_SECRET = "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"
+    REDIRECT_URI         = "https://falowen.streamlit.app/"  # Your deployed Streamlit URL
+
+    def get_query_params():
+        return st.query_params
+
+    def do_google_oauth():
+        params = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "prompt": "select_account"
+        }
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+        st.markdown(
+            f"""<div style='text-align:center;margin:12px 0;'>
+                <a href="{auth_url}">
+                    <button style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                        Sign in with Google
+                    </button>
+                </a>
+            </div>""",
+            unsafe_allow_html=True
+        )
+
+    def handle_google_login():
+        qp = get_query_params()
+        if "code" not in qp:
+            return False
+        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code"
+        }
+        try:
+            resp = requests.post(token_url, data=data, timeout=10)
+            if not resp.ok:
+                err = resp.json().get("error")
+                if err != "invalid_grant":
+                    st.error(f"Google login failed: {resp.text}")
+                return False
+            access_token = resp.json().get("access_token")
+            if not access_token:
+                return False
+            userinfo = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            ).json()
+            email = userinfo.get("email", "").lower()
+            df = load_student_data()
+            df["Email"] = df["Email"].str.lower().str.strip()
+            match = df[df["Email"] == email]
+            if match.empty:
+                st.error("No student account found for that Google email.")
+                return False
+            student_row = match.iloc[0]
+            if is_contract_expired(student_row):
+                st.error("Your contract has expired. Contact the office.")
+                return False
+            st.session_state.update({
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
+            })
+            cookie_manager["student_code"] = student_row["StudentCode"]
+            cookie_manager.save()
+            st.success(f"Welcome, {student_row['Name']}!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Google OAuth error: {e}")
+        return False
+
+    if handle_google_login():
+        st.stop()
+    st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+    do_google_oauth()
+
+    # --- 2) Manual Login (Student Code/Email & Password) ---
+    login_id       = st.text_input("Student Code or Email")
     login_password = st.text_input("Password", type="password")
     if st.button("Login"):
         df = load_student_data()
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        lookup = df[(df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower())]
+        df["Email"]       = df["Email"].str.lower().str.strip()
+        lookup = df[
+            ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
+        ]
         if lookup.empty:
             st.error("No matching student code or email found.")
         else:
@@ -366,10 +460,7 @@ if not st.session_state["logged_in"]:
                     st.error("Account not found. Please create one below.")
                 else:
                     data = doc.to_dict()
-                    stored_hash = data.get("password", "")
-                    if not stored_hash:
-                        st.error("No password set. Please create an account.")
-                    elif not bcrypt.checkpw(login_password.encode("utf-8"), stored_hash.encode("utf-8")):
+                    if data.get("password") != login_password:
                         st.error("Incorrect password.")
                     else:
                         st.session_state.update({
@@ -383,10 +474,11 @@ if not st.session_state["logged_in"]:
                         st.success(f"Welcome, {student_row['Name']}!")
                         st.rerun()
 
+    # --- 3) Create Account (always visible, always left) ---
     st.markdown("### Create an Account")
-    new_name = st.text_input("Full Name", key="ca_name")
-    new_email = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-    new_code = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
+    new_name     = st.text_input("Full Name", key="ca_name")
+    new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
+    new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
     new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
     if st.button("Create Account"):
         if not (new_name and new_email and new_code and new_password):
@@ -394,18 +486,21 @@ if not st.session_state["logged_in"]:
         else:
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
+            df["Email"]       = df["Email"].str.lower().str.strip()
+            valid = df[
+                (df["StudentCode"] == new_code) &
+                (df["Email"] == new_email)
+            ]
             if valid.empty:
                 st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
             else:
-                hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                 db.collection("students").document(new_code).set({
-                    "name": new_name,
-                    "email": new_email,
-                    "password": hashed
+                    "name":     new_name,
+                    "email":    new_email,
+                    "password": new_password
                 })
                 st.success("Account created! Please log in above.")
+
     st.stop()
 
 # --- Logged In UI ---
@@ -421,75 +516,14 @@ if st.button("Log out"):
 
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data
 def load_student_data():
-    # 1) Fetch CSV
-    try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
-    except Exception:
-        st.error("❌ Could not load student data.")
-        st.stop()
-
-    # 2) Normalize column names (trim and remove spaces)
+    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(csv_url)
     df.columns = df.columns.str.strip().str.replace(" ", "")
-
-    # 3) Strip whitespace from all cell values
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-
-    # 4) Drop rows missing a ContractEnd
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-
-    # 5) Parse ContractEnd into datetime (two formats)
-    df["ContractEnd_dt"] = pd.to_datetime(
-        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
-    )
-    # Fallback European format where needed
-    mask = df["ContractEnd_dt"].isna()
-    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
-        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
-    )
-
-    # 6) Sort by latest ContractEnd_dt and drop duplicates
-    df = df.sort_values("ContractEnd_dt", ascending=False)
-    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-
-    # 7) Clean up helper column
-    df = df.drop(columns=["ContractEnd_dt"])
     return df
-
-
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
-    # Debug lines removed
-
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-
-    # Try known formats
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
-        except ValueError:
-            continue
-
-    # Fallback to pandas auto-parse
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
-        expiry_date = parsed.to_pydatetime()
-
-    today = datetime.now().date()
-    # Debug lines removed
-
-    return expiry_date.date() < today
 
 @st.cache_data
 def load_assignment_scores():
@@ -553,6 +587,7 @@ if st.session_state.get("logged_in"):
         f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
         "Do your best to complete your course on time to avoid extra fees!"
     )
+
 
     # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
     df_assign = load_assignment_scores()
@@ -5915,6 +5950,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
