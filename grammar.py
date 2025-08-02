@@ -761,6 +761,7 @@ if tab == "Dashboard":
         },
     }
 
+
     # ==== SHOW UPCOMING CLASSES CARD ====
     from datetime import datetime, timedelta, date
 
@@ -5964,6 +5965,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
