@@ -3343,10 +3343,6 @@ if tab == "My Results and Resources":
     )
     st.divider()
     
-    import requests, io, pandas as pd, re, base64
-    from fpdf import FPDF
-    from collections import Counter
-
     # ============ LEVEL SCHEDULES (assume these functions are defined above) ============
     LEVEL_SCHEDULES = {
         "A1": get_a1_schedule(),
@@ -4252,7 +4248,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
 
-
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
         # If Pronunciation & Speaking Checker, skip this stage!
@@ -4260,25 +4255,38 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 99
             st.rerun()
 
-        st.subheader("Step 2: Choose Your Level")
-        level = st.radio(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="falowen_level_center"
+        # --- Auto-detect Level from student_code ---
+        student_code = st.session_state.get("student_code", "demo")
+        detected_level = get_level_from_code(student_code)
+        # Set detected level if first visit or student changed
+        if (
+            "falowen_level" not in st.session_state or
+            st.session_state.get("prev_exam_student_code", None) != student_code
+        ):
+            st.session_state["falowen_level"] = detected_level
+            st.session_state["prev_exam_student_code"] = student_code
+
+        level = st.session_state.get("falowen_level", "A1")
+        st.subheader("Step 2: Confirmed Level")
+        st.markdown(
+            f"**Your auto-detected exam level:** <span style='color:#ff9800;font-weight:600'>{level}</span>",
+            unsafe_allow_html=True
+        )
+        st.info(
+            "If you think this level is incorrect, log out and re-enter your correct student code or contact your teacher."
         )
 
-        # ← Back and Next → in two columns
+        # Navigation buttons
         col1, col2 = st.columns(2)
         with col1:
             if st.button("⬅️ Back", key="falowen_back1"):
-                # Back from Level → Mode selection
                 st.session_state["falowen_stage"] = 1
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
                 st.rerun()
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
-                st.session_state["falowen_level"] = level
+                # falowen_level is already set
                 if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
                     st.session_state["falowen_stage"] = 3
                 else:
@@ -4289,7 +4297,8 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
 
         st.stop()
-        
+
+     
     # ---- STAGE 3: Choose Exam Part ----
     if st.session_state["falowen_stage"] == 3:
         st.subheader("Step 3: Choose Exam Part")
@@ -6190,6 +6199,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
