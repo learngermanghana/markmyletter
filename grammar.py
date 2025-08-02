@@ -4362,7 +4362,17 @@ if tab == "Exams Mode & Custom Chat":
                 "Hören – Past Exam Listening"
             ]
         }
-        level = st.session_state["falowen_level"]
+
+        level = st.session_state.get("falowen_level", "A1")
+        if level not in teil_options:
+            st.warning(
+                f"Your level <span style='color:#d84315;font-weight:600'>{level}</span> is invalid or not recognized. "
+                "Defaulting to A1. Please check your student code if this is incorrect.",
+                unsafe_allow_html=True
+            )
+            level = "A1"
+            st.session_state["falowen_level"] = "A1"
+
         teil = st.radio(
             "Which exam part?",
             teil_options[level],
@@ -4490,6 +4500,7 @@ if tab == "Exams Mode & Custom Chat":
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"]             = []
                     st.rerun()
+#
 
 
     # ==========================
@@ -6220,6 +6231,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
