@@ -103,6 +103,10 @@ def fetch_youtube_playlist_videos(playlist_id, api_key):
             break
     return videos
 
+import sqlite3
+import atexit
+import streamlit as st
+from datetime import date
 
 # ==== DB CONNECTION & INITIALIZATION ====
 
@@ -246,10 +250,12 @@ def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
 
     
 
+import streamlit as st
+import requests
+
 # ==== YOUTUBE CONFIG & HELPER ====
 
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
-
+YOUTUBE_API_KEY = st.secrets["youtube_api_key"]  # Or wherever you store your key
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": "PL5cbb7kVbA4wFqFkmblK5z7Cwr2AvAxkH",
@@ -434,6 +440,34 @@ def highlight_keywords(text, words):
     return re.sub(pattern, r"<span style='color:#d63384;font-weight:600'>\1</span>", text, flags=re.IGNORECASE)
 
 
+
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
+
+@st.cache_data
+def load_student_data():
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+
+    df.columns = df.columns.str.strip().str.replace(" ", "")
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+    df["ContractEnd_dt"] = pd.to_datetime(
+        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
+    )
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
+        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
+    )
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+    df = df.drop(columns=["ContractEnd_dt"])
+    return df
 
 
 # ---- Cookie & Session Setup ----
