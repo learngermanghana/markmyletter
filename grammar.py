@@ -250,12 +250,8 @@ def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
 
     
 
-import streamlit as st
-import requests
-
 # ==== YOUTUBE CONFIG & HELPER ====
-
-YOUTUBE_API_KEY = st.secrets["youtube_api_key"]  # Or wherever you store your key
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": "PL5cbb7kVbA4wFqFkmblK5z7Cwr2AvAxkH",
@@ -6192,6 +6188,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
