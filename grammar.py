@@ -169,23 +169,33 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
-# ---- YOUTUBE HELPERS (if you need them) ----
+# ==== YOUTUBE PLAYLIST HELPERS ====
+
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+
 YOUTUBE_PLAYLIST_IDS = {
     "A1": [
         "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
     ],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
         "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
     ],
     "B1": [
         "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
         "PLB92CD6B288E5DB61",
     ],
+    "B2": [
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
+    ],
 }
-@st.cache_data(ttl=43200)
-def fetch_youtube_playlist_videos(playlist_id, api_key=OPENAI_API_KEY):
+
+
+@st.cache_data(ttl=43200)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
         "part": "snippet",
@@ -209,6 +219,9 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=OPENAI_API_KEY):
         if not next_page:
             break
     return videos
+
+
+
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -5950,6 +5963,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
