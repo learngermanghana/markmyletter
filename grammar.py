@@ -862,7 +862,7 @@ if tab == "Dashboard":
         # ---- Per-level YouTube Playlist ----
         playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
         if playlist_id:
-            video_list = fetch_youtube_playlist_videos(playlist_id)
+            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
             if video_list:
                 today_idx = date.today().toordinal()
                 pick = today_idx % len(video_list)
@@ -2679,7 +2679,7 @@ if tab == "Course Book":
         with st.expander("🎬 Video of the Day for Your Level"):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
             if playlist_id:
-                video_list = fetch_youtube_playlist_videos(playlist_id)
+                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
                     today_idx = date.today().toordinal()
                     pick = today_idx % len(video_list)
@@ -5950,6 +5950,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
