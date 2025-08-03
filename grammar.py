@@ -452,6 +452,11 @@ if not st.session_state["logged_in"]:
     st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     do_google_oauth()
 
+    st.divider()
+
+    st.subheader("👋 Returning Student? Please Log In Below")
+
+
     # --- 2) Manual Login (Student Code/Email & Password) ---
     login_id       = st.text_input("Student Code or Email")
     login_password = st.text_input("Password", type="password")
@@ -490,7 +495,7 @@ if not st.session_state["logged_in"]:
     st.divider()
 
     # --- 3) Create Account (always visible, always left) ---
-    st.markdown("### Create an Account")
+    st.subheader("🆕 New Student? Sign Up Below")
     new_name     = st.text_input("Full Name", key="ca_name")
     new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
     new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
@@ -6042,6 +6047,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
