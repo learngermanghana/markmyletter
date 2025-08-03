@@ -261,27 +261,6 @@ st.markdown(
 )
 
 
-# --- Avatar/Profile Photo Section ---
-st.markdown("#### 👤 Your Profile")
-col_avatar, col_info = st.columns([1, 4])
-with col_avatar:
-    if "profile_pic" not in st.session_state:
-        st.session_state["profile_pic"] = None
-
-    profile_pic = st.session_state.get("profile_pic", None)
-    if profile_pic:
-        st.image(profile_pic, width=90, caption="Your Photo", use_column_width=False)
-    else:
-        st.image("https://api.dicebear.com/7.x/adventurer/svg?seed=Student", width=90, caption="No Photo")
-
-    uploaded_file = st.file_uploader("Upload profile photo", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
-    if uploaded_file is not None:
-        st.session_state["profile_pic"] = uploaded_file
-        st.success("Profile photo updated!")
-
-
-st.divider()
-
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
@@ -6157,6 +6136,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
