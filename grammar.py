@@ -635,11 +635,26 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
-    # --- Personalized Leaderboard Position on Main Dashboard ---
-    # Get student level (this assumes your student_row/session_state logic is available)
-    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
+    # --- Rotating Motivation/Encouragement Lists ---
+    import random
+    STUDY_TIPS = [
+        "Study a little every day. Small steps lead to big progress!",
+        "Teach someone else what you learned to remember it better.",
+        "If you make a mistake, that’s good! Mistakes are proof you are learning.",
+        "Don’t just read—write or say your answers aloud for better memory.",
+        "Review your old assignments to see how far you’ve come!"
+    ]
 
-    # If you have all assignment scores loaded as df_assign, re-calculate leaderboard for the student's level
+    INSPIRATIONAL_QUOTES = [
+        "“The secret of getting ahead is getting started.” – Mark Twain",
+        "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
+        "“It always seems impossible until it’s done.” – Nelson Mandela",
+        "“The expert in anything was once a beginner.” – Helen Hayes",
+        "“Learning never exhausts the mind.” – Leonardo da Vinci"
+    ]
+
+    # --- Personalized Leaderboard Position on Main Dashboard ---
+    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
@@ -659,19 +674,26 @@ if st.session_state.get("logged_in"):
         total_students = len(ranking)
         percent = (rank / total_students) * 100
 
-        # --- Personalized message logic ---
-        if rank == 1:
-            message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
-        elif rank <= 3:
-            message = "🌟 You’re in the top 3! Excellent consistency and effort."
-        elif percent <= 10:
-            message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
-        elif percent <= 50:
-            message = "👏 You’re above average! Stay consistent to reach the next level."
-        elif rank == total_students:
-            message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
+        # --- Rotating motivation style ---
+        rotate = random.randint(0, 3)  # 0 = rank message, 1 = tip, 2 = quote, 3 = tip
+
+        if rotate == 0:
+            if rank == 1:
+                message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
+            elif rank <= 3:
+                message = "🌟 You’re in the top 3! Excellent consistency and effort."
+            elif percent <= 10:
+                message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
+            elif percent <= 50:
+                message = "👏 You’re above average! Stay consistent to reach the next level."
+            elif rank == total_students:
+                message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
+            else:
+                message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
+        elif rotate == 1 or rotate == 3:
+            message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
         else:
-            message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
+            message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
 
         st.markdown(
             f"""
@@ -688,7 +710,6 @@ if st.session_state.get("logged_in"):
         st.info("Complete at least one assignment to appear on the leaderboard for your level.")
 
     st.divider()
-
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
@@ -6096,6 +6117,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
