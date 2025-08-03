@@ -2827,8 +2827,8 @@ if tab == "Course Book":
         col1, col2 = st.columns(2)
         with col1:
             if st.button("📤 Send via WhatsApp"):
-                st.success("Click link below to open WhatsApp.")
-                st.markdown(f"[📨 Open WhatsApp]({url})")
+                st.success("Click link below to submit through WhatsApp.")
+                st.markdown(f"[📨 Send Assignment]({url})")
                 st.caption("You can also save your answer as a note for future reference.")
 
         with col2:
@@ -6041,6 +6041,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
