@@ -5093,88 +5093,91 @@ if tab == "Vocab Trainer":
             save_vocab_attempt(student_code, level, tot, score, words)
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults: st.session_state[k]=defaults[k]
+    
     elif subtab == "Writing Practice":
-        st.header("✍️ Writing Practice (A1–C1)")
-        st.markdown(
-            "Type a German sentence and check it against your level’s rules. "
-            "You can also use the A.I. checker for instant corrections and feedback!"
-        )
+    st.header("✍️ Writing Practice (A1–C1)")
+    st.markdown(
+        "Type a German sentence and check it against your level’s rules. "
+        "You can also use the A.I. checker for instant corrections and feedback!"
+    )
 
-        # Quick reminders/rules based on the student's level
-        WRITING_RULES = {
-            "A1": [
-                "**A1 Key Rules:**",
-                "- Start with the subject (Ich, Du, Er…).",
-                "- Verb is always in the second position.",
-                "- Add extra info (time, place, object) after the verb.",
-                "- Modal verbs: main verb goes to the end.",
-                "- Separable verbs: Prefix goes to the end.",
-                "- Yes/No Questions: Start with verb.",
-                "- W-Questions: Start with W-word, verb second.",
-            ],
-            "A2": [
-                "**A2 Key Rules:**",
-                "- Use simple connectors: und, aber, oder, denn, weil.",
-                "- Start using past tense (Perfekt) for simple experiences.",
-                "- Combine sentences for basic reasoning.",
-            ],
-            "B1": [
-                "**B1 Key Rules:**",
-                "- Use more connectors: trotzdem, deshalb, nachdem, bevor.",
-                "- Include opinions and reasons.",
-                "- Write longer sentences and narratives.",
-            ],
-            "B2": [
-                "**B2 Key Rules:**",
-                "- Use advanced connectors: obwohl, falls, sobald, dadurch.",
-                "- Argue with complex sentences, give pros/cons.",
-                "- Passive, indirect questions, and subjunctive.",
-            ],
-            "C1": [
-                "**C1 Key Rules:**",
-                "- Use high-level connectors and idiomatic phrases.",
-                "- Express nuanced opinions, hypothesize.",
-                "- Integrate sources, paraphrase, and critique.",
-            ],
-        }
+    # Quick reminders/rules based on the student's level
+    WRITING_RULES = {
+        "A1": [
+            "**A1 Key Rules:**",
+            "- Start with the subject (Ich, Du, Er…).",
+            "- Verb is always in the second position.",
+            "- Add extra info (time, place, object) after the verb.",
+            "- Modal verbs: main verb goes to the end.",
+            "- Separable verbs: Prefix goes to the end.",
+            "- Yes/No Questions: Start with verb.",
+            "- W-Questions: Start with W-word, verb second.",
+        ],
+        "A2": [
+            "**A2 Key Rules:**",
+            "- Use simple connectors: und, aber, oder, denn, weil.",
+            "- Start using past tense (Perfekt) for simple experiences.",
+            "- Combine sentences for basic reasoning.",
+        ],
+        "B1": [
+            "**B1 Key Rules:**",
+            "- Use more connectors: trotzdem, deshalb, nachdem, bevor.",
+            "- Include opinions and reasons.",
+            "- Write longer sentences and narratives.",
+        ],
+        "B2": [
+            "**B2 Key Rules:**",
+            "- Use advanced connectors: obwohl, falls, sobald, dadurch.",
+            "- Argue with complex sentences, give pros/cons.",
+            "- Passive, indirect questions, and subjunctive.",
+        ],
+        "C1": [
+            "**C1 Key Rules:**",
+            "- Use high-level connectors and idiomatic phrases.",
+            "- Express nuanced opinions, hypothesize.",
+            "- Integrate sources, paraphrase, and critique.",
+        ],
+    }
 
-        level = st.session_state.get("student_level", "A1")
-        rules = WRITING_RULES.get(level, WRITING_RULES["A1"])
-        for r in rules:
-            st.markdown(r)
+    level = st.session_state.get("student_level", "A1")
+    rules = WRITING_RULES.get(level, WRITING_RULES["A1"])
+    for r in rules:
+        st.markdown(r)
 
-        st.markdown("---")
-        user_sentence = st.text_area("Write your sentence below (in German):", key="writing_input")
+    st.markdown("---")
+    user_sentence = st.text_area("Write your sentence below (in German):", key="writing_input")
 
-        if st.button("Check with A.I.", key="writing_ai_btn"):
-            if not user_sentence.strip():
-                st.warning("Please enter a sentence to check!")
-            else:
-                with st.spinner("Checking with A.I..."):
-                    prompt = (
-                        f"You are a German teacher. Please check this sentence for {level} level grammar: '{user_sentence}'.\n"
-                        "1. State if the sentence is correct or not (just Correct/Incorrect).\n"
-                        "2. If incorrect, provide a corrected version.\n"
-                        "3. Explain the correction simply, in English (max 2 sentences).\n"
-                        "Use simple words for learners."
+    if st.button("Check with A.I.", key="writing_ai_btn"):
+        if not user_sentence.strip():
+            st.warning("Please enter a sentence to check!")
+        else:
+            with st.spinner("Checking with A.I..."):
+                import openai
+                # Set your API key if not already set globally
+                # openai.api_key = "sk-..."
+                prompt = (
+                    f"You are a German teacher. Please check this sentence for {level} level grammar: '{user_sentence}'.\n"
+                    "1. State if the sentence is correct or not (just Correct/Incorrect).\n"
+                    "2. If incorrect, provide a corrected version.\n"
+                    "3. Explain the correction simply, in English (max 2 sentences).\n"
+                    "Use simple words for learners."
+                )
+                try:
+                    client = openai.OpenAI()  # For openai>=1.0.0
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=160,
+                        temperature=0.2,
                     )
-                    try:
-                        import openai
-                        response = openai.ChatCompletion.create(
-                            model="gpt-3.5-turbo",
-                            messages=[{"role": "user", "content": prompt}],
-                            max_tokens=160,
-                            temperature=0.2,
-                        )
-                        ai_feedback = response.choices[0].message.content
-                        st.markdown("**A.I. Feedback:**")
-                        st.info(ai_feedback)
-                    except Exception as e:
-                        st.error(f"Error from OpenAI: {e}")
+                    ai_feedback = response.choices[0].message.content
+                    st.markdown("**A.I. Feedback:**")
+                    st.info(ai_feedback)
+                except Exception as e:
+                    st.error(f"Error from OpenAI: {e}")
+#
 
 
-
-        ...
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
@@ -6243,6 +6246,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
