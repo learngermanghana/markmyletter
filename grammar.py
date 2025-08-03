@@ -2799,6 +2799,23 @@ if tab == "Course Book":
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("Draft autosaved!")
 
+        
+        # === INSTRUCTIONS: Place below columns and above copy box ===
+        st.info(
+            """
+            **How to submit your assignment:**
+
+            1. Write your complete answers in the box above.
+            2. Click **Send via WhatsApp** when done.
+            3. After clicking, you will see an **Open WhatsApp** button.
+            4. Your assignment message is organized below for you to review.
+            5. Confirm your assignment number and student code are correct.
+            6. Click **Open WhatsApp** or copy the message below to directly send it to your tutor.
+
+            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
+            """
+        )
+
         # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
@@ -2822,22 +2839,6 @@ if tab == "Course Book":
                 st.session_state["edit_note_idx"] = None  # Signal: this is a new note
                 st.session_state["switch_to_notes"] = True
                 st.rerun()
-
-        # === INSTRUCTIONS: Place below columns and above copy box ===
-        st.info(
-            """
-            **How to submit your assignment:**
-
-            1. Write your complete answers in the box above.
-            2. Click **Send via WhatsApp** when done.
-            3. After clicking, you will see an **Open WhatsApp** button.
-            4. Your assignment message is organized below for you to review.
-            5. Confirm your assignment number and student code are correct.
-            6. Click **Open WhatsApp** or copy the message below to directly send it to your tutor.
-
-            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
-            """
-        )
 
         st.text_area("📋 Copy message:", msg, height=500)
 
@@ -6040,6 +6041,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
