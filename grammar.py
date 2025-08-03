@@ -5094,14 +5094,15 @@ if tab == "Vocab Trainer":
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults: st.session_state[k]=defaults[k]
     
+
     elif subtab == "Writing Practice":
         st.header("✍️ Writing Practice (A1–C1)")
         st.markdown(
-            "Choose a grammar rule for your level, see the example, and try the practice. "
-            "Get instant A.I. feedback and correction!"
+            "Practice key sentence types for your level. "
+            "Read the rules, see an example, and try the prompt. You can check your answer with A.I."
         )
 
-        # ---------------- Level-based topics and data -----------------
+        # --- Level-based topics and data ---
         GRAMMAR_TOPICS = {
             "A1": {
                 "Statement Formulation": {
@@ -5111,7 +5112,7 @@ if tab == "Vocab Trainer":
                         "Include any additional information (e.g., time, place, object) after the verb.",
                         "End with a full stop."
                     ],
-                    "example": "Ich gehe jeden Morgen joggen.",
+                    "sample_example": "Ich trinke jeden Abend Tee.",
                     "practice_prompt": "Write: I go jogging every morning.",
                     "solution": "Ich gehe jeden Morgen joggen."
                 },
@@ -5122,7 +5123,7 @@ if tab == "Vocab Trainer":
                         "The main verb goes at the end of the sentence in its infinitive form.",
                         "Finish with any additional information and a full stop."
                     ],
-                    "example": "Ich kann Deutsch sprechen.",
+                    "sample_example": "Er kann gut schwimmen.",
                     "practice_prompt": "Say: I can speak German.",
                     "solution": "Ich kann Deutsch sprechen."
                 },
@@ -5134,7 +5135,7 @@ if tab == "Vocab Trainer":
                         "The prefix of the separable verb should go to the end.",
                         "End with a full stop."
                     ],
-                    "example": "Ich stehe jeden Morgen um 6 Uhr auf.",
+                    "sample_example": "Wir stehen jeden Tag um 7 Uhr auf.",
                     "practice_prompt": "Say: I get up at 6 a.m. every morning.",
                     "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
                 },
@@ -5145,7 +5146,7 @@ if tab == "Vocab Trainer":
                         "Add any additional information.",
                         "End the question with a question mark."
                     ],
-                    "example": "Hast du Geschwister?",
+                    "sample_example": "Magst du Pizza?",
                     "practice_prompt": "Ask: Do you have siblings?",
                     "solution": "Hast du Geschwister?"
                 },
@@ -5157,7 +5158,7 @@ if tab == "Vocab Trainer":
                         "Include additional information.",
                         "End with a question mark."
                     ],
-                    "example": "Wo wohnst du?",
+                    "sample_example": "Wie alt bist du?",
                     "practice_prompt": "Ask: Where do you live?",
                     "solution": "Wo wohnst du?"
                 },
@@ -5168,7 +5169,7 @@ if tab == "Vocab Trainer":
                         "Use the time-manner-place (TMP) order for information.",
                         "Add adjectives to describe nouns for richer sentences."
                     ],
-                    "example": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino.",
+                    "sample_example": "Am Abend esse ich mit meiner netten Familie im kleinen Restaurant.",
                     "practice_prompt": "Write: On weekends, I often go with my best friends to the big cinema.",
                     "solution": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino."
                 },
@@ -5178,7 +5179,7 @@ if tab == "Vocab Trainer":
                         "Use 'weil' to add a reason.",
                         "Place the conjugated verb at the end of the subordinate clause."
                     ],
-                    "example": "Ich bleibe heute zu Hause, weil ich krank bin.",
+                    "sample_example": "Ich lerne Deutsch, weil ich in Deutschland arbeiten möchte.",
                     "practice_prompt": "Say: I am staying at home because I am sick.",
                     "solution": "Ich bleibe heute zu Hause, weil ich krank bin."
                 },
@@ -5187,7 +5188,7 @@ if tab == "Vocab Trainer":
                         "Connect two sentences with 'obwohl'.",
                         "Verb goes to the end in the 'obwohl'-clause."
                     ],
-                    "example": "Ich gehe spazieren, obwohl es regnet.",
+                    "sample_example": "Ich mache Sport, obwohl ich müde bin.",
                     "practice_prompt": "Say: I go for a walk although it is raining.",
                     "solution": "Ich gehe spazieren, obwohl es regnet."
                 },
@@ -5196,7 +5197,7 @@ if tab == "Vocab Trainer":
                         "Use a form of 'werden' as the second element.",
                         "The main verb comes at the end in its infinitive form."
                     ],
-                    "example": "Nächstes Jahr werde ich nach Deutschland reisen.",
+                    "sample_example": "Morgen werde ich meine Großeltern besuchen.",
                     "practice_prompt": "Say: Next year, I will travel to Germany.",
                     "solution": "Nächstes Jahr werde ich nach Deutschland reisen."
                 },
@@ -5205,29 +5206,28 @@ if tab == "Vocab Trainer":
                         "Use 'damit' to express a purpose or goal.",
                         "Verb goes to the end of the 'damit'-clause."
                     ],
-                    "example": "Ich lerne viel, damit ich die Prüfung bestehe.",
+                    "sample_example": "Ich spare Geld, damit ich ein Auto kaufen kann.",
                     "practice_prompt": "Say: I study a lot so that I pass the exam.",
                     "solution": "Ich lerne viel, damit ich die Prüfung bestehe."
                 },
             },
-            # Add B1, B2, C1 in the same structure as above!
+            # ... add B1, B2, C1 in the same way ...
         }
 
-        # ----------- Select level and topic -----------
         level = st.session_state.get("student_level", "A1")
-        level_topics = GRAMMAR_TOPICS.get(level, GRAMMAR_TOPICS["A1"])
-        topic = st.selectbox("Choose a grammar rule/topic:", list(level_topics.keys()), key="writing_topic")
+        topics = list(GRAMMAR_TOPICS[level].keys())
+        selected_topic = st.selectbox("Choose a topic to practice:", topics)
 
-        # ----------- Show rules and example -----------
-        topic_info = level_topics[topic]
-        st.markdown("**Rules:**")
-        for rule in topic_info["rules"]:
+        topic = GRAMMAR_TOPICS[level][selected_topic]
+        st.markdown("#### Grammar Rules")
+        for rule in topic["rules"]:
             st.markdown(f"- {rule}")
-        st.markdown(f"**Example:** _{topic_info['example']}_")
-        st.markdown(f"**Practice prompt:** {topic_info['practice_prompt']}")
 
-        st.markdown("---")
-        user_sentence = st.text_area("Now write your own example (in German):", key="writing_input")
+        st.markdown("**Example (not the answer!):**")
+        st.info(topic["sample_example"])
+
+        st.markdown(f"**Your task:** {topic['practice_prompt']}")
+        user_sentence = st.text_area("Type your answer in German:", key="writing_input")
 
         if st.button("Check with A.I.", key="writing_ai_btn"):
             if not user_sentence.strip():
@@ -5235,14 +5235,12 @@ if tab == "Vocab Trainer":
             else:
                 with st.spinner("Checking with A.I..."):
                     import openai
-                    # openai.api_key = "sk-..."   # Only needed if not set globally
                     prompt = (
-                        f"You are a German teacher. Check if this sentence follows the '{topic}' rule for {level} level."
-                        f" Student's sentence: '{user_sentence}'.\n"
-                        f"Target solution: '{topic_info['solution']}'.\n"
-                        "1. Say if the sentence matches the rule (Correct/Incorrect)."
-                        "2. If not, provide a corrected version."
-                        "3. Explain the correction simply, in English (max 2 sentences)."
+                        f"You are a German teacher. Please check this sentence for {level} level grammar: '{user_sentence}'.\n"
+                        "1. State if the sentence is correct or not (just Correct/Incorrect).\n"
+                        "2. If incorrect, provide a corrected version.\n"
+                        "3. Explain the correction simply, in English (max 2 sentences).\n"
+                        "Use simple words for learners."
                     )
                     try:
                         client = openai.OpenAI()
@@ -5257,22 +5255,10 @@ if tab == "Vocab Trainer":
                         st.info(ai_feedback)
                     except Exception as e:
                         st.error(f"Error from OpenAI: {e}")
+
+            st.markdown("**Model Answer:**")
+            st.success(topic["solution"])
 #
-
-
-
-# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
-def bubble(role, text):
-    color = "#7b2ff2" if role == "assistant" else "#222"
-    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-    name = "Herr Felix" if role == "assistant" else "You"
-    return f"""
-        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
-        border-radius:14px;max-width:98vw;font-size:1.09rem;">
-            <b>{name}:</b><br>{text}
-        </div>
-    """
-
 
 
 
@@ -6328,6 +6314,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
