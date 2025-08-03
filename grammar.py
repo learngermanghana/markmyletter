@@ -2668,6 +2668,16 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+def post_message(level, code, name, text, reply_to=None):
+    posts_ref = db.collection("class_board").document(level).collection("posts")
+    posts_ref.add({
+        "student_code": code,
+        "student_name": name,
+        "text": text.strip(),
+        "timestamp": datetime.utcnow(),
+        "reply_to": reply_to,
+    })
+
 RESOURCE_LABELS = {
     'video': '🎥 Video',
     'grammarbook_link': '📘 Grammar',
@@ -6129,6 +6139,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
