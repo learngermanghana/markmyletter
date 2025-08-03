@@ -5095,86 +5095,168 @@ if tab == "Vocab Trainer":
                 for k in defaults: st.session_state[k]=defaults[k]
     
     elif subtab == "Writing Practice":
-    st.header("✍️ Writing Practice (A1–C1)")
-    st.markdown(
-        "Type a German sentence and check it against your level’s rules. "
-        "You can also use the A.I. checker for instant corrections and feedback!"
-    )
+        st.header("✍️ Writing Practice (A1–C1)")
+        st.markdown(
+            "Choose a grammar rule for your level, see the example, and try the practice. "
+            "Get instant A.I. feedback and correction!"
+        )
 
-    # Quick reminders/rules based on the student's level
-    WRITING_RULES = {
-        "A1": [
-            "**A1 Key Rules:**",
-            "- Start with the subject (Ich, Du, Er…).",
-            "- Verb is always in the second position.",
-            "- Add extra info (time, place, object) after the verb.",
-            "- Modal verbs: main verb goes to the end.",
-            "- Separable verbs: Prefix goes to the end.",
-            "- Yes/No Questions: Start with verb.",
-            "- W-Questions: Start with W-word, verb second.",
-        ],
-        "A2": [
-            "**A2 Key Rules:**",
-            "- Use simple connectors: und, aber, oder, denn, weil.",
-            "- Start using past tense (Perfekt) for simple experiences.",
-            "- Combine sentences for basic reasoning.",
-        ],
-        "B1": [
-            "**B1 Key Rules:**",
-            "- Use more connectors: trotzdem, deshalb, nachdem, bevor.",
-            "- Include opinions and reasons.",
-            "- Write longer sentences and narratives.",
-        ],
-        "B2": [
-            "**B2 Key Rules:**",
-            "- Use advanced connectors: obwohl, falls, sobald, dadurch.",
-            "- Argue with complex sentences, give pros/cons.",
-            "- Passive, indirect questions, and subjunctive.",
-        ],
-        "C1": [
-            "**C1 Key Rules:**",
-            "- Use high-level connectors and idiomatic phrases.",
-            "- Express nuanced opinions, hypothesize.",
-            "- Integrate sources, paraphrase, and critique.",
-        ],
-    }
+        # ---------------- Level-based topics and data -----------------
+        GRAMMAR_TOPICS = {
+            "A1": {
+                "Statement Formulation": {
+                    "rules": [
+                        "Begin the sentence with the subject (e.g., Ich, Du, Er).",
+                        "Follow the subject with the verb in the second position.",
+                        "Include any additional information (e.g., time, place, object) after the verb.",
+                        "End with a full stop."
+                    ],
+                    "example": "Ich gehe jeden Morgen joggen.",
+                    "practice_prompt": "Write: I go jogging every morning.",
+                    "solution": "Ich gehe jeden Morgen joggen."
+                },
+                "Modal Verb Statements": {
+                    "rules": [
+                        "Start with the subject.",
+                        "Place the modal verb (e.g., können, müssen, wollen) in the second position.",
+                        "The main verb goes at the end of the sentence in its infinitive form.",
+                        "Finish with any additional information and a full stop."
+                    ],
+                    "example": "Ich kann Deutsch sprechen.",
+                    "practice_prompt": "Say: I can speak German.",
+                    "solution": "Ich kann Deutsch sprechen."
+                },
+                "Separable Verbs (Statement)": {
+                    "rules": [
+                        "Begin with the subject.",
+                        "Place the main part of the verb in the second position.",
+                        "Other info goes before the separable prefix.",
+                        "The prefix of the separable verb should go to the end.",
+                        "End with a full stop."
+                    ],
+                    "example": "Ich stehe jeden Morgen um 6 Uhr auf.",
+                    "practice_prompt": "Say: I get up at 6 a.m. every morning.",
+                    "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
+                },
+                "Yes/No Questions": {
+                    "rules": [
+                        "Start with the verb.",
+                        "Follow with the subject.",
+                        "Add any additional information.",
+                        "End the question with a question mark."
+                    ],
+                    "example": "Hast du Geschwister?",
+                    "practice_prompt": "Ask: Do you have siblings?",
+                    "solution": "Hast du Geschwister?"
+                },
+                "W-Questions": {
+                    "rules": [
+                        "Start with the W-word (e.g., Wo, Wie, Warum).",
+                        "Verb in the second position.",
+                        "Subject after the verb.",
+                        "Include additional information.",
+                        "End with a question mark."
+                    ],
+                    "example": "Wo wohnst du?",
+                    "practice_prompt": "Ask: Where do you live?",
+                    "solution": "Wo wohnst du?"
+                },
+            },
+            "A2": {
+                "Extended Statements (TMP & Adjectives)": {
+                    "rules": [
+                        "Use the time-manner-place (TMP) order for information.",
+                        "Add adjectives to describe nouns for richer sentences."
+                    ],
+                    "example": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino.",
+                    "practice_prompt": "Write: On weekends, I often go with my best friends to the big cinema.",
+                    "solution": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino."
+                },
+                "Subordinate Clauses with 'weil'": {
+                    "rules": [
+                        "Start with a main clause.",
+                        "Use 'weil' to add a reason.",
+                        "Place the conjugated verb at the end of the subordinate clause."
+                    ],
+                    "example": "Ich bleibe heute zu Hause, weil ich krank bin.",
+                    "practice_prompt": "Say: I am staying at home because I am sick.",
+                    "solution": "Ich bleibe heute zu Hause, weil ich krank bin."
+                },
+                "Using 'obwohl' for Contrasts": {
+                    "rules": [
+                        "Connect two sentences with 'obwohl'.",
+                        "Verb goes to the end in the 'obwohl'-clause."
+                    ],
+                    "example": "Ich gehe spazieren, obwohl es regnet.",
+                    "practice_prompt": "Say: I go for a walk although it is raining.",
+                    "solution": "Ich gehe spazieren, obwohl es regnet."
+                },
+                "Future Tense with 'werden'": {
+                    "rules": [
+                        "Use a form of 'werden' as the second element.",
+                        "The main verb comes at the end in its infinitive form."
+                    ],
+                    "example": "Nächstes Jahr werde ich nach Deutschland reisen.",
+                    "practice_prompt": "Say: Next year, I will travel to Germany.",
+                    "solution": "Nächstes Jahr werde ich nach Deutschland reisen."
+                },
+                "Purpose Clauses with 'damit'": {
+                    "rules": [
+                        "Use 'damit' to express a purpose or goal.",
+                        "Verb goes to the end of the 'damit'-clause."
+                    ],
+                    "example": "Ich lerne viel, damit ich die Prüfung bestehe.",
+                    "practice_prompt": "Say: I study a lot so that I pass the exam.",
+                    "solution": "Ich lerne viel, damit ich die Prüfung bestehe."
+                },
+            },
+            # Add B1, B2, C1 in the same structure as above!
+        }
 
-    level = st.session_state.get("student_level", "A1")
-    rules = WRITING_RULES.get(level, WRITING_RULES["A1"])
-    for r in rules:
-        st.markdown(r)
+        # ----------- Select level and topic -----------
+        level = st.session_state.get("student_level", "A1")
+        level_topics = GRAMMAR_TOPICS.get(level, GRAMMAR_TOPICS["A1"])
+        topic = st.selectbox("Choose a grammar rule/topic:", list(level_topics.keys()), key="writing_topic")
 
-    st.markdown("---")
-    user_sentence = st.text_area("Write your sentence below (in German):", key="writing_input")
+        # ----------- Show rules and example -----------
+        topic_info = level_topics[topic]
+        st.markdown("**Rules:**")
+        for rule in topic_info["rules"]:
+            st.markdown(f"- {rule}")
+        st.markdown(f"**Example:** _{topic_info['example']}_")
+        st.markdown(f"**Practice prompt:** {topic_info['practice_prompt']}")
 
-    if st.button("Check with A.I.", key="writing_ai_btn"):
-        if not user_sentence.strip():
-            st.warning("Please enter a sentence to check!")
-        else:
-            with st.spinner("Checking with A.I..."):
-                import openai
-                # Set your API key if not already set globally
-                # openai.api_key = "sk-..."
-                prompt = (
-                    f"You are a German teacher. Please check this sentence for {level} level grammar: '{user_sentence}'.\n"
-                    "1. State if the sentence is correct or not (just Correct/Incorrect).\n"
-                    "2. If incorrect, provide a corrected version.\n"
-                    "3. Explain the correction simply, in English (max 2 sentences).\n"
-                    "Use simple words for learners."
-                )
-                try:
-                    client = openai.OpenAI()  # For openai>=1.0.0
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=160,
-                        temperature=0.2,
+        st.markdown("---")
+        user_sentence = st.text_area("Now write your own example (in German):", key="writing_input")
+
+        if st.button("Check with A.I.", key="writing_ai_btn"):
+            if not user_sentence.strip():
+                st.warning("Please enter a sentence to check!")
+            else:
+                with st.spinner("Checking with A.I..."):
+                    import openai
+                    # openai.api_key = "sk-..."   # Only needed if not set globally
+                    prompt = (
+                        f"You are a German teacher. Check if this sentence follows the '{topic}' rule for {level} level."
+                        f" Student's sentence: '{user_sentence}'.\n"
+                        f"Target solution: '{topic_info['solution']}'.\n"
+                        "1. Say if the sentence matches the rule (Correct/Incorrect)."
+                        "2. If not, provide a corrected version."
+                        "3. Explain the correction simply, in English (max 2 sentences)."
                     )
-                    ai_feedback = response.choices[0].message.content
-                    st.markdown("**A.I. Feedback:**")
-                    st.info(ai_feedback)
-                except Exception as e:
-                    st.error(f"Error from OpenAI: {e}")
+                    try:
+                        client = openai.OpenAI()
+                        response = client.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=160,
+                            temperature=0.2,
+                        )
+                        ai_feedback = response.choices[0].message.content
+                        st.markdown("**A.I. Feedback:**")
+                        st.info(ai_feedback)
+                    except Exception as e:
+                        st.error(f"Error from OpenAI: {e}")
 #
 
 
@@ -6246,6 +6328,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
