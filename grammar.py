@@ -3270,7 +3270,7 @@ if tab == "My Results and Resources":
             <div style="background:#e0f7fa;padding:16px 18px;border-radius:8px;margin:12px 0 18px 0;">
                 <b>🏅 Your Leaderboard Position (Level {level}):</b><br>
                 <span style="font-size:1.2em;">
-                <b>Rank #{rank}</b> out of {total_students} students
+                <b>Your current rank:</b> #{rank}
                 </span><br>
                 <div style="margin-top:8px;font-size:1.1em;">{message}</div>
             </div>
@@ -6089,6 +6089,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
