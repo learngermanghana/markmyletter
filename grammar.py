@@ -4925,7 +4925,7 @@ def save_writing_attempt(student_code, level, topic_name, user_input, correct, s
     history = data.get("history", [])
     attempt = {
         "level": level,
-        "topic": topic_name,
+        "topic_name": topic_name,
         "user_input": user_input,
         "correct": correct,
         "solution": solution,
@@ -6519,6 +6519,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
