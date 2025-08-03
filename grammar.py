@@ -522,7 +522,7 @@ if not st.session_state["logged_in"]:
                 st.success("Account created! Please log in above.")
 
     st.stop()
-
+#
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
@@ -532,8 +532,6 @@ if st.button("Log out"):
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-
-
     
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 
@@ -6047,6 +6045,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
