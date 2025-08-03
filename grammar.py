@@ -5453,7 +5453,7 @@ if tab == "Vocab Trainer":
                         save_writing_attempt(
                             student_code=code,
                             level=level,
-                            topic=topic['title'],
+                            topic_name=topic['title'],
                             user_answer=user_ans,
                             ai_feedback=ai_feedback,
                         )
@@ -6519,6 +6519,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
