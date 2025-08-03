@@ -2778,13 +2778,17 @@ if tab == "Course Book":
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
-
+            
+        st.divider()
+        
         # ===== Progress Bar (just for scrolling/selection) =====
         total_assignments = len(schedule)
         assignments_done = idx + 1
         percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
         st.progress(percent)
         st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
+
+        st.divider()
 
         # ===== Estimated time for just this lesson =====
         LEVEL_TIME = {
@@ -2830,6 +2834,8 @@ if tab == "Course Book":
             f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
+        st.divider()
+        
         if info.get('grammar_topic'):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         if info.get('goal'):
@@ -2852,7 +2858,9 @@ if tab == "Course Book":
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
-
+            
+        st.divider()
+        
         # --- Translation Links Only ---
         st.markdown("---")
         st.markdown(
@@ -2883,7 +2891,8 @@ if tab == "Course Book":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
-
+        st.divider()
+        
         # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
@@ -6527,6 +6536,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
