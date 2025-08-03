@@ -2845,6 +2845,7 @@ if tab == "Course Book":
 
 
 
+
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
         st.markdown("""
@@ -6042,6 +6043,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
