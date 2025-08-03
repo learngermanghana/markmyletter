@@ -3303,7 +3303,7 @@ if tab == "Course Book":
                 if st.button("Send Reply", key=f"reply_btn_{post['id']}") and reply.strip():
                     post_message(student_level, student_code, student_name, reply.strip(), reply_to=post["id"])
                     st.success("Reply sent!")
-                    st.experimental_rerun()
+                    st.rerun()
             # Show replies for this post
             for reply_post in [r for r in all_posts if r.get("reply_to") == post["id"]]:
                 st.markdown(
@@ -6112,6 +6112,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
