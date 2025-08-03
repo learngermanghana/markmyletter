@@ -5405,68 +5405,48 @@ if tab == "Vocab Trainer":
         }
 
 
-
-        # ------ Student info -----
-        level = st.session_state.get("student_level", "A1")
-        code = st.session_state.get("student_code", "demo")
-        topic_list = GRAMMAR_TOPICS.get(level, GRAMMAR_TOPICS["A1"])
-
-        topic_titles = [f"{i+1}. {topic['title']}" for i, topic in enumerate(topic_list)]
-        topic_idx = st.selectbox("Select a practice topic:", options=list(range(len(topic_list))), format_func=lambda i: topic_titles[i], key="writing_topic_idx")
-
-        topic = topic_list[topic_idx]
-
-        st.subheader(f"{topic['title']}")
-        st.markdown("**Rules for this topic:**")
-        for r in topic["rules"]:
-            st.markdown(f"- {r}")
-        st.markdown(f"**What to do:** {topic['practice_instruction']}")
-        st.markdown(f"*Example of a common mistake (not correct!):* `{topic['example_wrong']}`")
-
-        st.markdown("---")
-        user_ans = st.text_area("Type your German answer here:", key="writing_input", value="", height=70)
-
-        ai_feedback = ""
-        if st.button("Check with A.I.", key="writing_ai_btn"):
-            if not user_ans.strip():
-                st.warning("Please enter your answer to check!")
-            else:
-                with st.spinner("Checking with A.I..."):
-                    import openai
-                    prompt = (
-                        f"You are a German teacher. Please check if this student answer fits the following {level} rule:\n"
-                        f"Rule: {', '.join(topic['rules'])}\n"
-                        f"Task: {topic['practice_instruction']}\n"
-                        f"Student answer: '{user_ans}'\n"
-                        "1. State if the sentence is correct or not (Correct/Incorrect).\n"
-                        "2. If incorrect, provide a corrected version.\n"
-                        "3. Explain the correction simply, in English (max 2 sentences)."
-                        "\nUse simple words for learners."
+    ai_feedback = ""
+    if st.button("Check with A.I.", key="writing_ai_btn"):
+        if not user_ans.strip():
+            st.warning("Please enter your answer to check!")
+        else:
+            with st.spinner("Checking with A.I..."):
+                import openai
+                prompt = (
+                    f"You are a German teacher. Please check if this student answer fits the following {level} rule:\n"
+                    f"Rule: {', '.join(topic['rules'])}\n"
+                    f"Task: {topic['practice_instruction']}\n"
+                    f"Student answer: '{user_ans}'\n"
+                    "1. State if the sentence is correct or not (Correct/Incorrect).\n"
+                    "2. If incorrect, provide a corrected version.\n"
+                    "3. Explain the correction simply, in English (max 2 sentences)."
+                    "\nUse simple words for learners."
+                )
+                try:
+                    client = openai.OpenAI()
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=160,
+                        temperature=0.2,
                     )
-                    try:
-                        client = openai.OpenAI()
-                        response = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[{"role": "user", "content": prompt}],
-                            max_tokens=160,
-                            temperature=0.2,
-                        )
-                        ai_feedback = response.choices[0].message.content
-                        st.markdown("**A.I. Feedback:**")
-                        st.info(ai_feedback)
-                        # Save attempt to Firebase (match the function signature)
-                        save_writing_attempt(
-                            student_code=code,
-                            level=level,
-                            topic_name=topic['title'],
-                            user_input=user_ans,
-                            correct="Correct" in ai_feedback,  # or use True/False as you prefer
-                            solution=topic['solution'],
-                        )
-                        st.success("Result saved! You can pick another topic above.")
+                    ai_feedback = response.choices[0].message.content
+                    st.markdown("**A.I. Feedback:**")
+                    st.info(ai_feedback)
+                    # Save attempt to Firebase (match the function signature)
+                    save_writing_attempt(
+                        student_code=code,
+                        level=level,
+                        topic_name=topic['title'],
+                        user_input=user_ans,
+                        correct="Correct" in ai_feedback,
+                        solution=topic['solution'],
+                    )
+                    st.success("Result saved! Click below to pick another topic or retry.")
+                    if st.button("Next Topic", key="next_topic"):
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Error from OpenAI: {e}")
+                except Exception as e:
+                    st.error(f"Error from OpenAI: {e}")
 #
 
 
@@ -6525,6 +6505,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
