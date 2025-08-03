@@ -654,24 +654,31 @@ if st.session_state.get("logged_in"):
     ]
 
     # --- Personalized Leaderboard Position on Main Dashboard ---
+    MIN_ASSIGNMENTS = 3
+
     user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
-    df_level = df_assign[df_assign['level'] == user_level]
-    ranking = (
-        df_level.groupby(['studentcode', 'name'], as_index=False)
+    # Calculate leaderboard stats and apply minimum assignments filter
+    df_level = (
+        df_assign[df_assign['level'] == user_level]
+        .groupby(['studentcode', 'name'], as_index=False)
         .agg(avg_score=('score', 'mean'), completed=('assignment', 'nunique'))
-        .sort_values(['avg_score', 'completed'], ascending=[False, False])
-        .reset_index(drop=True)
     )
-    ranking['Rank'] = ranking.index + 1
+    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
 
-    your_row = ranking[ranking['studentcode'].str.lower() == student_code.lower()]
+    # Add consistency bonus (optional, tweak bonus as desired)
+    df_level['leaderboard_score'] = df_level['avg_score'] + (df_level['completed'] - MIN_ASSIGNMENTS) * 2
+
+    df_level = df_level.sort_values(['leaderboard_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
+    df_level['Rank'] = df_level.index + 1
+
+    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
     if not your_row.empty:
         row = your_row.iloc[0]
         rank = int(row['Rank'])
-        total_students = len(ranking)
+        total_students = len(df_level)
         percent = (rank / total_students) * 100
 
         # --- Rotating motivation style ---
@@ -698,22 +705,25 @@ if st.session_state.get("logged_in"):
         st.markdown(
             f"""
             <div style="
-                background:#cce7ff;
-                border-left: 7px solid #007bff;
-                padding:16px 18px;
-                border-radius:12px;
+                background:#b388ff;
+                border-left: 7px solid #8d4de8;
+                color:#181135;
+                padding:18px 20px;
+                border-radius:14px;
                 margin:10px 0 18px 0;
+                box-shadow: 0 3px 12px rgba(0,0,0,0.13);
+                font-weight: 500;
                 ">
                 <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
-                <span style="font-size:1.2em;">
+                <span style="font-size:1.21em;">
                 <b>Your current rank:</b> #{rank}
                 </span><br>
-                <div style="margin-top:8px;font-size:1.08em;">{message}</div>
+                <div style="margin-top:10px;font-size:1.09em;">{message}</div>
             </div>
             """, unsafe_allow_html=True
         )
     else:
-        st.info("Complete at least one assignment to appear on the leaderboard for your level.")
+        st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
 
     st.divider()
 #
@@ -6125,6 +6135,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
