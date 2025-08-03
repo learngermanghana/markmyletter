@@ -3285,7 +3285,7 @@ if tab == "Course Book":
             if st.form_submit_button("Post") and new_msg.strip():
                 post_message(student_level, student_code, student_name, new_msg)
                 st.success("Your message was posted!")
-                st.experimental_rerun()
+                st.rerun()
 
         st.divider()
 
@@ -6112,6 +6112,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
