@@ -635,19 +635,24 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
-    # ========== SHOW YOUR LEADERBOARD POSITION ==========
-    df_level = df_scores[df_scores['level'].str.upper().str.strip() == level]
-    df_level['score'] = pd.to_numeric(df_level['score'], errors='coerce')
+    # --- Personalized Leaderboard Position on Main Dashboard ---
+    # Get student level (this assumes your student_row/session_state logic is available)
+    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
 
+    # If you have all assignment scores loaded as df_assign, re-calculate leaderboard for the student's level
+    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
+    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
+
+    df_level = df_assign[df_assign['level'] == user_level]
     ranking = (
-        df_level.groupby(['student_code', 'name'], as_index=False)
+        df_level.groupby(['studentcode', 'name'], as_index=False)
         .agg(avg_score=('score', 'mean'), completed=('assignment', 'nunique'))
         .sort_values(['avg_score', 'completed'], ascending=[False, False])
         .reset_index(drop=True)
     )
     ranking['Rank'] = ranking.index + 1
 
-    your_row = ranking[ranking['student_code'].str.lower() == student_code.lower()]
+    your_row = ranking[ranking['studentcode'].str.lower() == student_code.lower()]
     if not your_row.empty:
         row = your_row.iloc[0]
         rank = int(row['Rank'])
@@ -670,8 +675,8 @@ if st.session_state.get("logged_in"):
 
         st.markdown(
             f"""
-            <div style="background:#e0f7fa;padding:16px 18px;border-radius:8px;margin:12px 0 18px 0;">
-                <b>🏅 Your Leaderboard Position (Level {level}):</b><br>
+            <div style="background:#e0f7fa;padding:16px 18px;border-radius:8px;margin:8px 0 18px 0;">
+                <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
                 <span style="font-size:1.2em;">
                 <b>Your current rank:</b> #{rank}
                 </span><br>
@@ -682,6 +687,7 @@ if st.session_state.get("logged_in"):
     else:
         st.info("Complete at least one assignment to appear on the leaderboard for your level.")
 
+    st.divider()
 
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
@@ -6090,6 +6096,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
