@@ -2788,6 +2788,8 @@ if tab == "Course Book":
             save_draft_to_db(code, lesson_key, text)
             st.session_state[f"{lesson_key}_saved"] = True
 
+        
+
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
             "Answer (or attach on WhatsApp)",
@@ -2798,6 +2800,23 @@ if tab == "Course Book":
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("Draft autosaved!")
+
+            # === INSTRUCTIONS: Place below columns and above copy box ===
+    st.info(
+        """
+        **How to submit your assignment:**
+
+        1. Write your complete answers in the box above.
+        2. Click **Send via WhatsApp** when done.
+        3. After clicking, you will see an **Open WhatsApp** button.
+        4. Your assignment message is organized below for you to review.
+        5. Confirm your assignment number and student code are correct.
+        6. Click **Open WhatsApp** or copy the message below to directly send it to your tutor.
+
+        _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
+        """
+    )
+#
 
         # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
@@ -2824,16 +2843,7 @@ if tab == "Course Book":
                 st.rerun()
 
         st.text_area("📋 Copy message:", msg, height=500)
-
-
-        st.info(
-            """
-            - Use the links above to access your lesson resources in a new tab.
-            - Make sure to say which day or task you are submitting in your answer.
-            - Enter your correct name and code before sending.
-            - After submitting via WhatsApp, you can also save your answer as a note for future use.
-            """
-        )
+#
 
 
 
