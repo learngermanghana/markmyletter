@@ -5120,8 +5120,7 @@ if tab == "Vocab Trainer":
     elif subtab == "Writing Practice":
         st.header("✍️ Writing Practice (A1–C1)")
         st.markdown(
-            "Practice key sentence types for your level. See the rule, an example (that is NOT the answer), and then try to write your own answer. "
-            "Get instant A.I. corrections and save your results!"
+            "Practice German writing for your level. Choose a grammar topic below, read the rule and example, then try to answer. Get instant A.I. feedback and your results are saved!"
         )
 
         # --- All level topics and rules ---
@@ -5135,8 +5134,8 @@ if tab == "Vocab Trainer":
                         "Add extra information (time, place, object).",
                         "End with a full stop."
                     ],
-                    "practice_instruction": "Write: I go jogging every morning.",
-                    "example_wrong": "Gehe ich jeden Morgen joggen.",  # Not correct; for learning!
+                    "practice_instruction": "Write the German sentence for: I go jogging every morning.",
+                    "example_wrong": "Gehe ich jeden Morgen joggen.",  # Not correct
                     "solution": "Ich gehe jeden Morgen joggen."
                 },
                 {
@@ -5146,7 +5145,7 @@ if tab == "Vocab Trainer":
                         "Modal verb (können, müssen, etc.) is in second position.",
                         "Main verb goes to the end (infinitive)."
                     ],
-                    "practice_instruction": "Say: I can speak German.",
+                    "practice_instruction": "Write the German for: I can speak German.",
                     "example_wrong": "Kann ich Deutsch sprechen.",  # Not correct
                     "solution": "Ich kann Deutsch sprechen."
                 },
@@ -5158,7 +5157,7 @@ if tab == "Vocab Trainer":
                         "Other info before prefix.",
                         "Separable prefix at the end."
                     ],
-                    "practice_instruction": "Say: I get up at 6 a.m. every morning.",
+                    "practice_instruction": "Write the German for: I get up at 6 a.m. every morning.",
                     "example_wrong": "Stehe ich auf jeden Morgen um 6 Uhr.",  # Not correct
                     "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
                 },
@@ -5170,7 +5169,7 @@ if tab == "Vocab Trainer":
                         "Add info.",
                         "End with a question mark."
                     ],
-                    "practice_instruction": "Ask: Do you have siblings?",
+                    "practice_instruction": "Write the German question for: Do you have siblings?",
                     "example_wrong": "Du hast Geschwister?",  # Not correct
                     "solution": "Hast du Geschwister?"
                 },
@@ -5182,7 +5181,7 @@ if tab == "Vocab Trainer":
                         "Subject follows verb.",
                         "End with ?"
                     ],
-                    "practice_instruction": "Ask: Where do you live?",
+                    "practice_instruction": "Write the German question for: Where do you live?",
                     "example_wrong": "Du wohnst wo?",  # Not correct
                     "solution": "Wo wohnst du?"
                 },
@@ -5194,7 +5193,7 @@ if tab == "Vocab Trainer":
                         "Use the time-manner-place (TMP) word order.",
                         "Add adjectives to describe nouns."
                     ],
-                    "practice_instruction": "Write: On weekends, I often go with my best friends to the big cinema.",
+                    "practice_instruction": "Write the German for: On weekends, I often go with my best friends to the big cinema.",
                     "example_wrong": "Ich gehe ins Kino am Wochenende.",  # Not correct
                     "solution": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino."
                 },
@@ -5205,7 +5204,7 @@ if tab == "Vocab Trainer":
                         "Use 'weil' for the reason.",
                         "Verb goes to the end in the weil-clause."
                     ],
-                    "practice_instruction": "Say: I am staying at home because I am sick.",
+                    "practice_instruction": "Write the German for: I am staying at home because I am sick.",
                     "example_wrong": "Ich bleibe zu Hause, weil ich bin krank.",  # Not correct
                     "solution": "Ich bleibe heute zu Hause, weil ich krank bin."
                 },
@@ -5215,7 +5214,7 @@ if tab == "Vocab Trainer":
                         "Connect two sentences with 'obwohl'.",
                         "Verb goes to the end in 'obwohl'-clause."
                     ],
-                    "practice_instruction": "Say: I go for a walk although it is raining.",
+                    "practice_instruction": "Write the German for: I go for a walk although it is raining.",
                     "example_wrong": "Ich gehe obwohl es regnet spazieren.",  # Not correct
                     "solution": "Ich gehe spazieren, obwohl es regnet."
                 },
@@ -5225,7 +5224,7 @@ if tab == "Vocab Trainer":
                         "Use a form of 'werden' in second position.",
                         "Main verb at the end (infinitive)."
                     ],
-                    "practice_instruction": "Say: Next year, I will travel to Germany.",
+                    "practice_instruction": "Write the German for: Next year, I will travel to Germany.",
                     "example_wrong": "Ich werde reisen nach Deutschland nächstes Jahr.",  # Not correct
                     "solution": "Nächstes Jahr werde ich nach Deutschland reisen."
                 },
@@ -5235,7 +5234,7 @@ if tab == "Vocab Trainer":
                         "Use 'damit' to express purpose/goal.",
                         "Verb at the end in the 'damit'-clause."
                     ],
-                    "practice_instruction": "Say: I study a lot so that I pass the exam.",
+                    "practice_instruction": "Write the German for: I study a lot so that I pass the exam.",
                     "example_wrong": "Ich lerne viel, damit ich bestehe die Prüfung.",  # Not correct
                     "solution": "Ich lerne viel, damit ich die Prüfung bestehe."
                 },
@@ -5243,33 +5242,25 @@ if tab == "Vocab Trainer":
             # Add B1, B2, C1 in the same structure.
         }
 
-        # ------ Get student info -----
+        # ------ Student info -----
         level = st.session_state.get("student_level", "A1")
         code = st.session_state.get("student_code", "demo")
         topic_list = GRAMMAR_TOPICS.get(level, GRAMMAR_TOPICS["A1"])
-        idx = st.session_state.get("writing_topic_idx", 0)
 
-        # ---- Navigation -----
-        prev, next = st.columns([1, 1])
-        with prev:
-            if st.button("⬅️ Previous", disabled=idx==0):
-                st.session_state["writing_topic_idx"] = max(0, idx-1)
-                st.experimental_rerun()
-        with next:
-            if st.button("Next ➡️", disabled=idx==len(topic_list)-1):
-                st.session_state["writing_topic_idx"] = min(len(topic_list)-1, idx+1)
-                st.experimental_rerun()
+        topic_titles = [f"{i+1}. {topic['title']}" for i, topic in enumerate(topic_list)]
+        topic_idx = st.selectbox("Select a practice topic:", options=list(range(len(topic_list))), format_func=lambda i: topic_titles[i], key="writing_topic_idx")
 
-        topic = topic_list[idx]
-        st.subheader(f"{idx+1}. {topic['title']}")
-        st.markdown("**Rules:**")
+        topic = topic_list[topic_idx]
+
+        st.subheader(f"{topic['title']}")
+        st.markdown("**Rules for this topic:**")
         for r in topic["rules"]:
             st.markdown(f"- {r}")
-        st.markdown("**Practice instruction:** " + topic["practice_instruction"])
-        st.markdown("*Example (NOT correct):* `" + topic["example_wrong"] + "`")
+        st.markdown(f"**What to do:** {topic['practice_instruction']}")
+        st.markdown(f"*Example of a common mistake (not correct!):* `{topic['example_wrong']}`")
 
         st.markdown("---")
-        user_ans = st.text_area("Type your German sentence/answer here:", key="writing_input", value="", height=70)
+        user_ans = st.text_area("Type your German answer here:", key="writing_input", value="", height=70)
 
         ai_feedback = ""
         if st.button("Check with A.I.", key="writing_ai_btn"):
@@ -5279,7 +5270,7 @@ if tab == "Vocab Trainer":
                 with st.spinner("Checking with A.I..."):
                     import openai
                     prompt = (
-                        f"You are a German teacher. Please check if this student answer fits the following A2 rule:\n"
+                        f"You are a German teacher. Please check if this student answer fits the following {level} rule:\n"
                         f"Rule: {', '.join(topic['rules'])}\n"
                         f"Task: {topic['practice_instruction']}\n"
                         f"Student answer: '{user_ans}'\n"
@@ -5299,7 +5290,7 @@ if tab == "Vocab Trainer":
                         ai_feedback = response.choices[0].message.content
                         st.markdown("**A.I. Feedback:**")
                         st.info(ai_feedback)
-                        # Save attempt to Firebase (you already have this function)
+                        # Save attempt to Firebase (use your own function)
                         save_writing_attempt(
                             student_code=code,
                             level=level,
@@ -5307,12 +5298,12 @@ if tab == "Vocab Trainer":
                             user_answer=user_ans,
                             ai_feedback=ai_feedback,
                         )
+                        st.success("Result saved! You can pick another topic above.")
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error from OpenAI: {e}")
+#
 
-        # Show model answer (solution)
-        if st.button("Show Model Answer", key="show_solution"):
-            st.success(f"**Model answer:** {topic['solution']}")
 
 
 
@@ -6369,6 +6360,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
