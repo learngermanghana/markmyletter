@@ -4922,6 +4922,7 @@ def save_writing_attempt(student_code, level, topic_name, user_input, correct, s
     doc_ref = db.collection("writing_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
+
     history = data.get("history", [])
     attempt = {
         "level": level,
@@ -4932,13 +4933,17 @@ def save_writing_attempt(student_code, level, topic_name, user_input, correct, s
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
     history.append(attempt)
+
+    # Streak logic (increments if correct, else resets)
     streak = data.get("streak", 0) + 1 if correct else 0
+
     doc_ref.set({
         "history": history,
         "streak": streak,
         "last_practiced": attempt["timestamp"],
         "total_sessions": len(history),
     })
+
 # =========================================
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
@@ -5449,13 +5454,14 @@ if tab == "Vocab Trainer":
                         ai_feedback = response.choices[0].message.content
                         st.markdown("**A.I. Feedback:**")
                         st.info(ai_feedback)
-                        # Save attempt to Firebase (use your own function)
+                        # Save attempt to Firebase (match the function signature)
                         save_writing_attempt(
                             student_code=code,
                             level=level,
                             topic_name=topic['title'],
-                            user_answer=user_ans,
-                            ai_feedback=ai_feedback,
+                            user_input=user_ans,
+                            correct="Correct" in ai_feedback,  # or use True/False as you prefer
+                            solution=topic['solution'],
                         )
                         st.success("Result saved! You can pick another topic above.")
                         st.rerun()
@@ -6519,6 +6525,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
