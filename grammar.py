@@ -221,8 +221,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     return videos
 
 
-# --- Ensure student_row is loaded first ---
-student_row = st.session_state.get("student_row", {})
+
 
 # --- Streamlit page config ---
 st.set_page_config(
@@ -280,12 +279,6 @@ with col_avatar:
         st.session_state["profile_pic"] = uploaded_file
         st.success("Profile photo updated!")
 
-with col_info:
-    st.markdown(f"""
-        **Name:** {student_row.get('Name','(No Name)')}  
-        **Code:** {student_row.get('StudentCode','(No Code)')}  
-        **Level:** {student_row.get('Level','(No Level)')}  
-    """)
 
 st.divider()
 
@@ -6164,6 +6157,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
