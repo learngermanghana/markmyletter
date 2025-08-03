@@ -697,12 +697,18 @@ if st.session_state.get("logged_in"):
 
         st.markdown(
             f"""
-            <div style="background:#e0f7fa;padding:16px 18px;border-radius:8px;margin:8px 0 18px 0;">
+            <div style="
+                background:#cce7ff;
+                border-left: 7px solid #007bff;
+                padding:16px 18px;
+                border-radius:12px;
+                margin:10px 0 18px 0;
+                ">
                 <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
                 <span style="font-size:1.2em;">
                 <b>Your current rank:</b> #{rank}
                 </span><br>
-                <div style="margin-top:8px;font-size:1.1em;">{message}</div>
+                <div style="margin-top:8px;font-size:1.08em;">{message}</div>
             </div>
             """, unsafe_allow_html=True
         )
@@ -710,6 +716,8 @@ if st.session_state.get("logged_in"):
         st.info("Complete at least one assignment to appear on the leaderboard for your level.")
 
     st.divider()
+#
+
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
@@ -6117,6 +6125,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
