@@ -4921,11 +4921,10 @@ def get_vocab_stats(student_code):
 # VOCAB TRAINER TAB (A1–C1)
 # =========================================
 
-# Your Google Sheet → CSV
+# -- Sheet & audio helpers --
 sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
 csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
 
-# Play German audio
 def play_word_audio(word, lang="de"):
     from gtts import gTTS
     import tempfile
@@ -4934,7 +4933,6 @@ def play_word_audio(word, lang="de"):
         tts.save(fp.name)
         st.audio(fp.name, format="audio/mp3")
 
-# Chat bubble renderer
 def render_message(role, msg):
     align   = "left"   if role=="assistant" else "right"
     bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
@@ -4947,7 +4945,6 @@ def render_message(role, msg):
     )
     st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
 
-# Answer checking
 def clean_text(text):
     return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
 
@@ -4956,7 +4953,6 @@ def is_correct_answer(user_input, answer):
     possible = [a.strip().lower() for a in re.split(r"[,/;]", answer)]
     return clean_text(user_input) in possible
 
-# Robust CSV loader
 @st.cache_data
 def load_vocab_lists():
     import pandas as pd
@@ -4978,7 +4974,10 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
-# Tab logic
+# =========================================
+# SUBTABS: VOCAB PRACTICE & WRITING PRACTICE
+# =========================================
+
 if tab == "Vocab Trainer":
     st.markdown(
         """
@@ -4992,98 +4991,203 @@ if tab == "Vocab Trainer":
     )
     st.divider()
 
-    # initialize
-    defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
-    for k,v in defaults.items(): st.session_state.setdefault(k,v)
-    student_code = st.session_state.get("student_code","demo")
+    subtab = st.radio(
+        "Choose practice:",
+        ["Vocab Practice", "Writing Practice"],
+        horizontal=True,
+        key="vocab_practice_subtab"
+    )
 
-    # show stats
-    stats = get_vocab_stats(student_code)
-    st.markdown("### 📝 Your Vocab Stats")
-    st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-    st.markdown(f"- **Best:** {stats['best']}")
-    st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-    st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-    if st.checkbox("Show Last 5 Sessions"):
-        for a in stats["history"][-5:][::-1]:
-            st.markdown(
-                f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                unsafe_allow_html=True
-            )
+    if subtab == "Vocab Practice":
+        # ------- VOCAB PRACTICE LOGIC -------
+        # initialize
+        defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
+        for k,v in defaults.items(): st.session_state.setdefault(k,v)
+        student_code = st.session_state.get("student_code","demo")
 
-    # pick level & words
-    level       = st.selectbox("Level", list(VOCAB_LISTS.keys()), key="vt_level")
-    items       = VOCAB_LISTS.get(level, [])
-    completed   = set(stats["completed_words"])
-    not_done    = [p for p in items if p[0] not in completed]
-    st.info(f"{len(not_done)} words NOT yet done at {level}.")
+        # show stats
+        stats = get_vocab_stats(student_code)
+        st.markdown("### 📝 Your Vocab Stats")
+        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+        st.markdown(f"- **Best:** {stats['best']}")
+        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+        if st.checkbox("Show Last 5 Sessions"):
+            for a in stats["history"][-5:][::-1]:
+                st.markdown(
+                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                    unsafe_allow_html=True
+                )
 
-    # reset
-    if st.button("🔁 Start New Practice", key="vt_reset"):
-        for k in defaults: st.session_state[k]=defaults[k]
+        # pick level & words
+        level       = st.selectbox("Level", list(VOCAB_LISTS.keys()), key="vt_level")
+        items       = VOCAB_LISTS.get(level, [])
+        completed   = set(stats["completed_words"])
+        not_done    = [p for p in items if p[0] not in completed]
+        st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-    mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
-    session_vocab = (not_done if mode=="Only new words" else items).copy()
-
-    # how many?
-    if st.session_state.vt_total is None:
-        maxc = len(session_vocab)
-        if maxc==0:
-            st.success("🎉 All done! Switch to 'All words' to repeat.")
-            st.stop()
-        count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
-        if st.button("Start", key="vt_start"):
-            random.shuffle(session_vocab)
-            st.session_state.vt_list    = session_vocab[:count]
-            st.session_state.vt_total   = count
-            st.session_state.vt_index   = 0
-            st.session_state.vt_score   = 0
-            st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
-
-    # show chat
-    if st.session_state.vt_history:
-        st.markdown("### 🗨️ Practice Chat")
-        for who,msg in st.session_state.vt_history:
-            render_message(who,msg)
-
-    # practice loop
-    tot = st.session_state.vt_total
-    idx = st.session_state.vt_index
-    if isinstance(tot,int) and idx<tot:
-        word,answer = st.session_state.vt_list[idx]
-
-        # play/download
-        if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-            from gtts import gTTS
-            import tempfile
-            t = gTTS(text=word, lang="de")
-            with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
-                t.save(fp.name)
-                st.audio(fp.name,format="audio/mp3")
-                fp.seek(0)
-                blob = fp.read()
-            st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
-
-        usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
-        if usr and st.button("Check", key=f"vt_check_{idx}"):
-            st.session_state.vt_history.append(("user",usr))
-            if is_correct_answer(usr,answer):
-                st.session_state.vt_score += 1
-                fb = f"✅ Correct! '{word}' = '{answer}'"
-            else:
-                fb = f"❌ Nope. '{word}' = '{answer}'"
-            st.session_state.vt_history.append(("assistant",fb))
-            st.session_state.vt_index += 1
-
-    # done
-    if isinstance(tot,int) and idx>=tot:
-        score = st.session_state.vt_score
-        words = [w for w,_ in st.session_state.vt_list]
-        st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-        save_vocab_attempt(student_code, level, tot, score, words)
-        if st.button("Practice Again", key="vt_again"):
+        # reset
+        if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults: st.session_state[k]=defaults[k]
+
+        mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
+        session_vocab = (not_done if mode=="Only new words" else items).copy()
+
+        # how many?
+        if st.session_state.vt_total is None:
+            maxc = len(session_vocab)
+            if maxc==0:
+                st.success("🎉 All done! Switch to 'All words' to repeat.")
+                st.stop()
+            count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
+            if st.button("Start", key="vt_start"):
+                import random
+                random.shuffle(session_vocab)
+                st.session_state.vt_list    = session_vocab[:count]
+                st.session_state.vt_total   = count
+                st.session_state.vt_index   = 0
+                st.session_state.vt_score   = 0
+                st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+
+        # show chat
+        if st.session_state.vt_history:
+            st.markdown("### 🗨️ Practice Chat")
+            for who,msg in st.session_state.vt_history:
+                render_message(who,msg)
+
+        # practice loop
+        tot = st.session_state.vt_total
+        idx = st.session_state.vt_index
+        if isinstance(tot,int) and idx<tot:
+            word,answer = st.session_state.vt_list[idx]
+
+            # play/download
+            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
+                from gtts import gTTS
+                import tempfile
+                t = gTTS(text=word, lang="de")
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
+                    t.save(fp.name)
+                    st.audio(fp.name,format="audio/mp3")
+                    fp.seek(0)
+                    blob = fp.read()
+                st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
+
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            if usr and st.button("Check", key=f"vt_check_{idx}"):
+                st.session_state.vt_history.append(("user",usr))
+                if is_correct_answer(usr,answer):
+                    st.session_state.vt_score += 1
+                    fb = f"✅ Correct! '{word}' = '{answer}'"
+                else:
+                    fb = f"❌ Nope. '{word}' = '{answer}'"
+                st.session_state.vt_history.append(("assistant",fb))
+                st.session_state.vt_index += 1
+
+        # done
+        if isinstance(tot,int) and idx>=tot:
+            score = st.session_state.vt_score
+            words = [w for w,_ in st.session_state.vt_list]
+            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
+            save_vocab_attempt(student_code, level, tot, score, words)
+            if st.button("Practice Again", key="vt_again"):
+                for k in defaults: st.session_state[k]=defaults[k]
+    elif subtab == "Writing Practice":
+        st.header("✍️ Writing Practice (A1–C1)")
+        st.markdown(
+            "Type a German sentence and check it against your level’s rules. "
+            "You can also use the A.I. checker for instant corrections and feedback!"
+        )
+
+        # Quick reminders/rules based on the student's level
+        WRITING_RULES = {
+            "A1": [
+                "**A1 Key Rules:**",
+                "- Start with the subject (Ich, Du, Er…).",
+                "- Verb is always in the second position.",
+                "- Add extra info (time, place, object) after the verb.",
+                "- Modal verbs: main verb goes to the end.",
+                "- Separable verbs: Prefix goes to the end.",
+                "- Yes/No Questions: Start with verb.",
+                "- W-Questions: Start with W-word, verb second.",
+            ],
+            "A2": [
+                "**A2 Key Rules:**",
+                "- Use simple connectors: und, aber, oder, denn, weil.",
+                "- Start using past tense (Perfekt) for simple experiences.",
+                "- Combine sentences for basic reasoning.",
+            ],
+            "B1": [
+                "**B1 Key Rules:**",
+                "- Use more connectors: trotzdem, deshalb, nachdem, bevor.",
+                "- Include opinions and reasons.",
+                "- Write longer sentences and narratives.",
+            ],
+            "B2": [
+                "**B2 Key Rules:**",
+                "- Use advanced connectors: obwohl, falls, sobald, dadurch.",
+                "- Argue with complex sentences, give pros/cons.",
+                "- Passive, indirect questions, and subjunctive.",
+            ],
+            "C1": [
+                "**C1 Key Rules:**",
+                "- Use high-level connectors and idiomatic phrases.",
+                "- Express nuanced opinions, hypothesize.",
+                "- Integrate sources, paraphrase, and critique.",
+            ],
+        }
+
+        level = st.session_state.get("student_level", "A1")
+        rules = WRITING_RULES.get(level, WRITING_RULES["A1"])
+        for r in rules:
+            st.markdown(r)
+
+        st.markdown("---")
+        user_sentence = st.text_area("Write your sentence below (in German):", key="writing_input")
+
+        if st.button("Check with A.I.", key="writing_ai_btn"):
+            if not user_sentence.strip():
+                st.warning("Please enter a sentence to check!")
+            else:
+                with st.spinner("Checking with A.I..."):
+                    prompt = (
+                        f"You are a German teacher. Please check this sentence for {level} level grammar: '{user_sentence}'.\n"
+                        "1. State if the sentence is correct or not (just Correct/Incorrect).\n"
+                        "2. If incorrect, provide a corrected version.\n"
+                        "3. Explain the correction simply, in English (max 2 sentences).\n"
+                        "Use simple words for learners."
+                    )
+                    try:
+                        import openai
+                        response = openai.ChatCompletion.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=160,
+                            temperature=0.2,
+                        )
+                        ai_feedback = response.choices[0].message.content
+                        st.markdown("**A.I. Feedback:**")
+                        st.info(ai_feedback)
+                    except Exception as e:
+                        st.error(f"Error from OpenAI: {e}")
+
+
+
+        ...
+
+# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
+def bubble(role, text):
+    color = "#7b2ff2" if role == "assistant" else "#222"
+    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+    name = "Herr Felix" if role == "assistant" else "You"
+    return f"""
+        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+        border-radius:14px;max-width:98vw;font-size:1.09rem;">
+            <b>{name}:</b><br>{text}
+        </div>
+    """
+
 
 
 
@@ -6139,6 +6243,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
