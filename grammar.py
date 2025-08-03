@@ -487,6 +487,7 @@ if not st.session_state["logged_in"]:
                         cookie_manager.save()
                         st.success(f"Welcome, {student_row['Name']}!")
                         st.rerun()
+      st.divider()
 
     # --- 3) Create Account (always visible, always left) ---
     st.markdown("### Create an Account")
@@ -6041,6 +6042,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
