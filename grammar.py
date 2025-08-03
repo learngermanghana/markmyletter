@@ -2923,7 +2923,8 @@ if tab == "Course Book":
         )
         url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
+
         with col1:
             if st.button("📤 Send via WhatsApp"):
                 st.success("Click link below to submit through WhatsApp.")
@@ -2939,9 +2940,25 @@ if tab == "Course Book":
                 st.session_state["switch_to_notes"] = True
                 st.rerun()
 
+        with col3:
+            q_for_teacher = st.text_area(
+                "Question for teacher?", 
+                key=f"ask_teacher_{lesson_key}", 
+                height=100,
+                placeholder="Ask the teacher anything about this lesson. Everyone will see it!"
+            )
+            if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
+                post_message(
+                    student_level,
+                    code,
+                    name,
+                    f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
+                )
+                st.success("Your question was posted to the community board!")              
+
         st.text_area("📋 Copy message:", msg, height=500)
 
-
+#
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
@@ -6112,6 +6129,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
