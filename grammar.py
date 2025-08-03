@@ -3232,6 +3232,37 @@ if tab == "My Results and Resources":
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level]
 
+        # ========== SHOW YOUR LEADERBOARD POSITION ==========
+    df_level = df_scores[df_scores['level'].str.upper().str.strip() == level]
+    df_level['score'] = pd.to_numeric(df_level['score'], errors='coerce')
+
+    ranking = (
+        df_level.groupby(['student_code', 'name'], as_index=False)
+        .agg(avg_score=('score', 'mean'), completed=('assignment', 'nunique'))
+        .sort_values(['avg_score', 'completed'], ascending=[False, False])
+        .reset_index(drop=True)
+    )
+    ranking['Rank'] = ranking.index + 1
+
+    your_row = ranking[ranking['student_code'].str.lower() == student_code.lower()]
+    if not your_row.empty:
+        row = your_row.iloc[0]
+        st.markdown(
+            f"""
+            <div style="background:#e0f7fa;padding:16px 18px;border-radius:8px;margin:12px 0 18px 0;">
+                <b>🏅 Your Leaderboard Position (Level {level}):</b><br>
+                <span style="font-size:1.2em;">
+                <b>Rank #{row['Rank']}</b> out of {len(ranking)} students<br>
+                <b>Average Score:</b> {row['avg_score']:.1f}<br>
+                <b>Assignments Completed:</b> {int(row['completed'])}
+                </span>
+            </div>
+            """, unsafe_allow_html=True
+        )
+    else:
+        st.info("Complete at least one assignment to appear on the leaderboard for your level.")
+#
+
     # ========== METRICS ==========
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
@@ -3246,7 +3277,7 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-
+#
     # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -6041,6 +6072,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
