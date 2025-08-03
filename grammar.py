@@ -5122,356 +5122,358 @@ if tab == "Vocab Trainer":
                 for k in defaults: st.session_state[k]=defaults[k]
     
 
-    elif subtab == "Writing Practice":
-        st.header("✍️ Writing Practice (A1–C1)")
-        st.markdown(
-            "Practice German writing for your level. Choose a grammar topic below, read the rule and example, then try to answer. Get instant A.I. feedback and your results are saved!"
-        )
+elif subtab == "Writing Practice":
+    st.header("✍️ Writing Practice (A1–C1)")
+    st.markdown(
+        "Practice German writing for your level. Choose a grammar topic below, read the rule and example, then try to answer. "
+        "Get instant A.I. feedback and your results are saved!"
+    )
 
-        # --- All level topics and rules ---
-        GRAMMAR_TOPICS = {
-            "A1": [
-                {
-                    "title": "Statement Formulation",
-                    "rules": [
-                        "Begin with the subject (Ich, Du, Er...).",
-                        "Verb goes in the second position.",
-                        "Add extra information (time, place, object).",
-                        "End with a full stop."
-                    ],
-                    "practice_instruction": "Write the German sentence for: I go jogging every morning.",
-                    "example_wrong": "Gehe ich jeden Morgen joggen.",
-                    "solution": "Ich gehe jeden Morgen joggen."
-                },
-                {
-                    "title": "Modal Verb Statements",
-                    "rules": [
-                        "Start with the subject.",
-                        "Modal verb (können, müssen, etc.) is in second position.",
-                        "Main verb goes to the end (infinitive)."
-                    ],
-                    "practice_instruction": "Write the German for: I can speak German.",
-                    "example_wrong": "Kann ich Deutsch sprechen.",
-                    "solution": "Ich kann Deutsch sprechen."
-                },
-                {
-                    "title": "Separable Verbs (Statement)",
-                    "rules": [
-                        "Begin with the subject.",
-                        "Main part of verb in second position.",
-                        "Other info before prefix.",
-                        "Separable prefix at the end."
-                    ],
-                    "practice_instruction": "Write the German for: I get up at 6 a.m. every morning.",
-                    "example_wrong": "Stehe ich auf jeden Morgen um 6 Uhr.",
-                    "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
-                },
-                {
-                    "title": "Yes/No Questions",
-                    "rules": [
-                        "Start with the verb.",
-                        "Follow with the subject.",
-                        "Add info.",
-                        "End with a question mark."
-                    ],
-                    "practice_instruction": "Write the German question for: Do you have siblings?",
-                    "example_wrong": "Du hast Geschwister?",
-                    "solution": "Hast du Geschwister?"
-                },
-                {
-                    "title": "W-Questions",
-                    "rules": [
-                        "Start with W-word (Wo, Wie, etc.).",
-                        "Verb is second.",
-                        "Subject follows verb.",
-                        "End with ?"
-                    ],
-                    "practice_instruction": "Write the German question for: Where do you live?",
-                    "example_wrong": "Du wohnst wo?",
-                    "solution": "Wo wohnst du?"
-                },
-            ],
-            "A2": [
-                {
-                    "title": "Extended Statements (TMP & Adjectives)",
-                    "rules": [
-                        "Use the time-manner-place (TMP) word order.",
-                        "Add adjectives to describe nouns."
-                    ],
-                    "practice_instruction": "Write the German for: On weekends, I often go with my best friends to the big cinema.",
-                    "example_wrong": "Ich gehe ins Kino am Wochenende.",
-                    "solution": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino."
-                },
-                {
-                    "title": "Subordinate Clauses with 'weil'",
-                    "rules": [
-                        "Start with a main clause.",
-                        "Use 'weil' for the reason.",
-                        "Verb goes to the end in the weil-clause."
-                    ],
-                    "practice_instruction": "Write the German for: I am staying at home because I am sick.",
-                    "example_wrong": "Ich bleibe zu Hause, weil ich bin krank.",
-                    "solution": "Ich bleibe heute zu Hause, weil ich krank bin."
-                },
-                {
-                    "title": "Using 'obwohl' for Contrasts",
-                    "rules": [
-                        "Connect two sentences with 'obwohl'.",
-                        "Verb goes to the end in 'obwohl'-clause."
-                    ],
-                    "practice_instruction": "Write the German for: I go for a walk although it is raining.",
-                    "example_wrong": "Ich gehe obwohl es regnet spazieren.",
-                    "solution": "Ich gehe spazieren, obwohl es regnet."
-                },
-                {
-                    "title": "Future Tense with 'werden'",
-                    "rules": [
-                        "Use a form of 'werden' in second position.",
-                        "Main verb at the end (infinitive)."
-                    ],
-                    "practice_instruction": "Write the German for: Next year, I will travel to Germany.",
-                    "example_wrong": "Ich werde reisen nach Deutschland nächstes Jahr.",
-                    "solution": "Nächstes Jahr werde ich nach Deutschland reisen."
-                },
-                {
-                    "title": "Purpose Clauses with 'damit'",
-                    "rules": [
-                        "Use 'damit' to express purpose/goal.",
-                        "Verb at the end in the 'damit'-clause."
-                    ],
-                    "practice_instruction": "Write the German for: I study a lot so that I pass the exam.",
-                    "example_wrong": "Ich lerne viel, damit ich bestehe die Prüfung.",
-                    "solution": "Ich lerne viel, damit ich die Prüfung bestehe."
-                },
-            ],
-            "B1": [
-                {
-                    "title": "Complex Sentences with Subordinate Clauses",
-                    "rules": [
-                        "Combine sentences using subordinate conjunctions (z.B. dass, wenn, weil, obwohl).",
-                        "Move the conjugated verb to the end of the subordinate clause."
-                    ],
-                    "practice_instruction": "Combine using 'dass': I know. You are coming tomorrow.",
-                    "example_wrong": "Ich weiß, du kommst morgen.",
-                    "solution": "Ich weiß, dass du morgen kommst."
-                },
-                {
-                    "title": "Indirect Speech (Konjunktiv I)",
-                    "rules": [
-                        "Use 'dass' or introductory phrase for reported speech.",
-                        "Apply the correct Konjunktiv I ending to the verb."
-                    ],
-                    "practice_instruction": "Write the German: She says that she is tired. (Konjunktiv I: sie sei müde)",
-                    "example_wrong": "Sie sagt, dass sie ist müde.",
-                    "solution": "Sie sagt, dass sie müde sei."
-                },
-                {
-                    "title": "Conditional Sentences with 'wenn'",
-                    "rules": [
-                        "Use 'wenn' to express a condition (if/when).",
-                        "Verb at the end in the 'wenn'-clause."
-                    ],
-                    "practice_instruction": "Write the German: If I have time, I will visit you.",
-                    "example_wrong": "Ich besuche dich, wenn ich habe Zeit.",
-                    "solution": "Wenn ich Zeit habe, besuche ich dich."
-                },
-                {
-                    "title": "Passive Voice (Präsens)",
-                    "rules": [
-                        "Use a form of 'werden' and the past participle.",
-                        "Subject receives the action."
-                    ],
-                    "practice_instruction": "Write the German: The letter is written by the teacher.",
-                    "example_wrong": "Der Brief ist geschrieben von der Lehrerin.",
-                    "solution": "Der Brief wird von der Lehrerin geschrieben."
-                },
-                {
-                    "title": "Contrast with 'obwohl' and Concession with 'trotzdem'",
-                    "rules": [
-                        "Use 'obwohl' to begin a subordinate clause expressing contrast.",
-                        "Use 'trotzdem' in the main clause to express concession.",
-                        "Verb at the end of 'obwohl'-clause; main clause word order stays normal."
-                    ],
-                    "practice_instruction": "Write the German: Although it is raining, I am still going for a walk.",
-                    "example_wrong": "Obwohl es regnet, ich gehe trotzdem spazieren.",
-                    "solution": "Obwohl es regnet, gehe ich trotzdem spazieren."
-                },
-            ],
-            "B2": [
-                {
-                    "title": "Relative Clauses",
-                    "rules": [
-                        "Use relative pronouns (der, die, das, deren, dessen, etc.).",
-                        "Verb is at the end of the relative clause.",
-                        "Add descriptive information about a noun."
-                    ],
-                    "practice_instruction": "Write the German: The car that I bought is red.",
-                    "example_wrong": "Das Auto, ich gekauft habe, ist rot.",
-                    "solution": "Das Auto, das ich gekauft habe, ist rot."
-                },
-                {
-                    "title": "Causal Clauses with 'da' and 'weil'",
-                    "rules": [
-                        "Start with 'da' or 'weil' to introduce a reason.",
-                        "Verb is at the end of the subordinate clause."
-                    ],
-                    "practice_instruction": "Write the German: Because I was ill, I couldn't come.",
-                    "example_wrong": "Ich konnte nicht kommen, weil ich war krank.",
-                    "solution": "Da ich krank war, konnte ich nicht kommen."
-                },
-                {
-                    "title": "Infinitive Clauses with 'um ... zu'",
-                    "rules": [
-                        "Use 'um ... zu' to express purpose.",
-                        "The infinitive verb goes to the end."
-                    ],
-                    "practice_instruction": "Write the German: I am learning German to study in Germany.",
-                    "example_wrong": "Ich lerne Deutsch, um studieren in Deutschland.",
-                    "solution": "Ich lerne Deutsch, um in Deutschland zu studieren."
-                },
-                {
-                    "title": "Comparative and Superlative Structures",
-                    "rules": [
-                        "Use 'als' for comparative sentences.",
-                        "Use 'am + -sten' or 'der/die/das + -ste' for superlatives."
-                    ],
-                    "practice_instruction": "Write the German: My brother is taller than me.",
-                    "example_wrong": "Mein Bruder ist mehr groß als ich.",
-                    "solution": "Mein Bruder ist größer als ich."
-                },
-                {
-                    "title": "Double Connectors: sowohl ... als auch, weder ... noch",
-                    "rules": [
-                        "Use double connectors to link two equal elements.",
-                        "Both parts must be present in the sentence."
-                    ],
-                    "practice_instruction": "Write the German: Both my mother and my father work.",
-                    "example_wrong": "Meine Mutter und mein Vater arbeiten sowohl als auch.",
-                    "solution": "Sowohl meine Mutter als auch mein Vater arbeiten."
-                },
-            ],
-            "C1": [
-                {
-                    "title": "Nominalization and Advanced Structures",
-                    "rules": [
-                        "Transform verbs/adjectives into nouns for academic variety.",
-                        "Use complex sentence starters and advanced connectors."
-                    ],
-                    "practice_instruction": "Nominalize: It is important to improve language skills.",
-                    "example_wrong": "Es ist wichtig zu verbessern Sprachkenntnisse.",
-                    "solution": "Die Verbesserung der Sprachkenntnisse ist wichtig."
-                },
-                {
-                    "title": "Participial Constructions",
-                    "rules": [
-                        "Use present or past participles to shorten clauses.",
-                        "Attach participles to nouns or as an adverbial phrase."
-                    ],
-                    "practice_instruction": "Write the German: Living in Germany, he found many friends.",
-                    "example_wrong": "Er hat viele Freunde gefunden, lebend in Deutschland.",
-                    "solution": "In Deutschland lebend, hat er viele Freunde gefunden."
-                },
-                {
-                    "title": "Indirect Questions",
-                    "rules": [
-                        "Introduce the question with 'Ich frage mich, ...' or similar.",
-                        "Verb moves to the end of the clause."
-                    ],
-                    "practice_instruction": "Write the German: I wonder why he did not come.",
-                    "example_wrong": "Ich frage mich, warum er ist nicht gekommen.",
-                    "solution": "Ich frage mich, warum er nicht gekommen ist."
-                },
-                {
-                    "title": "Impersonal Passive Constructions",
-                    "rules": [
-                        "Use 'es wird' + past participle for statements without a subject.",
-                        "Often used in formal/academic writing."
-                    ],
-                    "practice_instruction": "Write the German: It is assumed that the results are correct.",
-                    "example_wrong": "Es ist angenommen, dass die Ergebnisse sind korrekt.",
-                    "solution": "Es wird angenommen, dass die Ergebnisse korrekt sind."
-                },
-                {
-                    "title": "Advanced Connectors in Argumentation",
-                    "rules": [
-                        "Use connectors such as 'obwohl', 'wenngleich', 'obschon', 'insoweit' for nuanced arguments.",
-                        "Combine connectors for complex academic sentences."
-                    ],
-                    "practice_instruction": "Write the German: Although the weather was bad, the event took place.",
-                    "example_wrong": "Das Wetter war schlecht, trotzdem fand die Veranstaltung statt.",
-                    "solution": "Obgleich das Wetter schlecht war, fand die Veranstaltung statt."
-                },
-            ],
-        }
+    # --- All level topics and rules ---
+    GRAMMAR_TOPICS = {
+        "A1": [
+            {
+                "title": "Statement Formulation",
+                "rules": [
+                    "Begin with the subject (Ich, Du, Er...).",
+                    "Verb goes in the second position.",
+                    "Add extra information (time, place, object).",
+                    "End with a full stop."
+                ],
+                "practice_instruction": "Write the German sentence for: I go jogging every morning.",
+                "example_wrong": "Gehe ich jeden Morgen joggen.",
+                "solution": "Ich gehe jeden Morgen joggen."
+            },
+            {
+                "title": "Modal Verb Statements",
+                "rules": [
+                    "Start with the subject.",
+                    "Modal verb (können, müssen, etc.) is in second position.",
+                    "Main verb goes to the end (infinitive)."
+                ],
+                "practice_instruction": "Write the German for: I can speak German.",
+                "example_wrong": "Kann ich Deutsch sprechen.",
+                "solution": "Ich kann Deutsch sprechen."
+            },
+            {
+                "title": "Separable Verbs (Statement)",
+                "rules": [
+                    "Begin with the subject.",
+                    "Main part of verb in second position.",
+                    "Other info before prefix.",
+                    "Separable prefix at the end."
+                ],
+                "practice_instruction": "Write the German for: I get up at 6 a.m. every morning.",
+                "example_wrong": "Stehe ich auf jeden Morgen um 6 Uhr.",
+                "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
+            },
+            {
+                "title": "Yes/No Questions",
+                "rules": [
+                    "Start with the verb.",
+                    "Follow with the subject.",
+                    "Add info.",
+                    "End with a question mark."
+                ],
+                "practice_instruction": "Write the German question for: Do you have siblings?",
+                "example_wrong": "Du hast Geschwister?",
+                "solution": "Hast du Geschwister?"
+            },
+            {
+                "title": "W-Questions",
+                "rules": [
+                    "Start with W-word (Wo, Wie, etc.).",
+                    "Verb is second.",
+                    "Subject follows verb.",
+                    "End with ?"
+                ],
+                "practice_instruction": "Write the German question for: Where do you live?",
+                "example_wrong": "Du wohnst wo?",
+                "solution": "Wo wohnst du?"
+            },
+        ],
+        "A2": [
+            {
+                "title": "Extended Statements (TMP & Adjectives)",
+                "rules": [
+                    "Use the time-manner-place (TMP) word order.",
+                    "Add adjectives to describe nouns."
+                ],
+                "practice_instruction": "Write the German for: On weekends, I often go with my best friends to the big cinema.",
+                "example_wrong": "Ich gehe ins Kino am Wochenende.",
+                "solution": "Am Wochenende gehe ich oft mit meinen besten Freunden ins große Kino."
+            },
+            {
+                "title": "Subordinate Clauses with 'weil'",
+                "rules": [
+                    "Start with a main clause.",
+                    "Use 'weil' for the reason.",
+                    "Verb goes to the end in the weil-clause."
+                ],
+                "practice_instruction": "Write the German for: I am staying at home because I am sick.",
+                "example_wrong": "Ich bleibe zu Hause, weil ich bin krank.",
+                "solution": "Ich bleibe heute zu Hause, weil ich krank bin."
+            },
+            {
+                "title": "Using 'obwohl' for Contrasts",
+                "rules": [
+                    "Connect two sentences with 'obwohl'.",
+                    "Verb goes to the end in 'obwohl'-clause."
+                ],
+                "practice_instruction": "Write the German for: I go for a walk although it is raining.",
+                "example_wrong": "Ich gehe obwohl es regnet spazieren.",
+                "solution": "Ich gehe spazieren, obwohl es regnet."
+            },
+            {
+                "title": "Future Tense with 'werden'",
+                "rules": [
+                    "Use a form of 'werden' in second position.",
+                    "Main verb at the end (infinitive)."
+                ],
+                "practice_instruction": "Write the German for: Next year, I will travel to Germany.",
+                "example_wrong": "Ich werde reisen nach Deutschland nächstes Jahr.",
+                "solution": "Nächstes Jahr werde ich nach Deutschland reisen."
+            },
+            {
+                "title": "Purpose Clauses with 'damit'",
+                "rules": [
+                    "Use 'damit' to express purpose/goal.",
+                    "Verb at the end in the 'damit'-clause."
+                ],
+                "practice_instruction": "Write the German for: I study a lot so that I pass the exam.",
+                "example_wrong": "Ich lerne viel, damit ich bestehe die Prüfung.",
+                "solution": "Ich lerne viel, damit ich die Prüfung bestehe."
+            },
+        ],
+        "B1": [
+            {
+                "title": "Complex Sentences with Subordinate Clauses",
+                "rules": [
+                    "Combine sentences using subordinate conjunctions (z.B. dass, wenn, weil, obwohl).",
+                    "Move the conjugated verb to the end of the subordinate clause."
+                ],
+                "practice_instruction": "Combine using 'dass': I know. You are coming tomorrow.",
+                "example_wrong": "Ich weiß, du kommst morgen.",
+                "solution": "Ich weiß, dass du morgen kommst."
+            },
+            {
+                "title": "Indirect Speech (Konjunktiv I)",
+                "rules": [
+                    "Use 'dass' or introductory phrase for reported speech.",
+                    "Apply the correct Konjunktiv I ending to the verb."
+                ],
+                "practice_instruction": "Write the German: She says that she is tired. (Konjunktiv I: sie sei müde)",
+                "example_wrong": "Sie sagt, dass sie ist müde.",
+                "solution": "Sie sagt, dass sie müde sei."
+            },
+            {
+                "title": "Conditional Sentences with 'wenn'",
+                "rules": [
+                    "Use 'wenn' to express a condition (if/when).",
+                    "Verb at the end in the 'wenn'-clause."
+                ],
+                "practice_instruction": "Write the German: If I have time, I will visit you.",
+                "example_wrong": "Ich besuche dich, wenn ich habe Zeit.",
+                "solution": "Wenn ich Zeit habe, besuche ich dich."
+            },
+            {
+                "title": "Passive Voice (Präsens)",
+                "rules": [
+                    "Use a form of 'werden' and the past participle.",
+                    "Subject receives the action."
+                ],
+                "practice_instruction": "Write the German: The letter is written by the teacher.",
+                "example_wrong": "Der Brief ist geschrieben von der Lehrerin.",
+                "solution": "Der Brief wird von der Lehrerin geschrieben."
+            },
+            {
+                "title": "Contrast with 'obwohl' and Concession with 'trotzdem'",
+                "rules": [
+                    "Use 'obwohl' to begin a subordinate clause expressing contrast.",
+                    "Use 'trotzdem' in the main clause to express concession.",
+                    "Verb at the end of 'obwohl'-clause; main clause word order stays normal."
+                ],
+                "practice_instruction": "Write the German: Although it is raining, I am still going for a walk.",
+                "example_wrong": "Obwohl es regnet, ich gehe trotzdem spazieren.",
+                "solution": "Obwohl es regnet, gehe ich trotzdem spazieren."
+            },
+        ],
+        "B2": [
+            {
+                "title": "Relative Clauses",
+                "rules": [
+                    "Use relative pronouns (der, die, das, deren, dessen, etc.).",
+                    "Verb is at the end of the relative clause.",
+                    "Add descriptive information about a noun."
+                ],
+                "practice_instruction": "Write the German: The car that I bought is red.",
+                "example_wrong": "Das Auto, ich gekauft habe, ist rot.",
+                "solution": "Das Auto, das ich gekauft habe, ist rot."
+            },
+            {
+                "title": "Causal Clauses with 'da' and 'weil'",
+                "rules": [
+                    "Start with 'da' or 'weil' to introduce a reason.",
+                    "Verb is at the end of the subordinate clause."
+                ],
+                "practice_instruction": "Write the German: Because I was ill, I couldn't come.",
+                "example_wrong": "Ich konnte nicht kommen, weil ich war krank.",
+                "solution": "Da ich krank war, konnte ich nicht kommen."
+            },
+            {
+                "title": "Infinitive Clauses with 'um ... zu'",
+                "rules": [
+                    "Use 'um ... zu' to express purpose.",
+                    "The infinitive verb goes to the end."
+                ],
+                "practice_instruction": "Write the German: I am learning German to study in Germany.",
+                "example_wrong": "Ich lerne Deutsch, um studieren in Deutschland.",
+                "solution": "Ich lerne Deutsch, um in Deutschland zu studieren."
+            },
+            {
+                "title": "Comparative and Superlative Structures",
+                "rules": [
+                    "Use 'als' for comparative sentences.",
+                    "Use 'am + -sten' or 'der/die/das + -ste' for superlatives."
+                ],
+                "practice_instruction": "Write the German: My brother is taller than me.",
+                "example_wrong": "Mein Bruder ist mehr groß als ich.",
+                "solution": "Mein Bruder ist größer als ich."
+            },
+            {
+                "title": "Double Connectors: sowohl ... als auch, weder ... noch",
+                "rules": [
+                    "Use double connectors to link two equal elements.",
+                    "Both parts must be present in the sentence."
+                ],
+                "practice_instruction": "Write the German: Both my mother and my father work.",
+                "example_wrong": "Meine Mutter und mein Vater arbeiten sowohl als auch.",
+                "solution": "Sowohl meine Mutter als auch mein Vater arbeiten."
+            },
+        ],
+        "C1": [
+            {
+                "title": "Nominalization and Advanced Structures",
+                "rules": [
+                    "Transform verbs/adjectives into nouns for academic variety.",
+                    "Use complex sentence starters and advanced connectors."
+                ],
+                "practice_instruction": "Nominalize: It is important to improve language skills.",
+                "example_wrong": "Es ist wichtig zu verbessern Sprachkenntnisse.",
+                "solution": "Die Verbesserung der Sprachkenntnisse ist wichtig."
+            },
+            {
+                "title": "Participial Constructions",
+                "rules": [
+                    "Use present or past participles to shorten clauses.",
+                    "Attach participles to nouns or as an adverbial phrase."
+                ],
+                "practice_instruction": "Write the German: Living in Germany, he found many friends.",
+                "example_wrong": "Er hat viele Freunde gefunden, lebend in Deutschland.",
+                "solution": "In Deutschland lebend, hat er viele Freunde gefunden."
+            },
+            {
+                "title": "Indirect Questions",
+                "rules": [
+                    "Introduce the question with 'Ich frage mich, ...' or similar.",
+                    "Verb moves to the end of the clause."
+                ],
+                "practice_instruction": "Write the German: I wonder why he did not come.",
+                "example_wrong": "Ich frage mich, warum er ist nicht gekommen.",
+                "solution": "Ich frage mich, warum er nicht gekommen ist."
+            },
+            {
+                "title": "Impersonal Passive Constructions",
+                "rules": [
+                    "Use 'es wird' + past participle for statements without a subject.",
+                    "Often used in formal/academic writing."
+                ],
+                "practice_instruction": "Write the German: It is assumed that the results are correct.",
+                "example_wrong": "Es ist angenommen, dass die Ergebnisse sind korrekt.",
+                "solution": "Es wird angenommen, dass die Ergebnisse korrekt sind."
+            },
+            {
+                "title": "Advanced Connectors in Argumentation",
+                "rules": [
+                    "Use connectors such as 'obwohl', 'wenngleich', 'obschon', 'insoweit' for nuanced arguments.",
+                    "Combine connectors for complex academic sentences."
+                ],
+                "practice_instruction": "Write the German: Although the weather was bad, the event took place.",
+                "example_wrong": "Das Wetter war schlecht, trotzdem fand die Veranstaltung statt.",
+                "solution": "Obgleich das Wetter schlecht war, fand die Veranstaltung statt."
+            },
+        ],
+    }
 
+    # ------ Student info -----
+    level = st.session_state.get("student_level", "A1")
+    code = st.session_state.get("student_code", "demo")
+    topic_list = GRAMMAR_TOPICS.get(level, GRAMMAR_TOPICS["A1"])
 
-        # ------ Student info -----
-        level = st.session_state.get("student_level", "A1")
-        code = st.session_state.get("student_code", "demo")
-        topic_list = GRAMMAR_TOPICS.get(level, GRAMMAR_TOPICS["A1"])
+    topic_titles = [f"{i+1}. {topic['title']}" for i, topic in enumerate(topic_list)]
+    topic_idx = st.selectbox(
+        "Select a practice topic:",
+        options=list(range(len(topic_list))),
+        format_func=lambda i: topic_titles[i],
+        key="writing_topic_idx"
+    )
+    topic = topic_list[topic_idx]
 
-        topic_titles = [f"{i+1}. {topic['title']}" for i, topic in enumerate(topic_list)]
-        topic_idx = st.selectbox(
-            "Select a practice topic:",
-            options=list(range(len(topic_list))),
-            format_func=lambda i: topic_titles[i],
-            key="writing_topic_idx"
-        )
-        topic = topic_list[topic_idx]
+    st.subheader(f"{topic['title']}")
+    st.markdown("**Rules for this topic:**")
+    for r in topic["rules"]:
+        st.markdown(f"- {r}")
+    st.markdown(f"**What to do:** {topic['practice_instruction']}")
+    st.markdown(f"*Example of a common mistake (not correct!):* `{topic['example_wrong']}`")
 
-        st.subheader(f"{topic['title']}")
-        st.markdown("**Rules for this topic:**")
-        for r in topic["rules"]:
-            st.markdown(f"- {r}")
-        st.markdown(f"**What to do:** {topic['practice_instruction']}")
-        st.markdown(f"*Example of a common mistake (not correct!):* `{topic['example_wrong']}`")
+    st.markdown("---")
+    user_ans = st.text_area("Type your German answer here:", key="writing_input", value="", height=70)
 
-        st.markdown("---")
-        user_ans = st.text_area("Type your German answer here:", key="writing_input", value="", height=70)
-
-        ai_feedback = ""
-        if st.button("Check with A.I.", key="writing_ai_btn"):
-            if not user_ans.strip():
-                st.warning("Please enter your answer to check!")
-            else:
-                with st.spinner("Checking with A.I..."):
-                    import openai
-                    prompt = (
-                        f"You are a German teacher. Please check if this student answer fits the following {level} rule:\n"
-                        f"Rule: {', '.join(topic['rules'])}\n"
-                        f"Task: {topic['practice_instruction']}\n"
-                        f"Student answer: '{user_ans}'\n"
-                        "1. State if the sentence is correct or not (Correct/Incorrect).\n"
-                        "2. If incorrect, provide a corrected version.\n"
-                        "3. Explain the correction simply, in English (max 2 sentences)."
-                        "\nUse simple words for learners."
+    ai_feedback = ""
+    if st.button("Check with A.I.", key="writing_ai_btn"):
+        if not user_ans.strip():
+            st.warning("Please enter your answer to check!")
+        else:
+            with st.spinner("Checking with A.I..."):
+                import openai
+                prompt = (
+                    f"You are a German teacher. Please check if this student answer fits the following {level} rule:\n"
+                    f"Rule: {', '.join(topic['rules'])}\n"
+                    f"Task: {topic['practice_instruction']}\n"
+                    f"Student answer: '{user_ans}'\n"
+                    "1. State if the sentence is correct or not (Correct/Incorrect).\n"
+                    "2. If incorrect, provide a corrected version.\n"
+                    "3. Explain the correction simply, in English (max 2 sentences)."
+                    "\nUse simple words for learners."
+                )
+                try:
+                    client = openai.OpenAI()
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=160,
+                        temperature=0.2,
                     )
-                    try:
-                        client = openai.OpenAI()
-                        response = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[{"role": "user", "content": prompt}],
-                            max_tokens=160,
-                            temperature=0.2,
-                        )
-                        ai_feedback = response.choices[0].message.content
-                        st.markdown("**A.I. Feedback:**")
-                        st.info(ai_feedback)
-                        # Save attempt to Firebase (match the function signature)
-                        save_writing_attempt(
-                            student_code=code,
-                            level=level,
-                            topic_name=topic['title'],
-                            user_input=user_ans,
-                            correct="Correct" in ai_feedback,
-                            solution=topic['solution'],
-                        )
-                        st.success("Result saved! Click below to pick another topic or retry.")
-                        if st.button("Next Topic", key="next_topic"):
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Error from OpenAI: {e}")
+                    ai_feedback = response.choices[0].message.content
+                    st.markdown("**A.I. Feedback:**")
+                    st.info(ai_feedback)
+                    # Save attempt to Firebase (match the function signature)
+                    save_writing_attempt(
+                        student_code=code,
+                        level=level,
+                        topic_name=topic['title'],
+                        user_input=user_ans,
+                        correct="Correct" in ai_feedback,
+                        solution=topic['solution'],
+                    )
+                    st.success("Result saved! Click below to start again.")
+                    if st.button("Start Again", key="restart_writing"):
+                        st.session_state.clear()
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error from OpenAI: {e}")
 #
+
 
 
 
@@ -6527,6 +6529,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
