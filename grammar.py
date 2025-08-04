@@ -682,8 +682,6 @@ if st.session_state.get("logged_in"):
     st.divider()
 
 
-
-
     # --- Rotating Motivation/Encouragement Lists ---
     import random
     STUDY_TIPS = [
@@ -709,18 +707,22 @@ if st.session_state.get("logged_in"):
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
-    # Calculate leaderboard stats and apply minimum assignments filter
+    # Calculate leaderboard by total score and number of assignments
     df_level = (
         df_assign[df_assign['level'] == user_level]
         .groupby(['studentcode', 'name'], as_index=False)
-        .agg(avg_score=('score', 'mean'), completed=('assignment', 'nunique'))
+        .agg(
+            total_score=('score', 'sum'),
+            completed=('assignment', 'nunique')
+        )
     )
     df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
 
-    # Add consistency bonus (optional, tweak bonus as desired)
-    df_level['leaderboard_score'] = df_level['avg_score'] + (df_level['completed'] - MIN_ASSIGNMENTS) * 2
-
-    df_level = df_level.sort_values(['leaderboard_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
+    # Sort: most total points, then most completed
+    df_level = df_level.sort_values(
+        ['total_score', 'completed'],
+        ascending=[False, False]
+    ).reset_index(drop=True)
     df_level['Rank'] = df_level.index + 1
 
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
@@ -6617,6 +6619,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
