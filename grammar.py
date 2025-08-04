@@ -2281,7 +2281,7 @@ def get_b2_schedule():
             "goal": "Vergleichen Sie das öffentliche und private Leben in Deutschland und Ihrem Land.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/1R0sQc4uSWQNUxPa0_Gdz7PiQaiCyQrrL/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1VteR5sVx_uiKdhSVMBosMxiXe1lfnQnW/view?usp=sharing",
             "grammar_topic": "Passiv (Präsens und Vergangenheit)"
         },
@@ -6612,6 +6612,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
