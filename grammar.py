@@ -533,43 +533,87 @@ if st.button("Log out"):
     st.success("You have been logged out.")
     st.rerun()
     
-# ==== GOOGLE SHEET LOADING FUNCTIONS ====
+if st.session_state.get("logged_in"):
+    student_code = st.session_state["student_code"].strip().lower()
+    student_name = st.session_state["student_name"]
 
-@st.cache_data
-def load_student_data():
-    SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(csv_url)
-    df.columns = df.columns.str.strip().str.replace(" ", "")
-    return df
+    # Load student info
+    df_students = load_student_data()
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-@st.cache_data
-def load_assignment_scores():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
+    # ... (contract code etc.)
 
-@st.cache_data
-def load_reviews():
-    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
+    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+    df_assign = load_assignment_scores()
+    df_assign["date"] = pd.to_datetime(
+        df_assign["date"], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
+    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i - 1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
 
-# ==== PARSE CONTRACT END ====
-def parse_contract_end(date_str):
-    if not date_str or str(date_str).lower() in ("nan", "none", ""):
-        return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):  
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    return None
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[
+        mask_student & (df_assign["date"] >= monday)
+    ].shape[0]
+    WEEKLY_GOAL = 3
+
+    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+    col1, col2 = st.columns(2)
+    col1.metric("Streak", f"{streak} days")
+    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+    if assignment_count >= WEEKLY_GOAL:
+        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+    else:
+        rem = WEEKLY_GOAL - assignment_count
+        st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
+
+    st.divider()
+
+    # ==== VOCAB OF THE DAY (level-specific) ====
+    student_level = (student_row.get("Level") or "A1").upper().strip()
+    vocab_df = load_full_vocab_sheet()
+    vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+
+    session_key = f"vocab_of_day_used_{student_level}"
+    st.session_state.setdefault(session_key, {"attempts": 0, "last_answer": ""})
+
+    if vocab_item:
+        st.markdown(f"### 🗣️ Vocab of the Day ({student_level})")
+        vocab_cols = st.columns([2, 3])
+        with vocab_cols[0]:
+            st.markdown(f"- **German:** `{vocab_item['german']}`")
+            st.markdown(f"- **English:** {vocab_item['english']}")
+            if vocab_item.get("example"):
+                st.markdown(f"- **Example:** {vocab_item['example']}")
+            st.markdown(f"- **Practice attempts:** {st.session_state[session_key]['attempts']}")
+        with vocab_cols[1]:
+            sentence = st.text_input(
+                f"Use `{vocab_item['german']}` in a sentence:",
+                key="vocab_of_day_input"
+            )
+            if st.button("Check Usage", key="vocab_check_btn"):
+                if not sentence.strip():
+                    st.warning("Write a sentence to practice the word.")
+                else:
+                    st.session_state[session_key]["attempts"] += 1
+                    st.session_state[session_key]["last_answer"] = sentence
+                    if vocab_item["german"].lower() in sentence.lower():
+                        st.success("✅ Good — you used the word! Try expanding the sentence with time/place.")
+                    else:
+                        st.error(f"❌ The sentence does not include `{vocab_item['german']}`. Try again.")
+    else:
+        st.info(f"No vocab found for level {student_level}.")
+
 
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
@@ -607,108 +651,75 @@ if st.session_state.get("logged_in"):
         "Do your best to complete your course on time to avoid extra fees!"
     )
 
-        # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
-        df_assign = load_assignment_scores()
-        df_assign["date"] = pd.to_datetime(
-            df_assign["date"], format="%Y-%m-%d", errors="coerce"
-        ).dt.date
-        mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
+    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+    df_assign = load_assignment_scores()
+    df_assign["date"] = pd.to_datetime(
+        df_assign["date"], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
+    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
-        from datetime import timedelta, date
-        dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
-        streak = 1 if dates else 0
-        for i in range(1, len(dates)):
-            if (dates[i - 1] - dates[i]).days == 1:
-                streak += 1
-            else:
-                break
-
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-        assignment_count = df_assign[
-            mask_student & (df_assign["date"] >= monday)
-        ].shape[0]
-        WEEKLY_GOAL = 3
-
-        st.markdown("### 🏅 Assignment Streak & Weekly Goal")
-        col1, col2 = st.columns(2)
-        col1.metric("Streak", f"{streak} days")
-        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-        if assignment_count >= WEEKLY_GOAL:
-            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i - 1] - dates[i]).days == 1:
+            streak += 1
         else:
-            rem = WEEKLY_GOAL - assignment_count
-            st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
+            break
 
-        st.divider()
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[
+        mask_student & (df_assign["date"] >= monday)
+    ].shape[0]
+    WEEKLY_GOAL = 3
 
-        # ==== VOCAB OF THE DAY (level-specific) ====
-        @st.cache_data
-        def load_full_vocab_sheet():
-            SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-            csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-            try:
-                df = pd.read_csv(csv_url, dtype=str)
-            except Exception as e:
-                st.error(f"Could not load vocab sheet: {e}")
-                return pd.DataFrame()
-            df.columns = df.columns.str.strip()
-            if "Level" not in df.columns:
-                return pd.DataFrame()
-            df = df[df["Level"].notna()]
-            df["Level"] = df["Level"].str.upper().str.strip()
-            return df
+    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
+    col1, col2 = st.columns(2)
+    col1.metric("Streak", f"{streak} days")
+    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+    if assignment_count >= WEEKLY_GOAL:
+        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+    else:
+        rem = WEEKLY_GOAL - assignment_count
+        st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
 
-        def get_vocab_of_the_day(df, level):
-            level = level.upper().strip()
-            subset = df[df["Level"] == level]
-            if subset.empty:
-                return None
-            from datetime import date as _date
-            today_ordinal = _date.today().toordinal()
-            idx = today_ordinal % len(subset)
-            row = subset.reset_index(drop=True).iloc[idx]
-            return {
-                "german": row.get("German", ""),
-                "english": row.get("English", ""),
-                "example": row.get("Example", "") if "Example" in row else ""
-            }
+    st.divider()
 
-        # determine student level normalized
-        student_level = (student_row.get("Level") or "A1").upper().strip()
-        vocab_df = load_full_vocab_sheet()
-        vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+    # ==== VOCAB OF THE DAY (level-specific) ====
+    student_level = (student_row.get("Level") or "A1").upper().strip()
+    vocab_df = load_full_vocab_sheet()
+    vocab_item = get_vocab_of_the_day(vocab_df, student_level)
 
-        # simple session-based progress tracker for the vocab of the day
-        session_key = f"vocab_of_day_used_{student_level}"
-        st.session_state.setdefault(session_key, {"attempts": 0, "last_answer": ""})
+    session_key = f"vocab_of_day_used_{student_level}"
+    st.session_state.setdefault(session_key, {"attempts": 0, "last_answer": ""})
 
-        if vocab_item:
-            st.markdown(f"### 🗣️ Vocab of the Day ({student_level})")
-            vocab_cols = st.columns([2, 3])
-            with vocab_cols[0]:
-                st.markdown(f"- **German:** `{vocab_item['german']}`")
-                st.markdown(f"- **English:** {vocab_item['english']}")
-                if vocab_item.get("example"):
-                    st.markdown(f"- **Example:** {vocab_item['example']}")
-                st.markdown(f"- **Practice attempts:** {st.session_state[session_key]['attempts']}")
-            with vocab_cols[1]:
-                sentence = st.text_input(
-                    f"Use `{vocab_item['german']}` in a sentence:",
-                    key="vocab_of_day_input"
-                )
-                if st.button("Check Usage", key="vocab_check_btn"):
-                    if not sentence.strip():
-                        st.warning("Write a sentence to practice the word.")
+    if vocab_item:
+        st.markdown(f"### 🗣️ Vocab of the Day ({student_level})")
+        vocab_cols = st.columns([2, 3])
+        with vocab_cols[0]:
+            st.markdown(f"- **German:** `{vocab_item['german']}`")
+            st.markdown(f"- **English:** {vocab_item['english']}")
+            if vocab_item.get("example"):
+                st.markdown(f"- **Example:** {vocab_item['example']}")
+            st.markdown(f"- **Practice attempts:** {st.session_state[session_key]['attempts']}")
+        with vocab_cols[1]:
+            sentence = st.text_input(
+                f"Use `{vocab_item['german']}` in a sentence:",
+                key="vocab_of_day_input"
+            )
+            if st.button("Check Usage", key="vocab_check_btn"):
+                if not sentence.strip():
+                    st.warning("Write a sentence to practice the word.")
+                else:
+                    st.session_state[session_key]["attempts"] += 1
+                    st.session_state[session_key]["last_answer"] = sentence
+                    if vocab_item["german"].lower() in sentence.lower():
+                        st.success("✅ Good — you used the word! Try expanding the sentence with time/place.")
                     else:
-                        st.session_state[session_key]["attempts"] += 1
-                        st.session_state[session_key]["last_answer"] = sentence
-                        if vocab_item["german"].lower() in sentence.lower():
-                            st.success("✅ Good — you used the word! Try expanding the sentence with time/place.")
-                        else:
-                            st.error(f"❌ The sentence does not include `{vocab_item['german']}`. Try again.")
-        else:
-            st.info(f"No vocab found for level {student_level}.")
+                        st.error(f"❌ The sentence does not include `{vocab_item['german']}`. Try again.")
+    else:
+        st.info(f"No vocab found for level {student_level}.")
 #
 
 
@@ -6668,6 +6679,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
