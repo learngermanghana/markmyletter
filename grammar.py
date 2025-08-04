@@ -349,22 +349,15 @@ if not st.session_state["logged_in"] and code_from_cookie:
         
 # --- Manual Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
-    # === WELCOME / HELP / INSTRUCTIONS (always at top, always visible) ===
-    st.markdown(
-        """
-        <div style='border-left:4px solid #1976d2; padding:14px 9px 14px 14px; border-radius:7px; margin-bottom:20px; font-size:1.13rem; line-height:1.6; color:#232323; background:rgba(255,255,255,0.96);'>
-            <b>👋 Welcome to Falowen!</b><br>
-            <ul style="margin:10px 0 0 0; padding-left:22px;">
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🔑</span> <b>Returning?</b> Log in with your <b style="color:#17617a;">Student Code or Email</b> and password.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🆕</span> <b>New?</b> Click <b>Create Account</b> below <b>after</b> your teacher gives you a code.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">📱</span> <b>iPhone/iPad:</b> Tap “Save Password” if asked.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">⌛</span> <b>Expired?</b> If you see a contract expiry message, contact the school office.</li>
-                <li style="margin-bottom:7px;"><span style="font-size:1.1em;">🔒</span> <b>Privacy:</b> Only you &amp; your teacher see your progress.</li>
-            </ul>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.info(
+        "👋 **Welcome to Falowen!**\n\n"
+        "- 🔑 **Returning?** Log in with your Student Code or Email.\n"
+        "- 🆕 **New?** Click **Create Account** after your teacher gives you a code.\n"
+        "- 📱 **iPhone/iPad:** Tap “Save Password” if asked.\n"
+        "- ⌛ **Expired?** Contact the school office.\n"
+        "- 🔒 **Privacy:** Only you & your teacher see your progress.\n"
     )
+
 
     # --- 1) (Optional) Google OAuth ---
     # (You can move/remove if you want only password login!)
@@ -6619,6 +6612,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
