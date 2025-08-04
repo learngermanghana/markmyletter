@@ -656,43 +656,26 @@ if st.session_state.get("logged_in"):
         rem = WEEKLY_GOAL - assignment_count
         st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
 
-    st.divider()
-
-    # ==== VOCAB OF THE DAY (level-specific) ====
+        # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
 
-    session_key = f"vocab_of_day_used_{student_level}"
-    st.session_state.setdefault(session_key, {"attempts": 0, "last_answer": ""})
-
     if vocab_item:
-        st.markdown(f"### 🗣️ Vocab of the Day ({student_level})")
-        vocab_cols = st.columns([2, 3])
-        with vocab_cols[0]:
-            st.markdown(f"- **German:** `{vocab_item['german']}`")
-            st.markdown(f"- **English:** {vocab_item['english']}")
-            if vocab_item.get("example"):
-                st.markdown(f"- **Example:** {vocab_item['example']}")
-            st.markdown(f"- **Practice attempts:** {st.session_state[session_key]['attempts']}")
-        with vocab_cols[1]:
-            sentence = st.text_input(
-                f"Use `{vocab_item['german']}` in a sentence:",
-                key="vocab_of_day_input"
-            )
-            if st.button("Check Usage", key="vocab_check_btn"):
-                if not sentence.strip():
-                    st.warning("Write a sentence to practice the word.")
-                else:
-                    st.session_state[session_key]["attempts"] += 1
-                    st.session_state[session_key]["last_answer"] = sentence
-                    if vocab_item["german"].lower() in sentence.lower():
-                        st.success("✅ Good — you used the word! Try expanding the sentence with time/place.")
-                    else:
-                        st.error(f"❌ The sentence does not include `{vocab_item['german']}`. Try again.")
+        st.markdown(f"### 🗣️ Vocab of the Day <span style='font-size:1rem;color:#999;'>({student_level})</span>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <ul style='list-style:none;margin:0;padding:0;'>
+            <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
+            <li><b>English:</b> {vocab_item['english']}</li>
+            {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
+        </ul>
+        """, unsafe_allow_html=True)
     else:
         st.info(f"No vocab found for level {student_level}.")
-#
+
+    st.divider()
+
+
 
 
     # --- Rotating Motivation/Encouragement Lists ---
@@ -5025,29 +5008,6 @@ def get_student_level(student_code):
         return str(row.iloc[0]['level']).upper()
     return "A1"
 
-import re
-
-def live_sentence_hint(ans, topic):
-    # Example for A1/A2 level structure feedback
-    if topic['title'] == "Statement Formulation":
-        words = ans.strip().split()
-        if words:
-            if words[0].lower() not in ["ich", "du", "er", "sie", "es", "wir", "ihr", "sie"]:  # Only for demo
-                return "🔶 Hint: Start your sentence with the subject (Ich, Du, ...)."
-            # Check verb in 2nd position
-            if len(words) > 1 and not re.match(r"\w+e|\w+st|\w+t|\w+en", words[1].lower()):
-                return "🔶 Hint: The verb should be in the 2nd position."
-    # Connector highlight
-    connectors = ["weil", "und", "oder", "obwohl", "damit", "aber"]
-    found = [c for c in connectors if c in ans]
-    if found:
-        return f"✅ Nice! You used connector(s): {', '.join(found)}"
-    return None
-
-# In your UI, just under the textarea:
-hint = live_sentence_hint(user_ans, topic)
-if hint:
-    st.info(hint)
 
 
 # =========================================
@@ -6651,6 +6611,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
