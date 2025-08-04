@@ -711,6 +711,7 @@ if st.session_state.get("logged_in"):
             st.info(f"No vocab found for level {student_level}.")
 #
 
+
     # --- Rotating Motivation/Encouragement Lists ---
     import random
     STUDY_TIPS = [
@@ -6667,6 +6668,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
