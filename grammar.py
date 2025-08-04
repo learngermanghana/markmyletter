@@ -585,7 +585,13 @@ def parse_contract_end(date_str):
             continue
     return None
 
-
+@st.cache_data
+def load_reviews():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
 
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
@@ -6611,6 +6617,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
