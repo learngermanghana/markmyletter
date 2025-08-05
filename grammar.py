@@ -228,6 +228,20 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     return videos
 
 
+def safe_get(row, key, default=""):
+    # For dicts, objects, Series, whatever
+    try:
+        return row.get(key, default)
+    except Exception:
+        pass
+    try:
+        return getattr(row, key, default)
+    except Exception:
+        pass
+    try:
+        return row[key]
+    except Exception:
+        return default
 
 
 st.set_page_config(
@@ -6648,6 +6662,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
