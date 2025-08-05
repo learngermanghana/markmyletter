@@ -597,47 +597,36 @@ def load_reviews():
     return df
 
 if st.session_state.get("logged_in"):
-    # --- 1. BASIC STUDENT INFO ---
+    # 1️⃣ BASIC STUDENT INFO (LOAD)
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
-
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # --- 2. INFO CARD: Modern, Space-Saving Layout ---
+    # 2️⃣ MODERN INFO CARD (MOBILE-FRIENDLY)
     name = safe_get(student_row, "Name")
     info_html = f"""
     <div style='
-        background:#f0f4ff;
-        border:1.6px solid #1976d2;
-        border-radius:12px;
-        padding:11px 13px 8px 13px;
-        margin-bottom:13px;
-        box-shadow:0 2px 8px rgba(44,106,221,0.07);
-        font-size:1.09em;
-        color:#17325e;
+        background:linear-gradient(92deg,#fafdff 65%,#f0f5ff 100%);
+        border:1.5px solid #1976d2;
+        border-radius:10px;
+        padding:12px 14px 8px 14px;
+        margin-bottom:9px;
+        box-shadow:0 1px 7px rgba(44,106,221,0.06);
+        font-size:1.05em;
+        color:#12305c;
         font-family: "Segoe UI", "Arial", sans-serif;
         letter-spacing:0.01em;
-    '>
-        <div style="font-weight:700;font-size:1.18em;margin-bottom:2px;">
-            👤 {name}
-        </div>
-        <div style="font-size:1em;">
-            <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
-            <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
-            <b>Status:</b> {safe_get(student_row, 'Status', '')}
-        </div>
-        <div style="font-size:1em;">
-            <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
-            <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
-            <b>Location:</b> {safe_get(student_row, 'Location', '')}
-        </div>
-        <div style="font-size:1em;">
-            <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
-            <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
-        </div>
+        word-break:break-word;
+        overflow-x:auto;
+        line-height:1.68;
+        '>
+        <span style="font-size:1.19em;font-weight:700;">👤 {name}</span><br>
+        <span><b>Level:</b> {safe_get(student_row, 'Level', '')} | <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> | <b>Status:</b> {safe_get(student_row, 'Status', '')}</span><br>
+        <span><b>Email:</b> {safe_get(student_row, 'Email', '')} | <b>Phone:</b> {safe_get(student_row, 'Phone', '')} | <b>Location:</b> {safe_get(student_row, 'Location', '')}</span><br>
+        <span><b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} | <b>Enroll:</b> {safe_get(student_row, 'EnrollDate', '')}</span>
     </div>
     """
     st.markdown(info_html, unsafe_allow_html=True)
@@ -648,7 +637,7 @@ if st.session_state.get("logged_in"):
     except Exception:
         pass
 
-    # --- 3. CONTRACT & RENEWAL POLICY ---
+    # 3️⃣ CONTRACT END / RENEWAL POLICY (Always Visible)
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
     today = datetime.today()
@@ -671,12 +660,11 @@ if st.session_state.get("logged_in"):
         "Do your best to complete your course on time to avoid extra fees!"
     )
 
-    # --- 4. ASSIGNMENT STREAK & WEEKLY GOAL ---
+    # 4️⃣ ASSIGNMENT STREAK & WEEKLY GOAL
     df_assign = load_assignment_scores()
     df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
     from datetime import timedelta, date
-
     dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
     streak = 1 if dates else 0
     for i in range(1, len(dates)):
@@ -698,7 +686,7 @@ if st.session_state.get("logged_in"):
         rem = WEEKLY_GOAL - assignment_count
         st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
 
-    # --- 5. VOCAB OF THE DAY ---
+    # 5️⃣ VOCAB OF THE DAY (Level-Specific)
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
@@ -713,10 +701,9 @@ if st.session_state.get("logged_in"):
         """, unsafe_allow_html=True)
     else:
         st.info(f"No vocab found for level {student_level}.")
-
     st.divider()
 
-    # --- 6. MOTIVATION & LEADERBOARD ---
+    # 6️⃣ MOTIVATION & LEADERBOARD
     import random
     STUDY_TIPS = [
         "Study a little every day. Small steps lead to big progress!",
@@ -793,10 +780,9 @@ if st.session_state.get("logged_in"):
         )
     else:
         st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
-
     st.divider()
 
-    # --- 7. DASHBOARD REMINDERS / TAB TIPS ---
+    # 7️⃣ DASHBOARD REMINDERS / TAB TIPS
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
         "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
@@ -806,7 +792,10 @@ if st.session_state.get("logged_in"):
         "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
     ]
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-    st.info(dashboard_tip)  # Friendly info box at the bottom
+    st.info(dashboard_tip)
+
+# --- END DASHBOARD GROUP ---
+
 
 
     # --- Main Tab Selection ---
@@ -6659,6 +6648,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
