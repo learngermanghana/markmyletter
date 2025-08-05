@@ -230,42 +230,42 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 
 
 
-# --- Streamlit page config ---
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# ---- Falowen Header ----
-st.markdown(
-    """
-    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-        <div style='flex: 1; text-align: center;'>
-            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                Falowen App
-            </span>
-            <br>
-            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
-            <br>
-            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span>
-            <br>
-            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
-            </span>
-            <br>
-            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                Competent German Tutors Team
-            </span>
+if not st.session_state.get("logged_in", False):
+    st.markdown(
+        """ 
+        <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
+            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
+            <div style='flex: 1; text-align: center;'>
+                <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
+                    Falowen App
+                </span>
+                <br>
+                <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
+                <br>
+                <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
+                    Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+                </span>
+                <br>
+                <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+                    Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+                </span>
+                <br>
+                <span style='font-size:0.98rem; color:#666; font-weight:500;'>
+                    Competent German Tutors Team
+                </span>
+            </div>
+            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
         </div>
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        """,
+        unsafe_allow_html=True
+    )
+
 
 
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
@@ -6622,6 +6622,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
