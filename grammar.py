@@ -834,26 +834,29 @@ if tab == "Dashboard":
         st.stop()
     # (no need to convert to dict—safe_get covers all cases)
 
-    # --- Student Info & Balance | Modern Card Layout ---
+    # --- Student Info & Balance | Mobile-Friendly Card Layout ---
     name = safe_get(student_row, "Name")
     info_html = f"""
     <div style='
-        border:1.5px solid #1976d2;
-        background:#f8fafd;
-        border-radius:12px;
-        padding:16px 22px 8px 22px;
-        margin-bottom:10px;
-        font-size:1.06em;
-        line-height:1.8;'>
-        <b>👤 {name}</b><br>
-        <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp;
-        <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
-        <b>Status:</b> {safe_get(student_row, 'Status', '')}<br>
-        <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
-        <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
-        <b>Location:</b> {safe_get(student_row, 'Location', '')}<br>
-        <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
-        <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
+        background:#f0f4ff;
+        border-radius:14px;
+        padding:13px 14px 10px 14px;
+        margin-bottom:13px;
+        box-shadow:0 2px 12px rgba(44,106,221,0.08);
+        font-size:1.07em;
+        line-height:1.75;
+        color:#17325e;'>
+        <div style="font-weight:700;font-size:1.2em;margin-bottom:2px;">
+            👤 {name}
+        </div>
+        <div><b>Level:</b> {safe_get(student_row, 'Level', '')}</div>
+        <div><b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code></div>
+        <div><b>Status:</b> {safe_get(student_row, 'Status', '')}</div>
+        <div><b>Email:</b> {safe_get(student_row, 'Email', '')}</div>
+        <div><b>Phone:</b> {safe_get(student_row, 'Phone', '')}</div>
+        <div><b>Location:</b> {safe_get(student_row, 'Location', '')}</div>
+        <div><b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')}</div>
+        <div><b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}</div>
     </div>
     """
     st.markdown(info_html, unsafe_allow_html=True)
@@ -6634,6 +6637,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
