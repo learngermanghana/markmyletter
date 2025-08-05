@@ -780,7 +780,6 @@ if st.session_state.get("logged_in"):
         st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
 
     st.divider()
-#
 
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
@@ -795,7 +794,7 @@ if st.session_state.get("logged_in"):
     import random
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
     st.info(dashboard_tip)  # This line gives the tip as a friendly info box
-
+#
     # --- Main Tab Selection ---
     tab = st.radio(
         "How do you want to practice?",
@@ -835,25 +834,34 @@ if tab == "Dashboard":
         st.stop()
     # (no need to convert to dict—safe_get covers all cases)
 
-    # --- Student Info & Balance ---
+    # --- Student Info & Balance (Compact Card) ---
     name = safe_get(student_row, "Name")
-    st.markdown(f"### 👤 {name}")
-    st.markdown(
-        f"- **Level:** {safe_get(student_row, 'Level')}\n"
-        f"- **Code:** `{safe_get(student_row, 'StudentCode')}`\n"
-        f"- **Email:** {safe_get(student_row, 'Email')}\n"
-        f"- **Phone:** {safe_get(student_row, 'Phone')}\n"
-        f"- **Location:** {safe_get(student_row, 'Location')}\n"
-        f"- **Contract:** {safe_get(student_row, 'ContractStart')} ➔ {safe_get(student_row, 'ContractEnd')}\n"
-        f"- **Enroll Date:** {safe_get(student_row, 'EnrollDate')}\n"
-        f"- **Status:** {safe_get(student_row, 'Status')}"
-    )
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"#### 👤 {name}")
+        st.markdown(
+            f"**Level:** {safe_get(student_row, 'Level', '')}<br>"
+            f"**Code:** `{safe_get(student_row, 'StudentCode', '')}`<br>"
+            f"**Email:** {safe_get(student_row, 'Email', '')}<br>"
+            f"**Phone:** {safe_get(student_row, 'Phone', '')}",
+            unsafe_allow_html=True
+        )
+    with col2:
+        st.markdown(
+            f"**Location:** {safe_get(student_row, 'Location', '')}<br>"
+            f"**Contract:** {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')}<br>"
+            f"**Enroll Date:** {safe_get(student_row, 'EnrollDate', '')}<br>"
+            f"**Status:** {safe_get(student_row, 'Status', '')}",
+            unsafe_allow_html=True
+        )
     try:
         bal = float(safe_get(student_row, "Balance", 0))
         if bal > 0:
             st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
     except Exception:
         pass
+#
+
 
     # ==== CLASS SCHEDULES DICTIONARY ====
     GROUP_SCHEDULES = {
@@ -6622,6 +6630,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
