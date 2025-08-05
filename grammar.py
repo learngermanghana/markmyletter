@@ -39,6 +39,13 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
+
+
 # ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
     cred_dict = dict(st.secrets["firebase"])
@@ -6615,6 +6622,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
