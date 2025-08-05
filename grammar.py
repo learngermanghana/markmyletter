@@ -834,33 +834,37 @@ if tab == "Dashboard":
         st.stop()
     # (no need to convert to dict—safe_get covers all cases)
 
-    # --- Student Info & Balance (Compact Card) ---
+    # --- Student Info & Balance | Modern Card Layout ---
     name = safe_get(student_row, "Name")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"#### 👤 {name}")
-        st.markdown(
-            f"**Level:** {safe_get(student_row, 'Level', '')}<br>"
-            f"**Code:** `{safe_get(student_row, 'StudentCode', '')}`<br>"
-            f"**Email:** {safe_get(student_row, 'Email', '')}<br>"
-            f"**Phone:** {safe_get(student_row, 'Phone', '')}",
-            unsafe_allow_html=True
-        )
-    with col2:
-        st.markdown(
-            f"**Location:** {safe_get(student_row, 'Location', '')}<br>"
-            f"**Contract:** {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')}<br>"
-            f"**Enroll Date:** {safe_get(student_row, 'EnrollDate', '')}<br>"
-            f"**Status:** {safe_get(student_row, 'Status', '')}",
-            unsafe_allow_html=True
-        )
+    info_html = f"""
+    <div style='
+        border:1.5px solid #1976d2;
+        background:#f8fafd;
+        border-radius:12px;
+        padding:16px 22px 8px 22px;
+        margin-bottom:10px;
+        font-size:1.06em;
+        line-height:1.8;'>
+        <b>👤 {name}</b><br>
+        <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp;
+        <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
+        <b>Status:</b> {safe_get(student_row, 'Status', '')}<br>
+        <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
+        <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
+        <b>Location:</b> {safe_get(student_row, 'Location', '')}<br>
+        <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
+        <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
+    </div>
+    """
+    st.markdown(info_html, unsafe_allow_html=True)
     try:
         bal = float(safe_get(student_row, "Balance", 0))
         if bal > 0:
-            st.warning(f"💸 Balance to pay: ₵{bal:.2f}")
+            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
     except Exception:
         pass
 #
+
 
 
     # ==== CLASS SCHEDULES DICTIONARY ====
@@ -6630,6 +6634,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
