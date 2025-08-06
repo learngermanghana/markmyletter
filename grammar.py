@@ -320,155 +320,159 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 
+import streamlit as st
+import urllib
+import requests
+from datetime import datetime, timedelta
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 0) Configuration & Session Init
+# ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     layout="centered",
     initial_sidebar_state="expanded"
 )
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-if not st.session_state.get("logged_in", False):
-    st.markdown(
-        """ 
-        <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-            <div style='flex: 1; text-align: center;'>
-                <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                    Falowen App
-                </span>
-                <br>
-                <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
-                <br>
-                <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                    Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-                </span>
-                <br>
-                <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                    Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
-                </span>
-                <br>
-                <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                    Competent German Tutors Team
-                </span>
-            </div>
-            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
-# --- 1) Always-visible academy header -----------------------------------------
-st.markdown(
-    """ 
-    <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-        <div style='flex: 1; text-align: center;'>
-            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                Falowen App
-            </span><br>
-            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>
-                Learn Language Education Academy
-            </span><br>
-            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-            </span><br>
-            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>
-                    www.learngermanghana.com
-                </a>
-            </span><br>
-            <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                Competent German Tutors Team
-            </span>
-        </div>
-        <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# --- 2) Global CSS -------------------------------------------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# 1) Global CSS
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  /* Homepage hero */
-  .hero {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 24px auto;
-    max-width: 800px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-  }
-  /* Welcome / Login & Help boxes */
-  .welcome-box, .help-contact-box {
-    background: #fff;
-    border-radius: 14px;
-    padding: 20px;
-    margin: 16px auto;
-    max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-  }
+  .hero { background: #fff; border-radius: 12px; padding: 24px; margin: 24px auto;
+          max-width: 800px; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
+  .welcome-box, .help-contact-box { background: #fff; border-radius: 14px; padding: 20px;
+          margin: 16px auto; max-width: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
   .welcome-box { border-left: 5px solid #685ae7; }
   .help-contact-box { border:1px solid #ebebf2; text-align:center; }
-  /* Quick links grid */
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  .quick-links a {
-    background: #eef3fc;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight:600;
-    text-decoration:none;
-    color:#25317e;
-  }
-  @media (max-width:600px){
-    .hero, .welcome-box, .help-contact-box { padding:16px 4vw; }
-  }
+  .quick-links { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
+  .quick-links a { background:#eef3fc; padding:8px 16px; border-radius:8px;
+                   font-weight:600; text-decoration:none; color:#25317e; }
+  @media (max-width:600px){ .hero, .welcome-box, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3) Public Homepage --------------------------------------------------------
-st.markdown("""
-<div class="hero">
-  <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-  <p style="text-align:center; font-size:1.1em; color:#555;">
-    Falowen is your all-in-one German learning platform, powered by AI exercises and live tutor support.
-  </p>
-  <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-    <li>📊 **Dashboard**: Track your learning streaks, assignment progress, active contracts, and more.</li>
-    <li>📚 **Course Book**: Access lecture videos, grammar modules, and submit assignments in one place.</li>
-    <li>📝 **Exams & Quizzes**: Take practice tests and official exam prep right in the app.</li>
-    <li>💬 **Custom Chat**: AI-powered expression & Sprechen trainer for live feedback on your speaking.</li>
-    <li>🏆 **Results Tab**: View your grades, feedback, and historical performance at a glance.</li>
-    <li>🔤 **Vocab Trainer**: Practice and master A1–B2 vocabulary with spaced-repetition quizzes.</li>
-    <li>✍️ **Schreiben Trainer**: Improve your writing with guided exercises and instant corrections.</li>
-  </ul>
-</div>
-""", unsafe_allow_html=True)
-
-
-# --- 4) Login / Signup UI (only if not logged in) -----------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# 2) Public Landing & Login/Signup (pre-login)
+# ─────────────────────────────────────────────────────────────────────────────
 if not st.session_state.logged_in:
-    # Support / Help section
+
+    # Academy header
     st.markdown("""
-    <div class="help-contact-box">
-      <b>❓ Need help or access?</b><br>
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp us</a>
-      &nbsp;|&nbsp;
-      <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
+    <div style='display:flex; align-items:center; justify-content:space-between;
+                margin-bottom:22px; width:100%;'>
+      <span style='font-size:2.2rem;'>🇬🇭</span>
+      <div style='flex:1; text-align:center;'>
+        <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
+          Falowen App
+        </span><br>
+        <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>
+          Learn Language Education Academy
+        </span><br>
+        <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
+          Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+        </span><br>
+        <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+          Website:
+          <a href='https://www.learngermanghana.com' target='_blank'
+             style='color:#1565c0; text-decoration:none;'>
+            www.learngermanghana.com
+          </a>
+        </span><br>
+        <span style='font-size:0.98rem; color:#666; font-weight:500;'>
+          Competent German Tutors Team
+        </span>
+      </div>
+      <span style='font-size:2.2rem;'>🇩🇪</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # Tabs for Returning / New students
-    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
+    # Hero
+    st.markdown("""
+    <div class="hero">
+      <h1 style="text-align:center; color:#25317e;">
+        👋 Welcome to <strong>Falowen</strong>
+      </h1>
+      <p style="text-align:center; font-size:1.1em; color:#555;">
+        Falowen is your all-in-one German learning platform,
+        powered by <strong>Learn Language Education Academy</strong>
+        with live tutor support.
+      </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # — Google OAuth helpers —
+    # Help box
+    st.markdown("""
+    <div class="help-contact-box">
+      <b>❓ Need help or access?</b><br>
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">
+        📱 WhatsApp us
+      </a>
+      &nbsp;|&nbsp;
+      <a href="mailto:learngermanghana@gmail.com" target="_blank">
+        ✉️ Email
+      </a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # — Google OAuth Helpers —
     def get_query_params():
         return st.query_params
 
+    def handle_google_login():
+        qp = get_query_params()
+        if "code" not in qp:
+            return False
+        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code":          code,
+            "client_id":     st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
+            "redirect_uri":  st.secrets["REDIRECT_URI"],
+            "grant_type":    "authorization_code"
+        }
+        try:
+            resp = requests.post(token_url, data=data, timeout=10)
+            resp.raise_for_status()
+            access_token = resp.json().get("access_token")
+            if not access_token:
+                return False
+            userinfo = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            ).json()
+            email = userinfo.get("email", "").lower()
+            df = load_student_data()
+            df["Email"] = df["Email"].str.lower().str.strip()
+            match = df[df["Email"] == email]
+            if match.empty:
+                st.error("No student account found for that Google email.")
+                return False
+            student = match.iloc[0]
+            if is_contract_expired(student):
+                st.error("Your contract has expired. Contact the office.")
+                return False
+            st.session_state.update({
+                "logged_in":    True,
+                "student_row":  student.to_dict(),
+                "student_code": student["StudentCode"],
+                "student_name": student["Name"]
+            })
+            cookie_manager["student_code"] = student["StudentCode"]
+            cookie_manager.save()
+            st.success(f"Welcome, {student['Name']}!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Google OAuth error: {e}")
+        return False
+
     def do_google_oauth():
         params = {
-            "client_id":     GOOGLE_CLIENT_ID,
-            "redirect_uri":  REDIRECT_URI,
+            "client_id":     st.secrets["GOOGLE_CLIENT_ID"],
+            "redirect_uri":  st.secrets["REDIRECT_URI"],
             "response_type": "code",
             "scope":         "openid email profile",
             "prompt":        "select_account"
@@ -485,35 +489,83 @@ if not st.session_state.logged_in:
         </div>
         """, unsafe_allow_html=True)
 
-    def handle_google_login():
-        qp = get_query_params()
-        if "code" not in qp:
-            return False
-        # — your existing token exchange & user lookup logic —
-        # if successful: set st.session_state.logged_in = True and return True
-        return False
+    # Tabs
+    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
-    # Returning student tab
+    # Returning Student
     with tab1:
         if handle_google_login():
             st.stop()
         do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
-            st.text_input("Student Code or Email", key="login_id")
-            st.text_input("Password", type="password", key="login_pass")
-            st.form_submit_button("Log In")
+            login_id      = st.text_input("Student Code or Email", key="login_id")
+            login_pass    = st.text_input("Password", type="password", key="login_pass")
+            login_clicked = st.form_submit_button("Log In")
+        if login_clicked:
+            with st.spinner("Logging in…"):
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                user = df[
+                    (df["StudentCode"] == login_id.lower()) |
+                    (df["Email"]       == login_id.lower())
+                ]
+                if user.empty:
+                    st.error("No matching student code or email found.")
+                else:
+                    student = user.iloc[0]
+                    if is_contract_expired(student):
+                        st.error("Your contract has expired.")
+                    else:
+                        rec = db.collection("students").document(student["StudentCode"]).get()
+                        if not rec.exists:
+                            st.error("Account not found. Please sign up.")
+                        elif rec.to_dict().get("password") != login_pass:
+                            st.error("Incorrect password.")
+                        else:
+                            st.session_state.update({
+                                "logged_in":    True,
+                                "student_row":  student.to_dict(),
+                                "student_code": student["StudentCode"],
+                                "student_name": student["Name"]
+                            })
+                            cookie_manager["student_code"] = student["StudentCode"]
+                            cookie_manager.save()
+                            st.success(f"Welcome, {student['Name']}!")
+                            st.rerun()
 
-    # New student tab
+    # New Student
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
-            st.text_input("Full Name", key="ca_name")
-            st.text_input("Email (must match teacher’s record)", key="ca_email")
-            st.text_input("Student Code (from teacher)", key="ca_code")
-            st.text_input("Choose a Password", type="password", key="ca_pass")
-            st.form_submit_button("Create Account")
+            new_name       = st.text_input("Full Name", key="ca_name")
+            new_email      = st.text_input("Email (must match teacher’s record)", key="ca_email")
+            new_code       = st.text_input("Student Code (from teacher)", key="ca_code")
+            new_password   = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_clicked = st.form_submit_button("Create Account")
+        if signup_clicked:
+            with st.spinner("Creating account…"):
+                if not (new_name and new_email and new_code and new_password):
+                    st.error("Please fill in all fields.")
+                else:
+                    df = load_student_data()
+                    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                    df["Email"]       = df["Email"].str.lower().str.strip()
+                    valid = df[
+                        (df["StudentCode"] == new_code.lower()) &
+                        (df["Email"]       == new_email.lower())
+                    ]
+                    if valid.empty:
+                        st.error("Code/email not registered.")
+                    else:
+                        db.collection("students").document(new_code).set({
+                            "name":     new_name,
+                            "email":    new_email,
+                            "password": new_password
+                        })
+                        st.success("Account created! Please log in above.")
 
-    # Quick Links
+    # Quick Links & Footer
     st.markdown("""
     <div class="quick-links">
       <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
@@ -523,10 +575,6 @@ if not st.session_state.logged_in:
       <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
       <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
     </div>
-    """, unsafe_allow_html=True)
-
-    # YouTube & WhatsApp footer
-    st.markdown("""
     <div style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
       &nbsp;|&nbsp;
@@ -536,15 +584,10 @@ if not st.session_state.logged_in:
 
     st.stop()
 
-# --- Logged In UI ---
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
-if st.button("Log out"):
-    cookie_manager["student_code"] = ""
-    cookie_manager.save()
-    for k in ["logged_in", "student_row", "student_code", "student_name"]:
-        st.session_state[k] = False if k == "logged_in" else ""
-    st.success("You have been logged out.")
-    st.rerun()
+# ─────────────────────────────────────────────────────────────────────────────
+# 3) Main App (post-login)
+# ─────────────────────────────────────────────────────────────────────────────
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**!")
 
 
 
@@ -6851,6 +6894,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
