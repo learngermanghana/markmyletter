@@ -611,47 +611,18 @@ def load_reviews():
     return df
 
 if st.session_state.get("logged_in"):
-    # 1️⃣ BASIC STUDENT INFO (LOAD)
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
+
+    # Load student info
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
+    # Greeting and contract info
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # 2️⃣ MODERN INFO CARD (MOBILE-FRIENDLY)
-    name = safe_get(student_row, "Name")
-    info_html = f"""
-    <div style='
-        background:linear-gradient(92deg,#fafdff 65%,#f0f5ff 100%);
-        border:1.5px solid #1976d2;
-        border-radius:10px;
-        padding:12px 14px 8px 14px;
-        margin-bottom:9px;
-        box-shadow:0 1px 7px rgba(44,106,221,0.06);
-        font-size:1.05em;
-        color:#12305c;
-        font-family: "Segoe UI", "Arial", sans-serif;
-        letter-spacing:0.01em;
-        word-break:break-word;
-        overflow-x:auto;
-        line-height:1.68;
-        '>
-        <span style="font-size:1.19em;font-weight:700;">👤 {name}</span><br>
-        <span><b>Level:</b> {safe_get(student_row, 'Level', '')} | <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> | <b>Status:</b> {safe_get(student_row, 'Status', '')}</span><br>
-        <span><b>Email:</b> {safe_get(student_row, 'Email', '')} | <b>Phone:</b> {safe_get(student_row, 'Phone', '')} | <b>Location:</b> {safe_get(student_row, 'Location', '')}</span><br>
-        <span><b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} | <b>Enroll:</b> {safe_get(student_row, 'EnrollDate', '')}</span>
-    </div>
-    """
-    st.markdown(info_html, unsafe_allow_html=True)
-    try:
-        bal = float(safe_get(student_row, "Balance", 0))
-        if bal > 0:
-            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    # 3️⃣ CONTRACT END / RENEWAL POLICY (Always Visible)
+    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
     today = datetime.today()
@@ -669,15 +640,19 @@ if st.session_state.get("logged_in"):
             )
     else:
         st.info("Contract end date unavailable or in wrong format.")
+
     st.info(
         f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
         "Do your best to complete your course on time to avoid extra fees!"
     )
 
-    # 4️⃣ ASSIGNMENT STREAK & WEEKLY GOAL
+    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
     df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
+    df_assign["date"] = pd.to_datetime(
+        df_assign["date"], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
+
     from datetime import timedelta, date
     dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
     streak = 1 if dates else 0
@@ -686,10 +661,14 @@ if st.session_state.get("logged_in"):
             streak += 1
         else:
             break
+
     today = date.today()
     monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
+    assignment_count = df_assign[
+        mask_student & (df_assign["date"] >= monday)
+    ].shape[0]
     WEEKLY_GOAL = 3
+
     st.markdown("### 🏅 Assignment Streak & Weekly Goal")
     col1, col2 = st.columns(2)
     col1.metric("Streak", f"{streak} days")
@@ -700,10 +679,11 @@ if st.session_state.get("logged_in"):
         rem = WEEKLY_GOAL - assignment_count
         st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
 
-    # 5️⃣ VOCAB OF THE DAY (Level-Specific)
+        # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+
     if vocab_item:
         st.markdown(f"### 🗣️ Vocab of the Day <span style='font-size:1rem;color:#999;'>({student_level})</span>", unsafe_allow_html=True)
         st.markdown(f"""
@@ -715,9 +695,11 @@ if st.session_state.get("logged_in"):
         """, unsafe_allow_html=True)
     else:
         st.info(f"No vocab found for level {student_level}.")
+
     st.divider()
 
-    # 6️⃣ MOTIVATION & LEADERBOARD
+
+    # --- Rotating Motivation/Encouragement Lists ---
     import random
     STUDY_TIPS = [
         "Study a little every day. Small steps lead to big progress!",
@@ -726,6 +708,7 @@ if st.session_state.get("logged_in"):
         "Don’t just read—write or say your answers aloud for better memory.",
         "Review your old assignments to see how far you’ve come!"
     ]
+
     INSPIRATIONAL_QUOTES = [
         "“The secret of getting ahead is getting started.” – Mark Twain",
         "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
@@ -733,10 +716,15 @@ if st.session_state.get("logged_in"):
         "“The expert in anything was once a beginner.” – Helen Hayes",
         "“Learning never exhausts the mind.” – Leonardo da Vinci"
     ]
+
+    # --- Personalized Leaderboard Position on Main Dashboard ---
     MIN_ASSIGNMENTS = 3
+
     user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
+
+    # Calculate leaderboard by total score and number of assignments
     df_level = (
         df_assign[df_assign['level'] == user_level]
         .groupby(['studentcode', 'name'], as_index=False)
@@ -746,14 +734,23 @@ if st.session_state.get("logged_in"):
         )
     )
     df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
-    df_level = df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
+
+    # Sort: most total points, then most completed
+    df_level = df_level.sort_values(
+        ['total_score', 'completed'],
+        ascending=[False, False]
+    ).reset_index(drop=True)
     df_level['Rank'] = df_level.index + 1
+
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
+    total_students = len(df_level)
+
     if not your_row.empty:
         row = your_row.iloc[0]
         rank = int(row['Rank'])
-        total_students = len(df_level)
-        percent = (rank / total_students) * 100
+        percent = (rank / total_students) * 100 if total_students else 0
+
+        # --- Rotating motivation style ---
         rotate = random.randint(0, 3)
         if rotate == 0:
             if rank == 1:
@@ -772,6 +769,7 @@ if st.session_state.get("logged_in"):
             message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
         else:
             message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
+
         st.markdown(
             f"""
             <div style="
@@ -786,17 +784,23 @@ if st.session_state.get("logged_in"):
                 ">
                 <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
                 <span style="font-size:1.21em;">
-                <b>Your current rank:</b> #{rank}
-                </span><br>
+                    <b>Rank:</b> #{rank} <b>out of</b> {total_students} students
+                </span>
+                <br>
+                <span style="font-size:0.98em; color:#444;">(Your Level: <b>{user_level}</b>)</span>
                 <div style="margin-top:10px;font-size:1.09em;">{message}</div>
             </div>
             """, unsafe_allow_html=True
         )
     else:
         st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
-    st.divider()
 
-    # 7️⃣ DASHBOARD REMINDERS / TAB TIPS
+    st.divider()
+#
+
+
+
+    # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
         "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
@@ -805,12 +809,9 @@ if st.session_state.get("logged_in"):
         "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
         "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
     ]
+    import random
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-    st.info(dashboard_tip)
-
-# --- END DASHBOARD GROUP ---
-
-
+    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
 
     # --- Main Tab Selection ---
     tab = st.radio(
@@ -892,7 +893,6 @@ if tab == "Dashboard":
             st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
     except Exception:
         pass
-#
 
 
     # ==== CLASS SCHEDULES DICTIONARY ====
@@ -1167,7 +1167,6 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-
 
 
             
@@ -6790,6 +6789,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
