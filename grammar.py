@@ -61,6 +61,17 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
+
+def load_lottieurl(url: str):
+    r = requests.get(url)
+    if r.status_code != 200:
+        return None
+    return r.json()
+
+lottie_json = load_lottieurl("https://assets7.lottiefiles.com/packages/lf20_l2chhegy.json")
+st_lottie(lottie_json, height=240, key="login_lottie")
+
+
 # ==== DB CONNECTION & INITIALIZATION ====
 def get_connection():
     if "conn" not in st.session_state:
@@ -6827,6 +6838,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
