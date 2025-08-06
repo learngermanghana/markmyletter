@@ -2799,7 +2799,6 @@ def save_notes_to_db(student_code, notes):
     ref.set({"notes": notes}, merge=True)
 
 
-# --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
     if st.session_state.get("switch_to_notes"):
@@ -2928,9 +2927,11 @@ if tab == "Course Book":
             st.warning("❓ Start date missing or wrong. Please update your contract start date.")
 
         info = schedule[idx]
+        # ---- Fix for highlight and header ----
+        lesson_title = f"Day {info['day']}: {info['topic']}"
+        highlighted_title = highlight_terms(lesson_title, search_terms)
         st.markdown(
-            f"### {highlight_terms(f\"Day {info['day']}: {info['topic']}\", search_terms)}"
-            f" (Chapter {info['chapter']})",
+            f"### {highlighted_title} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
         st.divider()
@@ -2945,21 +2946,54 @@ if tab == "Course Book":
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        # clickable YouTube link above sections
+        # --- YouTube main link (clickable) ---
         if info.get("youtube_link"):
-            render_link("▶️ YouTube Link", info["youtube_link"])
+            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
 
-        # render embedded + clickable sections
+        # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
+        def render_section(day_info, key, title, icon):
+            content = day_info.get(key)
+            if not content:
+                return
+            items = content if isinstance(content, list) else [content]
+            st.markdown(f"#### {icon} {title}")
+            for idx, part in enumerate(items):
+                if len(items) > 1:
+                    st.markdown(
+                        f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}"
+                    )
+                # --- Embed video and show link if available ---
+                if part.get('video'):
+                    st.video(part['video'])
+                    st.markdown(f"[▶️ Watch on YouTube]({part['video']})")
+                # --- Also support explicit youtube_link (if different from 'video') ---
+                elif part.get('youtube_link'):
+                    st.markdown(f"[▶️ Watch on YouTube]({part['youtube_link']})")
+                if part.get('grammarbook_link'):
+                    st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
+                    st.markdown(
+                        '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                        unsafe_allow_html=True
+                    )
+                if part.get('workbook_link'):
+                    st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
+                    render_assignment_reminder()
+                extras = part.get('extra_resources')
+                if extras:
+                    for ex in (extras if isinstance(extras, list) else [extras]):
+                        st.markdown(f"- [🔗 Extra]({ex})")
+
         render_section(info, "lesen_hören", "Lesen & Hören", "📚")
         render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
+        # ---- Show resource links for upper levels if needed ----
         if student_level in ["A2", "B1", "B2", "C1"]:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
                 if val:
                     if res == "video":
                         st.video(val)
-                        render_link("▶️ Watch on YouTube", val)
+                        st.markdown(f"[▶️ Watch on YouTube]({val})")
                     else:
                         st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
             st.markdown(
@@ -2968,7 +3002,6 @@ if tab == "Course Book":
             )
 
         st.divider()
-
 
      
         # --- Translation Links Only ---
@@ -6683,6 +6716,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
