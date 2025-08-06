@@ -726,6 +726,8 @@ if st.session_state.get("logged_in"):
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
     total_students = len(df_level)
 
+    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+
     if not your_row.empty:
         row = your_row.iloc[0]
         rank = int(row['Rank'])
@@ -733,9 +735,7 @@ if st.session_state.get("logged_in"):
         completed = int(row['completed'])
 
         # Total possible assignments for this level
-        total_possible = (
-            df_assign[df_assign['level'] == user_level]['assignment'].nunique()
-        )
+        total_possible = totals.get(user_level, 0)
         progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
         # --- Rotating motivation style ---
@@ -1118,9 +1118,6 @@ if tab == "Dashboard":
     """,
                 unsafe_allow_html=True,
             )
-#
-
-
 
     # --- Goethe Exam Countdown & Video of the Day (per level) ---
     GOETHE_EXAM_DATES = {
@@ -6774,6 +6771,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
