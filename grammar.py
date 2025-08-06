@@ -47,27 +47,37 @@ st.session_state["theme"] = theme
 if theme == "dark":
     custom_css = """
     <style>
-      body, .stApp { background: #18192c !important; color: #e8e8ff !important; }
-      .welcome-box { background: #23243b !important; color: #e8e8ff !important; }
-      .quick-links-box, .help-contact-box { background: #25263c !important; color: #e8e8ff !important; }
-      /* Fix for Streamlit info/warning/success boxes */
+      body, .stApp {
+        background: #24273a !important;  /* lighter charcoal */
+        color: #f0f2fa !important;
+      }
+      .welcome-box, .quick-links-box, .help-contact-box {
+        background: #323657 !important;
+        color: #f7f7fa !important;
+        border-left: 4px solid #5b6de7 !important;
+      }
+      /* Info/Warning/Success */
       .stAlert {
-        background: #25263c !important;
-        color: #e8e8ff !important;
+        background: #323657 !important;
+        color: #f0f2fa !important;
         border-radius: 9px !important;
-        border-left: 4px solid #0097ff !important;
+        border-left: 4px solid #4bb3fa !important;
       }
-      .stAlert a {
-        color: #69bbff !important;
-      }
-      .stMarkdown, .stText {
-        color: #e8e8ff !important;
-      }
-      /* Optional: Fix for text input boxes */
+      .stAlert a { color: #8fc3ff !important; }
+      .stMarkdown, .stText { color: #f0f2fa !important; }
       input, textarea {
-        background: #1d1f36 !important;
-        color: #e8e8ff !important;
-        border: 1.2px solid #3746a5 !important;
+        background: #25294b !important;
+        color: #f7f7fa !important;
+        border: 1.2px solid #5b6de7 !important;
+      }
+      /* Buttons */
+      .stButton > button {
+        background: #364185 !important;
+        color: #fff !important;
+      }
+      .stButton > button:hover {
+        background: #5b6de7 !important;
+        color: #fff !important;
       }
     </style>
     """
@@ -83,13 +93,12 @@ else:
         border-radius: 9px !important;
         border-left: 4px solid #007bff !important;
       }
-      .stAlert a {
-        color: #2357d1 !important;
-      }
+      .stAlert a { color: #2357d1 !important; }
     </style>
     """
 
 st.markdown(custom_css, unsafe_allow_html=True)
+
 
 
 
@@ -7057,6 +7066,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
