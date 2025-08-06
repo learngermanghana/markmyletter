@@ -5,3 +5,8 @@ backgroundColor="#f3f7fb"
 secondaryBackgroundColor="#eef3fc"
 textColor="#1a2340"
 font="sans serif"
+
+[ui]
+# This enables theme switching in the menu
+customTheme = true
+
