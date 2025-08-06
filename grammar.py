@@ -19,6 +19,7 @@ import base64
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+from streamlit_lottie import st_lottie
 import requests
 from openai import OpenAI
 import firebase_admin
@@ -349,6 +350,29 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 if not st.session_state["logged_in"]:
+    # --- Lottie Animation (top of page) ---
+    def load_lottieurl(url: str):
+        r = requests.get(url)
+        if r.status_code != 200:
+            return None
+        return r.json()
+
+    # Example: Classroom/learning animation
+    lottie_url = "https://assets7.lottiefiles.com/packages/lf20_ny3m0uim.json"
+    lottie_json = load_lottieurl(lottie_url)
+
+    st_lottie(
+        lottie_json,
+        speed=1,
+        reverse=False,
+        loop=True,
+        quality="low",
+        height=220,
+        width=None,
+        key="login_lottie"
+    )
+
+    
     # --- Welcome & Help (Always at Top) ---
     st.markdown("""
     <div style="background:#f6f6ff; border-radius:14px; padding:17px 20px; margin-bottom:10px; border-left:4px solid #685ae7;">
@@ -6803,6 +6827,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
