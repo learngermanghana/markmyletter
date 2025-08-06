@@ -369,16 +369,35 @@ if not st.session_state["logged_in"]:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Support & Privacy (Always at Top) ---
+    # --- Support & Privacy (Always at Top, now with improved background for mobile) ---
     st.markdown("""
-    <div style="text-align:center; color:#222; margin-top:8px; margin-bottom:14px; font-size:1.08em;">
+    <style>
+    @media (max-width: 700px) {
+      .help-contact-box {
+        background: #fff !important;
+        color: #222 !important;
+        padding: 18px 5vw 16px 5vw !important;
+        font-size: 1.18em !important;
+        border-radius: 10px !important;
+        border: 1.5px solid #e2e6ee !important;
+      }
+    }
+    </style>
+    <div class="help-contact-box" style="
+        background:#fcfcfd;
+        color:#23243b;
+        margin-top:10px;
+        margin-bottom:16px;
+        font-size:1.13em;
+        border-radius:12px;
+        border: 1.5px solid #ebebf2;
+        padding:17px 22px 14px 22px;
+        box-shadow: 0 2px 10px 0 rgba(80,80,120,0.06);
+        text-align:center;">
         <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
-            📱 <b>WhatsApp us</b>
-        </a> &nbsp; | &nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
-            ✉️ <b>Email</b>
-        </a>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;color:#2357d1;"><b>📱 WhatsApp us</b></a>
+        &nbsp; | &nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;color:#2357d1;"><b>✉️ Email</b></a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -534,22 +553,34 @@ if not st.session_state["logged_in"]:
                     st.success("Account created! Please log in on the other tab.")
 
 
-    # --- Quick Links & Info Section (just below login tabs) ---
     st.markdown("""
-    <div style="background:#f4f7fd; border-radius:12px; padding:14px 10px 12px 10px; margin:18px 0 16px 0; border-left:3px solid #3746a5;">
-      <b style="font-size:1.08em;">🔗 Quick Links & Info</b>
-      <ul style="margin:10px 0 0 15px; color:#404366; font-size:1.04em;line-height:1.75;">
-        <li><a href="https://www.learngermanghana.com/pricing" target="_blank"><b>💰 Pricing & Payment Options</b></a></li>
-        <li><a href="https://www.learngermanghana.com/tutors" target="_blank"><b>👨‍🏫 Meet Our Tutors</b></a></li>
-        <li><a href="https://www.learngermanghana.com/upcoming-classes" target="_blank"><b>📆 Upcoming Classes</b></a></li>
-        <li><a href="https://www.learngermanghana.com/accreditation" target="_blank"><b>🏅 Accreditation</b></a></li>
-        <li><a href="https://www.learngermanghana.com/privacy-policy" target="_blank"><b>🔒 Privacy Policy</b></a></li>
-        <li><a href="https://www.learngermanghana.com/terms-of-service" target="_blank"><b>📃 Terms of Service</b></a></li>
-        <li><a href="https://www.learngermanghana.com/contact-us" target="_blank"><b>📞 Contact Us</b></a></li>
-        <li><a href="https://www.learngermanghana.com" target="_blank"><b>🌐 Main Website</b></a></li>
+    <style>
+    @media (max-width: 700px) {
+      .quick-links-box ul { font-size: 1.11em !important; }
+      .quick-links-box { padding: 14px 4vw 14px 4vw !important; }
+    }
+    </style>
+    <div class="quick-links-box" style="
+        background:#f0f4fa;
+        border-radius:13px;
+        padding:18px 18px 14px 18px;
+        margin:18px 0 18px 0;
+        border-left: 4px solid #3746a5;
+        box-shadow: 0 2px 10px 0 rgba(60,50,120,0.07);
+        ">
+      <b style="font-size:1.12em;">🔗 Quick Links</b>
+      <ul style="margin:9px 0 0 16px; color:#38416b; font-size:1.03em;">
+        <li><a href="https://www.learngermanghana.com/tutors" target="_blank" style="color:#3851a5;font-weight:500;">👩‍🏫 Tutors</a></li>
+        <li><a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" style="color:#3851a5;font-weight:500;">🗓️ Upcoming Classes</a></li>
+        <li><a href="https://www.learngermanghana.com/accreditation" target="_blank" style="color:#3851a5;font-weight:500;">✅ Accreditation</a></li>
+        <li><a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#3851a5;font-weight:500;">🔒 Privacy Policy</a></li>
+        <li><a href="https://www.learngermanghana.com/terms-of-service" target="_blank" style="color:#3851a5;font-weight:500;">📜 Terms of Service</a></li>
+        <li><a href="https://www.learngermanghana.com/contact-us" target="_blank" style="color:#3851a5;font-weight:500;">✉️ Contact Us</a></li>
       </ul>
     </div>
     """, unsafe_allow_html=True)
+#
+
 
     # --- Footer with Social Media ---
     st.markdown("""
@@ -6824,6 +6855,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
