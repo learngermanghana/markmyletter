@@ -19,7 +19,6 @@ import base64
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
-from streamlit_lottie import st_lottie
 import requests
 from openai import OpenAI
 import firebase_admin
@@ -352,28 +351,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-from streamlit_lottie import st_lottie
-import requests
-
-def load_lottieurl(url: str):
-    r = requests.get(url)
-    if r.status_code != 200:
-        st.write("Error loading Lottie file:", r.status_code, r.text[:100])
-        return None
-    try:
-        return r.json()
-    except Exception as e:
-        st.write("Error decoding JSON:", e)
-        return None
-
-lottie_url = "https://assets5.lottiefiles.com/packages/lf20_V9t630.json"
-lottie_json = load_lottieurl(lottie_url)
-
-if lottie_json is not None:
-    st_lottie(lottie_json, height=220, key="login_lottie")
-else:
-    st.warning("Could not load welcome animation.")
-
 
 #Manuallogin
 if not st.session_state["logged_in"]:
@@ -584,6 +561,23 @@ if not st.session_state["logged_in"]:
                     })
                     st.success("Account created! Please log in on the other tab.")
 
+    # --- Quick Links & Info Section (just below login tabs) ---
+    st.markdown("""
+    <div style="background:#f4f7fd; border-radius:12px; padding:14px 10px 12px 10px; margin:18px 0 16px 0; border-left:3px solid #3746a5;">
+      <b style="font-size:1.08em;">🔗 Quick Links & Info</b>
+      <ul style="margin:10px 0 0 15px; color:#404366; font-size:1.04em;line-height:1.75;">
+        <li><a href="https://www.learngermanghana.com/pricing" target="_blank"><b>💰 Pricing & Payment Options</b></a></li>
+        <li><a href="https://www.learngermanghana.com/tutors" target="_blank"><b>👨‍🏫 Meet Our Tutors</b></a></li>
+        <li><a href="https://www.learngermanghana.com/upcoming-classes" target="_blank"><b>📆 Upcoming Classes</b></a></li>
+        <li><a href="https://www.learngermanghana.com/accreditation" target="_blank"><b>🏅 Accreditation</b></a></li>
+        <li><a href="https://www.learngermanghana.com/privacy-policy" target="_blank"><b>🔒 Privacy Policy</b></a></li>
+        <li><a href="https://www.learngermanghana.com/terms-of-service" target="_blank"><b>📃 Terms of Service</b></a></li>
+        <li><a href="https://www.learngermanghana.com/contact-us" target="_blank"><b>📞 Contact Us</b></a></li>
+        <li><a href="https://www.learngermanghana.com" target="_blank"><b>🌐 Main Website</b></a></li>
+      </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
     # --- Footer with Social Media ---
     st.markdown("""
     <hr style="margin-top:36px; margin-bottom:12px; border:1px solid #eee;">
@@ -601,6 +595,8 @@ if not st.session_state["logged_in"]:
     """, unsafe_allow_html=True)
 
     st.stop()
+
+#
 
 
 # --- Logged In UI ---
@@ -6854,6 +6850,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
