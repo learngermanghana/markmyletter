@@ -232,41 +232,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    layout="centered",
-    initial_sidebar_state="expanded"
-)
-
-if not st.session_state.get("logged_in", False):
-    st.markdown(
-        """ 
-        <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; width: 100%;'>
-            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇬🇭</span>
-            <div style='flex: 1; text-align: center;'>
-                <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>
-                    Falowen App
-                </span>
-                <br>
-                <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span>
-                <br>
-                <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-                    Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
-                </span>
-                <br>
-                <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-                    Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
-                </span>
-                <br>
-                <span style='font-size:0.98rem; color:#666; font-weight:500;'>
-                    Competent German Tutors Team
-                </span>
-            </div>
-            <span style='font-size:2.2rem; flex: 0 0 auto;'>🇩🇪</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
@@ -354,10 +319,8 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-import streamlit as st
-import urllib
-import requests
 
+    
 # --- 1) Page config & session init ---------------------------------------------
 st.set_page_config(
     page_title="Falowen", 
@@ -407,21 +370,25 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3) Public Homepage --------------------------------------------------------
+# --- 3) Public Homepage “hero” (updated) ----------------------------------------
 st.markdown("""
 <div class="hero">
   <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
   <p style="text-align:center; font-size:1.1em; color:#555;">
-    Falowen is your all-in-one German learning platform, powered by AI exercises and live tutor support.
+    Falowen is your all-in-one German learning platform, powered by <strong>Learn Language Education Academy</strong> with live tutor support.
   </p>
-  <ul style="max-width:600px; margin:16px auto; color:#444; font-size:1em;">
-    <li>🌱 Flexible modes: self-study or join live classes</li>
-    <li>🗂️ Structured courses from A1 through B2</li>
-    <li>🔐 Secure login: Google OAuth or custom student code</li>
-    <li>📈 Track your progress with ease</li>
+  <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+    <li>📊 **Dashboard**: Track your learning streaks, assignments, contracts, and more.</li>
+    <li>📚 **Course Book**: Access lecture videos, grammar modules, and submit assignments.</li>
+    <li>📝 **Exams & Quizzes**: Take practice tests and official exam prep right in the app.</li>
+    <li>💬 **Custom Chat**: Expression & Sprechen trainer for live feedback on your speaking.</li>
+    <li>🏆 **Results Tab**: View your grades, feedback, and historical performance at a glance.</li>
+    <li>🔤 **Vocab Trainer**: Practice A1–B2 vocabulary with spaced-repetition quizzes.</li>
+    <li>✍️ **Schreiben Trainer**: Improve your writing with guided exercises and instant corrections.</li>
   </ul>
 </div>
 """, unsafe_allow_html=True)
+
 
 # --- 4) If not logged in: show login/signup UI -------------------------------
 if not st.session_state.logged_in:
@@ -6810,6 +6777,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
