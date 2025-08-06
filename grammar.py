@@ -30,6 +30,43 @@ from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
 
+import streamlit as st
+
+# --- THEME TOGGLE: Place this after your imports, near the top ---
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "light"
+
+theme = st.session_state["theme"]
+
+if st.toggle("Dark Mode"):
+    theme = "dark"
+else:
+    theme = "light"
+st.session_state["theme"] = theme
+
+if theme == "dark":
+    custom_css = """
+    <style>
+      body, .stApp { background: #18192c !important; color: #e8e8ff !important; }
+      .welcome-box { background: #23243b !important; color: #e8e8ff !important; }
+      .quick-links-box, .help-contact-box { background: #25263c !important; color: #e8e8ff !important; }
+      /* Add other .your-custom-class here for your sections */
+    </style>
+    """
+else:
+    custom_css = """
+    <style>
+      body, .stApp { background: #f3f7fb !important; color: #222 !important; }
+      .welcome-box { background: #fff !important; color: #333 !important; }
+      .quick-links-box, .help-contact-box { background: #f0f4fa !important; color: #38416b !important; }
+      /* Add other .your-custom-class here for your sections */
+    </style>
+    """
+st.markdown(custom_css, unsafe_allow_html=True)
+
+# Now your custom blocks will pick up the theme colors
+
+
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
@@ -6994,6 +7031,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
