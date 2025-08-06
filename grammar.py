@@ -50,7 +50,25 @@ if theme == "dark":
       body, .stApp { background: #18192c !important; color: #e8e8ff !important; }
       .welcome-box { background: #23243b !important; color: #e8e8ff !important; }
       .quick-links-box, .help-contact-box { background: #25263c !important; color: #e8e8ff !important; }
-      /* Add other .your-custom-class here for your sections */
+      /* Fix for Streamlit info/warning/success boxes */
+      .stAlert {
+        background: #25263c !important;
+        color: #e8e8ff !important;
+        border-radius: 9px !important;
+        border-left: 4px solid #0097ff !important;
+      }
+      .stAlert a {
+        color: #69bbff !important;
+      }
+      .stMarkdown, .stText {
+        color: #e8e8ff !important;
+      }
+      /* Optional: Fix for text input boxes */
+      input, textarea {
+        background: #1d1f36 !important;
+        color: #e8e8ff !important;
+        border: 1.2px solid #3746a5 !important;
+      }
     </style>
     """
 else:
@@ -59,12 +77,20 @@ else:
       body, .stApp { background: #f3f7fb !important; color: #222 !important; }
       .welcome-box { background: #fff !important; color: #333 !important; }
       .quick-links-box, .help-contact-box { background: #f0f4fa !important; color: #38416b !important; }
-      /* Add other .your-custom-class here for your sections */
+      .stAlert {
+        background: #f0f4fa !important;
+        color: #38416b !important;
+        border-radius: 9px !important;
+        border-left: 4px solid #007bff !important;
+      }
+      .stAlert a {
+        color: #2357d1 !important;
+      }
     </style>
     """
+
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# Now your custom blocks will pick up the theme colors
 
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
@@ -7031,6 +7057,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
