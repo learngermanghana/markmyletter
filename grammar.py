@@ -529,6 +529,7 @@ if not st.session_state["logged_in"]:
                 }
             </style>
         """, unsafe_allow_html=True)
+        
         st.markdown(
             """
             <div class="falowen-login-card">
@@ -537,6 +538,7 @@ if not st.session_state["logged_in"]:
             """,
             unsafe_allow_html=True
         )
+
         login_id = st.text_input("Student Code or Email", key="login_id")
         login_password = st.text_input("Password", type="password", key="login_pass")
         if st.button("Login"):
@@ -570,7 +572,7 @@ if not st.session_state["logged_in"]:
                             cookie_manager["student_code"] = student_row["StudentCode"]
                             cookie_manager.save()
                             st.success(f"Welcome, {student_row['Name']}!")
-                            st.rerun()
+#                            st.rerun()
 
     with tab2:
         st.markdown("""
@@ -6996,6 +6998,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
