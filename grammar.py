@@ -280,21 +280,22 @@ def is_contract_expired(row):
     return expiry_date.date() < today
 
 # ---- Cookie & Session Setup ----
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets["COOKIE_SECRET"]
 if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET environment variable not set")
+    raise ValueError("COOKIE_SECRET not set")
 
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+# explicitly allow cross-site, secure cookies
+cookie_manager = EncryptedCookieManager(
+    prefix="falowen_",
+    password=COOKIE_SECRET,
+    same_site="None",   # <— this
+    secure=True,        # <— and this
+)
 cookie_manager.ready()
 if not cookie_manager.ready():
     st.warning("Cookies are not ready. Please refresh.")
     st.stop()
 
-for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
-    st.session_state.setdefault(key, default)
-
-code_from_cookie = cookie_manager.get("student_code") or ""
-code_from_cookie = str(code_from_cookie).strip().lower()
 
 # --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
@@ -6817,6 +6818,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
