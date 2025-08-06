@@ -348,49 +348,39 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
         
-# --- Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
-    # Top info/intro section
-    st.markdown(
-        """
-        <div style="background:#f5f6fa; border-radius:14px; padding:16px 18px; margin-bottom:10px;">
-            <b>👋 Welcome to Falowen!</b><br>
-            <span style="color:#444; font-size:1.04em;">
-            🔑 <b>Returning?</b> Log in below with your Student Code or Email.<br>
-            🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.<br>
-            📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.<br>
-            ⌛ <b>Expired?</b> Contact the office for help.<br>
-            🔒 <b>Privacy:</b> Only you and your teacher see your progress.<br>
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # --- Welcome & Help ---
+    st.markdown("""
+    <div style="background:#f6f6ff; border-radius:14px; padding:17px 20px; margin-bottom:10px; border-left:4px solid #685ae7;">
+      <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
+      <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
+        <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
+        <li>🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.</li>
+        <li>📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.</li>
+        <li>⌛ <b>Expired?</b> Contact the office for help.</li>
+      </ul>
+      <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Support/Contact Section
-    st.markdown(
-        """
-        <div style="text-align:center; color:#222; margin-top:10px; margin-bottom:14px; font-size:1.09em;">
-            <b>❓ Need help or access?</b>
-            <br>
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
-                📱 <b>WhatsApp us directly</b>
-            </a> &nbsp; | &nbsp;
-            <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
-                ✉️ <b>Email: learngermanghana@gmail.com</b>
-            </a>
-            <br><br>
-            <b>🔒 Privacy Policy:</b>
-            <br>
-            <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
-                www.learngermanghana.com/privacy-policy
-            </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # --- Support & Privacy ---
+    st.markdown("""
+    <div style="text-align:center; color:#222; margin-top:8px; margin-bottom:14px; font-size:1.08em;">
+      <b>❓ Need help or access?</b><br>
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
+        📱 <b>WhatsApp us</b>
+      </a> &nbsp; | &nbsp;
+      <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
+        ✉️ <b>Email</b>
+      </a>
+      <br>
+      <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
+        🔒 Privacy Policy
+      </a>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Google Sign-In
+    # --- Google Sign In ---
     def get_query_params():
         return st.query_params
 
@@ -404,9 +394,9 @@ if not st.session_state["logged_in"]:
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
-            f"""<div style='text-align:center;margin:12px 0;'>
+            f"""<div style='text-align:center;margin:10px 0 18px 0;'>
                 <a href="{auth_url}">
-                    <button style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                    <button style="background:#4285f4;color:white;padding:9px 28px;border:none;border-radius:7px;cursor:pointer;font-size:1.09em;">
                         Sign in with Google
                     </button>
                 </a>
@@ -472,89 +462,88 @@ if not st.session_state["logged_in"]:
     do_google_oauth()
     st.divider()
 
-    # --- Manual Login ---
-    st.markdown("#### 👋 Returning Student? Please Log In")
-    login_id       = st.text_input("Student Code or Email")
-    login_password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        df = load_student_data()
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"]       = df["Email"].str.lower().str.strip()
-        lookup = df[
-            ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
-        ]
-        if lookup.empty:
-            st.error("No matching student code or email found.")
-        else:
-            student_row = lookup.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
-            else:
-                doc = db.collection("students").document(student_row["StudentCode"]).get()
-                if not doc.exists:
-                    st.error("Account not found. Please create one below.")
-                else:
-                    data = doc.to_dict()
-                    if data.get("password") != login_password:
-                        st.error("Incorrect password.")
-                    else:
-                        st.session_state.update({
-                            "logged_in": True,
-                            "student_row": student_row.to_dict(),
-                            "student_code": student_row["StudentCode"],
-                            "student_name": student_row["Name"]
-                        })
-                        cookie_manager["student_code"] = student_row["StudentCode"]
-                        cookie_manager.save()
-                        st.success(f"Welcome, {student_row['Name']}!")
-                        st.rerun()
-    st.divider()
-
-    # --- Create Account ---
-    st.markdown("#### 🆕 New Student? Sign Up")
-    new_name     = st.text_input("Full Name", key="ca_name")
-    new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-    new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
-    new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-    if st.button("Create Account"):
-        if not (new_name and new_email and new_code and new_password):
-            st.error("Please fill in all fields.")
-        else:
+    # --- Manual Login Card ---
+    with st.container():
+        st.markdown("#### 👋 Returning Student? Log In")
+        login_id       = st.text_input("Student Code or Email")
+        login_password = st.text_input("Password", type="password")
+        if st.button("Login"):
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
-            valid = df[
-                (df["StudentCode"] == new_code) &
-                (df["Email"] == new_email)
+            lookup = df[
+                ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
             ]
-            if valid.empty:
-                st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
+            if lookup.empty:
+                st.error("No matching student code or email found.")
             else:
-                db.collection("students").document(new_code).set({
-                    "name":     new_name,
-                    "email":    new_email,
-                    "password": new_password
-                })
-                st.success("Account created! Please log in above.")
+                student_row = lookup.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Contact the office.")
+                else:
+                    doc = db.collection("students").document(student_row["StudentCode"]).get()
+                    if not doc.exists:
+                        st.error("Account not found. Please create one below.")
+                    else:
+                        data = doc.to_dict()
+                        if data.get("password") != login_password:
+                            st.error("Incorrect password.")
+                        else:
+                            st.session_state.update({
+                                "logged_in": True,
+                                "student_row": student_row.to_dict(),
+                                "student_code": student_row["StudentCode"],
+                                "student_name": student_row["Name"]
+                            })
+                            cookie_manager["student_code"] = student_row["StudentCode"]
+                            cookie_manager.save()
+                            st.success(f"Welcome, {student_row['Name']}!")
+                            st.rerun()
+    st.divider()
 
-    # --- Footer with Social Media Links ---
-    st.markdown(
-        """
-        <hr style="margin-top:36px; margin-bottom:12px; border:1px solid #eee;">
-        <div style="text-align:center; font-size:1.02em; color:#555;">
-            Stay connected with us!<br>
-            <a href="https://www.youtube.com/@LearnGermanGhana-pn5wr" target="_blank" style="text-decoration:none;">
-                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>YouTube
-            </a>
-            &nbsp;|&nbsp;
-            <a href="https://instagram.com/learngermanghana" target="_blank" style="text-decoration:none;">
-                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>Instagram
-            </a>
-            <br><span style="font-size:0.93em; color:#888;">© 2025 Learn Language Education Academy</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # --- Create Account Card ---
+    with st.container():
+        st.markdown("#### 🆕 New Student? Sign Up")
+        new_name     = st.text_input("Full Name", key="ca_name")
+        new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
+        new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
+        new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
+        if st.button("Create Account"):
+            if not (new_name and new_email and new_code and new_password):
+                st.error("Please fill in all fields.")
+            else:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                valid = df[
+                    (df["StudentCode"] == new_code) &
+                    (df["Email"] == new_email)
+                ]
+                if valid.empty:
+                    st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
+                else:
+                    db.collection("students").document(new_code).set({
+                        "name":     new_name,
+                        "email":    new_email,
+                        "password": new_password
+                    })
+                    st.success("Account created! Please log in above.")
+
+    # --- Footer with Social Media ---
+    st.markdown("""
+    <hr style="margin-top:36px; margin-bottom:12px; border:1px solid #eee;">
+    <div style="text-align:center; font-size:1.06em; color:#555;">
+        Stay connected!<br>
+        <a href="https://www.youtube.com/@LearnGermanGhana-pn5wr" target="_blank" style="text-decoration:none;">
+            <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>YouTube
+        </a>
+        &nbsp;|&nbsp;
+        <a href="https://instagram.com/learngermanghana" target="_blank" style="text-decoration:none;">
+            <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>Instagram
+        </a>
+        <br><span style="font-size:0.93em; color:#888;">© 2025 Learn Language Education Academy</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.stop()
 
@@ -6809,6 +6798,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
