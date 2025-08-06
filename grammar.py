@@ -2934,16 +2934,26 @@ if tab == "Course Book":
                     f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
                 )
 
+            # Bold header for lessons dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Lessons:</span>",
+                unsafe_allow_html=True
+            )
             sel = st.selectbox(
-                "Lessons:",
+                "",  # label hidden
                 list(range(len(matches))),
                 format_func=lambda i: labels[i],
                 key="course_search_sel"
             )
             idx = matches[sel][0]
         else:
+            # Bold header for lesson/day dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>",
+                unsafe_allow_html=True
+            )
             idx = st.selectbox(
-                "Choose your lesson/day:",
+                "",  # label hidden
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
@@ -2962,7 +2972,7 @@ if tab == "Course Book":
         LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
         rec_time = LEVEL_TIME.get(student_level, 20)
         st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
-
+        
         # Suggested end dates
         start_str = student_row.get("ContractStart", "")
         start_date = None
@@ -2974,18 +2984,34 @@ if tab == "Course Book":
                 continue
 
         if start_date:
-            weeks_3 = (total + 2) // 3
-            weeks_2 = (total + 1) // 2
-            weeks_1 = total
-            end_3 = start_date + timedelta(weeks=weeks_3)
-            end_2 = start_date + timedelta(weeks=weeks_2)
-            end_1 = start_date + timedelta(weeks=weeks_1)
+            # calculate how many weeks for each pace
+            weeks_three = (total + 2) // 3
+            weeks_two   = (total + 1) // 2
+            weeks_one   = total
 
-            st.success(f"🎯 3/week → {end_3.strftime('%A, %d %b %Y')}")
-            st.info(f"🟢 2/week → {end_2.strftime('%A, %d %b %Y')}")
-            st.warning(f"🟡 1/week → {end_1.strftime('%A, %d %b %Y')}")
+            end_three = start_date + timedelta(weeks=weeks_three)
+            end_two   = start_date + timedelta(weeks=weeks_two)
+            end_one   = start_date + timedelta(weeks=weeks_one)
+
+            # indent right with a spacer column
+            spacer, content = st.columns([3, 7])
+            with content:
+                st.success(
+                    f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**."
+                )
+                st.info(
+                    f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**."
+                )
+                st.warning(
+                    f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**."
+                )
         else:
-            st.warning("❓ Start date missing or wrong. Please update your contract start date.")
+            spacer, content = st.columns([3, 7])
+            with content:
+                st.warning(
+                    "❓ Start date missing or invalid. Please update your contract start date."
+                )
+#
 
         info = schedule[idx]
         # ---- Fix for highlight and header ----
@@ -6777,6 +6803,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
