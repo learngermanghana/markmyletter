@@ -354,6 +354,12 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
+import streamlit as st
+import urllib
+import requests
+
+# (Assume page config, header/logo, and any helper imports/config are above)
+
 if not st.session_state.get("logged_in"):
     # --- Centralized CSS for Welcome & Help boxes ---
     st.markdown("""
@@ -413,12 +419,56 @@ if not st.session_state.get("logged_in"):
     # --- Tabs for Returning / New Students ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
+    # --- Google OAuth helpers ---
+    def get_query_params():
+        return st.query_params
+
+    def do_google_oauth():
+        params = {
+            "client_id":     GOOGLE_CLIENT_ID,
+            "redirect_uri":  REDIRECT_URI,
+            "response_type": "code",
+            "scope":         "openid email profile",
+            "prompt":        "select_account"
+        }
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+        st.markdown(f"""
+            <div style='text-align:center; margin:12px 0;'>
+              <a href="{auth_url}">
+                <button style="
+                  background:#4285f4;
+                  color:white;
+                  padding:8px 24px;
+                  border:none;
+                  border-radius:6px;
+                  font-size:1em;
+                ">Continue with Google</button>
+              </a>
+            </div>
+        """, unsafe_allow_html=True)
+
+    def handle_google_login():
+        qp = get_query_params()
+        if "code" not in qp:
+            return False
+        # --- exchange code for token & fetch userinfo (same as your existing logic) ---
+        # return True if login successful & session_state updated, else False
+        # ...
+        return False
+
+    # --- Returning Student (tab1) ---
     with tab1:
+        if handle_google_login():
+            st.stop()
+
+        do_google_oauth()
+        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
             st.text_input("Student Code or Email", key="login_id")
             st.text_input("Password", type="password", key="login_pass")
             st.form_submit_button("Log In")
 
+    # --- New Student (tab2) ---
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
             st.text_input("Full Name", key="ca_name")
@@ -426,6 +476,30 @@ if not st.session_state.get("logged_in"):
             st.text_input("Student Code (from teacher)", key="ca_code")
             st.text_input("Choose a Password", type="password", key="ca_pass")
             st.form_submit_button("Create Account")
+
+    # --- Quick Links Section ---
+    with st.container():
+        links = [
+            ("👩‍🏫 Tutors", "https://www.learngermanghana.com/tutors"),
+            ("🗓️ Upcoming Classes", "https://www.learngermanghana.com/upcoming-classes"),
+            ("✅ Accreditation", "https://www.learngermanghana.com/accreditation"),
+            ("🔒 Privacy", "https://www.learngermanghana.com/privacy-policy"),
+            ("📜 Terms", "https://www.learngermanghana.com/terms-of-service"),
+            ("✉️ Contact", "https://www.learngermanghana.com/contact-us"),
+        ]
+        cols = st.columns(3)
+        for idx, (label, url) in enumerate(links):
+            with cols[idx % 3]:
+                st.markdown(f"[ {label} ]({url})", unsafe_allow_html=True)
+
+    # --- YouTube & WhatsApp Footer ---
+    st.markdown("""
+    <div style="text-align:center; margin:24px 0;">
+      <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
+      &nbsp;|&nbsp;
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp</a>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.stop()
 
@@ -6718,6 +6792,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
