@@ -32,79 +32,6 @@ from bs4 import BeautifulSoup
 
 import streamlit as st
 
-# --- THEME TOGGLE: Place this after your imports, near the top ---
-if "theme" not in st.session_state:
-    st.session_state["theme"] = "light"
-
-theme = st.session_state["theme"]
-
-# Give your theme a custom, friendly name!
-if st.toggle("🌙 Night View"):     # <-- CHANGED label here!
-    theme = "dark"
-else:
-    theme = "light"
-st.session_state["theme"] = theme
-
-if theme == "dark":
-    custom_css = """
-    <style>
-      body, .stApp {
-        background: #24273a !important;  /* lighter charcoal */
-        color: #f0f2fa !important;
-      }
-      .welcome-box, .quick-links-box, .help-contact-box {
-        background: #323657 !important;
-        color: #f7f7fa !important;
-        border-left: 4px solid #5b6de7 !important;
-      }
-      /* Info/Warning/Success */
-      .stAlert {
-        background: #323657 !important;
-        color: #f0f2fa !important;
-        border-radius: 9px !important;
-        border-left: 4px solid #4bb3fa !important;
-      }
-      .stAlert a { color: #8fc3ff !important; }
-      .stMarkdown, .stText { color: #f0f2fa !important; }
-      input, textarea {
-        background: #25294b !important;
-        color: #f7f7fa !important;
-        border: 1.2px solid #5b6de7 !important;
-      }
-      /* Buttons */
-      .stButton > button {
-        background: #364185 !important;
-        color: #fff !important;
-      }
-      .stButton > button:hover {
-        background: #5b6de7 !important;
-        color: #fff !important;
-      }
-      /* Headings */
-      h1, h2, h3, h4, h5, h6 { color: #e7ebff !important; }
-    </style>
-    """
-else:
-    custom_css = """
-    <style>
-      body, .stApp { background: #f3f7fb !important; color: #222 !important; }
-      .welcome-box { background: #fff !important; color: #333 !important; }
-      .quick-links-box, .help-contact-box { background: #f0f4fa !important; color: #38416b !important; }
-      .stAlert {
-        background: #f0f4fa !important;
-        color: #38416b !important;
-        border-radius: 9px !important;
-        border-left: 4px solid #007bff !important;
-      }
-      .stAlert a { color: #2357d1 !important; }
-    </style>
-    """
-
-st.markdown(custom_css, unsafe_allow_html=True)
-
-
-
-
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
@@ -782,8 +709,6 @@ if not st.session_state["logged_in"]:
 
 
 
-
-
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
@@ -962,6 +887,7 @@ if st.session_state.get("logged_in"):
         "“Learning never exhausts the mind.” – Leonardo da Vinci"
     ]
 
+
     # --- Personalized Leaderboard Position on Main Dashboard ---
     MIN_ASSIGNMENTS = 3
 
@@ -991,6 +917,7 @@ if st.session_state.get("logged_in"):
     total_students = len(df_level)
 
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+    total_possible = totals.get(user_level, 0)
 
     if not your_row.empty:
         row = your_row.iloc[0]
@@ -998,8 +925,6 @@ if st.session_state.get("logged_in"):
         percent = (rank / total_students) * 100 if total_students else 0
         completed = int(row['completed'])
 
-        # Total possible assignments for this level
-        total_possible = totals.get(user_level, 0)
         progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
         # --- Rotating motivation style ---
@@ -1064,11 +989,12 @@ if st.session_state.get("logged_in"):
             (df_assign['studentcode'].str.lower() == student_code.lower()) &
             (df_assign['level'] == user_level)
         ]['assignment'].nunique()
-        total_possible = (
-            df_assign[df_assign['level'] == user_level]['assignment'].nunique()
-        )
+
+        # Always use your hardcoded total for max
+        total_possible = totals.get(user_level, 0)
+        progress_pct = (completed / total_possible) * 100 if total_possible else 0
+
         if completed > 0:
-            progress_pct = (completed / total_possible) * 100 if total_possible else 0
             st.markdown(
                 f"""
                 <div style='margin-top:8px;'>
@@ -7070,6 +6996,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
