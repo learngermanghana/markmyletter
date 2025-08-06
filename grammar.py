@@ -348,43 +348,49 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
         
-# --- Manual Login & Account Creation Block ---
+# --- Login & Account Creation Block ---
 if not st.session_state["logged_in"]:
-    st.info(
-        "👋 **Welcome to Falowen!**\n\n"
-        "- 🔑 **Returning?** Log in with your Student Code or Email.\n"
-        "- 🆕 **New?** Click **Create Account** after your teacher gives you a code.\n"
-        "- 📱 **iPhone/iPad:** Tap “Save Password” if asked.\n"
-        "- ⌛ **Expired?** Contact the school office.\n"
-        "- 🔒 **Privacy:** Only you & your teacher see your progress.\n\n"
-        "---------------------------\n"
-        "❓ **Need help or access?**\n"
-        "👇 Use the links below to contact support:\n"
-    )
-
+    # Top info/intro section
     st.markdown(
         """
-        <div style="text-align:center; color:#333; font-size:1.06em; margin:16px 0 10px 0;">
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
-                <b>📱 WhatsApp: Click here to chat</b>
-            </a>
+        <div style="background:#f5f6fa; border-radius:14px; padding:16px 18px; margin-bottom:10px;">
+            <b>👋 Welcome to Falowen!</b><br>
+            <span style="color:#444; font-size:1.04em;">
+            🔑 <b>Returning?</b> Log in below with your Student Code or Email.<br>
+            🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.<br>
+            📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.<br>
+            ⌛ <b>Expired?</b> Contact the office for help.<br>
+            🔒 <b>Privacy:</b> Only you and your teacher see your progress.<br>
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Support/Contact Section
+    st.markdown(
+        """
+        <div style="text-align:center; color:#222; margin-top:10px; margin-bottom:14px; font-size:1.09em;">
+            <b>❓ Need help or access?</b>
             <br>
+            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
+                📱 <b>WhatsApp us directly</b>
+            </a> &nbsp; | &nbsp;
             <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
-                <b>✉️ Email: learngermanghana@gmail.com</b>
+                ✉️ <b>Email: learngermanghana@gmail.com</b>
             </a>
             <br><br>
             <b>🔒 Privacy Policy:</b>
             <br>
             <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
-                https://www.learngermanghana.com/privacy-policy
+                www.learngermanghana.com/privacy-policy
             </a>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-
-
+    # Google Sign-In
     def get_query_params():
         return st.query_params
 
@@ -464,13 +470,10 @@ if not st.session_state["logged_in"]:
         st.stop()
     st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     do_google_oauth()
-
     st.divider()
 
-    st.subheader("👋 Returning Student? Please Log In Below")
-
-
-    # --- 2) Manual Login (Student Code/Email & Password) ---
+    # --- Manual Login ---
+    st.markdown("#### 👋 Returning Student? Please Log In")
     login_id       = st.text_input("Student Code or Email")
     login_password = st.text_input("Password", type="password")
     if st.button("Login"):
@@ -507,8 +510,8 @@ if not st.session_state["logged_in"]:
                         st.rerun()
     st.divider()
 
-    # --- 3) Create Account (always visible, always left) ---
-    st.subheader("🆕 New Student? Sign Up Below")
+    # --- Create Account ---
+    st.markdown("#### 🆕 New Student? Sign Up")
     new_name     = st.text_input("Full Name", key="ca_name")
     new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
     new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
@@ -534,8 +537,27 @@ if not st.session_state["logged_in"]:
                 })
                 st.success("Account created! Please log in above.")
 
+    # --- Footer with Social Media Links ---
+    st.markdown(
+        """
+        <hr style="margin-top:36px; margin-bottom:12px; border:1px solid #eee;">
+        <div style="text-align:center; font-size:1.02em; color:#555;">
+            Stay connected with us!<br>
+            <a href="https://www.youtube.com/@LearnGermanGhana-pn5wr" target="_blank" style="text-decoration:none;">
+                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>YouTube
+            </a>
+            &nbsp;|&nbsp;
+            <a href="https://instagram.com/learngermanghana" target="_blank" style="text-decoration:none;">
+                <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>Instagram
+            </a>
+            <br><span style="font-size:0.93em; color:#888;">© 2025 Learn Language Education Academy</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.stop()
-#
+
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
@@ -6787,6 +6809,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
