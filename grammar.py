@@ -320,11 +320,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 
-import streamlit as st
-import urllib
-import requests
-from datetime import datetime, timedelta
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 0) Configuration & Session Init
 # ─────────────────────────────────────────────────────────────────────────────
@@ -343,22 +338,20 @@ st.markdown("""
 <style>
   .hero { background: #fff; border-radius: 12px; padding: 24px; margin: 24px auto;
           max-width: 800px; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-  .welcome-box, .help-contact-box { background: #fff; border-radius: 14px; padding: 20px;
-          margin: 16px auto; max-width: 500px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
-  .welcome-box { border-left: 5px solid #685ae7; }
-  .help-contact-box { border:1px solid #ebebf2; text-align:center; }
+  .help-contact-box { background: #fff; border-radius: 14px; padding: 20px;
+                     margin: 16px auto; max-width: 500px;
+                     box-shadow: 0 2px 10px rgba(0,0,0,0.04); text-align:center; }
   .quick-links { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
   .quick-links a { background:#eef3fc; padding:8px 16px; border-radius:8px;
                    font-weight:600; text-decoration:none; color:#25317e; }
-  @media (max-width:600px){ .hero, .welcome-box, .help-contact-box { padding:16px 4vw; } }
+  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2) Public Landing & Login/Signup (pre-login)
+# 2) Pre-login UI
 # ─────────────────────────────────────────────────────────────────────────────
 if not st.session_state.logged_in:
-
     # Academy header
     st.markdown("""
     <div style='display:flex; align-items:center; justify-content:space-between;
@@ -372,14 +365,11 @@ if not st.session_state.logged_in:
           Learn Language Education Academy
         </span><br>
         <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
-          Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+          Your All-in-One German Learning Platform for Speaking, Writing, Exams & Vocabulary
         </span><br>
         <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
-          Website:
           <a href='https://www.learngermanghana.com' target='_blank'
-             style='color:#1565c0; text-decoration:none;'>
-            www.learngermanghana.com
-          </a>
+             style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
         </span><br>
         <span style='font-size:0.98rem; color:#666; font-weight:500;'>
           Competent German Tutors Team
@@ -396,9 +386,7 @@ if not st.session_state.logged_in:
         👋 Welcome to <strong>Falowen</strong>
       </h1>
       <p style="text-align:center; font-size:1.1em; color:#555;">
-        Falowen is your all-in-one German learning platform,
-        powered by <strong>Learn Language Education Academy</strong>
-        with live tutor support.
+        Powered by Learn Language Education Academy with live tutor support.
       </p>
     </div>
     """, unsafe_allow_html=True)
@@ -406,68 +394,16 @@ if not st.session_state.logged_in:
     # Help box
     st.markdown("""
     <div class="help-contact-box">
-      <b>❓ Need help or access?</b><br>
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">
-        📱 WhatsApp us
-      </a>
+      ❓ Need help or access?<br>
+      <a href="https://api.whatsapp.com/send?phone=233205706589">📱 WhatsApp</a>
       &nbsp;|&nbsp;
-      <a href="mailto:learngermanghana@gmail.com" target="_blank">
-        ✉️ Email
-      </a>
+      <a href="mailto:learngermanghana@gmail.com">✉️ Email</a>
     </div>
     """, unsafe_allow_html=True)
 
-    # — Google OAuth Helpers —
+    # — Google OAuth (manual) —
     def get_query_params():
         return st.query_params
-
-    def handle_google_login():
-        qp = get_query_params()
-        if "code" not in qp:
-            return False
-        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code":          code,
-            "client_id":     st.secrets["GOOGLE_CLIENT_ID"],
-            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
-            "redirect_uri":  st.secrets["REDIRECT_URI"],
-            "grant_type":    "authorization_code"
-        }
-        try:
-            resp = requests.post(token_url, data=data, timeout=10)
-            resp.raise_for_status()
-            access_token = resp.json().get("access_token")
-            if not access_token:
-                return False
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
-            ).json()
-            email = userinfo.get("email", "").lower()
-            df = load_student_data()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            match = df[df["Email"] == email]
-            if match.empty:
-                st.error("No student account found for that Google email.")
-                return False
-            student = match.iloc[0]
-            if is_contract_expired(student):
-                st.error("Your contract has expired. Contact the office.")
-                return False
-            st.session_state.update({
-                "logged_in":    True,
-                "student_row":  student.to_dict(),
-                "student_code": student["StudentCode"],
-                "student_name": student["Name"]
-            })
-            cookie_manager["student_code"] = student["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student['Name']}!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Google OAuth error: {e}")
-        return False
 
     def do_google_oauth():
         params = {
@@ -484,10 +420,60 @@ if not st.session_state.logged_in:
             <button style="
               background:#4285f4; color:#fff; padding:8px 24px; border:none;
               border-radius:6px; font-size:1em;
-            ">Continue with Google</button>
+            ">Sign in with Google</button>
           </a>
         </div>
         """, unsafe_allow_html=True)
+
+    def handle_google_login():
+        qp = get_query_params()
+        if "code" not in qp:
+            return False
+        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code":         code,
+            "client_id":    st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret":st.secrets["GOOGLE_CLIENT_SECRET"],
+            "redirect_uri": st.secrets["REDIRECT_URI"],
+            "grant_type":   "authorization_code"
+        }
+        try:
+            resp = requests.post(token_url, data=data, timeout=10)
+            resp.raise_for_status()
+            access_token = resp.json().get("access_token")
+            if not access_token:
+                return False
+            # fetch userinfo
+            userinfo = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            ).json()
+            email = userinfo.get("email", "").lower()
+            df = load_student_data()
+            df["Email"] = df["Email"].str.lower().str.strip()
+            match = df[df["Email"] == email]
+            if match.empty:
+                st.error("No student account found for that Google email.")
+                return False
+            student = match.iloc[0]
+            if is_contract_expired(student):
+                st.error("Your contract has expired. Contact the office.")
+                return False
+            # success!
+            st.session_state.update({
+                "logged_in":    True,
+                "student_row":  student.to_dict(),
+                "student_code": student["StudentCode"],
+                "student_name": student["Name"]
+            })
+            cookie_manager["student_code"] = student["StudentCode"]
+            cookie_manager.save()
+            st.success(f"Welcome, {student['Name']}!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Google OAuth error: {e}")
+        return False
 
     # Tabs
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
@@ -585,7 +571,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3) Main App (post-login)
+# 3) Post-login
 # ─────────────────────────────────────────────────────────────────────────────
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**!")
 
@@ -6894,6 +6880,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
