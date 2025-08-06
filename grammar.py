@@ -2948,8 +2948,24 @@ if tab == "Course Book":
         render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
         render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-        # ==== YOUTUBE / VIDEO AUTO-RECOGNITION ====
-        youtube_link = info.get('youtube_link') or info.get('video')
+        # ======== YOUTUBE/VIDEO AUTO-RECOGNITION (DEEP SCAN) =========
+        def find_youtube_link(obj):
+            # Recursively search for a key 'video' with a YouTube link
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k == 'video' and isinstance(v, str) and 'youtu' in v:
+                        return v
+                    found = find_youtube_link(v)
+                    if found:
+                        return found
+            elif isinstance(obj, list):
+                for item in obj:
+                    found = find_youtube_link(item)
+                    if found:
+                        return found
+            return None
+
+        youtube_link = find_youtube_link(info)
         if youtube_link:
             st.video(youtube_link)
             st.markdown(f"[Watch on YouTube]({youtube_link})", unsafe_allow_html=True)
@@ -2965,6 +2981,7 @@ if tab == "Course Book":
             )
             
         st.divider()
+
      
         # --- Translation Links Only ---
         st.markdown("---")
@@ -6678,6 +6695,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
