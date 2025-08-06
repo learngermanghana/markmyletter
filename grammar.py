@@ -321,11 +321,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
 
 
     
-import streamlit as st
-import urllib
-import requests
-from datetime import datetime, timedelta
-
 # === 0) Configuration & Session Init ===
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -421,8 +416,7 @@ if not st.session_state.logged_in:
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {token}"}
             ).json()
-            email = userinfo.get("email",""
-            ).lower()
+            email = userinfo.get("email", "").lower()
             df = load_student_data()
             df["Email"] = df["Email"].str.lower().str.strip()
             user = df[df["Email"]==email]
@@ -438,7 +432,7 @@ if not st.session_state.logged_in:
             cookie_manager["student_code"] = row["StudentCode"]
             cookie_manager.save()
             st.success(f"Welcome, {row['Name']}!")
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"Google OAuth error: {e}")
         return False
@@ -485,7 +479,7 @@ if not st.session_state.logged_in:
                         cookie_manager["student_code"]=row["StudentCode"]
                         cookie_manager.save()
                         st.success(f"Welcome, {row['Name']}!")
-                        st.experimental_rerun()
+                        st.rerun()
     st.divider()
     # Sign up form
     st.subheader("🆕 New Student? Sign Up Below")
@@ -525,17 +519,16 @@ if not st.session_state.logged_in:
     """, unsafe_allow_html=True)
     st.stop()
 
-
-# --- Logged In UI ---
+# === 3) Logged-In UI ===
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager["student_code"] = ""
+    cookie_manager["student_code"]=""
     cookie_manager.save()
-    for k in ["logged_in", "student_row", "student_code", "student_name"]:
-        st.session_state[k] = False if k == "logged_in" else ""
+    for k in ["logged_in","student_row","student_code","student_name"]:
+        st.session_state[k]=False if k=="logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
-    
+
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_assignment_scores():
@@ -6839,6 +6832,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
