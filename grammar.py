@@ -321,20 +321,24 @@ if not st.session_state["logged_in"] and code_from_cookie:
 
 
     
-# --- 1) Page config & session init ---------------------------------------------
+import streamlit as st
+import urllib
+import requests
+from datetime import datetime, timedelta
+
+# === 0) Configuration & Session Init ===
 st.set_page_config(
-    page_title="Falowen", 
-    page_icon="👋", 
-    layout="centered", 
-    initial_sidebar_state="collapsed"
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# --- 2) Global CSS -------------------------------------------------------------
+# === 1) Global CSS ===
 st.markdown("""
 <style>
-  /* Homepage hero */
   .hero {
     background: #fff;
     border-radius: 12px;
@@ -343,7 +347,6 @@ st.markdown("""
     max-width: 800px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.05);
   }
-  /* Welcome / Login & Help boxes */
   .welcome-box, .help-contact-box {
     background: #fff;
     border-radius: 14px;
@@ -354,194 +357,173 @@ st.markdown("""
   }
   .welcome-box { border-left: 5px solid #685ae7; }
   .help-contact-box { border:1px solid #ebebf2; text-align:center; }
-  /* Quick links grid */
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  .quick-links a {
-    background: #eef3fc;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight:600;
-    text-decoration:none;
-    color:#25317e;
-  }
-  @media (max-width:600px){
-    .hero, .welcome-box, .help-contact-box { padding:16px 4vw; }
-  }
+  .quick-links { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
+  .quick-links a { background:#eef3fc; padding:8px 16px; border-radius:8px; font-weight:600; text-decoration:none; color:#25317e; }
+  @media (max-width:600px){ .hero, .welcome-box, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3) Public Homepage “hero” (updated) ----------------------------------------
-st.markdown("""
-<div class="hero">
-  <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-  <p style="text-align:center; font-size:1.1em; color:#555;">
-    Falowen is your all-in-one German learning platform, powered by <strong>Learn Language Education Academy</strong> with live tutor support.
-  </p>
-  <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-    <li>📊 **Dashboard**: Track your learning streaks, assignments, contracts, and more.</li>
-    <li>📚 **Course Book**: Access lecture videos, grammar modules, and submit assignments.</li>
-    <li>📝 **Exams & Quizzes**: Take practice tests and official exam prep right in the app.</li>
-    <li>💬 **Custom Chat**: Expression & Sprechen trainer for live feedback on your speaking.</li>
-    <li>🏆 **Results Tab**: View your grades, feedback, and historical performance at a glance.</li>
-    <li>🔤 **Vocab Trainer**: Practice A1–B2 vocabulary with spaced-repetition quizzes.</li>
-    <li>✍️ **Schreiben Trainer**: Improve your writing with guided exercises and instant corrections.</li>
-  </ul>
-</div>
-""", unsafe_allow_html=True)
-
-
-# --- 4) If not logged in: show login/signup UI -------------------------------
+# === 2) Public Landing + Login/Signup ===
 if not st.session_state.logged_in:
-    # Support / Help
-    st.markdown("""
-    <div class="help-contact-box">
-      <b>❓ Need help or access?</b><br>
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp us</a>
-      &nbsp;|&nbsp;
-      <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Tabs for Returning / New
-    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
-
-    # — Google OAuth helpers —
-    def get_query_params():
-        return st.query_params
-
-    def do_google_oauth():
-        params = {
-            "client_id":     GOOGLE_CLIENT_ID,
-            "redirect_uri":  REDIRECT_URI,
-            "response_type": "code",
-            "scope":         "openid email profile",
-            "prompt":        "select_account"
-        }
-        url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(f"""
-        <div style="text-align:center; margin:12px 0;">
-          <a href="{url}">
-            <button style="
-              background:#4285f4; color:#fff; padding:8px 24px; border:none;
-              border-radius:6px; font-size:1em;
-            ">Continue with Google</button>
-          </a>
+    # Academy header
+    st.markdown(
+        """
+        <div style='display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; width:100%;'>
+          <span style='font-size:2.2rem;'>🇬🇭</span>
+          <div style='text-align:center; flex:1;'>
+            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>Falowen App</span><br>
+            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span><br>
+            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>Your All-in-One German Learning Platform</span><br>
+            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0;'>www.learngermanghana.com</a></span><br>
+            <span style='font-size:0.98rem; color:#666; font-weight:500;'>Competent German Tutors Team</span>
+          </div>
+          <span style='font-size:2.2rem;'>🇩🇪</span>
         </div>
-        """, unsafe_allow_html=True)
-
+        """,
+        unsafe_allow_html=True
+    )
+    # Welcome instructions
+    st.info(
+        "👋 **Welcome to Falowen!**\n\n"
+        "- 🔑 **Returning?** Log in with your Student Code or Email below.\n"
+        "- 🆕 **New?** Create an account after your teacher provides a code.\n"
+        "- 📱 **iPhone/iPad:** Tap “Save Password” if prompted.\n"
+        "- ⌛ **Expired?** Contact the school office for help.\n"
+        "- 🔒 **Privacy:** Only you and your teacher see your progress."
+    )
+    # Privacy Policy link
+    st.markdown(
+        '<div style="text-align:center; margin:10px 0;">'
+        '<a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">Privacy Policy</a>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+    # Google OAuth
+    def get_query_params(): return st.query_params
     def handle_google_login():
         qp = get_query_params()
-        if "code" not in qp:
-            return False
-        # — Your existing token exchange & user lookup logic —
-        # If success:
-        #     st.session_state.logged_in = True
-        #     return True
-        return False
-
-    # Returning student tab
-    with tab1:
-        # OAuth callback handling
-        if handle_google_login():
+        if "code" not in qp: return False
+        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+            "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
+            "redirect_uri": st.secrets["REDIRECT_URI"],
+            "grant_type": "authorization_code"
+        }
+        try:
+            resp = requests.post(token_url, data=data, timeout=10)
+            resp.raise_for_status()
+            token = resp.json().get("access_token")
+            if not token: return False
+            userinfo = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {token}"}
+            ).json()
+            email = userinfo.get("email",""
+            ).lower()
+            df = load_student_data()
+            df["Email"] = df["Email"].str.lower().str.strip()
+            user = df[df["Email"]==email]
+            if user.empty: st.error("No account for that Google email."); return False
+            row = user.iloc[0]
+            if is_contract_expired(row): st.error("Contract expired."); return False
+            st.session_state.update({
+                "logged_in":True,
+                "student_row":row.to_dict(),
+                "student_code":row["StudentCode"],
+                "student_name":row["Name"]
+            })
+            cookie_manager["student_code"] = row["StudentCode"]
+            cookie_manager.save()
+            st.success(f"Welcome, {row['Name']}!")
             st.experimental_rerun()
-
-        do_google_oauth()
-        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-
-        # Traditional login form with spinner
-        with st.form("login_form", clear_on_submit=False):
-            login_id   = st.text_input("Student Code or Email", key="login_id")
-            login_pass = st.text_input("Password", type="password", key="login_pass")
-            login_clicked = st.form_submit_button("Log In")
-
-        if login_clicked:
-            with st.spinner("Logging in..."):
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"]       = df["Email"].str.lower().str.strip()
-                lookup = df[
-                    (df["StudentCode"] == login_id.lower()) |
-                    (df["Email"]       == login_id.lower())
-                ]
-                if lookup.empty:
-                    st.error("No matching student code or email found.")
+        except Exception as e:
+            st.error(f"Google OAuth error: {e}")
+        return False
+    def do_google_oauth():
+        params={
+            "client_id":st.secrets["GOOGLE_CLIENT_ID"],
+            "redirect_uri":st.secrets["REDIRECT_URI"],
+            "response_type":"code",
+            "scope":"openid email profile",
+            "prompt":"select_account"
+        }
+        url="https://accounts.google.com/o/oauth2/v2/auth?"+urllib.parse.urlencode(params)
+        st.markdown(f"""
+        <div style="text-align:center;margin:12px 0;">
+          <a href="{url}"><button style="background:#4285f4;color:#fff;padding:8px 24px;border:none;border-radius:6px;">Sign in with Google</button></a>
+        </div>
+        """, unsafe_allow_html=True)
+    if handle_google_login(): st.stop()
+    st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+    do_google_oauth()
+    st.divider()
+    # Manual login form
+    st.subheader("👋 Returning Student? Please Log In Below")
+    with st.form("login_form", clear_on_submit=False):
+        login_id    = st.text_input("Student Code or Email")
+        login_pass  = st.text_input("Password", type="password")
+        btn_login   = st.form_submit_button("Login")
+    if btn_login:
+        with st.spinner("Logging in…"):
+            df = load_student_data()
+            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+            df["Email"] = df["Email"].str.lower().str.strip()
+            user = df[((df["StudentCode"]==login_id.lower())|(df["Email"]==login_id.lower()))]
+            if user.empty: st.error("No matching code or email.")
+            else:
+                row = user.iloc[0]
+                if is_contract_expired(row): st.error("Contract expired.")
                 else:
-                    student = lookup.iloc[0]
-                    if is_contract_expired(student):
-                        st.error("Your contract has expired. Contact the office.")
+                    doc=db.collection("students").document(row["StudentCode"]).get()
+                    if not doc.exists: st.error("Account not found.")
+                    elif doc.to_dict().get("password")!=login_pass: st.error("Incorrect password.")
                     else:
-                        doc = db.collection("students").document(student["StudentCode"]).get()
-                        if not doc.exists:
-                            st.error("Account not found. Please create one in the next tab.")
-                        else:
-                            data = doc.to_dict()
-                            if data.get("password") != login_pass:
-                                st.error("Incorrect password.")
-                            else:
-                                st.session_state.logged_in = True
-                                cookie_manager["student_code"] = student["StudentCode"]
-                                cookie_manager.save()
-                                st.success(f"Welcome, {student['Name']}!")
-                                st.rerun()
-
-    # New student tab
-    with tab2:
-        with st.form("signup_form", clear_on_submit=False):
-            new_name     = st.text_input("Full Name", key="ca_name")
-            new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email")
-            new_code     = st.text_input("Student Code (from teacher)", key="ca_code")
-            new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-            signup_clicked = st.form_submit_button("Create Account")
-
-        if signup_clicked:
-            with st.spinner("Creating account..."):
-                if not (new_name and new_email and new_code and new_password):
-                    st.error("Please fill in all fields.")
+                        st.session_state.update({"logged_in":True,"student_row":row.to_dict(),"student_name":row["Name"],"student_code":row["StudentCode"]})
+                        cookie_manager["student_code"]=row["StudentCode"]
+                        cookie_manager.save()
+                        st.success(f"Welcome, {row['Name']}!")
+                        st.experimental_rerun()
+    st.divider()
+    # Sign up form
+    st.subheader("🆕 New Student? Sign Up Below")
+    with st.form("signup_form", clear_on_submit=False):
+        new_name  = st.text_input("Full Name", key="ca_name")
+        new_email = st.text_input("Email (must match records)", key="ca_email")
+        new_code  = st.text_input("Student Code (from teacher)", key="ca_code")
+        new_pass  = st.text_input("Choose a Password",type="password", key="ca_pass")
+        btn_signup= st.form_submit_button("Create Account")
+    if btn_signup:
+        with st.spinner("Creating account…"):
+            if not (new_name and new_email and new_code and new_pass): st.error("Fill all fields.")
+            else:
+                df=load_student_data()
+                df["StudentCode"]=df["StudentCode"].str.lower().str.strip()
+                df["Email"]=df["Email"].str.lower().str.strip()
+                valid=df[(df["StudentCode']==new_code.lower())&(df["Email']==new_email.lower())]
+                if valid.empty: st.error("Code/email not registered.")
                 else:
-                    df = load_student_data()
-                    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                    df["Email"]       = df["Email"].str.lower().str.strip()
-                    valid = df[
-                        (df["StudentCode"] == new_code.lower()) &
-                        (df["Email"]       == new_email.lower())
-                    ]
-                    if valid.empty:
-                        st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
-                    else:
-                        db.collection("students").document(new_code).set({
-                            "name":     new_name,
-                            "email":    new_email,
-                            "password": new_password
-                        })
-                        st.success("Account created! Please log in on the other tab.")
-
-    # Quick Links
+                    db.collection("students").document(new_code).set({"name":new_name,"email":new_email,"password":new_pass})
+                    st.success("Account created! Please log in.")
+    # Quick Links & Footer
     st.markdown("""
     <div class="quick-links">
-      <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
+      <a href="https://www.learngermanghana.com/tutors" target="_blank">👩‍🏫 Tutors</a>
       <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
-      <a href="https://www.learngermanghana.com/accreditation"    target="_blank">✅ Accreditation</a>
-      <a href="https://www.learngermanghana.com/privacy-policy"  target="_blank">🔒 Privacy</a>
+      <a href="https://www.learngermanghana.com/accreditation" target="_blank">✅ Accreditation</a>
+      <a href="https://www.learngermanghana.com/privacy-policy" target="_blank">🔒 Privacy</a>
       <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
-      <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
+      <a href="https://www.learngermanghana.com/contact-us" target="_blank">✉️ Contact</a>
     </div>
-    """, unsafe_allow_html=True)
-
-    # YouTube & WhatsApp Footer
-    st.markdown("""
     <div style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
       &nbsp;|&nbsp;
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
-
     st.stop()
-
-# --- 5) Your main app content for logged-in users goes here --------------------
-st.write(f"Welcome back, {st.session_state.get('student_name', 'Student')}!")
-
-
 
 
 # --- Logged In UI ---
@@ -6857,6 +6839,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
