@@ -1184,6 +1184,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/7QZhrb-gvxY",
+                "youtube_link": "https://youtu.be/7QZhrb-gvxY",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
@@ -1200,6 +1201,7 @@ def get_a1_schedule():
                 {
                     "chapter": "0.2",
                     "video": "https://youtu.be/S7n6TlAQRLQ",
+                    "youtube_link": "https://youtu.be/S7n6TlAQRLQ",
                     "grammarbook_link": "https://drive.google.com/file/d/1KtJCF15Ng4cLU88wdUCX5iumOLY7ZA0a/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1R6PqzgsPm9f5iVn7JZXSNVa_NttoPU9Q/view?usp=sharing",
@@ -1207,6 +1209,7 @@ def get_a1_schedule():
                 {
                     "chapter": "1.1",
                     "video": "https://youtu.be/AjsnO1hxDs4",
+                    "youtube_link": "https://youtu.be/AjsnO1hxDs4",
                     "grammarbook_link": "https://drive.google.com/file/d/1DKhyi-43HX1TNs8fxA9bgRvhylubilBf/view?usp=sharing",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1A1D1pAssnoncF1JY0v54XT2npPb6mQZv/view?usp=sharing",
@@ -1229,6 +1232,7 @@ def get_a1_schedule():
             "grammar_topic": "German Pronouns",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/hEe6rs0lkRg",
+                "youtube_link": "https://youtu.be/hEe6rs0lkRg",
                 "workbook_link": "https://drive.google.com/file/d/1GXWzy3cvbl_goP4-ymFuYDtX4X23D70j/view?usp=sharing",
                 "assignment": False,
             },
@@ -1236,6 +1240,7 @@ def get_a1_schedule():
                 {
                     "chapter": "1.2",
                     "video": "https://youtu.be/NVCN4fZXEk0",
+                    "youtube_link": "https://youtu.be/NVCN4fZXEk0",
                     "grammarbook_link": "https://drive.google.com/file/d/1OUJT9aSU1XABi3cdZlstUvfBIndyEOwb/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1Lubevhd7zMlbvPcvHHC1D0GzW7xqa4Mp/view?usp=sharing",
                     "assignment": True
@@ -1253,6 +1258,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/BzI2n4A8Oak",
+                "youtube_link": "https://youtu.be/BzI2n4A8Oak",
                 "grammarbook_link": "https://drive.google.com/file/d/1f2CJ492liO8ccudCadxHIISwGJkHP6st/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1C4VZDUj7VT27Qrn9vS5MNc3QfRqpmDGE/view?usp=sharing",
                 "assignment": True
@@ -1281,6 +1287,7 @@ def get_a1_schedule():
             "instruction": "Use self-practice workbook and review answers for self-check.",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/JrYSpnZN6P0",
+                "youtube_link": "https://youtu.be/JrYSpnZN6P0",
                 "workbook_link": "https://drive.google.com/file/d/1xellIzaxzoBTFOUdaCEHu_OiiuEnFeWT/view?usp=sharing"
             }
         },
@@ -1295,6 +1302,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/dGIj1GbK4sI",
+                "youtube_link": "https://youtu.be/dGIj1GbK4sI",
                 "grammarbook_link": "https://drive.google.com/file/d/1sCE5y8FVctySejSVNm9lrTG3slIucxqY/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1lL4yrZLMtKLnNuVTC2Sg_ayfkUZfIuak/view?usp=sharing"
             }
@@ -1310,6 +1318,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/JfTc1G9mubs",
+                "youtube_link": "https://youtu.be/JfTc1G9mubs",
                 "grammarbook_link": "https://drive.google.com/file/d/1obsYT3dP3qT-i06SjXmqRzCT2pNoJJZp/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1woXksV9sTZ_8huXa8yf6QUQ8aUXPxVug/view?usp=sharing"
             }
@@ -1325,6 +1334,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
+                "youtube_link": "https://youtu.be/Yi5ZA-XD-GY?si=nCX_pceEYgAL-FU0",
                 "grammarbook_link": "https://drive.google.com/file/d/17y5fGW8nAbfeVgolV7tEW4BLiLXZDoO6/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1zjAqvQqNb7iKknuhJ79bUclimEaTg-mt/view?usp=sharing"
             }
@@ -1338,12 +1348,14 @@ def get_a1_schedule():
             "instruction": "The assignment is the lesen and horen chapter 6 but you must also go through schreiben and sprechnen 2.4 for full understanding",         
             "lesen_hören": {
                 "video": "https://youtu.be/SXwDqcwrR3k",
+                "youtube_link": "https://youtu.be/SXwDqcwrR3k",
                 "grammarbook_link": "https://drive.google.com/file/d/1Fy4bKhaHHb4ahS2xIumrLtuqdQ0YAFB4/view?usp=sharing",
                 "assignment": True,
                 "workbook_link": "https://drive.google.com/file/d/1Da1iw54oAqoaY-UIw6oyIn8tsDmIi1YR/view?usp=sharing"
             },
             "schreiben_sprechen": {
                 "video": "https://youtu.be/lw9SsojpKf8",
+                "youtube_link": "https://youtu.be/lw9SsojpKf8",
                 "workbook_link": "https://drive.google.com/file/d/1GbIc44ToWh2upnHv6eX3ZjFrvnf4fcEM/view?usp=sharing",
                 "assignment": False,
             }
@@ -1358,6 +1370,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/uyvXoCoqjiE",
+                "youtube_link": "https://youtu.be/uyvXoCoqjiE",
                 "grammarbook_link": "https://drive.google.com/file/d/1pSaloRhfh8eTKK_r9mzwp6xkbfdkCVox/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1QyDdRae_1qv_umRb15dCJZTPdXi7zPWd/view?usp=sharing"
             }
@@ -1372,6 +1385,7 @@ def get_a1_schedule():
             "assignment": True,
             "lesen_hören": {
                 "video": "https://youtu.be/hLpPFOthVkU",
+                "youtube_link": "https://youtu.be/hLpPFOthVkU",
                 "grammarbook_link": "https://drive.google.com/file/d/1fW2ChjnDKW_5SEr65ZgE1ylJy1To46_p/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1onzokN8kQualNO6MSsPndFXiRwsnsVM9/view?usp=sharing"
             }
@@ -2787,7 +2801,6 @@ def save_notes_to_db(student_code, notes):
 # --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-    # (If flagged to switch, set subtab and rerun BEFORE widgets)
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
@@ -2818,7 +2831,7 @@ if tab == "Course Book":
         horizontal=True,
         key="coursebook_subtab"
     )
-#
+
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
@@ -2935,21 +2948,24 @@ if tab == "Course Book":
         render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
         render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
+        # ==== YOUTUBE / VIDEO AUTO-RECOGNITION ====
+        youtube_link = info.get('youtube_link') or info.get('video')
+        if youtube_link:
+            st.video(youtube_link)
+            st.markdown(f"[Watch on YouTube]({youtube_link})", unsafe_allow_html=True)
+
         if student_level in ['A2', 'B1', 'B2', 'C1']:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
-                if val:
-                    if res == 'video':
-                        st.video(val)
-                    else:
-                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+                if val and res not in ['video', 'youtube_link']:
+                    st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
             st.markdown(
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
             
         st.divider()
-        
+     
         # --- Translation Links Only ---
         st.markdown("---")
         st.markdown(
@@ -6662,6 +6678,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
