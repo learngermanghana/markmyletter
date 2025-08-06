@@ -358,55 +358,74 @@ import streamlit as st
 import urllib
 import requests
 
-# (Assume page config, header/logo, and any helper imports/config are above)
+# --- 1) Page config & session init ---------------------------------------------
+st.set_page_config(
+    page_title="Falowen", 
+    page_icon="👋", 
+    layout="centered", 
+    initial_sidebar_state="collapsed"
+)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-if not st.session_state.get("logged_in"):
-    # --- Centralized CSS for Welcome & Help boxes ---
-    st.markdown("""
-    <style>
-      .welcome-box {
-          background: #fff;
-          border-radius: 14px;
-          padding: 20px;
-          margin-bottom: 16px;
-          border-left: 5px solid #685ae7;
-          color: #333;
-      }
-      .help-contact-box {
-          background: #fcfcfd;
-          color: #23243b;
-          padding: 18px;
-          margin: 16px 0;
-          border-radius: 12px;
-          border: 1px solid #ebebf2;
-          text-align: center;
-          box-shadow: 0 2px 10px rgba(80,80,120,0.06);
-      }
-      @media (max-width: 600px) {
-          .welcome-box { padding: 12px 4vw; }
-          .welcome-box b { font-size: 1.1em; }
-          .welcome-box ul { margin-top: 8px; margin-left: 12px; font-size: 1em; }
-          .help-contact-box { padding: 14px 5vw; font-size: 1.1em; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
+# --- 2) Global CSS -------------------------------------------------------------
+st.markdown("""
+<style>
+  /* Homepage hero */
+  .hero {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px auto;
+    max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  /* Welcome / Login & Help boxes */
+  .welcome-box, .help-contact-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin: 16px auto;
+    max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  }
+  .welcome-box { border-left: 5px solid #685ae7; }
+  .help-contact-box { border:1px solid #ebebf2; text-align:center; }
+  /* Quick links grid */
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  .quick-links a {
+    background: #eef3fc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight:600;
+    text-decoration:none;
+    color:#25317e;
+  }
+  @media (max-width:600px){
+    .hero, .welcome-box, .help-contact-box { padding:16px 4vw; }
+  }
+</style>
+""", unsafe_allow_html=True)
 
-    # --- Welcome Message ---
-    st.markdown("""
-    <div class="welcome-box">
-      <b>👋 Welcome to Falowen!</b>
-      <ul style="margin:8px 0 0 14px; color:#555; font-size:1.04em;">
-        <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
-        <li>🗂️ Structured courses for every level (A1–B2).</li>
-        <li>🔑 <b>Returning?</b> Log in with your Student Code or Email.</li>
-        <li>🆕 <b>New?</b> Sign up on the next tab.</li>
-        <li>⌛ <b>Expired?</b> Contact the office for help.</li>
-      </ul>
-      <p style="color:#444; margin-top:12px;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</p>
-    </div>
-    """, unsafe_allow_html=True)
+# --- 3) Public Homepage --------------------------------------------------------
+st.markdown("""
+<div class="hero">
+  <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+  <p style="text-align:center; font-size:1.1em; color:#555;">
+    Falowen is your all-in-one German learning platform, powered by AI exercises and live tutor support.
+  </p>
+  <ul style="max-width:600px; margin:16px auto; color:#444; font-size:1em;">
+    <li>🌱 Flexible modes: self-study or join live classes</li>
+    <li>🗂️ Structured courses from A1 through B2</li>
+    <li>🔐 Secure login: Google OAuth or custom student code</li>
+    <li>📈 Track your progress with ease</li>
+  </ul>
+</div>
+""", unsafe_allow_html=True)
 
-    # --- Support / Help Section ---
+# --- 4) If not logged in: show login/signup UI -------------------------------
+if not st.session_state.logged_in:
+    # Support / Help
     st.markdown("""
     <div class="help-contact-box">
       <b>❓ Need help or access?</b><br>
@@ -416,10 +435,10 @@ if not st.session_state.get("logged_in"):
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Tabs for Returning / New Students ---
+    # Tabs for Returning / New
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
-    # --- Google OAuth helpers ---
+    # — Google OAuth helpers —
     def get_query_params():
         return st.query_params
 
@@ -431,68 +450,63 @@ if not st.session_state.get("logged_in"):
             "scope":         "openid email profile",
             "prompt":        "select_account"
         }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+        url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(f"""
-            <div style='text-align:center; margin:12px 0;'>
-              <a href="{auth_url}">
-                <button style="
-                  background:#4285f4;
-                  color:white;
-                  padding:8px 24px;
-                  border:none;
-                  border-radius:6px;
-                  font-size:1em;
-                ">Continue with Google</button>
-              </a>
-            </div>
+        <div style="text-align:center; margin:12px 0;">
+          <a href="{url}">
+            <button style="
+              background:#4285f4; color:#fff; padding:8px 24px; border:none;
+              border-radius:6px; font-size:1em;
+            ">Continue with Google</button>
+          </a>
+        </div>
         """, unsafe_allow_html=True)
 
     def handle_google_login():
         qp = get_query_params()
         if "code" not in qp:
             return False
-        # --- exchange code for token & fetch userinfo (same as your existing logic) ---
-        # return True if login successful & session_state updated, else False
-        # ...
+        # — Your existing token exchange & user lookup logic —
+        # if success: set st.session_state.logged_in=True and return True
         return False
 
-    # --- Returning Student (tab1) ---
+    # Returning student tab
     with tab1:
         if handle_google_login():
             st.stop()
-
         do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
             st.text_input("Student Code or Email", key="login_id")
             st.text_input("Password", type="password", key="login_pass")
-            st.form_submit_button("Log In")
+            if st.form_submit_button("Log In"):
+                # — your login logic here —
+                pass
 
-    # --- New Student (tab2) ---
+    # New student tab
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
             st.text_input("Full Name", key="ca_name")
             st.text_input("Email (must match teacher’s record)", key="ca_email")
             st.text_input("Student Code (from teacher)", key="ca_code")
             st.text_input("Choose a Password", type="password", key="ca_pass")
-            st.form_submit_button("Create Account")
+            if st.form_submit_button("Create Account"):
+                # — your signup logic here —
+                pass
 
-    # --- Quick Links Section ---
-    with st.container():
-        links = [
-            ("👩‍🏫 Tutors", "https://www.learngermanghana.com/tutors"),
-            ("🗓️ Upcoming Classes", "https://www.learngermanghana.com/upcoming-classes"),
-            ("✅ Accreditation", "https://www.learngermanghana.com/accreditation"),
-            ("🔒 Privacy", "https://www.learngermanghana.com/privacy-policy"),
-            ("📜 Terms", "https://www.learngermanghana.com/terms-of-service"),
-            ("✉️ Contact", "https://www.learngermanghana.com/contact-us"),
-        ]
-        cols = st.columns(3)
-        for idx, (label, url) in enumerate(links):
-            with cols[idx % 3]:
-                st.markdown(f"[ {label} ]({url})", unsafe_allow_html=True)
+    # Quick Links
+    st.markdown("""
+    <div class="quick-links">
+      <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
+      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
+      <a href="https://www.learngermanghana.com/accreditation"    target="_blank">✅ Accreditation</a>
+      <a href="https://www.learngermanghana.com/privacy-policy"  target="_blank">🔒 Privacy</a>
+      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
+      <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # --- YouTube & WhatsApp Footer ---
+    # YouTube & WhatsApp Footer
     st.markdown("""
     <div style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
@@ -502,6 +516,10 @@ if not st.session_state.get("logged_in"):
     """, unsafe_allow_html=True)
 
     st.stop()
+
+# --- 5) Your main app content for logged-in users goes here --------------------
+st.write(f"Welcome back, {st.session_state.get('student_name', 'Student')}!")
+
 
 
 
@@ -6792,6 +6810,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
