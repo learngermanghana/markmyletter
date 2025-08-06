@@ -12,6 +12,8 @@ import io
 import bcrypt
 import tempfile
 import urllib.parse
+import base64
+
 
 # ==== Third-Party Packages ====
 import pandas as pd
@@ -39,19 +41,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
-
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
-
-
 # ==== FIREBASE ADMIN INIT ====
 if not firebase_admin._apps:
     cred_dict = dict(st.secrets["firebase"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
 db = firestore.client()
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -227,23 +226,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-
-def safe_get(row, key, default=""):
-    # For dicts, objects, Series, whatever
-    try:
-        return row.get(key, default)
-    except Exception:
-        pass
-    try:
-        return getattr(row, key, default)
-    except Exception:
-        pass
-    try:
-        return row[key]
-    except Exception:
-        return default
-
-
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     layout="centered",
@@ -279,8 +261,6 @@ if not st.session_state.get("logged_in", False):
         """,
         unsafe_allow_html=True
     )
-
-
 
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
@@ -799,6 +779,7 @@ if st.session_state.get("logged_in"):
 #
 
 
+
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
@@ -1168,7 +1149,6 @@ if tab == "Dashboard":
         )
 
 
-            
 def get_a1_schedule():
     return [
         # DAY 1
@@ -2386,6 +2366,7 @@ def get_b1_schedule():
     ]
 
 
+
 def get_b2_schedule():
     return [
         {
@@ -2870,9 +2851,10 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
-
+# --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
+    # (If flagged to switch, set subtab and rerun BEFORE widgets)
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
@@ -2893,8 +2875,7 @@ if tab == "Course Book":
         ">
             <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
         </div>
-        ''',
-        unsafe_allow_html=True
+        ''', unsafe_allow_html=True
     )
     st.divider()
 
@@ -2904,7 +2885,7 @@ if tab == "Course Book":
         horizontal=True,
         key="coursebook_subtab"
     )
-
+#
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
@@ -2920,13 +2901,12 @@ if tab == "Course Book":
             ">
                 <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
             </div>
-            ''',
-            unsafe_allow_html=True
+            ''', unsafe_allow_html=True
         )
         st.divider()
 
         schedules = load_level_schedules()
-        schedule = schedules.get(student_level, schedules.get("A1", []))
+        schedule = schedules.get(student_level, schedules.get('A1', []))
 
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
         search_terms = [q for q in query.strip().lower().split() if q] if query else []
@@ -2936,15 +2916,11 @@ if tab == "Course Book":
             if not matches:
                 st.warning("No matching lessons. Try simpler terms or check spelling.")
                 st.stop()
-
             labels = []
             for _, d in matches:
                 title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
-                grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
-                labels.append(
-                    f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
-                )
-
+                grammar = highlight_terms(d.get('grammar_topic', ''), search_terms)
+                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
             sel = st.selectbox(
                 "Lessons:",
                 list(range(len(matches))),
@@ -2958,124 +2934,89 @@ if tab == "Course Book":
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
+            
+        st.divider()
+        
+        # ===== Progress Bar (just for scrolling/selection) =====
+        total_assignments = len(schedule)
+        assignments_done = idx + 1
+        percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
+        st.progress(percent)
+        st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
 
         st.divider()
 
-        # Progress Bar
-        total = len(schedule)
-        done = idx + 1
-        pct = int(done / total * 100) if total else 0
-        st.progress(pct)
-        st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
-        st.divider()
+        # ===== Estimated time for just this lesson =====
+        LEVEL_TIME = {
+            "A1": 15,
+            "A2": 25,
+            "B1": 30,
+            "B2": 40,
+            "C1": 45
+        }
+        current_time = LEVEL_TIME.get(student_level, 20)
+        st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
 
-        # Recommended time
-        LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-        rec_time = LEVEL_TIME.get(student_level, 20)
-        st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
-
-        # Suggested end dates
-        start_str = student_row.get("ContractStart", "")
-        start_date = None
+        # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
+        contract_start_str = student_row.get('ContractStart', '')
+        contract_start_date = None
         for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
             try:
-                start_date = datetime.strptime(start_str, fmt).date()
+                contract_start_date = datetime.strptime(contract_start_str, fmt).date()
                 break
-            except:
+            except Exception:
                 continue
 
-        if start_date:
-            weeks_3 = (total + 2) // 3
-            weeks_2 = (total + 1) // 2
-            weeks_1 = total
-            end_3 = start_date + timedelta(weeks=weeks_3)
-            end_2 = start_date + timedelta(weeks=weeks_2)
-            end_1 = start_date + timedelta(weeks=weeks_1)
+        if contract_start_date:
+            # 3 per week
+            weeks_3 = (total_assignments + 2) // 3
+            end_3 = contract_start_date + timedelta(weeks=weeks_3)
+            # 2 per week
+            weeks_2 = (total_assignments + 1) // 2
+            end_2 = contract_start_date + timedelta(weeks=weeks_2)
+            # 1 per week
+            weeks_1 = total_assignments
+            end_1 = contract_start_date + timedelta(weeks=weeks_1)
 
-            st.success(f"🎯 3/week → {end_3.strftime('%A, %d %b %Y')}")
-            st.info(f"🟢 2/week → {end_2.strftime('%A, %d %b %Y')}")
-            st.warning(f"🟡 1/week → {end_1.strftime('%A, %d %b %Y')}")
+            st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
+            st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
+            st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
+            st.caption("Stay consistent – choose your pace and finish on time.")
         else:
-            st.warning("❓ Start date missing or wrong. Please update your contract start date.")
+            st.warning("❓ Start date missing or wrong format. Please contact admin to update your contract start date for end date suggestion.")
 
         info = schedule[idx]
-        # ---- Fix for highlight and header ----
-        lesson_title = f"Day {info['day']}: {info['topic']}"
-        highlighted_title = highlight_terms(lesson_title, search_terms)
         st.markdown(
-            f"### {highlighted_title} (Chapter {info['chapter']})",
+            f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
             unsafe_allow_html=True
         )
         st.divider()
-
-        if info.get("grammar_topic"):
-            st.markdown(
-                f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}",
-                unsafe_allow_html=True
-            )
-        if info.get("goal"):
+        
+        if info.get('grammar_topic'):
+            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        if info.get('goal'):
             st.markdown(f"**🎯 Goal:**  {info['goal']}")
-        if info.get("instruction"):
+        if info.get('instruction'):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        # --- YouTube main link (clickable) ---
-        if info.get("youtube_link"):
-            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
+        render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
+        render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-        # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
-        def render_section(day_info, key, title, icon):
-            content = day_info.get(key)
-            if not content:
-                return
-            items = content if isinstance(content, list) else [content]
-            st.markdown(f"#### {icon} {title}")
-            for idx, part in enumerate(items):
-                if len(items) > 1:
-                    st.markdown(
-                        f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}"
-                    )
-                # --- Embed video and show link if available ---
-                if part.get('video'):
-                    st.video(part['video'])
-                    st.markdown(f"[▶️ Watch on YouTube]({part['video']})")
-                # --- Also support explicit youtube_link (if different from 'video') ---
-                elif part.get('youtube_link'):
-                    st.markdown(f"[▶️ Watch on YouTube]({part['youtube_link']})")
-                if part.get('grammarbook_link'):
-                    st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
-                    st.markdown(
-                        '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                        unsafe_allow_html=True
-                    )
-                if part.get('workbook_link'):
-                    st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
-                    render_assignment_reminder()
-                extras = part.get('extra_resources')
-                if extras:
-                    for ex in (extras if isinstance(extras, list) else [extras]):
-                        st.markdown(f"- [🔗 Extra]({ex})")
-
-        render_section(info, "lesen_hören", "Lesen & Hören", "📚")
-        render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
-
-        # ---- Show resource links for upper levels if needed ----
-        if student_level in ["A2", "B1", "B2", "C1"]:
+        if student_level in ['A2', 'B1', 'B2', 'C1']:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
                 if val:
-                    if res == "video":
+                    if res == 'video':
                         st.video(val)
-                        st.markdown(f"[▶️ Watch on YouTube]({val})")
                     else:
                         st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
             st.markdown(
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
-
+            
         st.divider()
-
-     
+        
         # --- Translation Links Only ---
         st.markdown("---")
         st.markdown(
@@ -6788,23 +6729,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
