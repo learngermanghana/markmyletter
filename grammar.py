@@ -352,6 +352,9 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
+from streamlit_lottie import st_lottie
+import requests
+
 def load_lottieurl(url: str):
     r = requests.get(url)
     if r.status_code != 200:
@@ -369,8 +372,7 @@ lottie_json = load_lottieurl(lottie_url)
 if lottie_json is not None:
     st_lottie(lottie_json, height=220, key="login_lottie")
 else:
-    st.warning("Could not load welcome animation. (Check your internet connection or Lottie URL!)")
-
+    st.warning("Could not load welcome animation.")
 
 
 #Manuallogin
@@ -6852,6 +6854,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
