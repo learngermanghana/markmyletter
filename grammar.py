@@ -577,16 +577,25 @@ if not st.session_state["logged_in"]:
     st.markdown(
         """
         <style>
+          .quick-links-box {
+            width: 100% !important;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: left !important;
+            box-sizing: border-box;
+          }
           @media (max-width: 700px) {
             .quick-links-box ul { font-size: 1.11em !important; }
             .quick-links-box { padding: 14px 4vw 14px 4vw !important; }
-            .quick-links-title { font-size: 1.17em !important; color: #273263 !important; display:block !important; }
+            .quick-links-title { font-size: 1.15em !important; color: #273263 !important; display:block !important; }
           }
           .quick-links-title {
             font-size: 1.17em !important;
             color: #273263 !important;
             display: block !important;
             margin-bottom: 7px;
+            text-align: left;
           }
         </style>
         <div class="quick-links-box" style="
@@ -596,6 +605,7 @@ if not st.session_state["logged_in"]:
             margin:18px 0 18px 0;
             border-left: 4px solid #3746a5;
             box-shadow: 0 2px 10px 0 rgba(60,50,120,0.07);
+            text-align:left;
         ">
           <span class="quick-links-title">🔗 Quick Links</span>
           <ul style="margin:9px 0 0 16px; color:#38416b; font-size:1.03em;">
@@ -634,6 +644,7 @@ if not st.session_state["logged_in"]:
         """,
         unsafe_allow_html=True
     )
+
 
 
 
@@ -6912,6 +6923,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
