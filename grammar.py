@@ -351,20 +351,42 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-
 if not st.session_state["logged_in"]:
     # --- Welcome & Help (Always at Top) ---
     st.markdown("""
-    <div style="background:#f6f6ff; border-radius:14px; padding:17px 20px; margin-bottom:10px; border-left:4px solid #685ae7;">
-        <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
-        <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
-            <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
-            <li>🗂️ Structured courses for every level (A1–B2).</li>
-            <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
-            <li>🆕 <b>New?</b> Contact us below </li>
-            <li>⌛ <b>Expired?</b> Contact the office for help.</li>
-        </ul>
-        <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
+    <style>
+      /* Mobile tweaks */
+      @media (max-width: 600px) {
+        .welcome-box {
+          padding: 12px 4vw !important;
+          margin-bottom: 8px !important;
+        }
+        .welcome-box b {
+          font-size: 1.1em !important;
+        }
+        .welcome-box ul {
+          margin: 8px 0 0 12px !important;
+          font-size: 1em !important;
+        }
+      }
+    </style>
+
+    <div class="welcome-box" style="
+        background: #f6f6ff;
+        border-radius: 14px;
+        padding: 17px 20px;
+        margin-bottom: 10px;
+        border-left: 4px solid #685ae7;
+    ">
+      <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
+      <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
+        <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
+        <li>🗂️ Structured courses for every level (A1–B2).</li>
+        <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
+        <li>🆕 <b>New?</b> Contact us below.</li>
+        <li>⌛ <b>Expired?</b> Contact the office for help.</li>
+      </ul>
+      <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -6889,6 +6911,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
