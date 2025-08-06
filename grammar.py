@@ -573,14 +573,24 @@ if not st.session_state["logged_in"]:
                         "password": new_password
                     })
                     st.success("Account created! Please log in on the other tab.")
-
+                    
     st.markdown(
         """
         <style>
-            .quick-links-horizontal {
+            .quick-links-section {
                 width: 100%;
                 max-width: 750px;
-                margin: 14px auto 24px auto;
+                margin: 20px auto 28px auto;
+            }
+            .quick-links-headline {
+                font-size: 1.17em !important;
+                color: #25317e !important;
+                font-weight: 700;
+                margin-bottom: 6px;
+                margin-left: 6px;
+                letter-spacing: 0.5px;
+            }
+            .quick-links-horizontal {
                 background: #eef3fc;
                 border-radius: 12px;
                 border-left: 4px solid #3746a5;
@@ -606,6 +616,10 @@ if not st.session_state["logged_in"]:
                 color: #456cf3;
             }
             @media (max-width: 700px) {
+                .quick-links-headline {
+                    font-size: 1.13em !important;
+                    margin-left: 1px;
+                }
                 .quick-links-horizontal {
                     flex-direction: column;
                     align-items: flex-start;
@@ -614,19 +628,22 @@ if not st.session_state["logged_in"]:
                 }
             }
         </style>
-        <div class="quick-links-horizontal">
-            <a href="https://www.learngermanghana.com/tutors" target="_blank">👩‍🏫 Tutors</a>
-            <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
-            <a href="https://www.learngermanghana.com/accreditation" target="_blank">✅ Accreditation</a>
-            <a href="https://www.learngermanghana.com/privacy-policy" target="_blank">🔒 Privacy</a>
-            <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
-            <a href="https://www.learngermanghana.com/contact-us" target="_blank">✉️ Contact</a>
+        <div class="quick-links-section">
+            <span class="quick-links-headline">🔗 Quick Links</span>
+            <div class="quick-links-horizontal">
+                <a href="https://www.learngermanghana.com/tutors" target="_blank">👩‍🏫 Tutors</a>
+                <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
+                <a href="https://www.learngermanghana.com/accreditation" target="_blank">✅ Accreditation</a>
+                <a href="https://www.learngermanghana.com/privacy-policy" target="_blank">🔒 Privacy</a>
+                <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
+                <a href="https://www.learngermanghana.com/contact-us" target="_blank">✉️ Contact</a>
+            </div>
         </div>
         """,
         unsafe_allow_html=True
     )
-#
 
+#
 
 
     # --- Footer with Social Media ---
@@ -6902,6 +6919,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
