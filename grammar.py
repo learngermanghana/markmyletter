@@ -509,6 +509,62 @@ if not st.session_state["logged_in"]:
         do_google_oauth()
         st.divider()
 
+# ---- Custom CSS Styling ----
+st.markdown("""
+    <style>
+        body, .stApp {
+            background: linear-gradient(135deg, #f3f7fb 60%, #eef3fc 100%);
+        }
+        /* Login Card Styling */
+        .falowen-login-card {
+            max-width: 420px;
+            margin: 32px auto 24px auto;
+            padding: 28px 28px 20px 28px;
+            border-radius: 19px;
+            background: #fff;
+            box-shadow: 0 4px 24px 0 rgba(60,50,120,0.13);
+            border-left: 5px solid #3746a5;
+        }
+        /* Headline */
+        .falowen-headline {
+            font-size: 1.38em !important;
+            font-weight: bold;
+            color: #25317e !important;
+            margin-bottom: 7px;
+            letter-spacing: 0.2px;
+        }
+        /* Input fields */
+        .stTextInput > div > div > input, .stPasswordInput > div > div > input {
+            background: #f3f7fb !important;
+            border: 1.4px solid #456cf3 !important;
+            color: #162044 !important;
+            border-radius: 7px !important;
+        }
+        /* Button styling */
+        .stButton > button {
+            background: #25317e;
+            color: #fff;
+            border-radius: 7px;
+            font-weight: 600;
+            border: none;
+            padding: 10px 26px;
+            margin-top: 8px;
+            transition: background 0.18s;
+        }
+        .stButton > button:hover {
+            background: #456cf3;
+        }
+        /* Hide Streamlit's default footer */
+        footer {visibility: hidden;}
+        /* Responsive for mobile */
+        @media (max-width: 700px) {
+            .falowen-login-card {padding: 18px 4vw 18px 4vw;}
+            .falowen-headline {font-size: 1.1em !important;}
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# ---- LOGIN CARD ----
         # --- Manual Login Card ---
         st.markdown("#### Log In")
         login_id = st.text_input("Student Code or Email", key="login_id")
@@ -583,12 +639,14 @@ if not st.session_state["logged_in"]:
                 margin: 20px auto 28px auto;
             }
             .quick-links-headline {
-                font-size: 1.17em !important;
-                color: #25317e !important;
-                font-weight: 700;
-                margin-bottom: 6px;
+                font-size: 1.18em !important;
+                color: #112266 !important;   /* Deep blue for contrast */
+                font-weight: 800;
+                margin-bottom: 8px;
                 margin-left: 6px;
                 letter-spacing: 0.5px;
+                text-shadow: 0 1px 6px #e0e6ff;
+                display: block;
             }
             .quick-links-horizontal {
                 background: #eef3fc;
@@ -600,31 +658,42 @@ if not st.session_state["logged_in"]:
                 align-items: center;
                 justify-content: flex-start;
                 gap: 14px;
-                padding: 12px 16px 10px 16px;
+                padding: 13px 16px 11px 16px;
             }
             .quick-links-horizontal a {
-                color: #2c3990;
+                color: #1b2367;
                 text-decoration: none;
-                font-weight: 600;
-                font-size: 1.04em;
+                font-weight: 700;
+                font-size: 1.06em;
                 transition: color 0.2s;
                 display: flex;
                 align-items: center;
                 gap: 2px;
+                background: #dde7fa;
+                padding: 6px 13px;
+                border-radius: 7px;
+                box-shadow: 0 1px 3px 0 rgba(60,50,120,0.04);
             }
             .quick-links-horizontal a:hover {
                 color: #456cf3;
+                background: #d2deff;
             }
             @media (max-width: 700px) {
                 .quick-links-headline {
-                    font-size: 1.13em !important;
-                    margin-left: 1px;
+                    font-size: 1.11em !important;
+                    margin-left: 0px;
+                    margin-bottom: 4px;
                 }
                 .quick-links-horizontal {
                     flex-direction: column;
-                    align-items: flex-start;
-                    gap: 7px;
-                    padding: 10px 4vw;
+                    align-items: stretch;
+                    gap: 6px;
+                    padding: 11px 4vw;
+                }
+                .quick-links-horizontal a {
+                    font-size: 1.06em;
+                    width: 100%;
+                    justify-content: flex-start;
                 }
             }
         </style>
@@ -644,6 +713,7 @@ if not st.session_state["logged_in"]:
     )
 
 #
+
 
 
     # --- Footer with Social Media ---
@@ -6919,6 +6989,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
