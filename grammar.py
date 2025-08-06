@@ -379,10 +379,6 @@ if not st.session_state["logged_in"]:
         <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
             ✉️ <b>Email</b>
         </a>
-        <br>
-        <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
-            🔒 Privacy Policy
-        </a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -6821,6 +6817,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
