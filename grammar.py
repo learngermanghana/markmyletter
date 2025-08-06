@@ -2798,9 +2798,11 @@ def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
 
+
 # --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
+    # (If flagged to switch, set subtab and rerun BEFORE widgets)
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
@@ -2831,7 +2833,7 @@ if tab == "Course Book":
         horizontal=True,
         key="coursebook_subtab"
     )
-
+#
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
@@ -2944,37 +2946,21 @@ if tab == "Course Book":
             st.markdown(f"**🎯 Goal:**  {info['goal']}")
         if info.get('instruction'):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
+        if info.get('youtube_link'):
+            st.markdown(f"**▶️ YouTube Link:** {info['youtube_link']}")
+
 
         render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
         render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
 
-        # ======== YOUTUBE/VIDEO AUTO-RECOGNITION (DEEP SCAN) =========
-        def find_youtube_link(obj):
-            # Recursively search for a key 'video' with a YouTube link
-            if isinstance(obj, dict):
-                for k, v in obj.items():
-                    if k == 'video' and isinstance(v, str) and 'youtu' in v:
-                        return v
-                    found = find_youtube_link(v)
-                    if found:
-                        return found
-            elif isinstance(obj, list):
-                for item in obj:
-                    found = find_youtube_link(item)
-                    if found:
-                        return found
-            return None
-
-        youtube_link = find_youtube_link(info)
-        if youtube_link:
-            st.video(youtube_link)
-            st.markdown(f"[Watch on YouTube]({youtube_link})", unsafe_allow_html=True)
-
         if student_level in ['A2', 'B1', 'B2', 'C1']:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
-                if val and res not in ['video', 'youtube_link']:
-                    st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+                if val:
+                    if res == 'video':
+                        st.video(val)
+                    else:
+                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
             st.markdown(
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
@@ -6695,6 +6681,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
