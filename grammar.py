@@ -373,13 +373,16 @@ if not st.session_state["logged_in"]:
                 <b>✉️ Email: learngermanghana@gmail.com</b>
             </a>
             <br><br>
+            <b>🔒 Privacy Policy:</b>
+            <br>
             <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
-                Privacy Policy
+                https://www.learngermanghana.com/privacy-policy
             </a>
         </div>
         """,
         unsafe_allow_html=True
     )
+
 
 
     def get_query_params():
@@ -6784,6 +6787,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
