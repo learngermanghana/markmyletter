@@ -3182,15 +3182,64 @@ if tab == "Course Book":
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
             )
-            
+
         st.divider()
-        
+
         total_assignments = len(schedule)
         assignments_done = idx + 1
         percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
         st.progress(percent)
         st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
         st.divider()
+
+        info = schedule[idx]
+        st.markdown(
+            f"### {highlight_terms('Day ' + str(info['day']) + ': ' + info['topic'], search_terms)} (Chapter {info['chapter']})",
+            unsafe_allow_html=True
+        )
+        st.divider()
+
+        # --- Show main YouTube/video at the top ---
+        video_url = None
+        # Prefer "video" key, then fallback to "youtube_link" key
+        if info.get('video'):
+            st.video(info['video'])
+            video_url = info['video']
+        elif info.get('youtube_link'):
+            st.video(info['youtube_link'])
+            video_url = info['youtube_link']
+        # Show "Watch on YouTube" button if it's a YouTube link
+        if video_url and ("youtube.com" in video_url or "youtu.be" in video_url):
+            render_youtube_link(video_url)
+
+        if info.get('grammar_topic'):
+            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        if info.get('goal'):
+            st.markdown(f"**🎯 Goal:**  {info['goal']}")
+        if info.get('instruction'):
+            st.markdown(f"**📝 Instruction:**  {info['instruction']}")
+
+        render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
+        render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
+
+        if student_level in ['A2', 'B1', 'B2', 'C1']:
+            for res, label in RESOURCE_LABELS.items():
+                val = info.get(res)
+                if val:
+                    if res == 'video':
+                        st.video(val)
+                        # Optional: add Watch on YouTube for resource videos too
+                        if "youtube.com" in val or "youtu.be" in val:
+                            render_youtube_link(val)
+                    else:
+                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
+        st.divider()
+#
+
 
         LEVEL_TIME = {
             "A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45
@@ -3227,38 +3276,6 @@ if tab == "Course Book":
             unsafe_allow_html=True
         )
         st.divider()
-
-        # --- YouTube Direct Link for This Lesson (if available) ---
-        if info.get('youtube_link'):
-            render_youtube_link(info['youtube_link'])
-        # -- (OR, if you want to also try a fallback for 'video' key holding a YouTube URL) --
-        elif info.get('video') and "youtube.com" in info.get('video'):
-            render_youtube_link(info['video'])
-            
-        if info.get('grammar_topic'):
-            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-        if info.get('goal'):
-            st.markdown(f"**🎯 Goal:**  {info['goal']}")
-        if info.get('instruction'):
-            st.markdown(f"**📝 Instruction:**  {info['instruction']}")
-
-        render_section(info, 'lesen_hören', 'Lesen & Hören', '📚')
-        render_section(info, 'schreiben_sprechen', 'Schreiben & Sprechen', '📝')
-
-        if student_level in ['A2', 'B1', 'B2', 'C1']:
-            for res, label in RESOURCE_LABELS.items():
-                val = info.get(res)
-                if val:
-                    if res == 'video':
-                        st.video(val)
-                    else:
-                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
-            st.markdown(
-                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                unsafe_allow_html=True
-            )
-        st.divider()
-
         
         # --- Translation Links Only ---
         st.markdown("---")
@@ -6972,6 +6989,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
