@@ -2962,9 +2962,6 @@ def load_level_schedules():
 
 # --- Helpers ---
 def render_assignment_reminder():
-    """
-    Render a responsive, mobile-friendly assignment reminder box with clear contrast.
-    """
     st.markdown(
         '''
         <div style="
@@ -3008,7 +3005,6 @@ def build_wa_message(name, code, level, day, chapter, answer):
     )
 
 def highlight_terms(text, terms):
-    """Wrap each term in <span> for highlight in markdown/html."""
     if not text: return ""
     for term in terms:
         if not term.strip():
@@ -3018,7 +3014,6 @@ def highlight_terms(text, terms):
     return text
 
 def filter_matches(lesson, terms):
-    """Check if ANY term appears in ANY searchable field."""
     searchable = (
         str(lesson.get('topic', '')).lower() +
         str(lesson.get('chapter', '')).lower() +
@@ -3078,7 +3073,6 @@ def render_youtube_link(youtube_url, label="▶️ Watch Lesson on YouTube"):
             unsafe_allow_html=True
         )
 
-
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -3109,7 +3103,6 @@ def save_notes_to_db(student_code, notes):
 # --------------- COURSE BOOK MAIN TAB WITH SUBTABS ---------------
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-    # (If flagged to switch, set subtab and rerun BEFORE widgets)
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
@@ -3140,7 +3133,7 @@ if tab == "Course Book":
         horizontal=True,
         key="coursebook_subtab"
     )
-#
+
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
@@ -3192,27 +3185,19 @@ if tab == "Course Book":
             
         st.divider()
         
-        # ===== Progress Bar (just for scrolling/selection) =====
         total_assignments = len(schedule)
         assignments_done = idx + 1
         percent = int((assignments_done / total_assignments) * 100) if total_assignments else 0
         st.progress(percent)
         st.markdown(f"**You’ve loaded {assignments_done} / {total_assignments} lessons ({percent}%)**")
-
         st.divider()
 
-        # ===== Estimated time for just this lesson =====
         LEVEL_TIME = {
-            "A1": 15,
-            "A2": 25,
-            "B1": 30,
-            "B2": 40,
-            "C1": 45
+            "A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45
         }
         current_time = LEVEL_TIME.get(student_level, 20)
         st.info(f"⏱️ **Recommended:** Invest about {current_time} minutes to complete this lesson fully.")
 
-        # ====== SUGGESTED END DATE CALCULATION (THREE PACES) ======
         contract_start_str = student_row.get('ContractStart', '')
         contract_start_date = None
         for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
@@ -3223,16 +3208,12 @@ if tab == "Course Book":
                 continue
 
         if contract_start_date:
-            # 3 per week
             weeks_3 = (total_assignments + 2) // 3
             end_3 = contract_start_date + timedelta(weeks=weeks_3)
-            # 2 per week
             weeks_2 = (total_assignments + 1) // 2
             end_2 = contract_start_date + timedelta(weeks=weeks_2)
-            # 1 per week
             weeks_1 = total_assignments
             end_1 = contract_start_date + timedelta(weeks=weeks_1)
-
             st.success(f"🎯 **At 3 lessons/week, you can finish by:** {end_3.strftime('%A, %d %b %Y')}")
             st.info(f"🟢 **At 2 lessons/week, you can finish by:** {end_2.strftime('%A, %d %b %Y')}")
             st.warning(f"🟡 **At 1 lesson/week, you can finish by:** {end_1.strftime('%A, %d %b %Y')}")
@@ -3247,10 +3228,13 @@ if tab == "Course Book":
         )
         st.divider()
 
-         
         # --- YouTube Direct Link for This Lesson (if available) ---
         if info.get('youtube_link'):
             render_youtube_link(info['youtube_link'])
+        # -- (OR, if you want to also try a fallback for 'video' key holding a YouTube URL) --
+        elif info.get('video') and "youtube.com" in info.get('video'):
+            render_youtube_link(info['video'])
+            
         if info.get('grammar_topic'):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         if info.get('goal'):
@@ -3273,8 +3257,8 @@ if tab == "Course Book":
                 '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
-            
         st.divider()
+
         
         # --- Translation Links Only ---
         st.markdown("---")
@@ -6988,6 +6972,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
