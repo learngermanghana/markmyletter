@@ -320,7 +320,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 
-    
 # === 0) Configuration & Session Init ===
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -335,25 +334,22 @@ if "logged_in" not in st.session_state:
 st.markdown("""
 <style>
   .hero {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 24px auto;
-    max-width: 800px;
+    background: #fff; border-radius: 12px; padding: 24px;
+    margin: 24px auto; max-width: 800px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.05);
   }
   .welcome-box, .help-contact-box {
-    background: #fff;
-    border-radius: 14px;
-    padding: 20px;
-    margin: 16px auto;
-    max-width: 500px;
+    background: #fff; border-radius: 14px; padding: 20px;
+    margin: 16px auto; max-width: 500px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.04);
   }
   .welcome-box { border-left: 5px solid #685ae7; }
   .help-contact-box { border:1px solid #ebebf2; text-align:center; }
   .quick-links { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; }
-  .quick-links a { background:#eef3fc; padding:8px 16px; border-radius:8px; font-weight:600; text-decoration:none; color:#25317e; }
+  .quick-links a {
+    background:#eef3fc; padding:8px 16px; border-radius:8px;
+    font-weight:600; text-decoration:none; color:#25317e;
+  }
   @media (max-width:600px){ .hero, .welcome-box, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
@@ -361,22 +357,20 @@ st.markdown("""
 # === 2) Public Landing + Login/Signup ===
 if not st.session_state.logged_in:
     # Academy header
-    st.markdown(
-        """
-        <div style='display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; width:100%;'>
-          <span style='font-size:2.2rem;'>🇬🇭</span>
-          <div style='text-align:center; flex:1;'>
-            <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>Falowen App</span><br>
-            <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span><br>
-            <span style='font-size:1.05rem; color:#268049; font-weight:400;'>Your All-in-One German Learning Platform</span><br>
-            <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0;'>www.learngermanghana.com</a></span><br>
-            <span style='font-size:0.98rem; color:#666; font-weight:500;'>Competent German Tutors Team</span>
-          </div>
-          <span style='font-size:2.2rem;'>🇩🇪</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div style='display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; width:100%;'>
+      <span style='font-size:2.2rem;'>🇬🇭</span>
+      <div style='text-align:center; flex:1;'>
+        <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>Falowen App</span><br>
+        <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span><br>
+        <span style='font-size:1.05rem; color:#268049; font-weight:400;'>Your All-in-One German Learning Platform</span><br>
+        <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>Website: <a href='https://www.learngermanghana.com' style='color:#1565c0;' target='_blank'>www.learngermanghana.com</a></span><br>
+        <span style='font-size:0.98rem; color:#666; font-weight:500;'>Competent German Tutors Team</span>
+      </div>
+      <span style='font-size:2.2rem;'>🇩🇪</span>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Welcome instructions
     st.info(
         "👋 **Welcome to Falowen!**\n\n"
@@ -386,32 +380,39 @@ if not st.session_state.logged_in:
         "- ⌛ **Expired?** Contact the school office for help.\n"
         "- 🔒 **Privacy:** Only you and your teacher see your progress."
     )
+
     # Privacy Policy link
     st.markdown(
         '<div style="text-align:center; margin:10px 0;">'
-        '<a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">Privacy Policy</a>'
+        '<a href="https://www.learngermanghana.com/privacy-policy" target="_blank" '
+        'style="color:#1565c0; font-weight:bold;">Privacy Policy</a>'
         '</div>',
         unsafe_allow_html=True
     )
-    # Google OAuth
-    def get_query_params(): return st.query_params
+
+    # --- Google OAuth helpers ---
+    def get_query_params():
+        return st.query_params
+
     def handle_google_login():
         qp = get_query_params()
-        if "code" not in qp: return False
+        if "code" not in qp:
+            return False
         code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
         token_url = "https://oauth2.googleapis.com/token"
         data = {
-            "code": code,
-            "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+            "code":          code,
+            "client_id":     st.secrets["GOOGLE_CLIENT_ID"],
             "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
-            "redirect_uri": st.secrets["REDIRECT_URI"],
-            "grant_type": "authorization_code"
+            "redirect_uri":  st.secrets["REDIRECT_URI"],
+            "grant_type":    "authorization_code"
         }
         try:
             resp = requests.post(token_url, data=data, timeout=10)
             resp.raise_for_status()
             token = resp.json().get("access_token")
-            if not token: return False
+            if not token:
+                return False
             userinfo = requests.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {token}"}
@@ -419,15 +420,19 @@ if not st.session_state.logged_in:
             email = userinfo.get("email", "").lower()
             df = load_student_data()
             df["Email"] = df["Email"].str.lower().str.strip()
-            user = df[df["Email"]==email]
-            if user.empty: st.error("No account for that Google email."); return False
-            row = user.iloc[0]
-            if is_contract_expired(row): st.error("Contract expired."); return False
+            match = df[df["Email"] == email]
+            if match.empty:
+                st.error("No student account found for that Google email.")
+                return False
+            row = match.iloc[0]
+            if is_contract_expired(row):
+                st.error("Your contract has expired. Contact the office.")
+                return False
             st.session_state.update({
-                "logged_in":True,
-                "student_row":row.to_dict(),
-                "student_code":row["StudentCode"],
-                "student_name":row["Name"]
+                "logged_in":    True,
+                "student_row":  row.to_dict(),
+                "student_code": row["StudentCode"],
+                "student_name": row["Name"]
             })
             cookie_manager["student_code"] = row["StudentCode"]
             cookie_manager.save()
@@ -436,80 +441,113 @@ if not st.session_state.logged_in:
         except Exception as e:
             st.error(f"Google OAuth error: {e}")
         return False
+
     def do_google_oauth():
-        params={
-            "client_id":st.secrets["GOOGLE_CLIENT_ID"],
-            "redirect_uri":st.secrets["REDIRECT_URI"],
+        params = {
+            "client_id":    st.secrets["GOOGLE_CLIENT_ID"],
+            "redirect_uri": st.secrets["REDIRECT_URI"],
             "response_type":"code",
-            "scope":"openid email profile",
-            "prompt":"select_account"
+            "scope":        "openid email profile",
+            "prompt":       "select_account"
         }
-        url="https://accounts.google.com/o/oauth2/v2/auth?"+urllib.parse.urlencode(params)
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(f"""
-        <div style="text-align:center;margin:12px 0;">
-          <a href="{url}"><button style="background:#4285f4;color:#fff;padding:8px 24px;border:none;border-radius:6px;">Sign in with Google</button></a>
-        </div>
+            <div style="text-align:center; margin:12px 0;">
+              <a href="{auth_url}">
+                <button style="background:#4285f4;color:#fff;padding:8px 24px;border:none;border-radius:6px;">
+                  Sign in with Google
+                </button>
+              </a>
+            </div>
         """, unsafe_allow_html=True)
-    if handle_google_login(): st.stop()
-    st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+
+    # Google button + separator
+    if handle_google_login():
+        st.stop()
+    st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
     do_google_oauth()
     st.divider()
-    # Manual login form
+
+    # --- Returning Student manual login ---
     st.subheader("👋 Returning Student? Please Log In Below")
     with st.form("login_form", clear_on_submit=False):
-        login_id    = st.text_input("Student Code or Email")
-        login_pass  = st.text_input("Password", type="password")
-        btn_login   = st.form_submit_button("Login")
+        login_id       = st.text_input("Student Code or Email")
+        login_password = st.text_input("Password", type="password")
+        btn_login      = st.form_submit_button("Login")
     if btn_login:
         with st.spinner("Logging in…"):
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            user = df[((df["StudentCode"]==login_id.lower())|(df["Email"]==login_id.lower()))]
-            if user.empty: st.error("No matching code or email.")
+            df["Email"]       = df["Email"].str.lower().str.strip()
+            user = df[
+                (df["StudentCode"] == login_id.lower()) |
+                (df["Email"]       == login_id.lower())
+            ]
+            if user.empty:
+                st.error("No matching student code or email found.")
             else:
                 row = user.iloc[0]
-                if is_contract_expired(row): st.error("Contract expired.")
+                if is_contract_expired(row):
+                    st.error("Your contract has expired.")
                 else:
-                    doc=db.collection("students").document(row["StudentCode"]).get()
-                    if not doc.exists: st.error("Account not found.")
-                    elif doc.to_dict().get("password")!=login_pass: st.error("Incorrect password.")
+                    doc = db.collection("students").document(row["StudentCode"]).get()
+                    if not doc.exists:
+                        st.error("Account not found.")
+                    elif doc.to_dict().get("password") != login_password:
+                        st.error("Incorrect password.")
                     else:
-                        st.session_state.update({"logged_in":True,"student_row":row.to_dict(),"student_name":row["Name"],"student_code":row["StudentCode"]})
-                        cookie_manager["student_code"]=row["StudentCode"]
+                        st.session_state.update({
+                            "logged_in":    True,
+                            "student_row":  row.to_dict(),
+                            "student_code": row["StudentCode"],
+                            "student_name": row["Name"]
+                        })
+                        cookie_manager["student_code"] = row["StudentCode"]
                         cookie_manager.save()
                         st.success(f"Welcome, {row['Name']}!")
                         st.rerun()
+
     st.divider()
-    # Sign up form
+
+    # --- New Student sign up ---
     st.subheader("🆕 New Student? Sign Up Below")
     with st.form("signup_form", clear_on_submit=False):
         new_name  = st.text_input("Full Name", key="ca_name")
         new_email = st.text_input("Email (must match records)", key="ca_email")
         new_code  = st.text_input("Student Code (from teacher)", key="ca_code")
-        new_pass  = st.text_input("Choose a Password",type="password", key="ca_pass")
-        btn_signup= st.form_submit_button("Create Account")
+        new_pass  = st.text_input("Choose a Password", type="password", key="ca_pass")
+        btn_signup = st.form_submit_button("Create Account")
     if btn_signup:
         with st.spinner("Creating account…"):
-            if not (new_name and new_email and new_code and new_pass): st.error("Fill all fields.")
+            if not (new_name and new_email and new_code and new_pass):
+                st.error("Please fill in all fields.")
             else:
-                df=load_student_data()
-                df["StudentCode"]=df["StudentCode"].str.lower().str.strip()
-                df["Email"]=df["Email"].str.lower().str.strip()
-                valid=df[(df["StudentCode']==new_code.lower())&(df["Email']==new_email.lower())]
-                if valid.empty: st.error("Code/email not registered.")
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                valid = df[
+                    (df["StudentCode"] == new_code.lower()) &
+                    (df["Email"]       == new_email.lower())
+                ]
+                if valid.empty:
+                    st.error("Code/email not registered.")
                 else:
-                    db.collection("students").document(new_code).set({"name":new_name,"email":new_email,"password":new_pass})
-                    st.success("Account created! Please log in.")
+                    db.collection("students").document(new_code).set({
+                        "name":     new_name,
+                        "email":    new_email,
+                        "password": new_pass
+                    })
+                    st.success("Account created! Please log in above.")
+
     # Quick Links & Footer
     st.markdown("""
     <div class="quick-links">
-      <a href="https://www.learngermanghana.com/tutors" target="_blank">👩‍🏫 Tutors</a>
+      <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
       <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
-      <a href="https://www.learngermanghana.com/accreditation" target="_blank">✅ Accreditation</a>
-      <a href="https://www.learngermanghana.com/privacy-policy" target="_blank">🔒 Privacy</a>
+      <a href="https://www.learngermanghana.com/accreditation"    target="_blank">✅ Accreditation</a>
+      <a href="https://www.learngermanghana.com/privacy-policy"  target="_blank">🔒 Privacy</a>
       <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
-      <a href="https://www.learngermanghana.com/contact-us" target="_blank">✉️ Contact</a>
+      <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
     </div>
     <div style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
@@ -517,17 +555,19 @@ if not st.session_state.logged_in:
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
+
     st.stop()
 
 # === 3) Logged-In UI ===
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager["student_code"]=""
+    cookie_manager["student_code"] = ""
     cookie_manager.save()
-    for k in ["logged_in","student_row","student_code","student_name"]:
-        st.session_state[k]=False if k=="logged_in" else ""
+    for k in ["logged_in", "student_row", "student_code", "student_name"]:
+        st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
+
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -6832,6 +6872,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
