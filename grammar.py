@@ -679,8 +679,9 @@ if st.session_state.get("logged_in"):
     st.divider()
 
 
-    # --- Rotating Motivation/Encouragement Lists ---
     import random
+
+    # --- Rotating Motivation/Encouragement Lists ---
     STUDY_TIPS = [
         "Study a little every day. Small steps lead to big progress!",
         "Teach someone else what you learned to remember it better.",
@@ -729,6 +730,13 @@ if st.session_state.get("logged_in"):
         row = your_row.iloc[0]
         rank = int(row['Rank'])
         percent = (rank / total_students) * 100 if total_students else 0
+        completed = int(row['completed'])
+
+        # Total possible assignments for this level
+        total_possible = (
+            df_assign[df_assign['level'] == user_level]['assignment'].nunique()
+        )
+        progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
         # --- Rotating motivation style ---
         rotate = random.randint(0, 3)
@@ -772,11 +780,48 @@ if st.session_state.get("logged_in"):
             </div>
             """, unsafe_allow_html=True
         )
+
+        # Progress Bar or Progress Text
+        st.markdown(
+            f"""
+            <div style='margin-top:8px;'>
+                <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
+                <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                    <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True
+        )
     else:
         st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
 
+        # Even if not on leaderboard, show student's assignment count
+        completed = df_assign[
+            (df_assign['studentcode'].str.lower() == student_code.lower()) &
+            (df_assign['level'] == user_level)
+        ]['assignment'].nunique()
+        total_possible = (
+            df_assign[df_assign['level'] == user_level]['assignment'].nunique()
+        )
+        if completed > 0:
+            progress_pct = (completed / total_possible) * 100 if total_possible else 0
+            st.markdown(
+                f"""
+                <div style='margin-top:8px;'>
+                    <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
+                    <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                        <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True
+            )
+        else:
+            st.info("Start submitting assignments to see your progress bar here!")
+
     st.divider()
+
 #
+
 
 
 
@@ -1991,8 +2036,8 @@ def get_a2_schedule():
             "youtube_link": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
         },
-
-
+    ]
+#
 def get_b1_schedule():
     return [
         # TAG 1
@@ -6729,6 +6774,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
