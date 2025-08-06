@@ -347,13 +347,15 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_code": student_row["StudentCode"],
             "student_name": student_row["Name"]
         })
-        
+
 if not st.session_state["logged_in"]:
-    # --- Welcome & Help ---
+    # --- Welcome & Help (Always at Top) ---
     st.markdown("""
     <div style="background:#f6f6ff; border-radius:14px; padding:17px 20px; margin-bottom:10px; border-left:4px solid #685ae7;">
       <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
       <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
+        <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
+        <li>🗂️ Structured courses for every level (A1–B2).</li>
         <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
         <li>🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.</li>
         <li>📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.</li>
@@ -363,7 +365,7 @@ if not st.session_state["logged_in"]:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Support & Privacy ---
+    # --- Support & Privacy (Always at Top) ---
     st.markdown("""
     <div style="text-align:center; color:#222; margin-top:8px; margin-bottom:14px; font-size:1.08em;">
       <b>❓ Need help or access?</b><br>
@@ -380,93 +382,96 @@ if not st.session_state["logged_in"]:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Google Sign In ---
-    def get_query_params():
-        return st.query_params
+    # --- Tabs for Returning/New Students ---
+    tab1, tab2 = st.tabs(["👋 Returning Student", "🆕 New Student"])
 
-    def do_google_oauth():
-        params = {
-            "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "prompt": "select_account"
-        }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(
-            f"""<div style='text-align:center;margin:10px 0 18px 0;'>
-                <a href="{auth_url}">
-                    <button style="background:#4285f4;color:white;padding:9px 28px;border:none;border-radius:7px;cursor:pointer;font-size:1.09em;">
-                        Sign in with Google
-                    </button>
-                </a>
-            </div>""",
-            unsafe_allow_html=True
-        )
+    with tab1:
+        # --- Google Sign In ---
+        def get_query_params():
+            return st.query_params
 
-    def handle_google_login():
-        qp = get_query_params()
-        if "code" not in qp:
+        def do_google_oauth():
+            params = {
+                "client_id": GOOGLE_CLIENT_ID,
+                "redirect_uri": REDIRECT_URI,
+                "response_type": "code",
+                "scope": "openid email profile",
+                "prompt": "select_account"
+            }
+            auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+            st.markdown(
+                f"""<div style='text-align:center;margin:10px 0 18px 0;'>
+                    <a href="{auth_url}">
+                        <button style="background:#4285f4;color:white;padding:9px 28px;border:none;border-radius:7px;cursor:pointer;font-size:1.09em;">
+                            Sign in with Google
+                        </button>
+                    </a>
+                </div>""",
+                unsafe_allow_html=True
+            )
+
+        def handle_google_login():
+            qp = get_query_params()
+            if "code" not in qp:
+                return False
+            code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+            token_url = "https://oauth2.googleapis.com/token"
+            data = {
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": REDIRECT_URI,
+                "grant_type": "authorization_code"
+            }
+            try:
+                resp = requests.post(token_url, data=data, timeout=10)
+                if not resp.ok:
+                    err = resp.json().get("error")
+                    if err != "invalid_grant":
+                        st.error(f"Google login failed: {resp.text}")
+                    return False
+                access_token = resp.json().get("access_token")
+                if not access_token:
+                    return False
+                userinfo = requests.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                ).json()
+                email = userinfo.get("email", "").lower()
+                df = load_student_data()
+                df["Email"] = df["Email"].str.lower().str.strip()
+                match = df[df["Email"] == email]
+                if match.empty:
+                    st.error("No student account found for that Google email.")
+                    return False
+                student_row = match.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Contact the office.")
+                    return False
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+                cookie_manager["student_code"] = student_row["StudentCode"]
+                cookie_manager.save()
+                st.success(f"Welcome, {student_row['Name']}!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Google OAuth error: {e}")
             return False
-        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code"
-        }
-        try:
-            resp = requests.post(token_url, data=data, timeout=10)
-            if not resp.ok:
-                err = resp.json().get("error")
-                if err != "invalid_grant":
-                    st.error(f"Google login failed: {resp.text}")
-                return False
-            access_token = resp.json().get("access_token")
-            if not access_token:
-                return False
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
-            ).json()
-            email = userinfo.get("email", "").lower()
-            df = load_student_data()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            match = df[df["Email"] == email]
-            if match.empty:
-                st.error("No student account found for that Google email.")
-                return False
-            student_row = match.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
-                return False
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
-            st.success(f"Welcome, {student_row['Name']}!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Google OAuth error: {e}")
-        return False
 
-    if handle_google_login():
-        st.stop()
-    st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-    do_google_oauth()
-    st.divider()
+        if handle_google_login():
+            st.stop()
+        st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+        do_google_oauth()
+        st.divider()
 
-    # --- Manual Login Card ---
-    with st.container():
-        st.markdown("#### 👋 Returning Student? Log In")
-        login_id       = st.text_input("Student Code or Email")
-        login_password = st.text_input("Password", type="password")
+        # --- Manual Login Card ---
+        st.markdown("#### Log In")
+        login_id       = st.text_input("Student Code or Email", key="login_id")
+        login_password = st.text_input("Password", type="password", key="login_pass")
         if st.button("Login"):
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
@@ -483,7 +488,7 @@ if not st.session_state["logged_in"]:
                 else:
                     doc = db.collection("students").document(student_row["StudentCode"]).get()
                     if not doc.exists:
-                        st.error("Account not found. Please create one below.")
+                        st.error("Account not found. Please create one in the next tab.")
                     else:
                         data = doc.to_dict()
                         if data.get("password") != login_password:
@@ -499,11 +504,10 @@ if not st.session_state["logged_in"]:
                             cookie_manager.save()
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
-    st.divider()
 
-    # --- Create Account Card ---
-    with st.container():
-        st.markdown("#### 🆕 New Student? Sign Up")
+    with tab2:
+        # --- Create Account Card ---
+        st.markdown("#### Sign Up")
         new_name     = st.text_input("Full Name", key="ca_name")
         new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
         new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
@@ -527,7 +531,7 @@ if not st.session_state["logged_in"]:
                         "email":    new_email,
                         "password": new_password
                     })
-                    st.success("Account created! Please log in above.")
+                    st.success("Account created! Please log in on the other tab.")
 
     # --- Footer with Social Media ---
     st.markdown("""
@@ -546,6 +550,7 @@ if not st.session_state["logged_in"]:
     """, unsafe_allow_html=True)
 
     st.stop()
+
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
@@ -6798,6 +6803,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
