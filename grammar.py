@@ -3054,6 +3054,31 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+def render_youtube_link(youtube_url, label="▶️ Watch Lesson on YouTube"):
+    if youtube_url:
+        st.markdown(
+            f"""
+            <a href="{youtube_url}" target="_blank" style="
+                display: inline-block;
+                background: #f8fafb;
+                border: 2px solid #d44f2b;
+                color: #d44f2b;
+                padding: 7px 18px 7px 14px;
+                font-size: 1.11em;
+                font-weight: 600;
+                border-radius: 6px;
+                margin: 6px 0 11px 0;
+                text-decoration: none;
+                transition: background 0.2s, color 0.2s, border 0.2s;
+            ">
+            <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" width="18" style="vertical-align:middle;margin-right:7px;position:relative;top:-2px;"/>
+            {label}
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
+
+
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -3221,7 +3246,11 @@ if tab == "Course Book":
             unsafe_allow_html=True
         )
         st.divider()
-        
+
+         
+        # --- YouTube Direct Link for This Lesson (if available) ---
+        if info.get('youtube_link'):
+            render_youtube_link(info['youtube_link'])
         if info.get('grammar_topic'):
             st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         if info.get('goal'):
@@ -6959,6 +6988,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
