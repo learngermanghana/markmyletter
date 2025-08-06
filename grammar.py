@@ -1274,6 +1274,7 @@ def get_a1_schedule():
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "",
+                "youtube_link": "",
                 "workbook_link": "https://drive.google.com/file/d/1ojXvizvJz_qGes7I39pjdhnmlul7xhxB/view?usp=sharing"
             }
         },
@@ -1399,6 +1400,7 @@ def get_a1_schedule():
             "instruction": "Use the statement rule to talk about your weekly routine using the activities listed. Share with your tutor when done",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/PwDLGmfBUDw",
+                "youtube_link": "https://youtu.be/PwDLGmfBUDw",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/12oFKrKrHBwSpSnzxLX_e-cjPSiYtCFVs/view?usp=sharing"
             }
@@ -1414,6 +1416,7 @@ def get_a1_schedule():
             "grammar_topic": "Modal Verbs",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/XwFPjLjvDog",
+                "youtube_link": "https://youtu.be/XwFPjLjvDog",
                 "workbook_link": "https://drive.google.com/file/d/1wnZehLNfkjgKMFw1V3BX8V399rZg6XLv/view?usp=sharing"
             }
         },
@@ -1428,6 +1431,7 @@ def get_a1_schedule():
             "grammar_topic": "Imperative",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/IVtUc9T3o0Y",
+                "youtube_link": "https://youtu.be/IVtUc9T3o0Y",
                 "workbook_link": "https://drive.google.com/file/d/1953B01hB9Ex7LXXU0qIaGU8xgCDjpSm4/view?usp=sharing"
             }
         },
@@ -1443,6 +1447,7 @@ def get_a1_schedule():
                 {
                     "chapter": "9",
                     "video": "https://youtu.be/MrB3BPtQN6A",
+                    "youtube_link": "https://youtu.be/MrB3BPtQN6A",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1g-qLEH1ZDnFZCT83TW-MPLxNt2nO7UAv/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1hKtQdXg5y3yJyFBQsCMr7fZ11cYbuG7D/view?usp=sharing"
@@ -1450,6 +1455,7 @@ def get_a1_schedule():
                 {
                     "chapter": "10",
                     "video": "",
+                    "youtube_link": "",
                     "grammarbook_link": "",
                     "assignment": True,
                     "workbook_link": "https://drive.google.com/file/d/1rJXshXQSS5Or4ipv1VmUMsoB0V1Vx4VK/view?usp=sharing"
@@ -1466,6 +1472,7 @@ def get_a1_schedule():
             "instruction": "",
             "lesen_hören": {
                 "video": "https://youtu.be/k2ZC3rXPe1k",
+                "youtube_link": "https://youtu.be/k2ZC3rXPe1k",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1lMzZrM4aAItO8bBmehODvT6gG7dz8I9s/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/17FNSfHBxyga9sKxzicT_qkP7PA4vB5-A/view?usp=sharing"
@@ -1483,6 +1490,7 @@ def get_a1_schedule():
                 {
                     "chapter": "12.1",
                     "video": "https://youtu.be/-vTEvx9a8Ts",
+                    "youtube_link": "https://youtu.be/-vTEvx9a8Ts",
                     "assignment": True,
                     "grammarbook_link": "https://drive.google.com/file/d/1wdWYVxBhu4QtRoETDpDww-LjjzsGDYva/view?usp=sharing",
                     "workbook_link": "https://drive.google.com/file/d/1A0NkFl1AG68jHeqSytI3ygJ0k7H74AEX/view?usp=sharing"
@@ -1490,6 +1498,7 @@ def get_a1_schedule():
                 {
                     "chapter": "12.2",
                     "video": "",
+                    "youtube_link": "",
                     "assignment": True,
                     "grammarbook_link": "",
                     "workbook_link": "https://drive.google.com/file/d/1xojH7Tgb5LeJj3nzNSATUVppWnJgJLEF/view?usp=sharing"
@@ -1497,6 +1506,7 @@ def get_a1_schedule():
             ],
             "schreiben_sprechen": {
                 "video": "https://youtu.be/xVyYo7upDGo",
+                "youtube_link": "https://youtu.be/xVyYo7upDGo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1iyYBuxu3bBEovxz0j9QeSu_1URX92fvN/view?usp=sharing"
             }
@@ -1511,6 +1521,7 @@ def get_a1_schedule():
             "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/MqAp84GthAo",
+                "youtube_link": "https://youtu.be/MqAp84GthAo",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
@@ -1526,6 +1537,7 @@ def get_a1_schedule():
             "grammar_topic": "Formal and Informal Letter",
             "schreiben_sprechen": {
                 "video": "https://youtu.be/sHRHE1soH6I",
+                "youtube_link": "https://youtu.be/sHRHE1soH6I",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
@@ -1540,6 +1552,7 @@ def get_a1_schedule():
             "grammar_topic": "Weather and Past Tense. How to form Perfekt statement in German",
             "lesen_hören": {
                 "video": "https://youtu.be/6cBs3Qfvdk4",
+                "youtube_link": "https://youtu.be/6cBs3Qfvdk4",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1PCXsTIg9iNlaAUkwH8BYekw_3v1HJjGq/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1GZeUi5p6ayDGnPcebFVFfaNavmoWyoVM/view?usp=sharing"
@@ -1555,6 +1568,7 @@ def get_a1_schedule():
             "grammar_topic": "Health and Body Parts",
             "lesen_hören": {
                 "video": "https://youtu.be/Zx_TFF9FNGo",
+                "youtube_link": "https://youtu.be/Zx_TFF9FNGo",
                 "assignment": True,
                 "grammarbook_link": "https://drive.google.com/file/d/1QoG4mNxA1w8AeTMPfLtMQ_rAHrmC1DdO/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1LkDUU7r78E_pzeFnHKw9vfD9QgUAAacu/view?usp=sharing"
@@ -1570,6 +1584,7 @@ def get_a1_schedule():
             "grammar_topic": "Adjective Declension and Dative Verbs",
             "lesen_hören": {
                 "video": "",
+                "youtube_link": "",
                 "assignment": False,
                 "grammarbook_link": "https://drive.google.com/file/d/16h-yS0gkB2_FL1zxCC4MaqRBbKne7GI1/view?usp=sharing",
                 "workbook_link": ""
@@ -1586,6 +1601,7 @@ def get_a1_schedule():
             "assignment": False,
             "schreiben_sprechen": {
                 "video": "https://youtu.be/WVq9x69dCeE",
+                "youtube_link": "https://youtu.be/WVq9x69dCeE",
                 "workbook_link": "https://drive.google.com/file/d/1LE1b9ilkLLobE5Uw0TVLG0RIVpLK5k1t/view?usp=sharing"
             }
         },
@@ -1599,10 +1615,12 @@ def get_a1_schedule():
             "instruction": "Open the link and answer the questions using the link. After submit and alert your tutor.",
             "schreiben_sprechen": {
                 "video": "",
+                "youtube_link": "",
                 "workbook_link": "https://forms.gle/FP8ZPNhwxcAZsTfY6"
             }
         }
     ]
+
 
 def get_a2_schedule():
     return [
@@ -1615,6 +1633,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "assignment": True,
             "video": "https://youtu.be/siF0jWZdIwk",
+            "youtube_link": "https://youtu.be/siF0jWZdIwk",
             "grammarbook_link": "https://drive.google.com/file/d/1NsCKO4K7MWI-queLWCeBuclmaqPN04YQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1LXDI1yyJ4aT4LhX5eGDbKnkCkJZ2EE2T/view?usp=sharing"
         },
@@ -1628,6 +1647,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Subordinate Clauses (Nebensätze) with dass and weil",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1xMpEAPD8C0HtIFsmgqYO-wZaKDrQtiYp/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
         },
@@ -1641,6 +1661,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Positive, Comparative, and Superlative in German",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
         },
@@ -1654,6 +1675,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Nominalization of Verbs",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
         },
@@ -1667,6 +1689,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Dative Preposition",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
         },
@@ -1680,6 +1703,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Two Case Preposition",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
         },
@@ -1693,6 +1717,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Identifying German Nouns and their Gender",
             "video": "https://youtu.be/ScU6w8VQgNg", 
+            "youtube_link": "https://youtu.be/ScU6w8VQgNg",
             "grammarbook_link": "https://drive.google.com/file/d/1clWbDAvLlXpgWx7pKc71Oq3H2p0_GZnV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1EF87TdHa6Y-qgLFUx8S6GAom9g5EBQNP/view?usp=sharing"
         },
@@ -1706,6 +1731,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Zuerst, Nachdem, and Talking About Sequence in German",
             "video": "https://youtu.be/_xQMNp3qcDQ",
+            "youtube_link": "https://youtu.be/_xQMNp3qcDQ",
             "grammarbook_link": "https://drive.google.com/file/d/16lh8sPl_IDZ3dLwYNvL73PqOFCixidrI/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c8JJyVlKYI2mz6xLZZ6RkRHLnH3Dtv0c/view?usp=sharing"
         },
@@ -1719,6 +1745,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Understanding Präteritum and Perfekt",
             "video": "https://youtu.be/NxoQH-BY9Js",
+            "youtube_link": "https://youtu.be/NxoQH-BY9Js",
             "grammarbook_link": "https://drive.google.com/file/d/1kOb7c08Pkxf21OQE_xIGEaif7Xq7k-ty/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1NzRxbGUe306Vq0mq9kKsc3y3HYqkMhuA/view?usp=sharing"
         },
@@ -1732,6 +1759,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Präteritum",
             "video": "https://youtu.be/XFxV3GSSm8E",
+            "youtube_link": "https://youtu.be/XFxV3GSSm8E",
             "grammarbook_link": "https://drive.google.com/file/d/1snFsDYBK8RrPRq2n3PtWvcIctSph-zvN/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vijZn-ryhT46cTzGmetuF0c4zys0yGlB/view?usp=sharing"
         },
@@ -1745,6 +1773,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Prepositions in and naxh",
             "video": "https://youtu.be/RkvfRiPCZI4",
+            "youtube_link": "https://youtu.be/RkvfRiPCZI4",
             "grammarbook_link": "https://drive.google.com/file/d/19I7oOHX8r4daxXmx38mNMaZO10AXHEFu/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1c7ITea0iVbCaPO0piark9RnqJgZS-DOi/view?usp=sharing"
         },
@@ -1758,6 +1787,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Konjunktiv II",
             "video": "https://youtu.be/w81bsmssGXQ",
+            "youtube_link": "https://youtu.be/w81bsmssGXQ",
             "grammarbook_link": "https://drive.google.com/file/d/1dyGB5q92EePy8q60eWWYA91LXnsWQFb1/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18u6FnHpd2nAh1Ev_2mVk5aV3GdVC6Add/view?usp=sharing"
         },
@@ -1771,6 +1801,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Konjunktive II with modal verbs",
             "video": "https://youtu.be/urKBrX5VAYU",
+            "youtube_link": "https://youtu.be/urKBrX5VAYU",
             "grammarbook_link": "https://drive.google.com/file/d/1tv2tYzn9mIG57hwWr_ilxV1My7kt-RKQ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1sW2yKZptnYWPhS7ciYdi0hN5HV-ycsF0/view?usp=sharing"
         },
@@ -1784,6 +1815,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Modal Verbs",
             "video": "https://youtu.be/IyBvx-yVT-0",
+            "youtube_link": "https://youtu.be/IyBvx-yVT-0",
             "grammarbook_link": "https://drive.google.com/file/d/13mVpVGfhY1NQn-BEb7xYUivnaZbhXJsK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1rlZoo49bYBRjt7mu3Ydktzgfdq4IyK2q/view?usp=sharing"
         },
@@ -1797,6 +1829,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Reflexive Pronouns",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dGZjcHhdN1xAdK2APL54RykGH7_msUyr/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1iiExhUj66r5p0SJZfV7PsmCWOyaF360s/view?usp=sharing"
         },
@@ -1810,6 +1843,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Verbs and Adjectives with Prepositions",
             "video": "https://youtu.be/r4se8KuS8cA",
+            "youtube_link": "https://youtu.be/r4se8KuS8cA",
             "grammarbook_link": "https://drive.google.com/file/d/1BiAyDazBR3lTplP7D2yjaYmEm2btUT1D/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1G_sRFKG9Qt5nc0Zyfnax-0WXSMmbWB70/view?usp=sharing"
         },
@@ -1823,6 +1857,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on German Indefinite Pronouns",
             "video": "https://youtu.be/Xjp2A1hU1ag",
+            "youtube_link": "https://youtu.be/Xjp2A1hU1ag",
             "grammarbook_link": "https://drive.google.com/file/d/1O040UoSuBdy4llTK7MbGIsib63uNNcrV/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1vsdVR_ubbu5gbXnm70vZS5xGFivjBYoA/view?usp=sharing"
         },
@@ -1836,6 +1871,7 @@ def get_a2_schedule():
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Notes on Opening a Bank Account in Germany",
             "video": "https://youtu.be/ahIUVAbsuxU",
+            "youtube_link": "https://youtu.be/ahIUVAbsuxU",
             "grammarbook_link": "https://drive.google.com/file/d/1qNHtY8MYOXjtBxf6wHi6T_P_X1DGFtPm/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1GD7cCPU8ZFykcwsFQZuQMi2fiNrvrCPg/view?usp=sharing"
         },
@@ -1848,6 +1884,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1Qt9oxn-74t8dFdsk-NjSc0G5OT7MQ-qq/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1CEFn14eYeomtf6CpZJhyW00CA2f_6VRc/view?usp=sharing"
         },
@@ -1860,6 +1897,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1-72wZuNJE4Y92Luy0h5ygWooDnBd9PQW/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1_GTumT1II0E1PRoh6hMDwWsTPEInGeed/view?usp=sharing"
         },
@@ -1872,6 +1910,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1FcCg7orEizna4rAkX3_FCyd3lh_Bb3IT/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1mMtZza34QoJO_lfUiEX3kwTa-vsTN_RK/view?usp=sharing"
         },
@@ -1884,6 +1923,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1dWr4QHw8zT1RPbuIEr_X13cPLYpH-mms/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1mg_2ytNAYF00_j-TFQelajAxgQpmgrhW/view?usp=sharing"
         },
@@ -1896,6 +1936,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1Ialg19GIE_KKHiLBDMm1aHbrzfNdb7L_/view?usp=sharing"
         },
@@ -1908,6 +1949,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1tFXs-DNKvt97Q4dsyXsYvKVQvT5Qqt0y/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1t3xqddDJp3-1XeJ6SesnsYsTO5xSm9vG/view?usp=sharing"
         },
@@ -1920,6 +1962,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1jfWDzGfXrzhfGZ1bQe1u5MXVQkR5Et43/view?usp=sharing"
         },
         # DAY 26
@@ -1931,6 +1974,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/126MQiti-lpcovP1TdyUKQAK6KjqBaoTx/view?usp=sharing"
         },
         # DAY 27
@@ -1942,6 +1986,7 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1UdBu6O2AMQ2g6Ot_abTsFwLvT87LHHwY/view?usp=sharing"
         },
         # DAY 28
@@ -1953,9 +1998,9 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://drive.google.com/file/d/1164aJFtkZM1AMb87s1-K59wuobD7q34U/view?usp=sharing"
         },
-#
         # DAY 29
         {
             "day": 29,
@@ -1965,9 +2010,10 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Answer everything on the phone and dont write in your book. The answers will be sent to your email",
             "video": "",
+            "youtube_link": "",
             "workbook_link": "https://forms.gle/YqCEMXTF5d3N9Q7C7"
         },
-    ]
+
 
 def get_b1_schedule():
     return [
@@ -1981,6 +2027,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präsens & Perfekt",
             "video": "https://youtu.be/wMrdW2DhD5o",
+            "youtube_link": "https://youtu.be/wMrdW2DhD5o",
             "grammarbook_link": "https://drive.google.com/file/d/17dO2pWXKQ3V3kWZIgLHXpLJ-ozKHKxu5/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1gTcOHHGW2bXKkhxAC38jdl6OikgHCT9g/view?usp=sharing"
         },
@@ -1994,6 +2041,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1AgjhFYw07JYvsgVP1MBKYEMFBjeAwQ1e/view?usp=sharing"
         },
@@ -2007,6 +2055,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1qVANqTLg4FOU40_WfLZyVTu5KBluzYrh/view?usp=sharing"
         },
@@ -2020,6 +2069,7 @@ def get_b1_schedule():
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
@@ -2032,6 +2082,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2044,6 +2095,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2056,6 +2108,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2068,6 +2121,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2080,6 +2134,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2092,6 +2147,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2104,6 +2160,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2116,6 +2173,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2128,6 +2186,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2140,6 +2199,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2152,6 +2212,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2164,6 +2225,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2176,6 +2238,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2188,6 +2251,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2200,6 +2264,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2212,6 +2277,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2224,6 +2290,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2236,6 +2303,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2248,6 +2316,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": ""
         },
@@ -2260,6 +2329,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1x8IM6xcjR2hv3jbnnNudjyxLWPiT0-VL/view?usp=sharing"
         },
@@ -2272,6 +2342,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1If0R3cIT8KwjeXjouWlQ-VT03QGYOSZz/view?usp=sharing"
         },
@@ -2284,6 +2355,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1BMwDDkfPJVEhL3wHNYqGMAvjOts9tv24/view?usp=sharing"
         },
@@ -2296,6 +2368,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/15fjOKp_u75GfcbvRJVbR8UbHg-cgrgWL/view?usp=sharing"
         },
@@ -2308,6 +2381,7 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "video": "",
+            "youtube_link": "",
             "grammarbook_link": "",
             "workbook_link": "https://drive.google.com/file/d/1iBeZHMDq_FnusY4kkRwRQvyOfm51-COU/view?usp=sharing"
         },
@@ -6716,6 +6790,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
