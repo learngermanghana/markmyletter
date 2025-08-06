@@ -354,19 +354,25 @@ if not st.session_state["logged_in"]:
         "👋 **Welcome to Falowen!**\n\n"
         "- 🔑 **Returning?** Log in with your Student Code or Email.\n"
         "- 🆕 **New?** Click **Create Account** after your teacher gives you a code.\n"
-        "- 📱 **iPhone/iPad:** Tap “Save Password” if asked.\n"
         "- ⌛ **Expired?** Contact the school office.\n"
-        "- 🔒 **Privacy:** Only you & your teacher see your progress.\n"
+        "- 🔒 **Privacy:** Only you & your teacher see your progress.\n\n"
+        "---------------------------\n"
+        "❓ **Need help or access?**\n"
+        "📱 **WhatsApp:** 233205706589\n"
+        "✉️ **Email:** support@falowen.com\n"
+        "---------------------------"
     )
 
-    # --- Add Privacy Policy link here ---
     st.markdown(
-        '<div style="text-align:center; margin-bottom:10px;">'
-        '<a href="https://www.learngermanghana.com/privacy-policy" target="_blank" '
-        'style="color:#1565c0; font-weight:bold;">Privacy Policy</a>'
-        '</div>',
+        """
+        <div style="text-align:center; color:#333; font-size:0.98em; margin:14px 0; background:#f9f9f9; padding:10px 16px; border-radius:8px;">
+            <b>Privacy Policy</b><br>
+            We value your privacy. Only you and your teacher can view your progress. Your data will not be shared with third parties. For full details, visit: www.learngermanghana.com/privacy-policy
+        </div>
+        """,
         unsafe_allow_html=True
     )
+
 
 
     def get_query_params():
@@ -6771,6 +6777,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
