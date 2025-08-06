@@ -352,40 +352,37 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 
-#Manuallogin
 if not st.session_state["logged_in"]:
-
-    
     # --- Welcome & Help (Always at Top) ---
     st.markdown("""
     <div style="background:#f6f6ff; border-radius:14px; padding:17px 20px; margin-bottom:10px; border-left:4px solid #685ae7;">
-      <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
-      <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
-        <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
-        <li>🗂️ Structured courses for every level (A1–B2).</li>
-        <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
-        <li>🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.</li>
-        <li>📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.</li>
-        <li>⌛ <b>Expired?</b> Contact the office for help.</li>
-      </ul>
-      <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
+        <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
+        <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
+            <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
+            <li>🗂️ Structured courses for every level (A1–B2).</li>
+            <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
+            <li>🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.</li>
+            <li>📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.</li>
+            <li>⌛ <b>Expired?</b> Contact the office for help.</li>
+        </ul>
+        <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
     </div>
     """, unsafe_allow_html=True)
 
     # --- Support & Privacy (Always at Top) ---
     st.markdown("""
     <div style="text-align:center; color:#222; margin-top:8px; margin-bottom:14px; font-size:1.08em;">
-      <b>❓ Need help or access?</b><br>
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
-        📱 <b>WhatsApp us</b>
-      </a> &nbsp; | &nbsp;
-      <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
-        ✉️ <b>Email</b>
-      </a>
-      <br>
-      <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
-        🔒 Privacy Policy
-      </a>
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;">
+            📱 <b>WhatsApp us</b>
+        </a> &nbsp; | &nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;">
+            ✉️ <b>Email</b>
+        </a>
+        <br>
+        <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#1565c0; font-weight:bold;">
+            🔒 Privacy Policy
+        </a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -408,12 +405,12 @@ if not st.session_state["logged_in"]:
             auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
             st.markdown(
                 f"""<div style='text-align:center;margin:10px 0 18px 0;'>
-                    <a href="{auth_url}">
-                        <button style="background:#4285f4;color:white;padding:9px 28px;border:none;border-radius:7px;cursor:pointer;font-size:1.09em;">
-                            Sign in with Google
-                        </button>
-                    </a>
-                </div>""",
+                        <a href="{auth_url}">
+                            <button style="background:#4285f4;color:white;padding:9px 28px;border:none;border-radius:7px;cursor:pointer;font-size:1.09em;">
+                                Sign in with Google
+                            </button>
+                        </a>
+                    </div>""",
                 unsafe_allow_html=True
             )
 
@@ -477,12 +474,12 @@ if not st.session_state["logged_in"]:
 
         # --- Manual Login Card ---
         st.markdown("#### Log In")
-        login_id       = st.text_input("Student Code or Email", key="login_id")
+        login_id = st.text_input("Student Code or Email", key="login_id")
         login_password = st.text_input("Password", type="password", key="login_pass")
         if st.button("Login"):
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"]       = df["Email"].str.lower().str.strip()
+            df["Email"] = df["Email"].str.lower().str.strip()
             lookup = df[
                 ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
             ]
@@ -515,9 +512,9 @@ if not st.session_state["logged_in"]:
     with tab2:
         # --- Create Account Card ---
         st.markdown("#### Sign Up")
-        new_name     = st.text_input("Full Name", key="ca_name")
-        new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-        new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
+        new_name = st.text_input("Full Name", key="ca_name")
+        new_email = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
+        new_code = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
         new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
         if st.button("Create Account"):
             if not (new_name and new_email and new_code and new_password):
@@ -525,7 +522,7 @@ if not st.session_state["logged_in"]:
             else:
                 df = load_student_data()
                 df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"]       = df["Email"].str.lower().str.strip()
+                df["Email"] = df["Email"].str.lower().str.strip()
                 valid = df[
                     (df["StudentCode"] == new_code) &
                     (df["Email"] == new_email)
@@ -534,45 +531,42 @@ if not st.session_state["logged_in"]:
                     st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
                 else:
                     db.collection("students").document(new_code).set({
-                        "name":     new_name,
-                        "email":    new_email,
+                        "name": new_name,
+                        "email": new_email,
                         "password": new_password
                     })
                     st.success("Account created! Please log in on the other tab.")
 
-# --- Quick Links Footer Section (Horizontal Layout) ---
-st.markdown("""
-<hr style="margin-top:28px; margin-bottom:18px; border:1px solid #e6e6e6;">
-<div style="text-align:center; font-size:1.07em; color:#444; padding:7px 0 3px 0;">
-    <a href="https://www.learngermanghana.com/tutors" target="_blank" style="margin:0 13px; text-decoration:none;">
-        👨‍🏫 <b>Tutors</b>
-    </a>
-    |
-    <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" style="margin:0 13px; text-decoration:none;">
-        📆 <b>Upcoming Classes</b>
-    </a>
-    |
-    <a href="https://www.learngermanghana.com/accreditation" target="_blank" style="margin:0 13px; text-decoration:none;">
-        🏅 <b>Accreditation</b>
-    </a>
-    |
-    <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="margin:0 13px; text-decoration:none;">
-        🔒 <b>Privacy</b>
-    </a>
-    |
-    <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" style="margin:0 13px; text-decoration:none;">
-        📃 <b>Terms</b>
-    </a>
-    |
-    <a href="https://www.learngermanghana.com/contact-us" target="_blank" style="margin:0 13px; text-decoration:none;">
-        📞 <b>Contact</b>
-    </a>
-    |
-    <a href="https://www.learngermanghana.com" target="_blank" style="margin:0 13px; text-decoration:none;">
-        🌐 <b>Website</b>
-    </a>
-</div>
-""", unsafe_allow_html=True)
+    # --- Quick Links Footer Section (Horizontal Layout) ---
+    st.markdown("""
+    <hr style="margin-top:28px; margin-bottom:18px; border:1px solid #e6e6e6;">
+    <div style="text-align:center; font-size:1.07em; color:#444; padding:7px 0 3px 0;">
+        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" style="margin:0 13px; text-decoration:none;">
+            📆 <b>Upcoming Classes</b>
+        </a>
+        |
+        <a href="https://www.learngermanghana.com/accreditation" target="_blank" style="margin:0 13px; text-decoration:none;">
+            🏅 <b>Accreditation</b>
+        </a>
+        |
+        <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="margin:0 13px; text-decoration:none;">
+            🔒 <b>Privacy</b>
+        </a>
+        |
+        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" style="margin:0 13px; text-decoration:none;">
+            📃 <b>Terms</b>
+        </a>
+        |
+        <a href="https://www.learngermanghana.com/contact-us" target="_blank" style="margin:0 13px; text-decoration:none;">
+            📞 <b>Contact</b>
+        </a>
+        |
+        <a href="https://www.learngermanghana.com" target="_blank" style="margin:0 13px; text-decoration:none;">
+            🌐 <b>Website</b>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 
 
@@ -6827,6 +6821,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
