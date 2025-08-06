@@ -482,7 +482,7 @@ if not st.session_state.logged_in:
                                 cookie_manager["student_code"] = student["StudentCode"]
                                 cookie_manager.save()
                                 st.success(f"Welcome, {student['Name']}!")
-                                st.experimental_rerun()
+                                st.rerun()
 
     # New student tab
     with tab2:
@@ -6857,6 +6857,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
