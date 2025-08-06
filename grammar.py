@@ -361,8 +361,7 @@ if not st.session_state["logged_in"]:
             <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
             <li>🗂️ Structured courses for every level (A1–B2).</li>
             <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
-            <li>🆕 <b>New?</b> Ask your teacher for a Student Code, then sign up.</li>
-            <li>📱 <b>iPhone/iPad:</b> Tap “Save Password” if prompted.</li>
+            <li>🆕 <b>New?</b> Contact us below </li>
             <li>⌛ <b>Expired?</b> Contact the office for help.</li>
         </ul>
         <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
@@ -551,35 +550,70 @@ if not st.session_state["logged_in"]:
                         "password": new_password
                     })
                     st.success("Account created! Please log in on the other tab.")
-
-
-    st.markdown("""
-    <style>
-    @media (max-width: 700px) {
-      .quick-links-box ul { font-size: 1.11em !important; }
-      .quick-links-box { padding: 14px 4vw 14px 4vw !important; }
-    }
-    </style>
-    <div class="quick-links-box" style="
-        background:#f0f4fa;
-        border-radius:13px;
-        padding:18px 18px 14px 18px;
-        margin:18px 0 18px 0;
-        border-left: 4px solid #3746a5;
-        box-shadow: 0 2px 10px 0 rgba(60,50,120,0.07);
+ 
+    st.markdown(
+        """
+        <style>
+          @media (max-width: 700px) {
+            .quick-links-box ul { font-size: 1.11em !important; }
+            .quick-links-box { padding: 14px 4vw 14px 4vw !important; }
+            .quick-links-title { font-size: 1.17em !important; color: #273263 !important; display:block !important; }
+          }
+          .quick-links-title {
+            font-size: 1.17em !important;
+            color: #273263 !important;
+            display: block !important;
+            margin-bottom: 7px;
+          }
+        </style>
+        <div class="quick-links-box" style="
+            background:#f0f4fa;
+            border-radius:13px;
+            padding:18px 18px 14px 18px;
+            margin:18px 0 18px 0;
+            border-left: 4px solid #3746a5;
+            box-shadow: 0 2px 10px 0 rgba(60,50,120,0.07);
         ">
-      <b style="font-size:1.12em;">🔗 Quick Links</b>
-      <ul style="margin:9px 0 0 16px; color:#38416b; font-size:1.03em;">
-        <li><a href="https://www.learngermanghana.com/tutors" target="_blank" style="color:#3851a5;font-weight:500;">👩‍🏫 Tutors</a></li>
-        <li><a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" style="color:#3851a5;font-weight:500;">🗓️ Upcoming Classes</a></li>
-        <li><a href="https://www.learngermanghana.com/accreditation" target="_blank" style="color:#3851a5;font-weight:500;">✅ Accreditation</a></li>
-        <li><a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#3851a5;font-weight:500;">🔒 Privacy Policy</a></li>
-        <li><a href="https://www.learngermanghana.com/terms-of-service" target="_blank" style="color:#3851a5;font-weight:500;">📜 Terms of Service</a></li>
-        <li><a href="https://www.learngermanghana.com/contact-us" target="_blank" style="color:#3851a5;font-weight:500;">✉️ Contact Us</a></li>
-      </ul>
-    </div>
-    """, unsafe_allow_html=True)
-#
+          <span class="quick-links-title">🔗 Quick Links</span>
+          <ul style="margin:9px 0 0 16px; color:#38416b; font-size:1.03em;">
+            <li>
+              <a href="https://www.learngermanghana.com/tutors" target="_blank" style="color:#3851a5;font-weight:500;">
+                👩‍🏫 Tutors
+              </a>
+            </li>
+            <li>
+              <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" style="color:#3851a5;font-weight:500;">
+                🗓️ Upcoming Classes
+              </a>
+            </li>
+            <li>
+              <a href="https://www.learngermanghana.com/accreditation" target="_blank" style="color:#3851a5;font-weight:500;">
+                ✅ Accreditation
+              </a>
+            </li>
+            <li>
+              <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="color:#3851a5;font-weight:500;">
+                🔒 Privacy Policy
+              </a>
+            </li>
+            <li>
+              <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" style="color:#3851a5;font-weight:500;">
+                📜 Terms of Service
+              </a>
+            </li>
+            <li>
+              <a href="https://www.learngermanghana.com/contact-us" target="_blank" style="color:#3851a5;font-weight:500;">
+                ✉️ Contact Us
+              </a>
+            </li>
+          </ul>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+
 
 
     # --- Footer with Social Media ---
@@ -6855,6 +6889,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
