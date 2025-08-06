@@ -354,307 +354,80 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-if not st.session_state["logged_in"]:
-    # --- Welcome Message (mobile‐friendly) ---
+if not st.session_state.get("logged_in"):
+    # --- Centralized CSS for Welcome & Help boxes ---
     st.markdown("""
     <style>
+      .welcome-box {
+          background: #fff;
+          border-radius: 14px;
+          padding: 20px;
+          margin-bottom: 16px;
+          border-left: 5px solid #685ae7;
+          color: #333;
+      }
+      .help-contact-box {
+          background: #fcfcfd;
+          color: #23243b;
+          padding: 18px;
+          margin: 16px 0;
+          border-radius: 12px;
+          border: 1px solid #ebebf2;
+          text-align: center;
+          box-shadow: 0 2px 10px rgba(80,80,120,0.06);
+      }
       @media (max-width: 600px) {
-        .welcome-box { padding: 12px 4vw !important; margin-bottom: 8px !important; }
-        .welcome-box b { font-size: 1.1em !important; }
-        .welcome-box ul { margin: 8px 0 0 12px !important; font-size: 1em !important; }
+          .welcome-box { padding: 12px 4vw; }
+          .welcome-box b { font-size: 1.1em; }
+          .welcome-box ul { margin-top: 8px; margin-left: 12px; font-size: 1em; }
+          .help-contact-box { padding: 14px 5vw; font-size: 1.1em; }
       }
     </style>
-    <div class="welcome-box" style="
-        background: #ffffff;
-        border-radius: 14px;
-        padding: 17px 20px;
-        margin-bottom: 10px;
-        border-left: 4px solid #685ae7;
-        color: #333;">
-      <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
-      <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
+    """, unsafe_allow_html=True)
+
+    # --- Welcome Message ---
+    st.markdown("""
+    <div class="welcome-box">
+      <b>👋 Welcome to Falowen!</b>
+      <ul style="margin:8px 0 0 14px; color:#555; font-size:1.04em;">
         <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
         <li>🗂️ Structured courses for every level (A1–B2).</li>
-        <li>🔑 <b>Returning?</b> Log in with your Student Code or Email below.</li>
-        <li>🆕 <b>New?</b> Create an account on the next tab.</li>
+        <li>🔑 <b>Returning?</b> Log in with your Student Code or Email.</li>
+        <li>🆕 <b>New?</b> Sign up on the next tab.</li>
         <li>⌛ <b>Expired?</b> Contact the office for help.</li>
       </ul>
-      <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
+      <p style="color:#444; margin-top:12px;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Support/Help Section ---
+    # --- Support / Help Section ---
     st.markdown("""
-    <style>
-      @media (max-width: 700px) {
-        .help-contact-box {
-          background: #fff !important;
-          color: #222 !important;
-          padding: 18px 5vw 16px 5vw !important;
-          font-size: 1.18em !important;
-          border-radius: 10px !important;
-          border: 1.5px solid #e2e6ee !important;
-        }
-      }
-    </style>
-    <div class="help-contact-box" style="
-        background:#fcfcfd;
-        color:#23243b;
-        margin-top:10px;
-        margin-bottom:16px;
-        font-size:1.13em;
-        border-radius:12px;
-        border:1.5px solid #ebebf2;
-        padding:17px 22px 14px 22px;
-        box-shadow:0 2px 10px rgba(80,80,120,0.06);
-        text-align:center;">
+    <div class="help-contact-box">
       <b>❓ Need help or access?</b><br>
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" style="text-decoration:none;color:#2357d1;">
-        <b>📱 WhatsApp us</b>
-      </a>
-       | 
-      <a href="mailto:learngermanghana@gmail.com" target="_blank" style="text-decoration:none;color:#2357d1;">
-        <b>✉️ Email</b>
-      </a>
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp us</a>
+      &nbsp;|&nbsp;
+      <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Tabs for Returning/New Students ---
-    tab1, tab2 = st.tabs(["👋 Returning Student", "🆕 New Student"])
+    # --- Tabs for Returning / New Students ---
+    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
     with tab1:
-        # --- Google OAuth ---
-        def get_query_params():
-            return st.query_params
-
-        def do_google_oauth():
-            params = {
-                "client_id":     GOOGLE_CLIENT_ID,
-                "redirect_uri":  REDIRECT_URI,
-                "response_type": "code",
-                "scope":         "openid email profile",
-                "prompt":        "select_account"
-            }
-            auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-            st.markdown(f"""
-                <div style='text-align:center;margin:10px 0;'>
-                  <a href="{auth_url}">
-                    <button style="
-                      background:#4285f4;
-                      color:white;
-                      padding:9px 28px;
-                      border:none;
-                      border-radius:7px;
-                      cursor:pointer;
-                      font-size:1.09em;
-                    ">Sign in with Google</button>
-                  </a>
-                </div>
-            """, unsafe_allow_html=True)
-
-        def handle_google_login():
-            qp = get_query_params()
-            if "code" not in qp:
-                return False
-            code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
-            token_url = "https://oauth2.googleapis.com/token"
-            data = {
-                "code":          code,
-                "client_id":     GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri":  REDIRECT_URI,
-                "grant_type":    "authorization_code"
-            }
-            try:
-                resp = requests.post(token_url, data=data, timeout=10)
-                resp.raise_for_status()
-                access_token = resp.json().get("access_token")
-                if not access_token:
-                    return False
-                userinfo = requests.get(
-                    "https://www.googleapis.com/oauth2/v2/userinfo",
-                    headers={"Authorization": f"Bearer {access_token}"}
-                ).json()
-                email = userinfo.get("email", "").lower()
-                df = load_student_data()
-                df["Email"] = df["Email"].str.lower().str.strip()
-                match = df[df["Email"] == email]
-                if match.empty:
-                    st.error("No student account found for that Google email.")
-                    return False
-                student = match.iloc[0]
-                if is_contract_expired(student):
-                    st.error("Your contract has expired. Contact the office.")
-                    return False
-                st.session_state.update({
-                    "logged_in":   True,
-                    "student_row": student.to_dict(),
-                    "student_code": student["StudentCode"],
-                    "student_name": student["Name"]
-                })
-                cookie_manager["student_code"] = student["StudentCode"]
-                cookie_manager.save()
-                st.success(f"Welcome, {student['Name']}!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Google OAuth error: {e}")
-                return False
-
-        if handle_google_login():
-            st.stop()
-
-        st.markdown("<div style='text-align:center;margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        do_google_oauth()
-        st.divider()
-
-        # ---- Custom Login Card Styling ----
-        st.markdown("""
-            <style>
-                body, .stApp {
-                    background: linear-gradient(135deg, #f3f7fb 60%, #eef3fc 100%);
-                }
-                .falowen-login-card {
-                    max-width: 420px;
-                    margin: 32px auto 24px auto;
-                    padding: 28px 28px 20px 28px;
-                    border-radius: 19px;
-                    background: #fff;
-                    box-shadow: 0 4px 24px rgba(60,50,120,0.13);
-                    border-left: 5px solid #3746a5;
-                }
-                .falowen-login-card .falowen-headline {
-                    font-size: 1.38em !important;
-                    font-weight: bold;
-                    color: #25317e !important;
-                    margin-bottom: 14px;
-                    display: block;
-                }
-                .falowen-login-card .stTextInput,
-                .falowen-login-card .stPasswordInput {
-                    margin-bottom: 14px;
-                }
-                @media (max-width: 700px) {
-                    .falowen-login-card { padding: 18px 4vw; }
-                    .falowen-login-card .falowen-headline { font-size: 1.2em !important; }
-                }
-            </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown("""<div class="falowen-login-card"><span class="falowen-headline">Log In</span>""",
-                    unsafe_allow_html=True)
-
-        login_id       = st.text_input("Student Code or Email", key="login_id")
-        login_password = st.text_input("Password", type="password", key="login_pass")
-        if st.button("Login"):
-            df = load_student_data()
-            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"]       = df["Email"].str.lower().str.strip()
-            lookup = df[
-                ((df["StudentCode"] == login_id.lower()) |
-                 (df["Email"]       == login_id.lower()))
-            ]
-            if lookup.empty:
-                st.error("No matching student code or email found.")
-            else:
-                student = lookup.iloc[0]
-                if is_contract_expired(student):
-                    st.error("Your contract has expired. Contact the office.")
-                else:
-                    doc = db.collection("students").document(student["StudentCode"]).get()
-                    if not doc.exists:
-                        st.error("Account not found. Please create one in the next tab.")
-                    else:
-                        data = doc.to_dict()
-                        if data.get("password") != login_password:
-                            st.error("Incorrect password.")
-                        else:
-                            st.session_state.update({
-                                "logged_in":   True,
-                                "student_row": student.to_dict(),
-                                "student_code":  student["StudentCode"],
-                                "student_name":  student["Name"]
-                            })
-                            cookie_manager["student_code"] = student["StudentCode"]
-                            cookie_manager.save()
-                            st.success(f"Welcome, {student['Name']}!")
-
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.form("login_form", clear_on_submit=False):
+            st.text_input("Student Code or Email", key="login_id")
+            st.text_input("Password", type="password", key="login_pass")
+            st.form_submit_button("Log In")
 
     with tab2:
-        st.markdown("""
-            <div class="falowen-login-card">
-                <span class="falowen-headline">Sign Up</span>
-            </div>
-        """, unsafe_allow_html=True)
-
-        new_name     = st.text_input("Full Name", key="ca_name")
-        new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-        new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
-        new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-        if st.button("Create Account"):
-            if not (new_name and new_email and new_code and new_password):
-                st.error("Please fill in all fields.")
-            else:
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"]       = df["Email"].str.lower().str.strip()
-                valid = df[
-                    (df["StudentCode"] == new_code) &
-                    (df["Email"]       == new_email)
-                ]
-                if valid.empty:
-                    st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
-                else:
-                    db.collection("students").document(new_code).set({
-                        "name":     new_name,
-                        "email":    new_email,
-                        "password": new_password
-                    })
-                    st.success("Account created! Please log in on the other tab.")
-
-    # --- Horizontal Quick Links (bottom of page) ---
-    st.markdown("""
-        <style>
-            .quick-links-section { width:100%; max-width:750px; margin:20px auto 28px; }
-            .quick-links-headline {
-                font-size:1.18em !important;
-                color:#112266;
-                font-weight:800;
-                margin-bottom:8px;
-                display:block;
-            }
-            .quick-links-horizontal {
-                background:#eef3fc; border-radius:12px;
-                border-left:4px solid #3746a5;
-                display:flex; flex-wrap:wrap; gap:14px;
-                padding:13px 16px;
-                box-shadow:0 2px 10px rgba(60,50,120,0.07);
-            }
-            .quick-links-horizontal a {
-                background:#dde7fa; padding:6px 13px; border-radius:7px;
-                font-weight:700; font-size:1.06em; color:#1b2367;
-                text-decoration:none; display:flex; align-items:center; gap:4px;
-            }
-            @media (max-width:700px){
-                .quick-links-horizontal { flex-direction:column; padding:11px 4vw; }
-                .quick-links-horizontal a { width:100%; }
-            }
-        </style>
-        <div class="quick-links-section">
-            <span class="quick-links-headline">🔗 Quick Links</span>
-            <div class="quick-links-horizontal">
-                <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
-                <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
-                <a href="https://www.learngermanghana.com/accreditation"    target="_blank">✅ Accreditation</a>
-                <a href="https://www.learngermanghana.com/privacy-policy"  target="_blank">🔒 Privacy</a>
-                <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
-                <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+        with st.form("signup_form", clear_on_submit=False):
+            st.text_input("Full Name", key="ca_name")
+            st.text_input("Email (must match teacher’s record)", key="ca_email")
+            st.text_input("Student Code (from teacher)", key="ca_code")
+            st.text_input("Choose a Password", type="password", key="ca_pass")
+            st.form_submit_button("Create Account")
 
     st.stop()
-
 
 
 
@@ -6945,6 +6718,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
