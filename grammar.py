@@ -352,10 +352,9 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 if not st.session_state["logged_in"]:
-    # --- Welcome & Help (Always at Top) ---
     st.markdown("""
     <style>
-      /* Mobile tweaks */
+      /* Mobile adjustments */
       @media (max-width: 600px) {
         .welcome-box {
           padding: 12px 4vw !important;
@@ -372,11 +371,12 @@ if not st.session_state["logged_in"]:
     </style>
 
     <div class="welcome-box" style="
-        background: #f6f6ff;
+        background: #ffffff;
         border-radius: 14px;
         padding: 17px 20px;
         margin-bottom: 10px;
         border-left: 4px solid #685ae7;
+        color: #333;
     ">
       <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
       <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
@@ -389,6 +389,7 @@ if not st.session_state["logged_in"]:
       <span style="color:#444;">🔒 <b>Privacy:</b> Only you and your teacher see your progress.</span>
     </div>
     """, unsafe_allow_html=True)
+
 
     # --- Support & Privacy (Always at Top, now with improved background for mobile) ---
     st.markdown("""
@@ -6911,6 +6912,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
