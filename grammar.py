@@ -352,32 +352,22 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 if not st.session_state["logged_in"]:
+    # --- Welcome Message (mobile-friendly) ---
     st.markdown("""
     <style>
-      /* Mobile adjustments */
       @media (max-width: 600px) {
-        .welcome-box {
-          padding: 12px 4vw !important;
-          margin-bottom: 8px !important;
-        }
-        .welcome-box b {
-          font-size: 1.1em !important;
-        }
-        .welcome-box ul {
-          margin: 8px 0 0 12px !important;
-          font-size: 1em !important;
-        }
+        .welcome-box { padding: 12px 4vw !important; margin-bottom: 8px !important; }
+        .welcome-box b { font-size: 1.1em !important; }
+        .welcome-box ul { margin: 8px 0 0 12px !important; font-size: 1em !important; }
       }
     </style>
-
     <div class="welcome-box" style="
         background: #ffffff;
         border-radius: 14px;
         padding: 17px 20px;
         margin-bottom: 10px;
         border-left: 4px solid #685ae7;
-        color: #333;
-    ">
+        color: #333;">
       <b style="font-size:1.15em;">👋 Welcome to Falowen!</b><br>
       <ul style="margin:9px 0 0 14px; color:#555; font-size:1.04em;">
         <li>🌱 Join a live class or self-study—AI & real tutor support!</li>
@@ -390,20 +380,19 @@ if not st.session_state["logged_in"]:
     </div>
     """, unsafe_allow_html=True)
 
-
-    # --- Support & Privacy (Always at Top, now with improved background for mobile) ---
+    # --- Support/Help Section (improved mobile bg) ---
     st.markdown("""
     <style>
-    @media (max-width: 700px) {
-      .help-contact-box {
-        background: #fff !important;
-        color: #222 !important;
-        padding: 18px 5vw 16px 5vw !important;
-        font-size: 1.18em !important;
-        border-radius: 10px !important;
-        border: 1.5px solid #e2e6ee !important;
+      @media (max-width: 700px) {
+        .help-contact-box {
+          background: #fff !important;
+          color: #222 !important;
+          padding: 18px 5vw 16px 5vw !important;
+          font-size: 1.18em !important;
+          border-radius: 10px !important;
+          border: 1.5px solid #e2e6ee !important;
+        }
       }
-    }
     </style>
     <div class="help-contact-box" style="
         background:#fcfcfd;
@@ -423,11 +412,11 @@ if not st.session_state["logged_in"]:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Tabs for Returning/New Students ---
+    # --- Tabs for login & sign up ---
     tab1, tab2 = st.tabs(["👋 Returning Student", "🆕 New Student"])
 
     with tab1:
-        # --- Google Sign In ---
+        # --- Google Sign In (functions should be defined outside in real code) ---
         def get_query_params():
             return st.query_params
 
@@ -509,111 +498,84 @@ if not st.session_state["logged_in"]:
         do_google_oauth()
         st.divider()
 
-# ---- Custom CSS Styling ----
-st.markdown("""
-    <style>
-        body, .stApp {
-            background: linear-gradient(135deg, #f3f7fb 60%, #eef3fc 100%);
-        }
-        /* Login Card Styling */
-        .falowen-login-card {
-            max-width: 420px;
-            margin: 32px auto 24px auto;
-            padding: 28px 28px 20px 28px;
-            border-radius: 19px;
-            background: #fff;
-            box-shadow: 0 4px 24px 0 rgba(60,50,120,0.13);
-            border-left: 5px solid #3746a5;
-        }
-        /* Headline */
-        .falowen-headline {
-            font-size: 1.38em !important;
-            font-weight: bold;
-            color: #25317e !important;
-            margin-bottom: 7px;
-            letter-spacing: 0.2px;
-        }
-        /* Input fields */
-        .stTextInput > div > div > input, .stPasswordInput > div > div > input {
-            background: #f3f7fb !important;
-            border: 1.4px solid #456cf3 !important;
-            color: #162044 !important;
-            border-radius: 7px !important;
-        }
-        /* Button styling */
-        .stButton > button {
-            background: #25317e;
-            color: #fff;
-            border-radius: 7px;
-            font-weight: 600;
-            border: none;
-            padding: 10px 26px;
-            margin-top: 8px;
-            transition: background 0.18s;
-        }
-        .stButton > button:hover {
-            background: #456cf3;
-        }
-        /* Hide Streamlit's default footer */
-        footer {visibility: hidden;}
-        /* Responsive for mobile */
-        @media (max-width: 700px) {
-            .falowen-login-card {padding: 18px 4vw 18px 4vw;}
-            .falowen-headline {font-size: 1.1em !important;}
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# ---- LOGIN CARD ----
-st.markdown(
-    """
-    <div class="falowen-login-card">
-        <span class="falowen-headline">Log In</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-with st.container():
-    # Place your login fields inside the styled card above
-    login_id = st.text_input("Student Code or Email", key="login_id")
-    login_password = st.text_input("Password", type="password", key="login_pass")
-    if st.button("Login"):
-        df = load_student_data()
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        lookup = df[
-            ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
-        ]
-        if lookup.empty:
-            st.error("No matching student code or email found.")
-        else:
-            student_row = lookup.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
+        # ---- Custom Card Styling ----
+        st.markdown("""
+            <style>
+                body, .stApp {
+                    background: linear-gradient(135deg, #f3f7fb 60%, #eef3fc 100%);
+                }
+                .falowen-login-card {
+                    max-width: 420px;
+                    margin: 32px auto 24px auto;
+                    padding: 28px 28px 20px 28px;
+                    border-radius: 19px;
+                    background: #fff;
+                    box-shadow: 0 4px 24px 0 rgba(60,50,120,0.13);
+                    border-left: 5px solid #3746a5;
+                }
+                .falowen-headline {
+                    font-size: 1.38em !important;
+                    font-weight: bold;
+                    color: #25317e !important;
+                    margin-bottom: 7px;
+                    letter-spacing: 0.2px;
+                }
+                @media (max-width: 700px) {
+                    .falowen-login-card {padding: 18px 4vw 18px 4vw;}
+                    .falowen-headline {font-size: 1.1em !important;}
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="falowen-login-card">
+                <span class="falowen-headline">Log In</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        login_id = st.text_input("Student Code or Email", key="login_id")
+        login_password = st.text_input("Password", type="password", key="login_pass")
+        if st.button("Login"):
+            df = load_student_data()
+            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+            df["Email"] = df["Email"].str.lower().str.strip()
+            lookup = df[
+                ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
+            ]
+            if lookup.empty:
+                st.error("No matching student code or email found.")
             else:
-                doc = db.collection("students").document(student_row["StudentCode"]).get()
-                if not doc.exists:
-                    st.error("Account not found. Please create one in the next tab.")
+                student_row = lookup.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Contact the office.")
                 else:
-                    data = doc.to_dict()
-                    if data.get("password") != login_password:
-                        st.error("Incorrect password.")
+                    doc = db.collection("students").document(student_row["StudentCode"]).get()
+                    if not doc.exists:
+                        st.error("Account not found. Please create one in the next tab.")
                     else:
-                        st.session_state.update({
-                            "logged_in": True,
-                            "student_row": student_row.to_dict(),
-                            "student_code": student_row["StudentCode"],
-                            "student_name": student_row["Name"]
-                        })
-                        cookie_manager["student_code"] = student_row["StudentCode"]
-                        cookie_manager.save()
-                        st.success(f"Welcome, {student_row['Name']}!")
-                        st.rerun()
+                        data = doc.to_dict()
+                        if data.get("password") != login_password:
+                            st.error("Incorrect password.")
+                        else:
+                            st.session_state.update({
+                                "logged_in": True,
+                                "student_row": student_row.to_dict(),
+                                "student_code": student_row["StudentCode"],
+                                "student_name": student_row["Name"]
+                            })
+                            cookie_manager["student_code"] = student_row["StudentCode"]
+                            cookie_manager.save()
+                            st.success(f"Welcome, {student_row['Name']}!")
+                            st.rerun()
 
     with tab2:
-        # --- Create Account Card ---
-        st.markdown("#### Sign Up")
+        st.markdown("""
+            <div class="falowen-login-card">
+                <span class="falowen-headline">Sign Up</span>
+            </div>
+            """, unsafe_allow_html=True
+        )
         new_name = st.text_input("Full Name", key="ca_name")
         new_email = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
         new_code = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
@@ -638,7 +600,8 @@ with st.container():
                         "password": new_password
                     })
                     st.success("Account created! Please log in on the other tab.")
-                    
+
+    # --- Horizontal Quick Links (always at bottom) ---
     st.markdown(
         """
         <style>
@@ -649,7 +612,7 @@ with st.container():
             }
             .quick-links-headline {
                 font-size: 1.18em !important;
-                color: #112266 !important;   /* Deep blue for contrast */
+                color: #112266 !important;
                 font-weight: 800;
                 margin-bottom: 8px;
                 margin-left: 6px;
@@ -720,8 +683,6 @@ with st.container():
         """,
         unsafe_allow_html=True
     )
-
-#
 
 
 
@@ -6998,6 +6959,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
