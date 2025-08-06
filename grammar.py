@@ -565,42 +565,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---- LOGIN CARD ----
-        # --- Manual Login Card ---
-        st.markdown("#### Log In")
-        login_id = st.text_input("Student Code or Email", key="login_id")
-        login_password = st.text_input("Password", type="password", key="login_pass")
-        if st.button("Login"):
-            df = load_student_data()
-            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            lookup = df[
-                ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
-            ]
-            if lookup.empty:
-                st.error("No matching student code or email found.")
+st.markdown(
+    """
+    <div class="falowen-login-card">
+        <span class="falowen-headline">Log In</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+with st.container():
+    # Place your login fields inside the styled card above
+    login_id = st.text_input("Student Code or Email", key="login_id")
+    login_password = st.text_input("Password", type="password", key="login_pass")
+    if st.button("Login"):
+        df = load_student_data()
+        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        lookup = df[
+            ((df["StudentCode"] == login_id.lower()) | (df["Email"] == login_id.lower()))
+        ]
+        if lookup.empty:
+            st.error("No matching student code or email found.")
+        else:
+            student_row = lookup.iloc[0]
+            if is_contract_expired(student_row):
+                st.error("Your contract has expired. Contact the office.")
             else:
-                student_row = lookup.iloc[0]
-                if is_contract_expired(student_row):
-                    st.error("Your contract has expired. Contact the office.")
+                doc = db.collection("students").document(student_row["StudentCode"]).get()
+                if not doc.exists:
+                    st.error("Account not found. Please create one in the next tab.")
                 else:
-                    doc = db.collection("students").document(student_row["StudentCode"]).get()
-                    if not doc.exists:
-                        st.error("Account not found. Please create one in the next tab.")
+                    data = doc.to_dict()
+                    if data.get("password") != login_password:
+                        st.error("Incorrect password.")
                     else:
-                        data = doc.to_dict()
-                        if data.get("password") != login_password:
-                            st.error("Incorrect password.")
-                        else:
-                            st.session_state.update({
-                                "logged_in": True,
-                                "student_row": student_row.to_dict(),
-                                "student_code": student_row["StudentCode"],
-                                "student_name": student_row["Name"]
-                            })
-                            cookie_manager["student_code"] = student_row["StudentCode"]
-                            cookie_manager.save()
-                            st.success(f"Welcome, {student_row['Name']}!")
-                            st.rerun()
+                        st.session_state.update({
+                            "logged_in": True,
+                            "student_row": student_row.to_dict(),
+                            "student_code": student_row["StudentCode"],
+                            "student_name": student_row["Name"]
+                        })
+                        cookie_manager["student_code"] = student_row["StudentCode"]
+                        cookie_manager.save()
+                        st.success(f"Welcome, {student_row['Name']}!")
+                        st.rerun()
 
     with tab2:
         # --- Create Account Card ---
@@ -6989,6 +6998,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
