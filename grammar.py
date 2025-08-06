@@ -38,7 +38,8 @@ if "theme" not in st.session_state:
 
 theme = st.session_state["theme"]
 
-if st.toggle("Dark Mode"):
+# Give your theme a custom, friendly name!
+if st.toggle("🌙 Night View"):     # <-- CHANGED label here!
     theme = "dark"
 else:
     theme = "light"
@@ -79,6 +80,8 @@ if theme == "dark":
         background: #5b6de7 !important;
         color: #fff !important;
       }
+      /* Headings */
+      h1, h2, h3, h4, h5, h6 { color: #e7ebff !important; }
     </style>
     """
 else:
@@ -98,6 +101,7 @@ else:
     """
 
 st.markdown(custom_css, unsafe_allow_html=True)
+
 
 
 
@@ -7066,6 +7070,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
