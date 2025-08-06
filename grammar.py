@@ -387,8 +387,6 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
 
-    # ...rest of your login/signup page...
-
 
 if not st.session_state.logged_in:
     # Support / Help section
@@ -473,6 +471,16 @@ if not st.session_state.logged_in:
                     })
                     st.success("Account created! Please log in above.")
 
+    # --- Autoplay Video Demo (insert before Quick Links/footer) ---
+    st.markdown("""
+    <div style="display:flex; justify-content:center; margin: 24px 0;">
+      <video width="480" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+        <source src="https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/20250806_1558_Virtueller%20Unterricht_simple_compose_01k201pkv5fnps0ybrgjctyr01.mp4" type="video/mp4">
+        Sorry, your browser doesn't support embedded videos.
+      </video>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Quick Links and Footer
     st.markdown("""
     <div class="quick-links">
@@ -484,6 +492,7 @@ if not st.session_state.logged_in:
       <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
     </div>
     """, unsafe_allow_html=True)
+
     st.markdown("""
     <div style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
@@ -492,6 +501,7 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
     st.stop()
+#
 
 
 # --- Logged In UI ---
@@ -6807,6 +6817,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
