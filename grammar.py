@@ -474,7 +474,7 @@ if not st.session_state.logged_in:
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
     <div style="display:flex; justify-content:center; margin: 24px 0;">
-      <video width="480" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
         <source src="https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/20250806_1558_Virtueller%20Unterricht_simple_compose_01k201pkv5fnps0ybrgjctyr01.mp4" type="video/mp4">
         Sorry, your browser doesn't support embedded videos.
       </video>
@@ -6817,6 +6817,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
