@@ -434,32 +434,86 @@ if not st.session_state.logged_in:
         if "code" not in qp:
             return False
         # — Your existing token exchange & user lookup logic —
-        # if success: set st.session_state.logged_in=True and return True
+        # If success:
+        #     st.session_state.logged_in = True
+        #     return True
         return False
 
     # Returning student tab
     with tab1:
+        # OAuth callback handling
         if handle_google_login():
-            st.stop()
+            st.experimental_rerun()
+
         do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+
+        # Traditional login form with spinner
         with st.form("login_form", clear_on_submit=False):
-            st.text_input("Student Code or Email", key="login_id")
-            st.text_input("Password", type="password", key="login_pass")
-            if st.form_submit_button("Log In"):
-                # — your login logic here —
-                pass
+            login_id   = st.text_input("Student Code or Email", key="login_id")
+            login_pass = st.text_input("Password", type="password", key="login_pass")
+            login_clicked = st.form_submit_button("Log In")
+
+        if login_clicked:
+            with st.spinner("Logging in..."):
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                lookup = df[
+                    (df["StudentCode"] == login_id.lower()) |
+                    (df["Email"]       == login_id.lower())
+                ]
+                if lookup.empty:
+                    st.error("No matching student code or email found.")
+                else:
+                    student = lookup.iloc[0]
+                    if is_contract_expired(student):
+                        st.error("Your contract has expired. Contact the office.")
+                    else:
+                        doc = db.collection("students").document(student["StudentCode"]).get()
+                        if not doc.exists:
+                            st.error("Account not found. Please create one in the next tab.")
+                        else:
+                            data = doc.to_dict()
+                            if data.get("password") != login_pass:
+                                st.error("Incorrect password.")
+                            else:
+                                st.session_state.logged_in = True
+                                cookie_manager["student_code"] = student["StudentCode"]
+                                cookie_manager.save()
+                                st.success(f"Welcome, {student['Name']}!")
+                                st.experimental_rerun()
 
     # New student tab
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
-            st.text_input("Full Name", key="ca_name")
-            st.text_input("Email (must match teacher’s record)", key="ca_email")
-            st.text_input("Student Code (from teacher)", key="ca_code")
-            st.text_input("Choose a Password", type="password", key="ca_pass")
-            if st.form_submit_button("Create Account"):
-                # — your signup logic here —
-                pass
+            new_name     = st.text_input("Full Name", key="ca_name")
+            new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email")
+            new_code     = st.text_input("Student Code (from teacher)", key="ca_code")
+            new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_clicked = st.form_submit_button("Create Account")
+
+        if signup_clicked:
+            with st.spinner("Creating account..."):
+                if not (new_name and new_email and new_code and new_password):
+                    st.error("Please fill in all fields.")
+                else:
+                    df = load_student_data()
+                    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                    df["Email"]       = df["Email"].str.lower().str.strip()
+                    valid = df[
+                        (df["StudentCode"] == new_code.lower()) &
+                        (df["Email"]       == new_email.lower())
+                    ]
+                    if valid.empty:
+                        st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
+                    else:
+                        db.collection("students").document(new_code).set({
+                            "name":     new_name,
+                            "email":    new_email,
+                            "password": new_password
+                        })
+                        st.success("Account created! Please log in on the other tab.")
 
     # Quick Links
     st.markdown("""
@@ -6803,6 +6857,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
