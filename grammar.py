@@ -353,18 +353,19 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 
-
-
-
 def load_lottieurl(url: str):
     r = requests.get(url)
     if r.status_code != 200:
         return None
     return r.json()
 
-lottie_json = load_lottieurl("https://assets7.lottiefiles.com/packages/lf20_l2chhegy.json")  # Example link
-st_lottie(lottie_json, height=240, key="login_lottie")
+lottie_url = "https://assets5.lottiefiles.com/packages/lf20_V9t630.json"  # Verified working URL
+lottie_json = load_lottieurl(lottie_url)
 
+if lottie_json:
+    st_lottie(lottie_json, height=220, key="welcome_lottie")
+else:
+    st.error("Failed to load animation — check the URL")
 
 
 #Manuallogin
@@ -6846,6 +6847,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
