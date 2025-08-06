@@ -351,28 +351,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
             "student_name": student_row["Name"]
         })
 
-from streamlit_lottie import st_lottie
-import requests
-
-def load_lottieurl(url: str):
-    r = requests.get(url)
-    if r.status_code != 200:
-        st.write("Error loading Lottie file:", r.status_code, r.text[:100])
-        return None
-    try:
-        return r.json()
-    except Exception as e:
-        st.write("Error decoding JSON:", e)
-        return None
-
-lottie_url = "https://assets5.lottiefiles.com/packages/lf20_V9t630.json"
-lottie_json = load_lottieurl(lottie_url)
-
-if lottie_json is not None:
-    st_lottie(lottie_json, height=220, key="login_lottie")
-else:
-    st.warning("Could not load welcome animation.")
-
 
 #Manuallogin
 if not st.session_state["logged_in"]:
@@ -562,42 +540,40 @@ if not st.session_state["logged_in"]:
                     })
                     st.success("Account created! Please log in on the other tab.")
 
-    # --- Quick Links & Info Section (just below login tabs) ---
-    st.markdown("""
-    <div style="background:#f4f7fd; border-radius:12px; padding:14px 10px 12px 10px; margin:18px 0 16px 0; border-left:3px solid #3746a5;">
-      <b style="font-size:1.08em;">🔗 Quick Links & Info</b>
-      <ul style="margin:10px 0 0 15px; color:#404366; font-size:1.04em;line-height:1.75;">
-        <li><a href="https://www.learngermanghana.com/pricing" target="_blank"><b>💰 Pricing & Payment Options</b></a></li>
-        <li><a href="https://www.learngermanghana.com/tutors" target="_blank"><b>👨‍🏫 Meet Our Tutors</b></a></li>
-        <li><a href="https://www.learngermanghana.com/upcoming-classes" target="_blank"><b>📆 Upcoming Classes</b></a></li>
-        <li><a href="https://www.learngermanghana.com/accreditation" target="_blank"><b>🏅 Accreditation</b></a></li>
-        <li><a href="https://www.learngermanghana.com/privacy-policy" target="_blank"><b>🔒 Privacy Policy</b></a></li>
-        <li><a href="https://www.learngermanghana.com/terms-of-service" target="_blank"><b>📃 Terms of Service</b></a></li>
-        <li><a href="https://www.learngermanghana.com/contact-us" target="_blank"><b>📞 Contact Us</b></a></li>
-        <li><a href="https://www.learngermanghana.com" target="_blank"><b>🌐 Main Website</b></a></li>
-      </ul>
-    </div>
-    """, unsafe_allow_html=True)
+# --- Quick Links Footer Section (Horizontal Layout) ---
+st.markdown("""
+<hr style="margin-top:28px; margin-bottom:18px; border:1px solid #e6e6e6;">
+<div style="text-align:center; font-size:1.07em; color:#444; padding:7px 0 3px 0;">
+    <a href="https://www.learngermanghana.com/tutors" target="_blank" style="margin:0 13px; text-decoration:none;">
+        👨‍🏫 <b>Tutors</b>
+    </a>
+    |
+    <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" style="margin:0 13px; text-decoration:none;">
+        📆 <b>Upcoming Classes</b>
+    </a>
+    |
+    <a href="https://www.learngermanghana.com/accreditation" target="_blank" style="margin:0 13px; text-decoration:none;">
+        🏅 <b>Accreditation</b>
+    </a>
+    |
+    <a href="https://www.learngermanghana.com/privacy-policy" target="_blank" style="margin:0 13px; text-decoration:none;">
+        🔒 <b>Privacy</b>
+    </a>
+    |
+    <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" style="margin:0 13px; text-decoration:none;">
+        📃 <b>Terms</b>
+    </a>
+    |
+    <a href="https://www.learngermanghana.com/contact-us" target="_blank" style="margin:0 13px; text-decoration:none;">
+        📞 <b>Contact</b>
+    </a>
+    |
+    <a href="https://www.learngermanghana.com" target="_blank" style="margin:0 13px; text-decoration:none;">
+        🌐 <b>Website</b>
+    </a>
+</div>
+""", unsafe_allow_html=True)
 
-    # --- Footer with Social Media ---
-    st.markdown("""
-    <hr style="margin-top:36px; margin-bottom:12px; border:1px solid #eee;">
-    <div style="text-align:center; font-size:1.06em; color:#555;">
-        Stay connected!<br>
-        <a href="https://www.youtube.com/@LearnGermanGhana-pn5wr" target="_blank" style="text-decoration:none;">
-            <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>YouTube
-        </a>
-        &nbsp;|&nbsp;
-        <a href="https://instagram.com/learngermanghana" target="_blank" style="text-decoration:none;">
-            <img src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/instagram.svg" width="23" style="vertical-align:middle; margin-right:5px;"/>Instagram
-        </a>
-        <br><span style="font-size:0.93em; color:#888;">© 2025 Learn Language Education Academy</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.stop()
-
-#
 
 
 # --- Logged In UI ---
@@ -6851,6 +6827,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
