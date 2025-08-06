@@ -1901,8 +1901,8 @@ def get_a2_schedule():
             "goal": "Handle typical complaints.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/utAO9hvGF18",
+            "youtube_link": "https://youtu.be/utAO9hvGF18",
             "grammarbook_link": "https://drive.google.com/file/d/1-72wZuNJE4Y92Luy0h5ygWooDnBd9PQW/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1_GTumT1II0E1PRoh6hMDwWsTPEInGeed/view?usp=sharing"
         },
@@ -6817,6 +6817,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
