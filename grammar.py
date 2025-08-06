@@ -377,17 +377,6 @@ else:
 #Manuallogin
 if not st.session_state["logged_in"]:
 
-    st_lottie(
-        lottie_json,
-        speed=1,
-        reverse=False,
-        loop=True,
-        quality="low",
-        height=220,
-        width=None,
-        key="login_lottie"
-    )
-
     
     # --- Welcome & Help (Always at Top) ---
     st.markdown("""
@@ -6862,6 +6851,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
