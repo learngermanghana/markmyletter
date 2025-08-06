@@ -13,4 +13,3 @@ bcrypt>=4.0.1
 streamlit-oauth>=0.1.5
 streamlit-quill
 beautifulsoup4
-streamlit-lottie>=0.0.5
