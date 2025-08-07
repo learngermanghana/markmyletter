@@ -401,27 +401,55 @@ if not st.session_state.logged_in:
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
-    # Google OAuth helper for "Returning" tab
+    # --- Google OAuth helper for "Returning" tab ---
     def do_google_oauth():
         params = {
-            "client_id":     GOOGLE_CLIENT_ID,      # <-- ensure you define this!
-            "redirect_uri":  REDIRECT_URI,          # <-- ensure you define this!
+            "client_id":     GOOGLE_CLIENT_ID,      # <-- Your secret value!
+            "redirect_uri":  REDIRECT_URI,          # <-- Your secret value!
             "response_type": "code",
             "scope":         "openid email profile",
             "prompt":        "select_account"
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(f"""
-        <div style="text-align:center; margin:12px 0;">
-            <a href="{auth_url}">
-                <button style="background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 1px 2px #0001;padding:0 18px 0 0;display:inline-flex;align-items:center;font-size:1.07em;">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png" width="24" height="24" style="margin-right:10px;vertical-align:middle;border-radius:3px;" alt="Google Logo"/>
-                    <span style="color:#222;font-weight:500;">Sign in with Google</span>
-                </button>
-            </a>
+        <div style="display:flex;justify-content:center;margin:20px 0 10px 0;">
+          <a href="{auth_url}" style="text-decoration:none;">
+            <button style="
+                display:flex;align-items:center;gap:10px;
+                background:#fff;
+                border:1px solid #d1d5db;
+                border-radius:7px;
+                box-shadow:0 1.5px 4px #0001;
+                padding:8px 30px 8px 16px;
+                font-size:1.11em;
+                font-weight:500;
+                color:#444;
+                cursor:pointer;
+            ">
+              <span>
+                <svg width="24" height="24" viewBox="0 0 48 48">
+                  <g>
+                    <path fill="#4285F4" d="M44.5,20H24v8.5h11.7C34.7,33.9,30.2,37,24,37c-7.2,0-13-5.8-13-13s5.8-13,13-13c3.1,0,6,.9,8.3,2.7 l6.2-6.2C34.8,4.5,29.7,2.5,24,2.5C12.3,2.5,3,11.8,3,23.5S12.3,44.5,24,44.5c10.7,0,21-8.5,21-21c0-1.4-0.1-2.4-0.3-3.5H24z"/>
+                    <path fill="#34A853" d="M6.9,14.4l7.1,5.2C16.6,16,19.9,14,24,14c3.1,0,6.1,1.1,8.3,2.7l6.2-6.2C34.8,4.5,29.7,2.5,24,2.5 C15.7,2.5,8.4,7.5,6.9,14.4z"/>
+                    <path fill="#FBBC05" d="M24,44.5c5.6,0,10.7-2.2,14.6-5.7l-7-5.7c-2,1.6-4.7,2.9-7.6,2.9c-6.1,0-11.1-4.2-12.9-9.8H6.9v6.1 C10.5,41.1,16.6,44.5,24,44.5z"/>
+                    <path fill="#EA4335" d="M44.5,20H24v8.5h11.7c-1,3.4-4.3,7.5-11.7,7.5c-4.6,0-8.4-3-9.7-7.1l-7.1,5.2 C8.4,39.1,15.7,44.5,24,44.5c10.7,0,21-8.5,21-21C45,22.2,44.8,21.1,44.5,20z"/>
+                  </g>
+                </svg>
+              </span>
+              <span style="font-weight:600; letter-spacing:0.1px;">Sign in with Google</span>
+            </button>
+          </a>
         </div>
         """, unsafe_allow_html=True)
 
+    # --- Returning Student Tab (manual login) ---
+    with tab1:
+        do_google_oauth()   # Show Google button first
+        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+        with st.form("login_form", clear_on_submit=False):
+            login_id   = st.text_input("Student Code or Email")
+            login_pass = st.text_input("Password", type="password")
+            login_btn  = st.form_submit_button("Log In")
     # --- Returning Student Tab (manual login + Google login) ---
     with tab1:
         # Google Login Button (shows official logo)
@@ -6843,6 +6871,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
