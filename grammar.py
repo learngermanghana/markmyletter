@@ -5014,15 +5014,18 @@ if tab == "Exams Mode & Custom Chat":
                     ]:
                         if key in st.session_state:
                             del st.session_state[key]
+                    # Also reset local chat history immediately
+                    st.session_state["falowen_messages"] = []
                     # Set the stage back to initial
                     st.session_state["falowen_stage"] = 1
                     st.rerun()
             with col2:
                 if st.button("Back"):
-                    back_step()  # Consider adding input validation here
+                    back_step()
             with col3:
                 if st.button("Change Level"):
-                    change_level()  # Consider confirming user intention before action
+                    change_level()
+#
 
 
         # Initial instruction if chat is empty
@@ -6963,6 +6966,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
