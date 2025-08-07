@@ -290,36 +290,28 @@ if not cookie_manager.ready():
     st.warning("Cookies are not ready. Please refresh.")
     st.stop()
 
+# --- Ensure session_state keys always exist
 for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
     st.session_state.setdefault(key, default)
 
-code_from_cookie = cookie_manager.get("student_code") or ""
-code_from_cookie = str(code_from_cookie).strip().lower()
-
-# --- Auto-login via Cookie ---
+# --- Try auto-login from cookie before UI
+code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
-    # Normalize for matching
     df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-    df_students["Email"] = df_students["Email"].str.lower().str.strip()
-
     found = df_students[df_students["StudentCode"] == code_from_cookie]
     if not found.empty:
         student_row = found.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Please contact the office for renewal.")
+        if not is_contract_expired(student_row):
+            st.session_state.update({
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
+            })
+        else:
             cookie_manager["student_code"] = ""
             cookie_manager.save()
-            st.stop()
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": student_row.to_dict(),
-            "student_row": student_row.to_dict(),  
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"]
-        })
-
-
 
 # --- 1) Page config & session init ---------------------------------------------
 st.set_page_config(
@@ -386,6 +378,11 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
 
+
+def save_cookie_after_login(student_code):
+    # 6 months expiry: iPhone users stay logged in!
+    cookie_manager.set("student_code", student_code, expires=datetime.utcnow() + timedelta(days=180))
+    cookie_manager.save()
 
 if not st.session_state.logged_in:
     # Support / Help section
@@ -479,8 +476,7 @@ if not st.session_state.logged_in:
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
                             })
-                            cookie_manager["student_code"] = student_row["StudentCode"]
-                            cookie_manager.save()
+                            save_cookie_after_login(student_row["StudentCode"])  # <-- improved!
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
@@ -513,7 +509,6 @@ if not st.session_state.logged_in:
                     })
                     st.success("Account created! Please log in above.")
 
-
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
     <div style="display:flex; justify-content:center; margin: 24px 0;">
@@ -544,18 +539,17 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
     st.stop()
-#
-
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager["student_code"] = ""
+    cookie_manager.delete("student_code")   # <-- This really deletes the cookie, not just blank!
     cookie_manager.save()
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
+
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -6860,6 +6854,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
