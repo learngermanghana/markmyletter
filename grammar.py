@@ -690,28 +690,41 @@ if not st.session_state.get("logged_in", False):
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
-    # 1) Clear persistent cookie (expire immediately; Safari-safe)
-    set_student_code_cookie(
-        cookie_manager,
-        "",
-        expires=datetime.utcnow() - timedelta(seconds=1),
-    )
+    # 1) Kill the cookie immediately (server) — helper handles flags & fallbacks
+    set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
 
-    # 2) Clear localStorage for cross-tab/iOS persistence
-    components.html(
-        "<script>localStorage.removeItem('student_code');</script>",
-        height=0
-    )
+    # 2) Clear localStorage AND URL param on the client (do this before rerun)
+    components.html("""
+    <script>
+      try {
+        // Remove local fallback
+        localStorage.removeItem('student_code');
 
-    # 3) Clear Streamlit session state
+        // Remove ?student_code=... from the URL without reloading
+        const url = new URL(window.location);
+        if (url.searchParams.has('student_code')) {
+          url.searchParams.delete('student_code');
+          window.history.replaceState({}, '', url);
+        }
+
+        // Also clear cookie on client for immediate effect (belt & suspenders)
+        document.cookie = "falowen_student_code=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
+      } catch(e) { /* noop */ }
+    </script>
+    """, height=0)
+
+    # 3) Clear query params on the server too (Streamlit-side mirror)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
+    # 4) Clear Streamlit session state
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
 
-    st.success("You have been logged out.")
+    # 5) Rerun now that cookie/localStorage/URL are cleared
     st.rerun()
-
-
-
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -7053,6 +7066,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
