@@ -6,6 +6,7 @@ import sqlite3
 import atexit
 import json
 import re
+import streamlit.components.v1 as components
 from datetime import date, datetime, timedelta
 import time
 import io
@@ -279,25 +280,60 @@ def is_contract_expired(row):
     today = datetime.now().date()
     return expiry_date.date() < today
 
-# ---- Cookie & Session Setup ----
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET environment variable not set")
 
+# ——————————————————————————————————————————————————————————————————————
+# 0) Cookie + localStorage “SSO” Setup (works on iPhone/Safari too)
+# ——————————————————————————————————————————————————————————————————————
+
+# 1) Write JS that pushes localStorage.student_code → URL query param
+components.html("""
+<script>
+  (function(){
+    const code = localStorage.getItem('student_code');
+    if(code){
+      const url = new URL(window.location);
+      if(!url.searchParams.get('student_code')){
+        url.searchParams.set('student_code', code);
+        window.history.replaceState({}, '', url);
+      }
+    }
+  })();
+</script>
+""", height=0)
+
+# 2) Read any student_code from URL and store in cookie
+params = st.experimental_get_query_params()
+if 'student_code' in params and params['student_code']:
+    sc = params['student_code'][0]
+    # initialize cookie manager
+    COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+    cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+    cookie_manager.ready()
+    # write cookie (persistent)
+    cookie_manager["student_code"] = sc
+    cookie_manager.save()
+    # clear URL
+    st.experimental_set_query_params()
+
+# 3) Now normal cookie manager init
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
-    st.warning("Cookies are not ready. Please refresh.")
+    st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# --- Ensure session_state keys always exist
-for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
+# 4) Ensure session_state keys
+for key, default in [
+    ("logged_in", False),
+    ("student_row", None),
+    ("student_code", ""),
+    ("student_name", "")
+]:
     st.session_state.setdefault(key, default)
 
-
-# --- Try auto-login from cookie before UI ---
+# 5) Auto-login from cookie if needed
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
     df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
@@ -311,13 +347,12 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
-            # (Optional) Refresh the cookie for 180 days again
-            cookie_manager["student_code"] = student_row["StudentCode"]
-            cookie_manager.save()
         else:
-            # Completely delete cookie if contract expired
+            # expired → clear cookie & localStorage
             cookie_manager["student_code"] = ""
             cookie_manager.save()
+            components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
+
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -387,10 +422,16 @@ if not st.session_state.logged_in:
 
 
 
-# --- Save student code to cookie after login ---
+# --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
+    # 1) Cookie (persistent)
     cookie_manager["student_code"] = student_code
     cookie_manager.save()
+    # 2) localStorage (for iPhone/Safari persistence)
+    components.html(
+        f"<script>localStorage.setItem('student_code','{student_code}');</script>",
+        height=0
+    )
 
 if not st.session_state.get("logged_in", False):
     # Support / Help section
@@ -447,6 +488,7 @@ if not st.session_state.get("logged_in", False):
         </div>
         """, unsafe_allow_html=True)
 
+   
     # --- Returning Student Tab (Google + manual login) ---
     with tab1:
         do_google_oauth()   # Google button first
@@ -455,14 +497,16 @@ if not st.session_state.get("logged_in", False):
             login_id   = st.text_input("Student Code or Email")
             login_pass = st.text_input("Password", type="password")
             login_btn  = st.form_submit_button("Log In")
+
         if login_btn:
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
             lookup = df[
                 (df["StudentCode"] == login_id.lower()) |
-                (df["Email"] == login_id.lower())
+                (df["Email"]       == login_id.lower())
             ]
+
             if lookup.empty:
                 st.error("No matching student code or email found.")
             else:
@@ -478,9 +522,9 @@ if not st.session_state.get("logged_in", False):
                         if data.get("password") != login_pass:
                             st.error("Incorrect password.")
                         else:
+                            # — FIX: convert Series -> dict, then update session_state
                             st.session_state.update({
-                                "logged_in": True,
-                                # .to_dict() not valid for pandas Series; convert to dict
+                                "logged_in":   True,
                                 "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
@@ -497,6 +541,7 @@ if not st.session_state.get("logged_in", False):
             new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
             new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
             signup_btn   = st.form_submit_button("Create Account")
+
         if signup_btn:
             if not (new_name and new_email and new_code and new_password):
                 st.error("Please fill in all fields.")
@@ -506,7 +551,7 @@ if not st.session_state.get("logged_in", False):
                 df["Email"]       = df["Email"].str.lower().str.strip()
                 valid = df[
                     (df["StudentCode"] == new_code) &
-                    (df["Email"] == new_email)
+                    (df["Email"]       == new_email)
                 ]
                 if valid.empty:
                     st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
@@ -6863,6 +6908,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
