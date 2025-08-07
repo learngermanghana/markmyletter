@@ -4995,35 +4995,46 @@ if tab == "Exams Mode & Custom Chat":
                 mime="text/plain"
             )
 
+
             # Session buttons (with backup clear on restart)
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 if st.button("Restart Chat"):
-                    # Clear the backed up chat for this mode/level/teil in Firestore
+                    # Clear the backed up chat for this mode/level/teil!
                     clear_falowen_chat(
                         st.session_state.get("student_code", "demo"),
                         st.session_state.get("falowen_mode"),
                         st.session_state.get("falowen_level"),
                         st.session_state.get("falowen_teil")
                     )
-                    # Clear all relevant session state for a full reset
+                    # Now clear local state as before
                     for key in [
                         "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
                         "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
                         "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
                     ]:
-                        st.session_state.pop(key, None)
+                        if key in st.session_state:
+                            del st.session_state[key]
                     st.session_state["falowen_stage"] = 1
-                    st.session_state["falowen_messages"] = []  # immediate clear
                     st.rerun()
             with col2:
-                if st.button("Back"):
-                    back_step()
-            with col3:
-                if st.button("Change Level"):
-                    # Reset to level selection stage
+                if st.button("Delete All Chat History"):
+                    # This deletes all chats for this student (all levels/teils)
+                    student_code = st.session_state.get("student_code", "demo")
+                    db.collection("falowen_chats").document(student_code).delete()
+                    st.success("All chat history deleted.")
+                    for key in [
+                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                    ]:
+                        if key in st.session_state:
+                            del st.session_state[key]
                     st.session_state["falowen_stage"] = 1
                     st.rerun()
+#
+
+
 
             # Delete entire chat history button
             delete_col1, delete_col2 = st.columns([1, 5])
@@ -5069,7 +5080,6 @@ if tab == "Exams Mode & Custom Chat":
                 system_prompt = base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
-#
 
 
         # Chat input & assistant response
@@ -6979,6 +6989,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
