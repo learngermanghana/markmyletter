@@ -553,13 +553,14 @@ if not st.session_state.get("logged_in", False):
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager.delete("student_code")    # Properly deletes the cookie
+    cookie_manager["student_code"] = ""    # Properly clears the cookie (cross-device safe)
     cookie_manager.save()
     # Clear all login/session state info
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 
@@ -6862,6 +6863,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
