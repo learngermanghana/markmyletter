@@ -4184,18 +4184,6 @@ def back_step(to_stage=1):
     st.session_state["falowen_stage"] = to_stage
     st.rerun()
 
-def clear_falowen_chat(student_code, mode, level, teil):
-    doc_ref = db.collection("falowen_chats").document(student_code)
-    doc = doc_ref.get()
-    if not doc.exists:
-        return
-    chats = doc.to_dict().get("chats", {})
-    chat_key = f"{mode}_{level}_{teil or 'custom'}"
-    if chat_key in chats:
-        del chats[chat_key]
-        doc_ref.set({"chats": chats}, merge=True)
-
-
 
 # --- CONFIG ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
@@ -4227,7 +4215,7 @@ highlight_words = [
     "Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"
 ]
 
-
+import re
 
 def highlight_keywords(text, words, ignore_case=True):
     """
@@ -4247,50 +4235,16 @@ def highlight_keywords(text, words, ignore_case=True):
         )
     return text
 
-def falowen_download_pdf(messages, filename):
-    import os
-    try:
-        from fpdf import FPDF  # This is fpdf2 if installed, else classic fpdf
-    except ImportError:
-        import streamlit as st
-        st.error("Please install fpdf2: pip install fpdf2")
-        return b""
-
-    FONT_DIR = "fonts"
-    FONT_FILE = os.path.join(FONT_DIR, "DejaVuSans.ttf")
-    if not os.path.isfile(FONT_FILE):
-        # Download font if not present
-        import requests
-        os.makedirs(FONT_DIR, exist_ok=True)
-        url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
-        with open(FONT_FILE, "wb") as f:
-            f.write(requests.get(url).content)
-
-    pdf = FPDF()
-    pdf.add_page()
-    try:
-        pdf.add_font("DejaVu", "", FONT_FILE, uni=True)
-        pdf.set_font("DejaVu", size=12)
-    except Exception as e:
-        # If fails, fallback to Arial (will break on umlauts/emoji)
-        pdf.set_font("Arial", size=12)
-
-    for m in messages:
-        role = "Herr Felix" if m["role"] == "assistant" else "Student"
-        text = f"{role}: {m['content']}\n"
-        try:
-            pdf.multi_cell(0, 10, text)
-        except Exception:
-            # fallback to safe_latin1 for old fpdf
-            pdf.multi_cell(0, 10, text.encode("latin1", "replace").decode("latin1"))
-
-    # Save as file and return as bytes
-    pdf_output = f"{filename}.pdf"
-    pdf.output(pdf_output)
-    with open(pdf_output, "rb") as f:
-        pdf_bytes = f.read()
-    os.remove(pdf_output)
-    return pdf_bytes
+def clear_falowen_chat(student_code, mode, level, teil):
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return
+    chats = doc.to_dict().get("chats", {})
+    chat_key = f"{mode}_{level}_{teil or 'custom'}"
+    if chat_key in chats:
+        del chats[chat_key]
+        doc_ref.set({"chats": chats}, merge=True)
 
 
 if tab == "Exams Mode & Custom Chat":
@@ -4380,6 +4334,29 @@ if tab == "Exams Mode & Custom Chat":
         for (map_level, map_teil), v in image_map.items():
             if level == map_level and map_teil in teil:
                 st.image(v["url"], width=380, caption=v["caption"])
+
+
+    # ---- PDF Helper ----
+    def falowen_download_pdf(messages, filename):
+        from fpdf import FPDF
+        import os
+        def safe_latin1(text):
+            return text.encode("latin1", "replace").decode("latin1")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        chat_text = ""
+        for m in messages:
+            role = "Herr Felix" if m["role"] == "assistant" else "Student"
+            safe_msg = safe_latin1(m["content"])
+            chat_text += f"{role}: {safe_msg}\n\n"
+        pdf.multi_cell(0, 10, chat_text)
+        pdf_output = f"{filename}.pdf"
+        pdf.output(pdf_output)
+        with open(pdf_output, "rb") as f:
+            pdf_bytes = f.read()
+        os.remove(pdf_output)
+        return pdf_bytes
 
 
     # ---- PROMPT BUILDERS (ALL LOGIC) ----
@@ -6983,6 +6960,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
