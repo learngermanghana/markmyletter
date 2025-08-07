@@ -31,7 +31,7 @@ from gtts import gTTS
 from streamlit_quill import st_quill
 from bs4 import BeautifulSoup
 
-import streamlit as st
+
 
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
@@ -666,14 +666,15 @@ if not st.session_state.get("logged_in", False):
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
 if st.button("Log out"):
     from datetime import datetime, timedelta
 
-    # 1) Clear persistent cookie (Safari-safe)
+    # 1) Clear persistent cookie (expire immediately; Safari-safe flags)
     cookie_manager.set(
         "student_code",
         "",
-        expires=datetime.utcnow() + timedelta(days=1),  # expire quickly
+        expires=datetime.utcnow() - timedelta(seconds=1),  # expire immediately
         secure=True,
         samesite="None",
     )
@@ -691,6 +692,7 @@ if st.button("Log out"):
 
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 
@@ -3769,11 +3771,6 @@ if tab == "Course Book":
                     unsafe_allow_html=True
                 )
             st.markdown("---")
-#
-
-
-
-
 
 
 if tab == "My Results and Resources":
@@ -4967,24 +4964,19 @@ if tab == "Exams Mode & Custom Chat":
         chat_key = f"{mode}_{level}_{teil or 'custom'}"
         return chats.get(chat_key, [])
 
-    # ---- STAGE 4: MAIN CHAT ----
+      # ---- STAGE 4: MAIN CHAT ----
     if st.session_state.get("falowen_stage") == 4:
         import re
 
         level = st.session_state.get("falowen_level")
         teil = st.session_state.get("falowen_teil")
         mode = st.session_state.get("falowen_mode")
-        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+        is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
+        is_custom_chat = (mode == "Eigenes Thema/Frage (Custom Chat)")
         student_code = st.session_state.get("student_code", "demo")
 
         # Show sample image before chat starts
-        if (
-            is_exam
-            and level
-            and teil
-            and not st.session_state.get("falowen_messages")
-        ):
+        if is_exam and level and teil and not st.session_state.get("falowen_messages"):
             teil_short = ""
             if "Teil 1" in teil:
                 teil_short = "Teil 1"
@@ -4997,14 +4989,14 @@ if tab == "Exams Mode & Custom Chat":
                 img = image_map[img_key]
                 st.image(img["url"], width=380, caption=img["caption"])
 
-        # Load chat from db once
+        # Load chat from Firestore once
         if not st.session_state.get("_falowen_loaded"):
             loaded = load_falowen_chat(student_code, mode, level, teil)
             if loaded:
                 st.session_state["falowen_messages"] = loaded
             st.session_state["_falowen_loaded"] = True
 
-        # Helper for safe message format
+        # Normalize message shape
         def ensure_message_format(msg):
             if isinstance(msg, dict) and "role" in msg and "content" in msg:
                 return msg
@@ -5014,10 +5006,10 @@ if tab == "Exams Mode & Custom Chat":
                 return {"role": "user", "content": msg}
             return None
 
-        # Render chat
         msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
         st.session_state["falowen_messages"] = [m for m in msgs if m]
 
+        # Render history
         for msg in st.session_state["falowen_messages"]:
             if msg["role"] == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
@@ -5034,7 +5026,7 @@ if tab == "Exams Mode & Custom Chat":
                         unsafe_allow_html=True
                     )
 
-        # PDF + TXT download
+        # Downloads
         if st.session_state["falowen_messages"]:
             teil_str = str(teil) if teil else "chat"
             pdf_bytes = falowen_download_pdf(
@@ -5054,26 +5046,24 @@ if tab == "Exams Mode & Custom Chat":
             ])
             st.download_button(
                 "⬇️ Download Chat as TXT",
-                chat_as_text.encode("utf-8"),  # Unicode-safe
+                chat_as_text.encode("utf-8"),
                 file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
                 mime="text/plain"
             )
 
-
-        # Action buttons (Delete + Back)
+        # Two action buttons: Delete all chat + Back
         col1, col2 = st.columns(2)
 
         with col1:
             if st.button("🗑️ Delete All Chat History"):
-                student_code = st.session_state.get("student_code", "demo")
-
-                # Delete entire chat history for this student in Firestore
                 try:
-                    db.collection("falowen_chats").document(student_code).delete()
+                    clear_falowen_chat(
+                        st.session_state.get("student_code", "demo"),
+                        delete_all=True
+                    )
                 except Exception as e:
                     st.error(f"Could not delete chat history: {e}")
                 else:
-                    # Clear local session state so UI resets too
                     for key in [
                         "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
                         "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
@@ -5089,24 +5079,7 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back"):
                 back_step()
 
-
-
-            # Delete entire chat history button
-            delete_col1, delete_col2 = st.columns([1, 5])
-            with delete_col1:
-                if st.button("🗑️ Delete Chat History"):
-                    # Delete the full chat document in Firestore for this student
-                    db.collection("falowen_chats").document(
-                        st.session_state.get("student_code", "demo")
-                    ).delete()
-                    # Clear local session state
-                    st.session_state["falowen_messages"] = []
-                    st.success("All chat history deleted.")
-                    st.rerun()
-
-
-
-        # Initial instruction if chat is empty
+        # Initial instruction
         if not st.session_state["falowen_messages"]:
             instruction = build_exam_instruction(level, teil) if is_exam else (
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
@@ -5114,7 +5087,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-        # Build system prompt including topic/context
+        # Build system prompt
         if is_exam:
             if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
                 next_topic = st.session_state["remaining_topics"].pop(0)
@@ -5128,15 +5101,11 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["used_topics"].append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
-            if topic:
-                system_prompt = f"{base_prompt} Thema: {topic}."
-            else:
-                system_prompt = base_prompt
+            system_prompt = f"{base_prompt} Thema: {topic}." if topic else base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
 
-
-        # Chat input & assistant response
+        # Chat input + reply
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
@@ -5175,25 +5144,23 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-        # End session button & summary
         st.divider()
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
             st.rerun()
 
+
     # ---- STAGE 5: SHOW SUMMARY ----
     if st.session_state.get("falowen_stage") == 5:
         st.success("🎉 Practice Session Complete!")
         st.markdown("#### Your Exam Summary")
-        # Example: Show all chat (or generate summary, scores, etc.)
+
         if st.session_state.get("falowen_messages"):
             for msg in st.session_state["falowen_messages"]:
                 who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
                 st.markdown(f"**{who}:** {msg['content']}")
 
-        # Download options (PDF/TXT)
-        if st.session_state.get("falowen_messages"):
-            teil_str = str(st.session_state.get('falowen_teil', '')) if st.session_state.get('falowen_teil', '') else "chat"
+            teil_str = str(st.session_state.get('falowen_teil', '')) or "chat"
             pdf_bytes = falowen_download_pdf(
                 st.session_state["falowen_messages"],
                 f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}"
@@ -5215,24 +5182,11 @@ if tab == "Exams Mode & Custom Chat":
                 mime="text/plain"
             )
 
-        # --- Navigation buttons ---
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 Restart Practice"):
-                # Reset everything
-                for key in ["falowen_stage", "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
-                            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
-                            "remaining_topics", "used_topics", "_falowen_loaded"]:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-        with col2:
-            if st.button("⬅️ Back to Exam Menu"):
-                st.session_state["falowen_stage"] = 2  # or 3, depending on your flow
-                st.rerun()
+        st.divider()
+        if st.button("⬅️ Back to Exam Menu"):
+            st.session_state["falowen_stage"] = 2  # or 3 depending on your flow
+            st.rerun()
 
-#
 
 
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
@@ -7043,6 +6997,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
