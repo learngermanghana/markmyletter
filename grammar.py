@@ -294,8 +294,10 @@ if not cookie_manager.ready():
 for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
     st.session_state.setdefault(key, default)
 
+
 # --- Try auto-login from cookie before UI ---
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
     df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
@@ -310,16 +312,13 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_name": student_row["Name"]
             })
             # (Optional) Refresh the cookie for 180 days again
-            cookie_manager.set(
-                "student_code",
-                student_row["StudentCode"],
-                expires=datetime.utcnow() + timedelta(days=180),
-                path="/"
-            )
+            cookie_manager["student_code"] = student_row["StudentCode"]
             cookie_manager.save()
         else:
-            cookie_manager.delete("student_code")  # Completely delete cookie if contract expired
+            # Completely delete cookie if contract expired
+            cookie_manager["student_code"] = ""
             cookie_manager.save()
+
 
 # --- 1) Page config & session init ---------------------------------------------
 st.set_page_config(
@@ -6863,6 +6862,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
