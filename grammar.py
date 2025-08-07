@@ -1,6 +1,7 @@
 # ==== Standard Library ====
 import atexit
 import base64
+import bcrypt
 import difflib
 import io
 import json
@@ -8,12 +9,12 @@ import os
 import random
 import re
 import sqlite3
+import tempfile
 import time
 import urllib.parse
 from datetime import date, datetime, timedelta
 
 # ==== Third-Party Packages ====
-import bcrypt
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -22,15 +23,14 @@ import streamlit as st
 import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
+from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
-from firebase_admin import credentials, firestore
+from streamlit.components.v1 import html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-
-from streamlit.components.v1 import html
 
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
@@ -7175,6 +7175,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
