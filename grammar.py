@@ -4248,14 +4248,18 @@ def highlight_keywords(text, words, ignore_case=True):
     return text
 
 def falowen_download_pdf(messages, filename):
-    from fpdf import FPDF
     import os
+    try:
+        from fpdf import FPDF  # This is fpdf2 if installed, else classic fpdf
+    except ImportError:
+        import streamlit as st
+        st.error("Please install fpdf2: pip install fpdf2")
+        return b""
 
-    # Use a Unicode font (DejaVuSans recommended)
     FONT_DIR = "fonts"
     FONT_FILE = os.path.join(FONT_DIR, "DejaVuSans.ttf")
     if not os.path.isfile(FONT_FILE):
-        # Optional: Download automatically on first use (or instruct to upload)
+        # Download font if not present
         import requests
         os.makedirs(FONT_DIR, exist_ok=True)
         url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf"
@@ -4264,22 +4268,29 @@ def falowen_download_pdf(messages, filename):
 
     pdf = FPDF()
     pdf.add_page()
-    pdf.add_font("DejaVu", "", FONT_FILE, uni=True)
-    pdf.set_font("DejaVu", size=12)
+    try:
+        pdf.add_font("DejaVu", "", FONT_FILE, uni=True)
+        pdf.set_font("DejaVu", size=12)
+    except Exception as e:
+        # If fails, fallback to Arial (will break on umlauts/emoji)
+        pdf.set_font("Arial", size=12)
 
     for m in messages:
         role = "Herr Felix" if m["role"] == "assistant" else "Student"
         text = f"{role}: {m['content']}\n"
-        pdf.multi_cell(0, 10, text)
+        try:
+            pdf.multi_cell(0, 10, text)
+        except Exception:
+            # fallback to safe_latin1 for old fpdf
+            pdf.multi_cell(0, 10, text.encode("latin1", "replace").decode("latin1"))
 
-    # Save to a temporary file and return as bytes
+    # Save as file and return as bytes
     pdf_output = f"{filename}.pdf"
     pdf.output(pdf_output)
     with open(pdf_output, "rb") as f:
         pdf_bytes = f.read()
     os.remove(pdf_output)
     return pdf_bytes
-
 
 
 if tab == "Exams Mode & Custom Chat":
@@ -6972,6 +6983,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
