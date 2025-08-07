@@ -4236,15 +4236,16 @@ def highlight_keywords(text, words, ignore_case=True):
     return text
 
 def clear_falowen_chat(student_code, mode, level, teil):
+    """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
+    chat_key = f"{mode}_{level}_{teil or 'custom'}"
     doc_ref = db.collection("falowen_chats").document(student_code)
     doc = doc_ref.get()
-    if not doc.exists:
-        return
-    chats = doc.to_dict().get("chats", {})
-    chat_key = f"{mode}_{level}_{teil or 'custom'}"
-    if chat_key in chats:
-        del chats[chat_key]
-        doc_ref.set({"chats": chats}, merge=True)
+    if doc.exists:
+        data = doc.to_dict()
+        chats = data.get("chats", {})
+        if chat_key in chats:
+            del chats[chat_key]
+            doc_ref.set({"chats": chats}, merge=True)
 
 
 if tab == "Exams Mode & Custom Chat":
@@ -4994,33 +4995,35 @@ if tab == "Exams Mode & Custom Chat":
                 mime="text/plain"
             )
 
-        # Session buttons (with backup clear on restart)
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Restart Chat"):
-                # NEW: Clear the backed up chat for this mode/level/teil!
-                clear_falowen_chat(
-                    st.session_state.get("student_code", "demo"),
-                    st.session_state.get("falowen_mode"),
-                    st.session_state.get("falowen_level"),
-                    st.session_state.get("falowen_teil")
-                )
-                # Now clear local state as before
-                for key in [
-                    "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
-                    "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
-                    "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
-                ]:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-        with col2:
-            if st.button("Back"):
-                back_step()
-        with col3:
-            if st.button("Change Level"):
-                change_level()
+            # Session buttons (with backup clear on restart)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("Restart Chat"):
+                    # Clear the backed up chat for this mode/level/teil in Firestore
+                    clear_falowen_chat(
+                        st.session_state.get("student_code", "demo"),
+                        st.session_state.get("falowen_mode"),
+                        st.session_state.get("falowen_level"),
+                        st.session_state.get("falowen_teil")
+                    )
+                    # Clear all relevant Streamlit session_state keys for a full reset
+                    for key in [
+                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                    ]:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    # Set the stage back to initial
+                    st.session_state["falowen_stage"] = 1
+                    st.rerun()
+            with col2:
+                if st.button("Back"):
+                    back_step()  # Consider adding input validation here
+            with col3:
+                if st.button("Change Level"):
+                    change_level()  # Consider confirming user intention before action
+
 
         # Initial instruction if chat is empty
         if not st.session_state["falowen_messages"]:
@@ -6960,6 +6963,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
