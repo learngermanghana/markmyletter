@@ -294,7 +294,7 @@ if not cookie_manager.ready():
 for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
     st.session_state.setdefault(key, default)
 
-# --- Try auto-login from cookie before UI
+# --- Try auto-login from cookie before UI ---
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
@@ -309,8 +309,16 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
+            # (Optional) Refresh the cookie for 180 days again
+            cookie_manager.set(
+                "student_code",
+                student_row["StudentCode"],
+                expires=datetime.utcnow() + timedelta(days=180),
+                path="/"
+            )
+            cookie_manager.save()
         else:
-            cookie_manager["student_code"] = ""
+            cookie_manager.delete("student_code")  # Completely delete cookie if contract expired
             cookie_manager.save()
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -379,12 +387,15 @@ if not st.session_state.logged_in:
     """, unsafe_allow_html=True)
 
 
+import streamlit as st
+import urllib.parse
+
+# --- Save student code to cookie after login ---
 def save_cookie_after_login(student_code):
     cookie_manager["student_code"] = student_code
     cookie_manager.save()
 
-
-if not st.session_state.logged_in:
+if not st.session_state.get("logged_in", False):
     # Support / Help section
     st.markdown("""
     <div class="help-contact-box">
@@ -472,11 +483,12 @@ if not st.session_state.logged_in:
                         else:
                             st.session_state.update({
                                 "logged_in": True,
-                                "student_row": student_row.to_dict(),
+                                # .to_dict() not valid for pandas Series; convert to dict
+                                "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
                             })
-                            save_cookie_after_login(student_row["StudentCode"])  # <-- improved!
+                            save_cookie_after_login(student_row["StudentCode"])
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
@@ -508,6 +520,7 @@ if not st.session_state.logged_in:
                         "password": new_password
                     })
                     st.success("Account created! Please log in above.")
+
 
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
@@ -543,8 +556,9 @@ if not st.session_state.logged_in:
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager["student_code"] = ""
+    cookie_manager.delete("student_code")    # Properly deletes the cookie
     cookie_manager.save()
+    # Clear all login/session state info
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
@@ -6855,6 +6869,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
