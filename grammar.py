@@ -278,10 +278,47 @@ def is_contract_expired(row):
     today = datetime.now().date()
     return expiry_date.date() < today
 
-
 # ————————————————————————————————————————————————————————
 # 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
 # ————————————————————————————————————————————————————————
+import urllib.parse
+from datetime import datetime, timedelta
+
+def _expire_str(dt: datetime) -> str:
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
+    """
+    Set 'student_code' cookie with Secure + SameSite=None when possible.
+    Falls back to dict assignment + JS set-cookie if .set() is unavailable.
+    """
+    key = "student_code"
+    if hasattr(cookie_manager, "set"):
+        try:
+            cookie_manager.set(
+                key,
+                (value or "").strip().lower(),
+                expires=expires,
+                secure=True,
+                samesite="None",
+            )
+            cookie_manager.save()
+            return
+        except Exception:
+            pass
+    cookie_manager[key] = (value or "").strip().lower()
+    cookie_manager.save()
+    try:
+        prefix = getattr(cookie_manager, "prefix", "") or ""
+    except Exception:
+        prefix = ""
+    full_name = f"{prefix}student_code"
+    encoded_val = urllib.parse.quote((value or "").strip().lower())
+    exp_str = _expire_str(expires)
+    components.html(
+        f"<script>document.cookie = \"{full_name}={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure\";</script>",
+        height=0
+    )
 
 # 1) Push localStorage.student_code → URL query param via JS
 components.html("""
@@ -302,7 +339,6 @@ components.html("""
 # 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
 params = st.query_params
 if "student_code" in params and params["student_code"]:
-    # st.query_params always returns a list for each key
     sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
     if not COOKIE_SECRET:
@@ -312,15 +348,8 @@ if "student_code" in params and params["student_code"]:
     if not cookies_ready:
         st.warning("Cookies not ready; please refresh.")
         st.stop()
-    # Set cookie with secure and SameSite=None
-    cookie_manager.set(
-        "student_code",
-        sc,
-        expires=datetime.utcnow() + timedelta(days=180),
-        secure=True,
-        samesite="None",
-    )
-    cookie_manager.save()
+    # ✅ Use helper instead of raw .set()
+    set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
     # Clear student_code param from URL and re-run just ONCE
     st.query_params.clear()
     st.rerun()
@@ -345,7 +374,7 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Try auto-login from cookie (no repeated save needed here!)
+# 5) Try auto-login from cookie
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
@@ -361,15 +390,8 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_name": student_row["Name"]
             })
         else:
-            # Expired contract: clear cookie AND localStorage, then stop
-            cookie_manager.set(
-                "student_code",
-                "",
-                expires=datetime.utcnow() + timedelta(days=1),
-                secure=True,
-                samesite="None",
-            )
-            cookie_manager.save()
+            # Expired contract: clear cookie AND localStorage
+            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
             st.error("Your contract has expired. Please contact the office.")
             st.stop()
@@ -445,19 +467,20 @@ if not st.session_state.get("logged_in", False):
 
 # --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
+    # Normalize once
+    value = str(student_code).strip().lower()
+
     # 1) Persistent cookie (Safari/Chrome iOS require Secure + SameSite=None)
-    cookie_manager.set(
-        "student_code",
-        str(student_code).strip().lower(),
+    # Uses helper that falls back if cookie_manager.set(...) isn't available
+    set_student_code_cookie(
+        cookie_manager,
+        value,
         expires=datetime.utcnow() + timedelta(days=180),
-        secure=True,
-        samesite="None",
     )
-    cookie_manager.save()
 
     # 2) Mirror into localStorage (fallback/resilience on iOS/Safari)
     # Use JSON encoding to avoid any quoting/XSS issues.
-    safe_code = json.dumps(str(student_code).strip().lower())
+    safe_code = json.dumps(value)
     components.html(
         f"<script>localStorage.setItem('student_code', {safe_code});</script>",
         height=0
@@ -473,6 +496,7 @@ if not st.session_state.get("logged_in", False):
       <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
     </div>
     """, unsafe_allow_html=True)
+
 
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
@@ -666,17 +690,12 @@ if not st.session_state.get("logged_in", False):
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
-    from datetime import datetime, timedelta
-
-    # 1) Clear persistent cookie (expire immediately; Safari-safe flags)
-    cookie_manager.set(
-        "student_code",
+    # 1) Clear persistent cookie (expire immediately; Safari-safe)
+    set_student_code_cookie(
+        cookie_manager,
         "",
-        expires=datetime.utcnow() - timedelta(seconds=1),  # expire immediately
-        secure=True,
-        samesite="None",
+        expires=datetime.utcnow() - timedelta(seconds=1),
     )
-    cookie_manager.save()
 
     # 2) Clear localStorage for cross-tab/iOS persistence
     components.html(
@@ -690,6 +709,7 @@ if st.button("Log out"):
 
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 
@@ -4941,26 +4961,45 @@ if tab == "Exams Mode & Custom Chat":
                     st.rerun()
 
 
-    # ==========================
-    # FIRESTORE CHAT HELPERS
-    # ==========================
-    def save_falowen_chat(student_code, mode, level, teil, messages):
-        doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        chats = data.get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        chats[chat_key] = messages
-        doc_ref.set({"chats": chats}, merge=True)
+# ==========================
+# FIRESTORE CHAT HELPERS
+# ==========================
+def save_falowen_chat(student_code, mode, level, teil, messages):
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    chats = data.get("chats", {})
+    chat_key = f"{mode}_{level}_{teil or 'custom'}"
+    chats[chat_key] = messages
+    doc_ref.set({"chats": chats}, merge=True)
 
-    def load_falowen_chat(student_code, mode, level, teil):
-        doc_ref = db.collection("falowen_chats").document(student_code)
-        doc = doc_ref.get()
-        if not doc.exists:
-            return []
-        chats = doc.to_dict().get("chats", {})
-        chat_key = f"{mode}_{level}_{teil or 'custom'}"
-        return chats.get(chat_key, [])
+def load_falowen_chat(student_code, mode, level, teil):
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return []
+    chats = doc.to_dict().get("chats", {})
+    chat_key = f"{mode}_{level}_{teil or 'custom'}"
+    return chats.get(chat_key, [])
+
+def clear_falowen_chat(student_code, mode=None, level=None, teil=None, delete_all=False):
+    """
+    delete_all=True  -> delete entire doc (all chats for the student)
+    delete_all=False -> delete only the current mode/level/teil chat
+    """
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return
+    if delete_all:
+        doc_ref.delete()
+        return
+    data = doc.to_dict() or {}
+    chats = data.get("chats", {})
+    chat_key = f"{mode}_{level}_{teil or 'custom'}"
+    if chat_key in chats:
+        del chats[chat_key]
+        doc_ref.set({"chats": chats}, merge=True)
 
       # ---- STAGE 4: MAIN CHAT ----
     if st.session_state.get("falowen_stage") == 4:
@@ -6995,6 +7034,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
