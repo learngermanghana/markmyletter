@@ -4970,22 +4970,39 @@ if tab == "Exams Mode & Custom Chat":
                 file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
                 mime="application/pdf"
             )
+
             chat_as_text = "\n".join([
                 f"{msg['role'].capitalize()}: {msg['content']}"
                 for msg in st.session_state["falowen_messages"]
             ])
             st.download_button(
                 "⬇️ Download Chat as TXT",
-                chat_as_text.encode("utf-8"),
+                chat_as_text.encode("utf-8"),  # Unicode-safe
                 file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
                 mime="text/plain"
             )
 
-        # Session buttons
+        # Session buttons (with backup clear on restart)
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("Restart Chat"):
-                reset_chat()
+                # NEW: Clear the backed up chat for this mode/level/teil!
+                clear_falowen_chat(
+                    st.session_state.get("student_code", "demo"),
+                    st.session_state.get("falowen_mode"),
+                    st.session_state.get("falowen_level"),
+                    st.session_state.get("falowen_teil")
+                )
+                # Now clear local state as before
+                for key in [
+                    "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                    "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                    "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                ]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
         with col2:
             if st.button("Back"):
                 back_step()
@@ -4993,7 +5010,7 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("Change Level"):
                 change_level()
 
-        # Initial instruction
+        # Initial instruction if chat is empty
         if not st.session_state["falowen_messages"]:
             instruction = build_exam_instruction(level, teil) if is_exam else (
                 "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
@@ -5021,6 +5038,8 @@ if tab == "Exams Mode & Custom Chat":
                 system_prompt = base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
+#
+
 
         # Chat input & assistant response
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
@@ -6929,6 +6948,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
