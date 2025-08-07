@@ -349,6 +349,7 @@ components.html("""
 params = st.query_params
 if "student_code" in params and params["student_code"]:
     sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
+
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
     if not COOKIE_SECRET:
         st.stop()
@@ -357,11 +358,17 @@ if "student_code" in params and params["student_code"]:
     if not cookies_ready:
         st.warning("Cookies not ready; please refresh.")
         st.stop()
-    # ✅ Use helper instead of raw .set()
-    set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
-    # Clear student_code param from URL and re-run just ONCE
-    st.query_params.clear()
-    st.rerun()
+
+    # Only do the cookie write + rerun ONCE per session
+    if not st.session_state.get("cookie_synced", False):
+        set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
+        st.query_params.clear()
+        st.session_state["cookie_synced"] = True   # mark handshake done
+        st.rerun()
+    else:
+        # Already synced this session: just remove the param and keep going
+        st.query_params.clear()
+
 
 # 3) Normal cookie manager init (for all further cookie reads/writes)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
@@ -374,6 +381,7 @@ if not cookies_ready:
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
+
 # 4) Ensure all needed session_state keys exist
 for key, default in [
     ("logged_in", False),
@@ -383,28 +391,31 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Try auto-login from cookie
-code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-if not st.session_state["logged_in"] and code_from_cookie:
-    df_students = load_student_data()
-    df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
-    found = df_students[df_students["StudentCode"] == code_from_cookie]
-    if not found.empty:
-        student_row = found.iloc[0]
-        if not is_contract_expired(student_row):
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-        else:
-            # Expired contract: clear cookie AND localStorage
-            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-            components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
-            st.error("Your contract has expired. Please contact the office.")
-            st.stop()
+# 4.5) Restore login from cookie BEFORE showing any public page
+if not st.session_state.get("logged_in", False):
+    code = (cookie_manager.get("student_code") or "").strip().lower()
+    if code:
+        try:
+            df_students = load_student_data()
+            df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+            found = df_students[df_students["StudentCode"] == code]
+        except Exception:
+            found = pd.DataFrame()
 
+        if not found.empty:
+            student_row = found.iloc[0]
+            if not is_contract_expired(student_row):
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+            else:
+                # Expired contract: clear cookie AND localStorage early to avoid loops
+                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+                components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
+                # (Do not stop here; let the public page render)
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -704,6 +715,13 @@ if st.button("Log out"):
         expires=datetime.utcnow() - timedelta(seconds=1),
     )
 
+    # Also delete directly from cookie_manager if supported
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.save()
+    except Exception:
+        pass
+
     # Determine the actual cookie name used by your manager (prefix + key)
     _prefix = getattr(cookie_manager, "prefix", "") or ""
     _cookie_name = f"{_prefix}student_code"
@@ -742,10 +760,10 @@ if st.button("Log out"):
     """, height=0)
 
     # 3) Clear Streamlit session state immediately
-    for k in ["logged_in", "student_row", "student_code", "student_name"]:
+    for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
         st.session_state[k] = False if k == "logged_in" else ""
 
-    # Optional: server-side mirror of query param removal (belt & suspenders)
+    # Optional: server-side mirror of query param removal
     try:
         st.query_params.clear()
     except Exception:
@@ -753,6 +771,7 @@ if st.button("Log out"):
 
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
+
 
 
 
@@ -7103,6 +7122,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
