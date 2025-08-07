@@ -285,14 +285,14 @@ def is_contract_expired(row):
 # 0) Cookie + localStorage “SSO” Setup (works on iPhone/Safari too)
 # ——————————————————————————————————————————————————————————————————————
 
-# 1) Write JS that pushes localStorage.student_code → URL query param
+# 1) Push localStorage.student_code → URL query param via JS
 components.html("""
 <script>
   (function(){
     const code = localStorage.getItem('student_code');
-    if(code){
+    if (code) {
       const url = new URL(window.location);
-      if(!url.searchParams.get('student_code')){
+      if (!url.searchParams.get('student_code')) {
         url.searchParams.set('student_code', code);
         window.history.replaceState({}, '', url);
       }
@@ -301,21 +301,21 @@ components.html("""
 </script>
 """, height=0)
 
-# 2) Read any student_code from URL and store in cookie
+# 2) Read student_code from URL, write to cookie exactly once, then rerun
 params = st.experimental_get_query_params()
-if 'student_code' in params and params['student_code']:
-    sc = params['student_code'][0]
-    # initialize cookie manager
+if "student_code" in params and params["student_code"]:
+    sc = params["student_code"][0]
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
     cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
     cookie_manager.ready()
-    # write cookie (persistent)
+    # Persist cookie
     cookie_manager["student_code"] = sc
     cookie_manager.save()
-    # clear URL
+    # Clear URL param and restart so we don’t save again this run
     st.experimental_set_query_params()
+    st.experimental_rerun()
 
-# 3) Now normal cookie manager init
+# 3) Normal cookie manager init (for auto-login below)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
@@ -332,7 +332,7 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Auto-login from cookie if needed
+# 5) Auto-login from cookie (no further cookie.save())
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
@@ -348,10 +348,13 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_name": student_row["Name"]
             })
         else:
-            # expired → clear cookie & localStorage
+            # Expired: clear cookie & localStorage, then stop
             cookie_manager["student_code"] = ""
             cookie_manager.save()
             components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
+            st.error("Your contract has expired. Please contact the office.")
+            st.stop()
+
 
 
 
@@ -6908,6 +6911,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
