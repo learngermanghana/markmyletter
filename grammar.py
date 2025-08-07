@@ -280,22 +280,21 @@ def is_contract_expired(row):
     return expiry_date.date() < today
 
 # ---- Cookie & Session Setup ----
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets["COOKIE_SECRET"]
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
-    raise ValueError("COOKIE_SECRET not set")
+    raise ValueError("COOKIE_SECRET environment variable not set")
 
-# explicitly allow cross-site, secure cookies
-cookie_manager = EncryptedCookieManager(
-    prefix="falowen_",
-    password=COOKIE_SECRET,
-    same_site="None",   # <— this
-    secure=True,        # <— and this
-)
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
     st.warning("Cookies are not ready. Please refresh.")
     st.stop()
 
+for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
+    st.session_state.setdefault(key, default)
+
+code_from_cookie = cookie_manager.get("student_code") or ""
+code_from_cookie = str(code_from_cookie).strip().lower()
 
 # --- Auto-login via Cookie ---
 if not st.session_state["logged_in"] and code_from_cookie:
@@ -476,7 +475,7 @@ if not st.session_state.logged_in:
     st.markdown("""
     <div style="display:flex; justify-content:center; margin: 24px 0;">
       <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-        <source src="https://raw.githubusercontent.com/learngermanghana/grammarhelper/main/20250806_1558_Virtueller%20Unterricht_simple_compose_01k201pkv5fnps0ybrgjctyr01.mp4" type="video/mp4">
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/20250806_1558_Virtueller%20Unterricht_simple_compose_01k201pkv5fnps0ybrgjctyr01.mp4" type="video/mp4">
         Sorry, your browser doesn't support embedded videos.
       </video>
     </div>
