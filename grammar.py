@@ -427,10 +427,10 @@ if not st.session_state.logged_in:
 
 # --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
-    # 1) Cookie (persistent)
+    # 1) Persistent cookie
     cookie_manager["student_code"] = student_code
     cookie_manager.save()
-    # 2) localStorage (for iPhone/Safari persistence)
+    # 2) Mirror into localStorage for iOS/Safari persistence
     components.html(
         f"<script>localStorage.setItem('student_code','{student_code}');</script>",
         height=0
@@ -492,9 +492,10 @@ if not st.session_state.get("logged_in", False):
         """, unsafe_allow_html=True)
 
    
+
     # --- Returning Student Tab (Google + manual login) ---
     with tab1:
-        do_google_oauth()   # Google button first
+        do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
             login_id   = st.text_input("Student Code or Email")
@@ -525,13 +526,14 @@ if not st.session_state.get("logged_in", False):
                         if data.get("password") != login_pass:
                             st.error("Incorrect password.")
                         else:
-                            # — FIX: convert Series -> dict, then update session_state
+                            # Convert Series → dict for session
                             st.session_state.update({
                                 "logged_in":   True,
                                 "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
                             })
+                            # Persist login in cookie + localStorage
                             save_cookie_after_login(student_row["StudentCode"])
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
@@ -565,6 +567,8 @@ if not st.session_state.get("logged_in", False):
                         "password": new_password
                     })
                     st.success("Account created! Please log in above.")
+#
+
 
 
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
@@ -598,16 +602,27 @@ if not st.session_state.get("logged_in", False):
     """, unsafe_allow_html=True)
     st.stop()
 
+
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager["student_code"] = ""    # Properly clears the cookie (cross-device safe)
+    # 1) Clear persistent cookie
+    cookie_manager["student_code"] = ""
     cookie_manager.save()
-    # Clear all login/session state info
+
+    # 2) Clear localStorage for cross-tab/iOS persistence
+    components.html(
+        "<script>localStorage.removeItem('student_code');</script>",
+        height=0
+    )
+
+    # 3) Clear session_state
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
+
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 
@@ -6911,6 +6926,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
