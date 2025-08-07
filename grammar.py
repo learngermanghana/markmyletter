@@ -320,7 +320,6 @@ if not st.session_state["logged_in"] and code_from_cookie:
         })
 
 
-import streamlit as st
 
 # --- 1) Page config & session init ---------------------------------------------
 st.set_page_config(
@@ -402,8 +401,34 @@ if not st.session_state.logged_in:
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
-    # --- Returning Student Tab (manual login) ---
+    # Google OAuth helper for "Returning" tab
+    def do_google_oauth():
+        params = {
+            "client_id":     GOOGLE_CLIENT_ID,      # <-- ensure you define this!
+            "redirect_uri":  REDIRECT_URI,          # <-- ensure you define this!
+            "response_type": "code",
+            "scope":         "openid email profile",
+            "prompt":        "select_account"
+        }
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+        st.markdown(f"""
+        <div style="text-align:center; margin:12px 0;">
+            <a href="{auth_url}">
+                <button style="background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 1px 2px #0001;padding:0 18px 0 0;display:inline-flex;align-items:center;font-size:1.07em;">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png" width="24" height="24" style="margin-right:10px;vertical-align:middle;border-radius:3px;" alt="Google Logo"/>
+                    <span style="color:#222;font-weight:500;">Sign in with Google</span>
+                </button>
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- Returning Student Tab (manual login + Google login) ---
     with tab1:
+        # Google Login Button (shows official logo)
+        do_google_oauth()
+        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+        
+        # Manual login form
         with st.form("login_form", clear_on_submit=False):
             login_id   = st.text_input("Student Code or Email")
             login_pass = st.text_input("Password", type="password")
@@ -470,6 +495,7 @@ if not st.session_state.logged_in:
                         "password": new_password
                     })
                     st.success("Account created! Please log in above.")
+
 
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
@@ -6817,6 +6843,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
