@@ -380,9 +380,9 @@ if not st.session_state.logged_in:
 
 
 def save_cookie_after_login(student_code):
-    # 6 months expiry: iPhone users stay logged in!
-    cookie_manager.set("student_code", student_code, expires=datetime.utcnow() + timedelta(days=180))
+    cookie_manager["student_code"] = student_code
     cookie_manager.save()
+
 
 if not st.session_state.logged_in:
     # Support / Help section
@@ -6854,6 +6854,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
