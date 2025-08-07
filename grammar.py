@@ -315,7 +315,7 @@ if "student_code" in params and params["student_code"]:
     cookie_manager["student_code"] = sc
     cookie_manager.save()
     # Clear student_code param from URL and re-run just ONCE
-    st.query_params
+    st.query_params.clear()
     st.rerun()
 
 # 3) Normal cookie manager init (for all further cookie reads/writes)
@@ -6929,6 +6929,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
