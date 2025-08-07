@@ -5021,7 +5021,9 @@ if tab == "Exams Mode & Custom Chat":
                     back_step()
             with col3:
                 if st.button("Change Level"):
-                    change_level()
+                    # Reset to level selection stage
+                    st.session_state["falowen_stage"] = 1
+                    st.rerun()
 
             # Delete entire chat history button
             delete_col1, delete_col2 = st.columns([1, 5])
@@ -5036,6 +5038,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.success("All chat history deleted.")
                     st.rerun()
 #
+
 
 
         # Initial instruction if chat is empty
@@ -6976,6 +6979,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
