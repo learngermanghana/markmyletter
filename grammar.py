@@ -281,9 +281,9 @@ def is_contract_expired(row):
     return expiry_date.date() < today
 
 
-# ——————————————————————————————————————————————————————————————————————
-# 0) Cookie + localStorage “SSO” Setup (works on iPhone/Safari too)
-# ——————————————————————————————————————————————————————————————————————
+# ————————————————————————————————————————————————————————
+# 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
+# ————————————————————————————————————————————————————————
 
 # 1) Push localStorage.student_code → URL query param via JS
 components.html("""
@@ -295,35 +295,41 @@ components.html("""
       if (!url.searchParams.get('student_code')) {
         url.searchParams.set('student_code', code);
         window.history.replaceState({}, '', url);
+        // This line will update URL bar, but not reload the page. (Good!)
       }
     }
   })();
 </script>
 """, height=0)
 
-# 2) Read student_code from URL, write to cookie exactly once, then rerun
+# 2) Read student_code from URL, save to cookie, then rerun ONCE to clear the param
 params = st.experimental_get_query_params()
 if "student_code" in params and params["student_code"]:
-    sc = params["student_code"][0]
+    sc = params["student_code"][0].strip().lower()
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+    if not COOKIE_SECRET:
+        st.stop()
     cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
     cookie_manager.ready()
-    # Persist cookie
+    # Persist cookie for max (180 days)
     cookie_manager["student_code"] = sc
     cookie_manager.save()
-    # Clear URL param and restart so we don’t save again this run
+    # Clear student_code param from URL and re-run just ONCE
     st.experimental_set_query_params()
     st.experimental_rerun()
 
-# 3) Normal cookie manager init (for auto-login below)
+# 3) Normal cookie manager init (for all further cookie reads/writes)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing.")
+    st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 cookie_manager.ready()
 if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# 4) Ensure session_state keys
+# 4) Ensure all needed session_state keys exist
 for key, default in [
     ("logged_in", False),
     ("student_row", None),
@@ -332,7 +338,7 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 5) Auto-login from cookie (no further cookie.save())
+# 5) Try auto-login from cookie (no repeated save needed here!)
 code_from_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 if not st.session_state["logged_in"] and code_from_cookie:
     df_students = load_student_data()
@@ -348,14 +354,12 @@ if not st.session_state["logged_in"] and code_from_cookie:
                 "student_name": student_row["Name"]
             })
         else:
-            # Expired: clear cookie & localStorage, then stop
+            # Expired contract: clear cookie AND localStorage, then stop
             cookie_manager["student_code"] = ""
             cookie_manager.save()
             components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
             st.error("Your contract has expired. Please contact the office.")
             st.stop()
-
-
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -404,12 +408,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3) Public Homepage --------------------------------------------------------
-if not st.session_state.logged_in:
+if not st.session_state.get("logged_in", False):
     st.markdown("""
     <div class="hero">
       <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
       <p style="text-align:center; font-size:1.1em; color:#555;">
-        Falowen is your all-in-one German learning platform, powered by <b>Learn Language Education Academy</b>, with courses and vocabulary from <b>A1 to C1</b> levels and live tutor support.
+        Falowen is your all-in-one German learning platform, powered by <b>Learn Language Education Academy</b>,
+        with courses and vocabulary from <b>A1 to C1</b> levels and live tutor support.
       </p>
       <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
         <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
@@ -423,14 +428,12 @@ if not st.session_state.logged_in:
     </div>
     """, unsafe_allow_html=True)
 
-
-
 # --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
     # 1) Persistent cookie
     cookie_manager["student_code"] = student_code
     cookie_manager.save()
-    # 2) Mirror into localStorage for iOS/Safari persistence
+    # 2) Mirror into localStorage (for iOS/Safari/tab switch reliability)
     components.html(
         f"<script>localStorage.setItem('student_code','{student_code}');</script>",
         height=0
@@ -446,6 +449,7 @@ if not st.session_state.get("logged_in", False):
       <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
     </div>
     """, unsafe_allow_html=True)
+
 
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
@@ -493,7 +497,7 @@ if not st.session_state.get("logged_in", False):
 
    
 
-    # --- Returning Student Tab (Google + manual login) ---
+        # --- Returning Student Tab (Google + manual login) ---
     with tab1:
         do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
@@ -567,7 +571,6 @@ if not st.session_state.get("logged_in", False):
                         "password": new_password
                     })
                     st.success("Account created! Please log in above.")
-#
 
 
 
@@ -602,7 +605,6 @@ if not st.session_state.get("logged_in", False):
     """, unsafe_allow_html=True)
     st.stop()
 
-
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
@@ -616,12 +618,13 @@ if st.button("Log out"):
         height=0
     )
 
-    # 3) Clear session_state
+    # 3) Clear Streamlit session state
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
 
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 
@@ -6926,6 +6929,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
