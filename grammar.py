@@ -543,12 +543,13 @@ if not st.session_state.logged_in:
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    cookie_manager.delete("student_code")   # <-- This really deletes the cookie, not just blank!
+    cookie_manager["student_code"] = ""
     cookie_manager.save()
     for k in ["logged_in", "student_row", "student_code", "student_name"]:
         st.session_state[k] = False if k == "logged_in" else ""
     st.success("You have been logged out.")
     st.rerun()
+
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -6854,6 +6855,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
