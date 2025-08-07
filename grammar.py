@@ -404,8 +404,8 @@ if not st.session_state.logged_in:
     # --- Google OAuth helper for "Returning" tab ---
     def do_google_oauth():
         params = {
-            "client_id":     GOOGLE_CLIENT_ID,      # <-- Your secret value!
-            "redirect_uri":  REDIRECT_URI,          # <-- Your secret value!
+            "client_id":     GOOGLE_CLIENT_ID,
+            "redirect_uri":  REDIRECT_URI,
             "response_type": "code",
             "scope":         "openid email profile",
             "prompt":        "select_account"
@@ -442,21 +442,10 @@ if not st.session_state.logged_in:
         </div>
         """, unsafe_allow_html=True)
 
-    # --- Returning Student Tab (manual login) ---
+    # --- Returning Student Tab (Google + manual login) ---
     with tab1:
-        do_google_oauth()   # Show Google button first
+        do_google_oauth()   # Google button first
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        with st.form("login_form", clear_on_submit=False):
-            login_id   = st.text_input("Student Code or Email")
-            login_pass = st.text_input("Password", type="password")
-            login_btn  = st.form_submit_button("Log In")
-    # --- Returning Student Tab (manual login + Google login) ---
-    with tab1:
-        # Google Login Button (shows official logo)
-        do_google_oauth()
-        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        
-        # Manual login form
         with st.form("login_form", clear_on_submit=False):
             login_id   = st.text_input("Student Code or Email")
             login_pass = st.text_input("Password", type="password")
@@ -6871,6 +6860,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
