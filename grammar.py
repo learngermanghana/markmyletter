@@ -387,8 +387,6 @@ if not st.session_state.logged_in:
     """, unsafe_allow_html=True)
 
 
-import streamlit as st
-import urllib.parse
 
 # --- Save student code to cookie after login ---
 def save_cookie_after_login(student_code):
@@ -857,9 +855,6 @@ if st.session_state.get("logged_in"):
 
     st.divider()
 
-#
-
-
 
 
     # ---------- Tab Tips Section (only on Dashboard) ----------
@@ -1206,26 +1201,25 @@ if tab == "Dashboard":
         st.warning("No exam date configured for your level.")
 
     # --- Reviews Section ---
+    import datetime
+
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()
+    reviews = load_reviews()   # <-- assumes this returns a DataFrame with 'review_text', 'student_name', 'rating' columns
+
     if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
     else:
         rev_list = reviews.to_dict("records")
-        if "rev_idx" not in st.session_state:
-            st.session_state["rev_idx"] = 0
-            st.session_state["rev_last_time"] = time.time()
-        if time.time() - st.session_state["rev_last_time"] > 8:
-            st.session_state["rev_idx"] = (st.session_state["rev_idx"] + 1) % len(rev_list)
-            st.session_state["rev_last_time"] = time.time()
-            st.rerun()
-        r = rev_list[st.session_state["rev_idx"]]
+        # Pick one review per day using today's date
+        today_idx = datetime.date.today().toordinal() % len(rev_list)
+        r = rev_list[today_idx]
         stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
         st.markdown(
             f"> {r.get('review_text','')}\n"
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
+#
 
 
 def get_a1_schedule():
@@ -6869,6 +6863,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
