@@ -301,7 +301,7 @@ components.html("""
 </script>
 """, height=0)
 
-# 2) Read student_code from URL, save to cookie, then rerun ONCE to clear the param
+# 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
 params = st.query_params
 if "student_code" in params and params["student_code"]:
     # st.query_params always returns a list for each key
@@ -310,9 +310,18 @@ if "student_code" in params and params["student_code"]:
     if not COOKIE_SECRET:
         st.stop()
     cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-    cookie_manager.ready()
-    # Persist cookie for max (180 days)
-    cookie_manager["student_code"] = sc
+    cookies_ready = cookie_manager.ready()  # Only call once!
+    if not cookies_ready:
+        st.warning("Cookies not ready; please refresh.")
+        st.stop()
+    # Set cookie with secure and SameSite=None
+    cookie_manager.set(
+        "student_code",
+        sc,
+        expires=datetime.utcnow() + timedelta(days=180),
+        secure=True,
+        samesite="None",
+    )
     cookie_manager.save()
     # Clear student_code param from URL and re-run just ONCE
     st.query_params.clear()
@@ -324,8 +333,8 @@ if not COOKIE_SECRET:
     st.error("Cookie secret missing.")
     st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-cookie_manager.ready()
-if not cookie_manager.ready():
+cookies_ready = cookie_manager.ready()  # Only call once per session!
+if not cookies_ready:
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
@@ -355,11 +364,18 @@ if not st.session_state["logged_in"] and code_from_cookie:
             })
         else:
             # Expired contract: clear cookie AND localStorage, then stop
-            cookie_manager["student_code"] = ""
+            cookie_manager.set(
+                "student_code",
+                "",
+                expires=datetime.utcnow() + timedelta(days=1),
+                secure=True,
+                samesite="None",
+            )
             cookie_manager.save()
             components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
             st.error("Your contract has expired. Please contact the office.")
             st.stop()
+
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -428,19 +444,29 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
+
 # --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
-    # 1) Persistent cookie
-    cookie_manager["student_code"] = student_code
+    # 1) Persistent cookie (Safari/Chrome iOS require Secure + SameSite=None)
+    cookie_manager.set(
+        "student_code",
+        str(student_code).strip().lower(),
+        expires=datetime.utcnow() + timedelta(days=180),
+        secure=True,
+        samesite="None",
+    )
     cookie_manager.save()
-    # 2) Mirror into localStorage (for iOS/Safari/tab switch reliability)
+
+    # 2) Mirror into localStorage (fallback/resilience on iOS/Safari)
+    # Use JSON encoding to avoid any quoting/XSS issues.
+    safe_code = json.dumps(str(student_code).strip().lower())
     components.html(
-        f"<script>localStorage.setItem('student_code','{student_code}');</script>",
+        f"<script>localStorage.setItem('student_code', {safe_code});</script>",
         height=0
     )
 
 if not st.session_state.get("logged_in", False):
-    # Support / Help section
+    # Support / Help section (unchanged)
     st.markdown("""
     <div class="help-contact-box">
       <b>❓ Need help or access?</b><br>
@@ -449,7 +475,6 @@ if not st.session_state.get("logged_in", False):
       <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
     </div>
     """, unsafe_allow_html=True)
-
 
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
@@ -495,24 +520,26 @@ if not st.session_state.get("logged_in", False):
         </div>
         """, unsafe_allow_html=True)
 
-   
-
-        # --- Returning Student Tab (Google + manual login) ---
+    # --- Returning Student Tab (Google + manual login) ---
     with tab1:
         do_google_oauth()
         st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
-            login_id   = st.text_input("Student Code or Email")
-            login_pass = st.text_input("Password", type="password")
-            login_btn  = st.form_submit_button("Log In")
+            login_id_input   = st.text_input("Student Code or Email")
+            login_pass_input = st.text_input("Password", type="password")
+            login_btn        = st.form_submit_button("Log In")
 
         if login_btn:
+            # Normalize AFTER submit
+            login_id   = (login_id_input or "").strip().lower()
+            login_pass = (login_pass_input or "")
+
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
             lookup = df[
-                (df["StudentCode"] == login_id.lower()) |
-                (df["Email"]       == login_id.lower())
+                (df["StudentCode"] == login_id) |
+                (df["Email"]       == login_id)
             ]
 
             if lookup.empty:
@@ -522,22 +549,40 @@ if not st.session_state.get("logged_in", False):
                 if is_contract_expired(student_row):
                     st.error("Your contract has expired. Contact the office.")
                 else:
-                    doc = db.collection("students").document(student_row["StudentCode"]).get()
+                    doc_ref = db.collection("students").document(student_row["StudentCode"])
+                    doc     = doc_ref.get()
                     if not doc.exists:
                         st.error("Account not found. Please create one below.")
                     else:
-                        data = doc.to_dict()
-                        if data.get("password") != login_pass:
+                        data       = doc.to_dict() or {}
+                        stored_pw  = data.get("password", "")
+
+                        import bcrypt
+                        def _is_bcrypt_hash(s: str) -> bool:
+                            return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
+
+                        ok = False
+                        try:
+                            if _is_bcrypt_hash(stored_pw):
+                                ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
+                            else:
+                                # Legacy plaintext support + one-time migration to bcrypt
+                                ok = (stored_pw == login_pass)
+                                if ok:
+                                    new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                                    doc_ref.update({"password": new_hash})
+                        except Exception:
+                            ok = False
+
+                        if not ok:
                             st.error("Incorrect password.")
                         else:
-                            # Convert Series → dict for session
                             st.session_state.update({
                                 "logged_in":   True,
                                 "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
                                 "student_name": student_row["Name"]
                             })
-                            # Persist login in cookie + localStorage
                             save_cookie_after_login(student_row["StudentCode"])
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
@@ -545,15 +590,22 @@ if not st.session_state.get("logged_in", False):
     # --- New Student Tab (signup) ---
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
-            new_name     = st.text_input("Full Name", key="ca_name")
-            new_email    = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
-            new_code     = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
-            new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
-            signup_btn   = st.form_submit_button("Create Account")
+            new_name_input     = st.text_input("Full Name", key="ca_name")
+            new_email_input    = st.text_input("Email (must match teacher’s record)", key="ca_email")
+            new_code_input     = st.text_input("Student Code (from teacher)", key="ca_code")
+            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_btn         = st.form_submit_button("Create Account")
 
         if signup_btn:
+            new_name     = (new_name_input or "").strip()
+            new_email    = (new_email_input or "").strip().lower()
+            new_code     = (new_code_input or "").strip().lower()
+            new_password = (new_password_input or "")
+
             if not (new_name and new_email and new_code and new_password):
                 st.error("Please fill in all fields.")
+            elif len(new_password) < 8:
+                st.error("Password must be at least 8 characters.")
             else:
                 df = load_student_data()
                 df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
@@ -565,12 +617,19 @@ if not st.session_state.get("logged_in", False):
                 if valid.empty:
                     st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
                 else:
-                    db.collection("students").document(new_code).set({
-                        "name":     new_name,
-                        "email":    new_email,
-                        "password": new_password
-                    })
-                    st.success("Account created! Please log in above.")
+                    doc_ref = db.collection("students").document(new_code)
+                    if doc_ref.get().exists:
+                        st.error("An account with this student code already exists. Please log in instead.")
+                    else:
+                        import bcrypt
+                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                        doc_ref.set({
+                            "name":     new_name,
+                            "email":    new_email,
+                            "password": hashed_pw
+                        })
+                        st.success("Account created! Please log in above.")
+# 
 
 
 
@@ -608,8 +667,16 @@ if not st.session_state.get("logged_in", False):
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 if st.button("Log out"):
-    # 1) Clear persistent cookie
-    cookie_manager["student_code"] = ""
+    from datetime import datetime, timedelta
+
+    # 1) Clear persistent cookie (Safari-safe)
+    cookie_manager.set(
+        "student_code",
+        "",
+        expires=datetime.utcnow() + timedelta(days=1),  # expire quickly
+        secure=True,
+        samesite="None",
+    )
     cookie_manager.save()
 
     # 2) Clear localStorage for cross-tab/iOS persistence
@@ -624,9 +691,6 @@ if st.button("Log out"):
 
     st.success("You have been logged out.")
     st.rerun()
-
-
-
 
 
 
@@ -6989,6 +7053,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
