@@ -1,35 +1,33 @@
 # ==== Standard Library ====
+import atexit
+import base64
+import difflib
+import io
+import json
 import os
 import random
-import difflib
-import sqlite3
-import atexit
-import json
 import re
-import streamlit.components.v1 as components
-from datetime import date, datetime, timedelta
+import sqlite3
 import time
-import io
-import bcrypt
-import tempfile
 import urllib.parse
-import base64
-
+from datetime import date, datetime, timedelta
 
 # ==== Third-Party Packages ====
-import pandas as pd
-import streamlit as st
-import matplotlib.pyplot as plt
-import requests
-from openai import OpenAI
+import bcrypt
 import firebase_admin
-from firebase_admin import credentials, firestore
-from fpdf import FPDF
-from streamlit_cookies_manager import EncryptedCookieManager
-from docx import Document
-from gtts import gTTS
-from streamlit_quill import st_quill
+import matplotlib.pyplot as plt
+import pandas as pd
+import requests
+import streamlit as st
+import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
+from docx import Document
+from fpdf import FPDF
+from gtts import gTTS
+from openai import OpenAI
+from firebase_admin import credentials, firestore
+from streamlit_cookies_manager import EncryptedCookieManager
+from streamlit_quill import st_quill
 
 
 
@@ -6997,6 +6995,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
