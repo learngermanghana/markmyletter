@@ -295,7 +295,6 @@ components.html("""
       if (!url.searchParams.get('student_code')) {
         url.searchParams.set('student_code', code);
         window.history.replaceState({}, '', url);
-        // This line will update URL bar, but not reload the page. (Good!)
       }
     }
   })();
@@ -303,9 +302,10 @@ components.html("""
 """, height=0)
 
 # 2) Read student_code from URL, save to cookie, then rerun ONCE to clear the param
-params = st.experimental_get_query_params()
+params = st.query_params
 if "student_code" in params and params["student_code"]:
-    sc = params["student_code"][0].strip().lower()
+    # st.query_params always returns a list for each key
+    sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
     COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
     if not COOKIE_SECRET:
         st.stop()
@@ -6929,6 +6929,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
