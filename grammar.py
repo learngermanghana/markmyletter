@@ -5137,25 +5137,6 @@ if tab == "Exams Mode & Custom Chat":
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
         student_code = st.session_state.get("student_code", "demo")
 
-        # Show sample image before chat starts
-        if (
-            is_exam
-            and level
-            and teil
-            and not st.session_state.get("falowen_messages")
-        ):
-            teil_short = ""
-            if "Teil 1" in teil:
-                teil_short = "Teil 1"
-            elif "Teil 2" in teil:
-                teil_short = "Teil 2"
-            elif "Teil 3" in teil:
-                teil_short = "Teil 3"
-            img_key = (level, teil_short)
-            if img_key in image_map:
-                img = image_map[img_key]
-                st.image(img["url"], width=380, caption=img["caption"])
-
         # Load chat from db once
         if not st.session_state.get("_falowen_loaded"):
             loaded = load_falowen_chat(student_code, mode, level, teil)
@@ -7174,6 +7155,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
