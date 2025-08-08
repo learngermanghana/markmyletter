@@ -5553,8 +5553,6 @@ def get_student_level(student_code):
     return "A1"
 
 # sentence_bank.py
-# sentence_bank.py
-
 SENTENCE_BANK = {
     "A1": [
         {
@@ -6466,7 +6464,7 @@ SENTENCE_BANK = {
 # =========================
 # Vocab Trainer (level-locked)
 # =========================
-from sentence_bank import SENTENCE_BANK  # <-- keep dictionary outside the codebase for easy updates
+
 
 # Load sheet -> vocab lists (kept as-is)
 @st.cache_data
@@ -7881,6 +7879,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
