@@ -6527,14 +6527,121 @@ def get_vocab_stats(student_code):
     }
 
 # ================================
+# IMPORTS USED BY HELPERS
+# ================================
+import pandas as pd
+import importlib
+from datetime import datetime
+import streamlit as st
+
+# ================================
+# HELPERS: Level loading (Google Sheet)
+# ================================
+@st.cache_data
+def load_student_levels():
+    """
+    Load the roster with a 'Level' column.
+    Expected columns (case-insensitive): student_code, level
+    We normalize headers and try common alternatives for student code and level.
+    """
+    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    df = pd.read_csv(csv_url)
+    # normalize headers
+    df.columns = [c.strip().lower() for c in df.columns]
+
+    # try to align student_code column
+    code_col_candidates = ["student_code", "studentcode", "code", "student id", "id"]
+    level_col_candidates = ["level", "klasse", "stufe"]
+    code_col = next((c for c in code_col_candidates if c in df.columns), None)
+    level_col = next((c for c in level_col_candidates if c in df.columns), None)
+
+    if code_col is None or level_col is None:
+        st.error(
+            f"Roster is missing required columns. "
+            f"Found: {list(df.columns)}; need one of {code_col_candidates} and one of {level_col_candidates}."
+        )
+        # still return something so callers don't crash
+        df["__dummy_code__"] = "demo001"
+        df["__dummy_level__"] = "A1"
+        return df.rename(columns={"__dummy_code__": "student_code", "__dummy_level__": "level"})
+
+    # rename to canonical names
+    df = df.rename(columns={code_col: "student_code", level_col: "level"})
+    return df
+
+def get_student_level(student_code: str, default: str = "A1") -> str:
+    """
+    Return student's Level (A1..C1) from the roster for this student_code.
+    Case-insensitive match on student_code.
+    """
+    try:
+        df = load_student_levels()
+        # ensure columns exist after normalization/rename
+        if "student_code" not in df.columns or "level" not in df.columns:
+            return default
+        sc = str(student_code).strip().lower()
+        row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
+        if not row.empty:
+            return str(row.iloc[0]["level"]).upper().strip()
+        return default
+    except Exception as e:
+        st.warning(f"Could not load level from roster ({e}). Using default {default}.")
+        return default
+
+# ================================
+# HELPERS: Vocab stats (per-user)
+# ================================
+def save_vocab_attempt(student_code, level, total, correct, practiced_words):
+    """Save one vocab practice attempt to Firestore."""
+    doc_ref = db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    history = data.get("history", [])
+
+    attempt = {
+        "level": level,
+        "total": total,
+        "correct": correct,
+        "practiced_words": practiced_words,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    history.append(attempt)
+    best = max((a.get("correct", 0) for a in history), default=0)
+    completed = set(sum((a.get("practiced_words", []) for a in history), []))
+
+    doc_ref.set({
+        "history":           history,
+        "best":              best,
+        "last_practiced":    attempt["timestamp"],
+        "completed_words":   list(completed),
+        "total_sessions":    len(history),
+    }, merge=True)
+
+def get_vocab_stats(student_code):
+    """Load vocab practice stats from Firestore (or defaults)."""
+    doc_ref = db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    return {
+        "history":           [],
+        "best":              0,
+        "last_practiced":    None,
+        "completed_words":   [],
+        "total_sessions":    0,
+    }
+
+# ================================
 # LOAD SENTENCE BANK FROM EXTERNAL FILE
 # ================================
-import importlib
-
 def load_sentence_bank():
-    """Load SENTENCE_BANK dictionary from sentence.py so it can be updated externally."""
+    """
+    Load SENTENCE_BANK dictionary from sentence.py so it can be updated externally.
+    Ensure sentence.py is in the same folder and defines SENTENCE_BANK = {...}
+    """
     try:
-        mod = importlib.import_module("sentence")  # <-- your file name: sentence.py
+        mod = importlib.import_module("sentence")  # file must be sentence.py
         bank = getattr(mod, "SENTENCE_BANK", None)
         if not isinstance(bank, dict):
             st.error("`SENTENCE_BANK` found in sentence.py is not a dictionary.")
@@ -6548,7 +6655,6 @@ def load_sentence_bank():
         return {}
 
 SENTENCE_BANK = load_sentence_bank()
-
 
 # ================================
 # HELPERS: Writing (Sentence Builder) persistence
@@ -6589,7 +6695,6 @@ def get_sentence_progress(student_code: str, level: str):
     total_items = len(SENTENCE_BANK.get(level, []))
     return len(correct_set), total_items
 
-
 # ================================
 # HELPERS: Vocab CSV (optional flashcards list)
 # ================================
@@ -6598,7 +6703,7 @@ def load_vocab_lists():
     """
     Optional CSV for flashcards: columns Level, German, English
     """
-    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"  # Your Google Sheet ID
+    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"  # Vocab sheet
     csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
     try:
         df = pd.read_csv(csv_url)
@@ -6617,7 +6722,6 @@ def load_vocab_lists():
     return lists
 
 VOCAB_LISTS = load_vocab_lists()
-
 
 # ================================
 # SMALL UI HELPERS
@@ -6648,6 +6752,9 @@ def normalize_join(tokens):
     for p in [",", ".", "!", "?", ":", ";"]:
         s = s.replace(f" {p}", p)
     return s
+
+
+
 
 
 
@@ -7976,6 +8083,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
