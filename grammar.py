@@ -1,4 +1,4 @@
-nmbhnbnbjhftgbtdedfgefxcftft# ==== Standard Library ====
+ ==== Standard Library ====
 import atexit
 import base64
 import bcrypt
@@ -30,17 +30,6 @@ from openai import OpenAI
 from streamlit.components.v1 import html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
-
-# ==== Standard Library ====
-import os
-import time
-
-# ==== Third-Party ====
-import streamlit as st
-import bcrypt
-import firebase_admin
-from firebase_admin import credentials, firestore
-
 
 
 st.sidebar.title("Falowen")
@@ -7228,6 +7217,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
