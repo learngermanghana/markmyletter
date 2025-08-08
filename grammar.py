@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
+import importlib
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
@@ -6375,78 +6376,15 @@ SENTENCE_BANK = {
     ]
 }
 
-# ================================
-# HELPERS: Level loading (Google Sheet)
-# ================================
-@st.cache_data
-def load_student_levels():
-    """Load the roster with Level column. Must contain columns: student_code, level."""
-    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    df = pd.read_csv(csv_url)
-    df.columns = [c.strip().lower() for c in df.columns]
-    return df
 
-def get_student_level(student_code: str, default="A1"):
-    """Return level (A1..C1) from 'Level' column for this student_code."""
-    df = load_student_levels()
-    sc = str(student_code).strip().lower()
-    row = df[df['student_code'].astype(str).str.strip().str.lower() == sc]
-    if not row.empty:
-        return str(row.iloc[0]['level']).upper().strip()
-    return default
+# If you initialize Firestore elsewhere, expose it here.
+# This helper prevents NameError if db isn't ready.
+def _get_db():
+    try:
+        return db  # provided by your app elsewhere
+    except NameError:
+        return None
 
-
-# ================================
-# HELPERS: Vocab stats (per-user)
-# ================================
-def save_vocab_attempt(student_code, level, total, correct, practiced_words):
-    """Save one vocab practice attempt to Firestore."""
-    doc_ref = db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    history = data.get("history", [])
-
-    attempt = {
-        "level": level,
-        "total": total,
-        "correct": correct,
-        "practiced_words": practiced_words,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    }
-    history.append(attempt)
-    best = max((a["correct"] for a in history), default=0)
-    completed = set(sum((a["practiced_words"] for a in history), []))
-
-    doc_ref.set({
-        "history":           history,
-        "best":              best,
-        "last_practiced":    attempt["timestamp"],
-        "completed_words":   list(completed),
-        "total_sessions":    len(history),
-    }, merge=True)
-
-def get_vocab_stats(student_code):
-    """Load vocab practice stats from Firestore (or defaults)."""
-    doc_ref = db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    return {
-        "history":           [],
-        "best":              0,
-        "last_practiced":    None,
-        "completed_words":   [],
-        "total_sessions":    0,
-    }
-
-# ================================
-# IMPORTS USED BY HELPERS
-# ================================
-import pandas as pd
-import importlib
-from datetime import datetime
-import streamlit as st
 
 # ================================
 # HELPERS: Level loading (Google Sheet)
@@ -6503,12 +6441,18 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
         st.warning(f"Could not load level from roster ({e}). Using default {default}.")
         return default
 
+
 # ================================
 # HELPERS: Vocab stats (per-user)
 # ================================
 def save_vocab_attempt(student_code, level, total, correct, practiced_words):
     """Save one vocab practice attempt to Firestore."""
-    doc_ref = db.collection("vocab_stats").document(student_code)
+    _db = _get_db()
+    if _db is None:
+        st.warning("Firestore not initialized; skipping stats save.")
+        return
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
@@ -6534,7 +6478,17 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words):
 
 def get_vocab_stats(student_code):
     """Load vocab practice stats from Firestore (or defaults)."""
-    doc_ref = db.collection("vocab_stats").document(student_code)
+    _db = _get_db()
+    if _db is None:
+        return {
+            "history":           [],
+            "best":              0,
+            "last_practiced":    None,
+            "completed_words":   [],
+            "total_sessions":    0,
+        }
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
         return doc.to_dict()
@@ -6545,6 +6499,7 @@ def get_vocab_stats(student_code):
         "completed_words":   [],
         "total_sessions":    0,
     }
+
 
 # ================================
 # LOAD SENTENCE BANK FROM EXTERNAL FILE
@@ -6570,12 +6525,18 @@ def load_sentence_bank():
 
 SENTENCE_BANK = load_sentence_bank()
 
+
 # ================================
 # HELPERS: Writing (Sentence Builder) persistence
 # ================================
 def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
     """Append a sentence-builder attempt to Firestore."""
-    doc_ref = db.collection("sentence_builder_stats").document(student_code)
+    _db = _get_db()
+    if _db is None:
+        st.warning("Firestore not initialized; skipping sentence stats save.")
+        return
+
+    doc_ref = _db.collection("sentence_builder_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
@@ -6598,16 +6559,19 @@ def get_sentence_progress(student_code: str, level: str):
     Returns (correct_unique_count, total_items_for_level)
     based on history in 'sentence_builder_stats'.
     """
-    ref = db.collection("sentence_builder_stats").document(student_code)
-    doc = ref.get()
+    _db = _get_db()
     correct_set = set()
-    if doc.exists:
-        data = doc.to_dict()
-        for h in data.get("history", []):
-            if h.get("level") == level and h.get("correct"):
-                correct_set.add(h.get("target"))
+    if _db is not None:
+        ref = _db.collection("sentence_builder_stats").document(student_code)
+        doc = ref.get()
+        if doc.exists:
+            data = doc.to_dict()
+            for h in data.get("history", []):
+                if h.get("level") == level and h.get("correct"):
+                    correct_set.add(h.get("target"))
     total_items = len(SENTENCE_BANK.get(level, []))
     return len(correct_set), total_items
+
 
 # ================================
 # HELPERS: Vocab CSV (optional flashcards list)
@@ -6637,8 +6601,9 @@ def load_vocab_lists():
 
 VOCAB_LISTS = load_vocab_lists()
 
+
 # ================================
-# SMALL UI HELPERS
+# SMALL UI + CHECK HELPERS
 # ================================
 def render_message(role, msg):
     align   = "left"   if role=="assistant" else "right"
@@ -6657,8 +6622,9 @@ def clean_text(text):
 
 def is_correct_answer(user_input, answer):
     import re
-    possible = [a.strip().lower() for a in re.split(r"[,/;]", answer)]
-    return clean_text(user_input) in possible
+    # Clean both sides; accept comma/;/ slash-separated variants
+    possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
+    return clean_text(str(user_input)) in possible
 
 def normalize_join(tokens):
     """Join tokens and fix spaces before punctuation for sentence builder."""
@@ -6667,151 +6633,275 @@ def normalize_join(tokens):
         s = s.replace(f" {p}", p)
     return s
 
-# ===========================
-# SUBTAB: Writing Practice (Sentence Builder)
-# ===========================
-elif subtab == "Writing Practice":
-    student_level = student_level_locked
-    st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
-    # Lifetime progress bar (works even if no items)
-    done_unique, total_items = get_sentence_progress(student_code, student_level)
-    pct = int((done_unique / total_items) * 100) if total_items else 0
-    st.progress(pct)
-    st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
+# ================================
+# TAB: Vocab Trainer (locked by Level)
+# NOTE: assumes `tab` is defined in your outer app layout.
+# ================================
+if tab == "Vocab Trainer":
+    # --- Who is this? ---
+    student_code = st.session_state.get("student_code", "demo001")
 
+    # --- Lock the level from your Sheet ---
+    student_level_locked = get_student_level(student_code, default=(st.session_state.get("student_level","A1")))
+    if not student_level_locked:
+        student_level_locked = "A1"
+
+    # Header
     st.markdown(
         """
-        <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
-          ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
+        <div style="
+            padding:8px 12px; background:#6f42c1; color:#fff;
+            border-radius:6px; text-align:center; margin-bottom:8px;
+            font-size:1.3rem;">
+        📚 Vocab Trainer
         </div>
         """,
         unsafe_allow_html=True
     )
-    st.caption("Tip: Click words to build the sentence. Clear to reset, Check to submit, Next for a new one.")
-    st.markdown("**What these numbers mean:**  \n- **Score** = Correct sentences *this session*.  \n- **Progress** (bar above) = Unique sentences you have *ever* solved at this level.")
-
-    # --- Early exit if your sentence bank has no items for this level ---
-    bank_for_level = SENTENCE_BANK.get(student_level, [])
-    if not bank_for_level:
-        st.warning(f"No sentence items available for level **{student_level}**. Please add items to SENTENCE_BANK.")
-        st.stop()
-
-    # -------- Session state defaults --------
-    init_defaults = {
-        "sb_round": 0,
-        "sb_pool": None,
-        "sb_pool_level": None,
-        "sb_current": None,
-        "sb_shuffled": [],
-        "sb_selected_idx": [],
-        "sb_score": 0,
-        "sb_total": 0,
-        "sb_feedback": "",
-        "sb_correct": None,
-    }
-    for k, v in init_defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-    # target setting default (avoid assigning widget return back to session_state directly)
-    if "sb_target" not in st.session_state:
-        st.session_state["sb_target"] = 5
-
-    # -------- Initialize / reset when level changes --------
-    if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
-        import random
-        st.session_state.sb_pool_level = student_level
-        st.session_state.sb_pool = bank_for_level.copy()
-        random.shuffle(st.session_state.sb_pool)
-        st.session_state.sb_round = 0
-        st.session_state.sb_score = 0
-        st.session_state.sb_total = 0
-        st.session_state.sb_feedback = ""
-        st.session_state.sb_correct = None
-        st.session_state.sb_current = None
-        st.session_state.sb_selected_idx = []
-        st.session_state.sb_shuffled = []
-
-    # -------- Helper to start a new sentence --------
-    def new_sentence():
-        import random
-        # Refill pool if exhausted (shouldn't pop from empty list)
-        if not st.session_state.sb_pool:
-            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, []).copy()
-            random.shuffle(st.session_state.sb_pool)
-        # Still empty? bail out gracefully
-        if not st.session_state.sb_pool:
-            st.warning("No more sentences available. Please add more to the bank.")
-            return
-        st.session_state.sb_current = st.session_state.sb_pool.pop()
-        words = st.session_state.sb_current["words"][:]
-        random.shuffle(words)
-        st.session_state.sb_shuffled = words
-        st.session_state.sb_selected_idx = []
-        st.session_state.sb_feedback = ""
-        st.session_state.sb_correct = None
-        st.session_state.sb_round += 1
-
-    # Ensure we have a current sentence
-    if st.session_state.sb_current is None:
-        new_sentence()
-        if st.session_state.sb_current is None:
-            st.stop()  # nothing to do
-
-    # -------- Top metrics for this session --------
-    cols = st.columns([3, 2, 2])
-    with cols[0]:
-        # IMPORTANT: don't assign widget return to st.session_state["sb_target"] yourself;
-        # the widget manages that because we pass key="sb_target".
-        _ = st.number_input(
-            "Number of sentences this session",
-            min_value=1,
-            max_value=20,
-            value=st.session_state["sb_target"],
-            key="sb_target",
-        )
-    with cols[1]:
-        st.metric("Score (this session)", f"{st.session_state.sb_score}")
-    with cols[2]:
-        st.metric("Progress (this session)", f"{st.session_state.sb_total}/{int(st.session_state['sb_target'])}")
-
+    st.markdown(f"**Practicing Level:** `{student_level_locked}` (from your profile)")
+    st.caption("Your level is loaded automatically from the school list. Ask your tutor if this looks wrong.")
     st.divider()
 
-    # -------- Word buttons --------
-    st.markdown("#### 🧩 Click the words in order")
-    if st.session_state.sb_shuffled:
-        word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
-        for i, w in enumerate(st.session_state.sb_shuffled):
-            selected = i in st.session_state.sb_selected_idx
-            btn_label = f"✅ {w}" if selected else w
-            col = word_cols[i % len(word_cols)]
-            with col:
-                if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
-                    st.session_state.sb_selected_idx.append(i)
-                    st.rerun()
+    subtab = st.radio(
+        "Choose practice:",
+        ["Vocab Practice", "Writing Practice"],
+        horizontal=True,
+        key="vocab_practice_subtab"
+    )
 
-    # -------- Preview --------
-    chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
-    st.markdown("#### ✨ Your sentence")
-    st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
+    # ===========================
+    # SUBTAB: Vocab Practice (flashcards)
+    # ===========================
+    if subtab == "Vocab Practice":
+        # init session vars
+        defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
+        for k,v in defaults.items(): st.session_state.setdefault(k,v)
 
-    # -------- Actions --------
-    a, b, c = st.columns(3)
-    with a:
-        if st.button("🧹 Clear"):
-            st.session_state.sb_selected_idx = []
-            st.session_state.sb_feedback = ""
-            st.session_state.sb_correct = None
+        # stats
+        stats = get_vocab_stats(student_code)
+        st.markdown("### 📝 Your Vocab Stats")
+        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+        st.markdown(f"- **Best:** {stats['best']}")
+        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+        if st.checkbox("Show Last 5 Sessions"):
+            for a in stats["history"][-5:][::-1]:
+                st.markdown(
+                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                    unsafe_allow_html=True
+                )
+
+        # lock level
+        level = student_level_locked
+        items = VOCAB_LISTS.get(level, [])
+        completed = set(stats["completed_words"])
+        not_done  = [p for p in items if p[0] not in completed]
+        st.info(f"{len(not_done)} words NOT yet done at {level}.")
+
+        # reset button
+        if st.button("🔁 Start New Practice", key="vt_reset"):
+            for k in defaults: st.session_state[k]=defaults[k]
             st.rerun()
 
-    with b:
-        if st.button("✅ Check"):
-            target = st.session_state.sb_current.get("solution", "").strip()
-            chosen = normalize_join(chosen_tokens).strip()
-            if not target:
-                st.warning("This item is missing a solution. Please check your SENTENCE_BANK entry.")
+        mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
+        session_vocab = (not_done if mode=="Only new words" else items).copy()
+
+        # pick count and start
+        if st.session_state.vt_total is None:
+            maxc = len(session_vocab)
+            if maxc == 0:
+                st.success("🎉 All done! Switch to 'All words' to repeat.")
+                st.stop()
+            count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
+            if st.button("Start", key="vt_start"):
+                import random
+                random.shuffle(session_vocab)
+                st.session_state.vt_list    = session_vocab[:count]
+                st.session_state.vt_total   = count
+                st.session_state.vt_index   = 0
+                st.session_state.vt_score   = 0
+                st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+                st.rerun()
+
+        # show chat/history
+        if st.session_state.vt_history:
+            st.markdown("### 🗨️ Practice Chat")
+            for who,msg in st.session_state.vt_history:
+                render_message(who,msg)
+
+        # practice loop
+        tot = st.session_state.vt_total
+        idx = st.session_state.vt_index
+        if isinstance(tot,int) and idx<tot:
+            word,answer = st.session_state.vt_list[idx]
+
+            # audio
+            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
+                t = gTTS(text=word, lang="de")
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
+                    t.save(fp.name)
+                    st.audio(fp.name,format="audio/mp3")
+                    fp.seek(0); blob = fp.read()
+                st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
+
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            if usr and st.button("Check", key=f"vt_check_{idx}"):
+                st.session_state.vt_history.append(("user",usr))
+                if is_correct_answer(usr,answer):
+                    st.session_state.vt_score += 1
+                    fb = f"✅ Correct! '{word}' = '{answer}'"
+                else:
+                    fb = f"❌ Nope. '{word}' = '{answer}'"
+                st.session_state.vt_history.append(("assistant",fb))
+                st.session_state.vt_index += 1
+                st.rerun()
+
+        # done
+        if isinstance(tot,int) and idx>=tot:
+            score = st.session_state.vt_score
+            words = [w for w,_ in st.session_state.vt_list]
+            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
+            save_vocab_attempt(student_code, level, tot, score, words)
+            if st.button("Practice Again", key="vt_again"):
+                for k in defaults: st.session_state[k]=defaults[k]
+                st.rerun()
+
+    # ===========================
+    # SUBTAB: Writing Practice (Sentence Builder)
+    # ===========================
+    elif subtab == "Writing Practice":
+        student_level = student_level_locked
+        st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
+
+        # Lifetime progress bar
+        done_unique, total_items = get_sentence_progress(student_code, student_level)
+        pct = int((done_unique / total_items) * 100) if total_items else 0
+        st.progress(pct)
+        st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
+
+        st.markdown(
+            """
+            <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
+              ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.caption(
+            "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
+            "Next for a new one."
+        )
+        st.markdown(
+            "**What these numbers mean:**  \n"
+            "- **Score** = Correct sentences *this session*.  \n"
+            "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
+        )
+
+        # session state
+        init_defaults = {
+            "sb_round": 0,
+            "sb_pool": None,
+            "sb_pool_level": None,
+            "sb_current": None,
+            "sb_shuffled": [],
+            "sb_selected_idx": [],
+            "sb_score": 0,
+            "sb_total": 0,
+            "sb_feedback": "",
+            "sb_correct": None,
+        }
+        for k, v in init_defaults.items():
+            if k not in st.session_state:
+                st.session_state[k] = v
+
+        # init / level change
+        if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
+            import random
+            st.session_state.sb_pool_level = student_level
+            st.session_state.sb_pool = SENTENCE_BANK.get(
+                student_level, SENTENCE_BANK.get("A1", [])
+            ).copy()
+            random.shuffle(st.session_state.sb_pool)
+            st.session_state.sb_round = 0
+            st.session_state.sb_score = 0
+            st.session_state.sb_total = 0
+            st.session_state.sb_feedback = ""
+            st.session_state.sb_correct = None
+            st.session_state.sb_current = None
+            st.session_state.sb_selected_idx = []
+            st.session_state.sb_shuffled = []
+
+        def new_sentence():
+            import random
+            # Refill pool if empty
+            if not st.session_state.sb_pool:
+                st.session_state.sb_pool = SENTENCE_BANK.get(
+                    student_level, SENTENCE_BANK.get("A1", [])
+                ).copy()
+                random.shuffle(st.session_state.sb_pool)
+            if st.session_state.sb_pool:
+                st.session_state.sb_current = st.session_state.sb_pool.pop()
+                # ---- IMPORTANT: map your schema ----
+                # Expect keys: tokens (list), target_de (string), hint_en (string)
+                words = st.session_state.sb_current.get("tokens", [])[:]
+                random.shuffle(words)
+                st.session_state.sb_shuffled = words
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.session_state.sb_round += 1
             else:
+                st.warning("No sentences available for this level.")
+
+        if st.session_state.sb_current is None:
+            new_sentence()
+
+        # Top metrics for session
+        cols = st.columns([3, 2, 2])
+        with cols[0]:
+            st.session_state.sb_target = st.number_input(
+                "Number of sentences this session", min_value=1, max_value=20, value=5, key="sb_target"
+            )
+        with cols[1]:
+            st.metric("Score (this session)", f"{st.session_state.sb_score}")
+        with cols[2]:
+            st.metric("Progress (this session)", f"{st.session_state.sb_total}/{st.session_state.sb_target}")
+
+        st.divider()
+
+        # Buttons for word choices
+        st.markdown("#### 🧩 Click the words in order")
+        if st.session_state.sb_shuffled:
+            word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
+            for i, w in enumerate(st.session_state.sb_shuffled):
+                selected = i in st.session_state.sb_selected_idx
+                btn_label = f"✅ {w}" if selected else w
+                col = word_cols[i % len(word_cols)]
+                with col:
+                    if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
+                        st.session_state.sb_selected_idx.append(i)
+                        st.rerun()
+
+        # Preview
+        chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
+        st.markdown("#### ✨ Your sentence")
+        st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
+
+        # Actions
+        a, b, c = st.columns(3)
+        with a:
+            if st.button("🧹 Clear"):
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.rerun()
+        with b:
+            if st.button("✅ Check"):
+                # Map correct keys from your bank
+                target = st.session_state.sb_current.get("target_de", "").strip()
+                chosen = normalize_join(chosen_tokens).strip()
                 correct = (chosen.lower() == target.lower())
                 st.session_state.sb_correct = correct
                 st.session_state.sb_total += 1
@@ -6819,35 +6909,34 @@ elif subtab == "Writing Practice":
                     st.session_state.sb_score += 1
                     st.session_state.sb_feedback = "✅ **Correct!** Great job!"
                 else:
-                    tip_text = st.session_state.sb_current.get("tip", "")
-                    st.session_state.sb_feedback = f"❌ **Not quite.**\n\n**Correct:** {target}\n\n*Tip:* {tip_text}"
-                # Save attempt
+                    tip = st.session_state.sb_current.get("hint_en", "")
+                    st.session_state.sb_feedback = (
+                        f"❌ **Not quite.**\n\n**Correct:** {target}\n\n*Tip:* {tip}"
+                    )
                 save_sentence_attempt(
                     student_code=student_code,
                     level=student_level,
                     target_sentence=target,
                     chosen_sentence=chosen,
                     correct=correct,
-                    tip=st.session_state.sb_current.get("tip", ""),
+                    tip=st.session_state.sb_current.get("hint_en", ""),
                 )
                 st.rerun()
+        with c:
+            next_disabled = (st.session_state.sb_correct is None)
+            if st.button("➡️ Next", disabled=next_disabled):
+                if st.session_state.sb_total >= st.session_state.sb_target:
+                    st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
+                new_sentence()
+                st.rerun()
 
-    with c:
-        next_disabled = (st.session_state.sb_correct is None)
-        if st.button("➡️ Next", disabled=next_disabled):
-            if st.session_state.sb_total >= int(st.session_state["sb_target"]):
-                st.success(
-                    f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}"
-                )
-            new_sentence()
-            st.rerun()
+        # Feedback box
+        if st.session_state.sb_feedback:
+            if st.session_state.sb_correct:
+                st.success(st.session_state.sb_feedback)
+            else:
+                st.info(st.session_state.sb_feedback)
 
-    # -------- Feedback box --------
-    if st.session_state.sb_feedback:
-        if st.session_state.sb_correct:
-            st.success(st.session_state.sb_feedback)
-        else:
-            st.info(st.session_state.sb_feedback)
 
 
 # ===== Schreiben =====
@@ -7888,6 +7977,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
