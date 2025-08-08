@@ -3378,10 +3378,6 @@ if tab == "Course Book":
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        # --- YouTube main link (clickable) ---
-        if info.get("youtube_link"):
-            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
-
         # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
         def render_section(day_info, key, title, icon):
             content = day_info.get(key)
@@ -4513,46 +4509,6 @@ if tab == "Exams Mode & Custom Chat":
         unsafe_allow_html=True
     )
     st.divider()
-
-    # ---- Exam Sample Images (A1/A2 Template) ----
-    image_map = {
-        ("A1", "Teil 1"): {
-            "url": "https://i.imgur.com/sKQDrpx.png",
-            "caption": "Sample – A1 Teil 1"
-        },
-        ("A1", "Teil 2"): {
-            "url": "https://i.imgur.com/xTTIUME.png",  # Replace with real image if you get a valid link!
-            "caption": "Sample – A1 Teil 2"
-        },
-        ("A1", "Teil 3"): {
-            "url": "https://i.imgur.com/MxBUCR8.png",
-            "caption": "Sample – A1 Teil 3"
-        },
-        ("A2", "Teil 1"): {
-            "url": "https://i.imgur.com/gmmu7Sn.png",
-            "caption": "Sample – A2 Teil 1"
-        },
-        ("A2", "Teil 2"): {
-            "url": "https://i.imgur.com/m6eBJu7.png",
-            "caption": "Sample – A2 Teil 2"
-        },
-        ("A2", "Teil 3"): {
-            "url": "https://i.imgur.com/1uDLrCY.png",
-            "caption": "Sample – A2 Teil 3"
-        },
-    }
-
-
-    # Display image only for selected level/teil and at the start of chat
-    level = st.session_state.get("falowen_level")
-    teil = st.session_state.get("falowen_teil")
-    msgs = st.session_state.get("falowen_messages", [])
-    # Show image if no chat yet, or only the 1st assistant instruction
-    if level and teil and (not msgs or (len(msgs) == 1 and msgs[0].get("role") == "assistant")):
-        for (map_level, map_teil), v in image_map.items():
-            if level == map_level and map_teil in teil:
-                st.image(v["url"], width=380, caption=v["caption"])
-
 
     # ---- PDF Helper ----
     def falowen_download_pdf(messages, filename):
@@ -7218,6 +7174,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
