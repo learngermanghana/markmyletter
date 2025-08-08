@@ -18,7 +18,6 @@ from datetime import date, datetime, timedelta
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
-import importlib
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
@@ -31,28 +30,6 @@ from openai import OpenAI
 from streamlit.components.v1 import html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
-
-
-
-st.sidebar.title("Falowen")
-page = st.sidebar.radio("Navigate", ["Home", "Practice", "Teacher Settings"])
-
-# Only show Teacher Settings content if password matches
-if page == "Teacher Settings":
-    teacher_password = st.sidebar.text_input("Enter Teacher Password", type="password")
-    if teacher_password == st.secrets.get("TEACHER_PASSWORD", "changeme"):
-        st.success("Welcome, Teacher! 🎓")
-        
-        # Teacher-only content here
-        st.header("Teacher Settings")
-        st.write("Manage students, review results, and set assignments here.")
-
-        # Example placeholder features
-        st.button("View Student Progress")
-        st.button("Upload New Material")
-        st.button("Send Announcement")
-    elif teacher_password:
-        st.error("Incorrect password.")
 
 
 # --- SEO: head tags (only on public/landing) ---
@@ -106,7 +83,6 @@ if not st.session_state.get("logged_in", False):
       document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
@@ -306,7 +282,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
         if not next_page:
             break
     return videos
-
 
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
@@ -849,7 +824,6 @@ if st.button("Log out"):
     st.stop()
 
 
-
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_assignment_scores():
@@ -1142,7 +1116,6 @@ if st.session_state.get("logged_in"):
     st.divider()
 
 
-
     # ---------- Tab Tips Section (only on Dashboard) ----------
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
@@ -1285,9 +1258,9 @@ if tab == "Dashboard":
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
-            "start_date": "2025-07-31",
-            "end_date": "2025-10-31",
-            "doc_url": "https://drive.google.com/file/d/1ZRWUKfW3j_fEs24X1gSBtfdXsDMurT9n/view?usp=sharing"
+            "start_date": "2025-08-07",
+            "end_date": "2025-11-07",
+            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
         },
     }
 
@@ -1505,7 +1478,6 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-#
 
 
 def get_a1_schedule():
@@ -1983,8 +1955,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Subordinate Clauses (Nebensätze) with dass and weil",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/FYaXSvZsEDM?si=0e_sHxslHQL7FGDk",
+            "youtube_link": "https://youtu.be/FYaXSvZsEDM?si=0e_sHxslHQL7FGDk",
             "grammarbook_link": "https://drive.google.com/file/d/1xMpEAPD8C0HtIFsmgqYO-wZaKDrQtiYp/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/128lWaKgCZ2V-3tActM-dwNy6igLLlzH3/view?usp=sharing"
         },
@@ -1997,8 +1969,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Positive, Comparative, and Superlative in German",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/oo3pUo5OSDE",
+            "youtube_link": "https://youtu.be/oo3pUo5OSDE",
             "grammarbook_link": "https://drive.google.com/file/d/1Z3sSDCxPQz27TDSpN9r8lQUpHhBVfhYZ/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/18YXe9mxyyKTars1gL5cgFsXrbM25kiN8/view?usp=sharing"
         },
@@ -2377,8 +2349,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Präteritum – Vergangene Erlebnisse erzählen",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/piJE4ucYFuc",
+            "youtube_link": "https://youtu.be/piJE4ucYFuc",
             "grammarbook_link": "https://drive.google.com/file/d/1St8MpH616FiJmJjTYI9b6hEpNCQd5V0T/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1AgjhFYw07JYvsgVP1MBKYEMFBjeAwQ1e/view?usp=sharing"
         },
@@ -2735,6 +2707,7 @@ def get_b2_schedule():
             "goal": "Drücken Sie Ihre persönliche Identität und Ihre Werte aus.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "https://youtu.be/a9LxkxNdnEg",
+            "youtube_link": "https://youtu.be/a9LxkxNdnEg",
             "grammarbook_link": "https://drive.google.com/file/d/17pVc0VfLm32z4zmkaaa_cdshKJEQQxYa/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1D1eb-iwfl_WA2sXPOSPD_66NCiTB4o2w/view?usp=sharing",
             "grammar_topic": "Adjektivdeklination (Adjektivendungen nach bestimmten/unbestimmten Artikeln)"
@@ -2745,7 +2718,8 @@ def get_b2_schedule():
             "chapter": "1.2",
             "goal": "Diskutieren Sie über Beziehungstypen und Kommunikationsstrategien.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
-            "video": "",
+            "video": "https://youtu.be/gCzZnddwC_c",
+            "youtube_link": "https://youtu.be/gCzZnddwC_c",
             "grammarbook_link": "https://drive.google.com/file/d/1Mlt-cK6YqPuJe9iCWfqT9DOG9oKhJBdK/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1XCLW0y-MMyIu_bNO3EkKIgp-8QLKgEek/view?usp=sharing",
             "grammar_topic": "Konjunktiv II (höfliche Bitten & hypothetische Situationen)"
@@ -3379,6 +3353,10 @@ if tab == "Course Book":
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
+        # --- YouTube main link (clickable) ---
+        if info.get("youtube_link"):
+            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
+
         # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
         def render_section(day_info, key, title, icon):
             content = day_info.get(key)
@@ -3464,7 +3442,7 @@ if tab == "Course Book":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         st.divider()
-
+        
         # === SUBMIT ASSIGNMENT SECTION ===
         st.markdown("### ✅ Submit Your Assignment")
         
@@ -3509,6 +3487,7 @@ if tab == "Course Book":
             """
         )
 #
+
         # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
@@ -3924,6 +3903,11 @@ if tab == "Course Book":
                     unsafe_allow_html=True
                 )
             st.markdown("---")
+#
+
+
+
+
 
 
 if tab == "My Results and Resources":
@@ -4511,6 +4495,8 @@ if tab == "Exams Mode & Custom Chat":
     )
     st.divider()
 
+
+
     # ---- PDF Helper ----
     def falowen_download_pdf(messages, filename):
         from fpdf import FPDF
@@ -4795,7 +4781,6 @@ if tab == "Exams Mode & Custom Chat":
         if key not in st.session_state:
             st.session_state[key] = val
 
-    # ---- Goethe Past Exam Links ----
     lesen_links = {
         "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
         "A2": [("Goethe A2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
@@ -4862,8 +4847,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
-#
-
 
 
     # ---- STAGE 2: Level Selection ----
@@ -4902,7 +4885,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
 
         st.stop()
-#        
+        
     # ---- STAGE 3: Choose Exam Part ----
     if st.session_state["falowen_stage"] == 3:
         st.subheader("Step 3: Choose Exam Part")
@@ -5073,7 +5056,7 @@ if tab == "Exams Mode & Custom Chat":
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"]             = []
                     st.rerun()
-#
+
 
     # ==========================
     # FIRESTORE CHAT HELPERS
@@ -5125,7 +5108,9 @@ if tab == "Exams Mode & Custom Chat":
         # Reset flags and go to the home stage
         st.session_state["_falowen_loaded"] = False
         st.session_state["falowen_stage"] = 1
-        st.rerun() 
+        st.rerun()
+
+
 
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state.get("falowen_stage") == 4:
@@ -5137,6 +5122,7 @@ if tab == "Exams Mode & Custom Chat":
         is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
         is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
         student_code = st.session_state.get("student_code", "demo")
+
 
         # Load chat from db once
         if not st.session_state.get("_falowen_loaded"):
@@ -5458,14 +5444,15 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Main Menu"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#
 
 
 # =========================================
 # End
 # =========================================
 
-
+# =========================================
+# Vocab
+# =========================================
 
 # sentence_bank.py
 SENTENCE_BANK = {
@@ -6940,6 +6927,20 @@ if tab == "Vocab Trainer":
 
 
 
+# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
+def bubble(role, text):
+    color = "#7b2ff2" if role == "assistant" else "#222"
+    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+    name = "Herr Felix" if role == "assistant" else "You"
+    return f"""
+        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+        border-radius:14px;max-width:98vw;font-size:1.09rem;">
+            <b>{name}:</b><br>{text}
+        </div>
+    """
+
+
+
 # ===== Schreiben =====
 
 db = firestore.client()
@@ -7006,7 +7007,7 @@ def highlight_feedback(text: str) -> str:
     )
 
     return text
-#
+
 # -- Firestore-only: Usage Limit (Daily Mark My Letter) --
 def get_schreiben_usage(student_code):
     today = str(date.today())
@@ -7978,70 +7979,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
