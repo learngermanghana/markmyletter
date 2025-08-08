@@ -1,4 +1,4 @@
-# ==== Standard Library ====
+nmbhnbnbjhftgbtdedfgefxcftft# ==== Standard Library ====
 import atexit
 import base64
 import bcrypt
@@ -4848,6 +4848,23 @@ if tab == "Exams Mode & Custom Chat":
         if key not in st.session_state:
             st.session_state[key] = val
 
+    # ---- Goethe Past Exam Links ----
+    lesen_links = {
+        "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+        "A2": [("Goethe A2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+        "B1": [("Goethe B1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+        "B2": [("Goethe B2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+        "C1": [("Goethe C1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+    }
+
+    hoeren_links = {
+        "A1": [("Goethe A1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+        "A2": [("Goethe A2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+        "B1": [("Goethe B1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+        "B2": [("Goethe B2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+        "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+    }
+
     # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
@@ -4898,6 +4915,8 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
             st.rerun()
+#
+
 
 
     # ---- STAGE 2: Level Selection ----
@@ -4936,7 +4955,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
 
         st.stop()
-        
+#        
     # ---- STAGE 3: Choose Exam Part ----
     if st.session_state["falowen_stage"] == 3:
         st.subheader("Step 3: Choose Exam Part")
@@ -5107,7 +5126,7 @@ if tab == "Exams Mode & Custom Chat":
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"]             = []
                     st.rerun()
-
+#
 
     # ==========================
     # FIRESTORE CHAT HELPERS
@@ -7209,6 +7228,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
