@@ -1,4 +1,4 @@
- ==== Standard Library ====
+# ==== Standard Library ====
 import atexit
 import base64
 import bcrypt
@@ -30,6 +30,7 @@ from openai import OpenAI
 from streamlit.components.v1 import html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 st.sidebar.title("Falowen")
@@ -7217,6 +7218,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
