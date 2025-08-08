@@ -44,32 +44,27 @@ from firebase_admin import credentials, firestore
 import streamlit as st
 import os
 
-# Sidebar section
+import streamlit as st
+
 st.sidebar.title("Falowen")
-st.sidebar.write("Your German Learning App")
+page = st.sidebar.radio("Navigate", ["Home", "Practice", "Teacher Settings"])
 
-# Optional: only show teacher link if special condition is met
-show_teacher_link = False
+# Only show Teacher Settings content if password matches
+if page == "Teacher Settings":
+    teacher_password = st.sidebar.text_input("Enter Teacher Password", type="password")
+    if teacher_password == st.secrets.get("TEACHER_PASSWORD", "changeme"):
+        st.success("Welcome, Teacher! 🎓")
+        
+        # Teacher-only content here
+        st.header("Teacher Settings")
+        st.write("Manage students, review results, and set assignments here.")
 
-# Option 1: Show for everyone (simple)
-show_teacher_link = True
-
-# Option 2: Show only if you visit with ?admin=1 in URL
-params = st.query_params
-if params.get("admin") == "1":
-    show_teacher_link = True
-
-# Option 3: Show only if an environment variable is set (for local/dev)
-if os.getenv("SHOW_TEACHER_LINK") == "1":
-    show_teacher_link = True
-
-if show_teacher_link:
-    st.sidebar.markdown(
-        "[🎓 Teacher Login](https://teachers.falowen.app){target='_blank'}",
-        unsafe_allow_html=True
-    )
-
-
+        # Example placeholder features
+        st.button("View Student Progress")
+        st.button("Upload New Material")
+        st.button("Send Announcement")
+    elif teacher_password:
+        st.error("Incorrect password.")
 
 
 # --- SEO: head tags (only on public/landing) ---
@@ -7218,6 +7213,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
