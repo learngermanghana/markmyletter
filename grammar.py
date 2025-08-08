@@ -31,6 +31,138 @@ from streamlit.components.v1 import html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
+# ==== Standard Library ====
+import os
+import time
+
+# ==== Third-Party ====
+import streamlit as st
+import bcrypt
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# -------------------- App Setup --------------------
+st.set_page_config(page_title="Falowen – Teacher Login", page_icon="🎓", layout="centered")
+
+# Firebase Admin init (uses same secrets format you already have)
+if not firebase_admin._apps:
+    # expects st.secrets["firebase"] to be a service-account JSON dict
+    cred = credentials.Certificate(dict(st.secrets["firebase"]))
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+
+# -------------------- Helpers --------------------
+def norm_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+def get_teacher(email: str):
+    """Fetch teacher document by email (doc id = normalized email)."""
+    eid = norm_email(email)
+    if not eid:
+        return None
+    doc = db.collection("teachers").document(eid).get()
+    return doc.to_dict() if doc.exists else None
+
+def create_teacher(email: str, name: str, password: str, role: str = "teacher"):
+    """Create a teacher (admin bootstrap protected below)."""
+    eid = norm_email(email)
+    hpw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    db.collection("teachers").document(eid).set({
+        "email": eid,
+        "name": name.strip(),
+        "password": hpw,
+        "role": role,  # "admin" or "teacher"
+        "created_at": firestore.SERVER_TIMESTAMP,
+        "active": True,
+    })
+
+def check_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+def require_auth():
+    """Gate to protect teacher-only pages."""
+    if not st.session_state.get("teacher_auth", False):
+        st.stop()
+
+# -------------------- UI --------------------
+st.title("🎓 Falowen – Teacher Portal")
+
+# Tabs: Login | (Optional) Bootstrap Admin
+tab = st.tabs(["Login"])[0]
+
+with tab:
+    st.subheader("Sign in")
+    with st.form("teacher_login", clear_on_submit=False):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Log In")
+
+    if submitted:
+        t = get_teacher(email)
+        if not t:
+            st.error("No teacher account found for that email.")
+        elif not t.get("active", True):
+            st.error("This teacher account is inactive. Contact admin.")
+        elif not check_password(password, t.get("password", "")):
+            st.error("Incorrect password.")
+        else:
+            # Auth success
+            st.session_state["teacher_auth"] = True
+            st.session_state["teacher_email"] = t["email"]
+            st.session_state["teacher_name"] = t.get("name") or t["email"]
+            st.session_state["teacher_role"] = t.get("role", "teacher")
+            st.success("Logged in. Redirecting…")
+            time.sleep(0.6)
+            st.rerun()
+
+# -------------------- Protected area --------------------
+if st.session_state.get("teacher_auth"):
+    st.success(f"Welcome, {st.session_state.get('teacher_name')} ({st.session_state.get('teacher_role')})")
+
+    # Example: Minimal dashboard skeleton
+    st.header("Dashboard")
+    st.write("Here you can add class lists, assign tasks, and review progress.")
+    # TODO: replace with your real teacher views
+    # e.g. st.dataframe(...), charts, student search, assignment creator, etc.
+
+    st.divider()
+    if st.button("Log out"):
+        for k in ("teacher_auth", "teacher_email", "teacher_name", "teacher_role"):
+            st.session_state.pop(k, None)
+        st.rerun()
+
+# -------------------- Optional: one-time admin bootstrap --------------------
+# To create the FIRST admin safely, add an env var/secret: TEACHER_BOOTSTRAP_TOKEN="something-long"
+# Then visit teachers.falowen.app/?setup=1&token=that_value to reveal this form (remove after use).
+params = st.query_params
+if params.get("setup") == "1":
+    token_ok = (params.get("token") == (os.getenv("TEACHER_BOOTSTRAP_TOKEN") or st.secrets.get("TEACHER_BOOTSTRAP_TOKEN")))
+    if token_ok:
+        st.warning("Admin bootstrap is visible. Create ONLY your first admin, then remove/rotate the token.")
+        with st.form("bootstrap_admin"):
+            b_name = st.text_input("Admin Name")
+            b_email = st.text_input("Admin Email")
+            b_pass1 = st.text_input("Admin Password", type="password")
+            b_pass2 = st.text_input("Confirm Password", type="password")
+            go = st.form_submit_button("Create Admin")
+        if go:
+            if not (b_name and b_email and b_pass1 and b_pass2):
+                st.error("Fill all fields.")
+            elif b_pass1 != b_pass2:
+                st.error("Passwords do not match.")
+            elif get_teacher(b_email):
+                st.error("That email already exists as a teacher.")
+            else:
+                create_teacher(b_email, b_name, b_pass1, role="admin")
+                st.success("Admin created. You can now log in.")
+    else:
+        st.info("Invalid or missing bootstrap token.")
+
+
 
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
@@ -7178,6 +7310,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
