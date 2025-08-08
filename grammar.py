@@ -6766,7 +6766,7 @@ if tab == "Vocab Trainer":
                 for k in defaults: st.session_state[k]=defaults[k]
                 st.rerun()
 
-    # ===========================
+        # ===========================
     # SUBTAB: Writing Practice (Sentence Builder)
     # ===========================
     elif subtab == "Writing Practice":
@@ -6841,7 +6841,6 @@ if tab == "Vocab Trainer":
                 random.shuffle(st.session_state.sb_pool)
             if st.session_state.sb_pool:
                 st.session_state.sb_current = st.session_state.sb_pool.pop()
-                # ---- IMPORTANT: map your schema ----
                 # Expect keys: tokens (list), target_de (string), hint_en (string)
                 words = st.session_state.sb_current.get("tokens", [])[:]
                 random.shuffle(words)
@@ -6856,16 +6855,20 @@ if tab == "Vocab Trainer":
         if st.session_state.sb_current is None:
             new_sentence()
 
-        # Top metrics for session
+        # Top metrics for session  ✅ FIXED: don't assign widget value back to session_state
         cols = st.columns([3, 2, 2])
         with cols[0]:
-            st.session_state.sb_target = st.number_input(
-                "Number of sentences this session", min_value=1, max_value=20, value=5, key="sb_target"
+            st.session_state.setdefault("sb_target", 5)
+            _ = st.number_input(
+                "Number of sentences this session",
+                min_value=1, max_value=20,
+                key="sb_target"
             )
+        target = int(st.session_state.sb_target)
         with cols[1]:
             st.metric("Score (this session)", f"{st.session_state.sb_score}")
         with cols[2]:
-            st.metric("Progress (this session)", f"{st.session_state.sb_total}/{st.session_state.sb_target}")
+            st.metric("Progress (this session)", f"{st.session_state.sb_total}/{target}")
 
         st.divider()
 
@@ -7003,7 +7006,7 @@ def highlight_feedback(text: str) -> str:
     )
 
     return text
-
+#
 # -- Firestore-only: Usage Limit (Daily Mark My Letter) --
 def get_schreiben_usage(student_code):
     today = str(date.today())
@@ -7975,6 +7978,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
