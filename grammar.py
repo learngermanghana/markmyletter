@@ -5464,93 +5464,7 @@ if tab == "Exams Mode & Custom Chat":
 # End
 # =========================================
 
-# =========================================
-# FIRESTORE STATS HELPERS
-# =========================================
 
-def save_vocab_attempt(student_code, level, total, correct, practiced_words):
-    """Save one vocab practice attempt to Firestore."""
-    doc_ref = db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    history = data.get("history", [])
-
-    attempt = {
-        "level": level,
-        "total": total,
-        "correct": correct,
-        "practiced_words": practiced_words,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    }
-    history.append(attempt)
-    best = max((a["correct"] for a in history), default=0)
-    completed = set(sum((a["practiced_words"] for a in history), []))
-
-    doc_ref.set({
-        "history":           history,
-        "best":              best,
-        "last_practiced":    attempt["timestamp"],
-        "completed_words":   list(completed),
-        "total_sessions":    len(history),
-    })
-
-def get_vocab_stats(student_code):
-    """Load vocab practice stats from Firestore (or defaults)."""
-    doc_ref = db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    return {
-        "history":           [],
-        "best":              0,
-        "last_practiced":    None,
-        "completed_words":   [],
-        "total_sessions":    0,
-    }
-
-def save_writing_attempt(student_code, level, topic_name, user_input, correct, solution):
-    """Save a writing practice attempt to Firebase."""
-    doc_ref = db.collection("writing_stats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-
-    history = data.get("history", [])
-    attempt = {
-        "level": level,
-        "topic_name": topic_name,
-        "user_input": user_input,
-        "correct": correct,
-        "solution": solution,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    }
-    history.append(attempt)
-
-    # Streak logic (increments if correct, else resets)
-    streak = data.get("streak", 0) + 1 if correct else 0
-
-    doc_ref.set({
-        "history": history,
-        "streak": streak,
-        "last_practiced": attempt["timestamp"],
-        "total_sessions": len(history),
-    })
-
-@st.cache_data
-def load_student_levels():
-    import pandas as pd
-    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    df = pd.read_csv(csv_url)
-    df.columns = [c.strip().lower() for c in df.columns]
-    return df  # DataFrame with 'student_code', 'level', etc.
-
-def get_student_level(student_code):
-    df = load_student_levels()
-    row = df[df['student_code'] == student_code]
-    if not row.empty:
-        # Handles both 'A1'/'a1', etc.
-        return str(row.iloc[0]['level']).upper()
-    return "A1"
 
 # sentence_bank.py
 SENTENCE_BANK = {
@@ -6912,8 +6826,15 @@ if tab == "Vocab Trainer":
             """,
             unsafe_allow_html=True
         )
-        st.caption("Tip: Click words to build the sentence. Clear to reset, Check to submit, Next for a new one.")
-        st.markdown("**What these numbers mean:**  \n- **Score** = Correct sentences *this session*.  \n- **Progress** (bar above) = Unique sentences you have *ever* solved at this level.")
+        st.caption(
+            "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
+            "Next for a new one."
+        )
+        st.markdown(
+            "**What these numbers mean:**  \n"
+            "- **Score** = Correct sentences *this session*.  \n"
+            "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
+        )
 
         # session state
         init_defaults = {
@@ -6936,7 +6857,9 @@ if tab == "Vocab Trainer":
         if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
             import random
             st.session_state.sb_pool_level = student_level
-            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
+            st.session_state.sb_pool = SENTENCE_BANK.get(
+                student_level, SENTENCE_BANK.get("A1", [])
+            ).copy()
             random.shuffle(st.session_state.sb_pool)
             st.session_state.sb_round = 0
             st.session_state.sb_score = 0
@@ -6950,16 +6873,22 @@ if tab == "Vocab Trainer":
         def new_sentence():
             import random
             if not st.session_state.sb_pool:
-                st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
+                st.session_state.sb_pool = SENTENCE_BANK.get(
+                    student_level, SENTENCE_BANK.get("A1", [])
+                ).copy()
                 random.shuffle(st.session_state.sb_pool)
-            st.session_state.sb_current = st.session_state.sb_pool.pop()
-            words = st.session_state.sb_current["words"][:]
-            random.shuffle(words)
-            st.session_state.sb_shuffled = words
-            st.session_state.sb_selected_idx = []
-            st.session_state.sb_feedback = ""
-            st.session_state.sb_correct = None
-            st.session_state.sb_round += 1
+            if st.session_state.sb_pool:
+                st.session_state.sb_current = st.session_state.sb_pool.pop()
+                words = st.session_state.sb_current["words"][:]
+                random.shuffle(words)
+                st.session_state.sb_shuffled = words
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.session_state.sb_round += 1
+            else:
+                st.warning("No sentences available for this level.")
+#
 
         if st.session_state.sb_current is None:
             new_sentence()
@@ -8083,6 +8012,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
