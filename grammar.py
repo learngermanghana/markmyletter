@@ -6526,6 +6526,29 @@ def get_vocab_stats(student_code):
         "total_sessions":    0,
     }
 
+# ================================
+# LOAD SENTENCE BANK FROM EXTERNAL FILE
+# ================================
+import importlib
+
+def load_sentence_bank():
+    """Load SENTENCE_BANK dictionary from sentence.py so it can be updated externally."""
+    try:
+        mod = importlib.import_module("sentence")  # <-- your file name: sentence.py
+        bank = getattr(mod, "SENTENCE_BANK", None)
+        if not isinstance(bank, dict):
+            st.error("`SENTENCE_BANK` found in sentence.py is not a dictionary.")
+            return {}
+        return bank
+    except ModuleNotFoundError:
+        st.error("Could not import `sentence.py`. Make sure it is in the same folder as this app.")
+        return {}
+    except Exception as e:
+        st.error(f"Error loading SENTENCE_BANK from sentence.py: {e}")
+        return {}
+
+SENTENCE_BANK = load_sentence_bank()
+
 
 # ================================
 # HELPERS: Writing (Sentence Builder) persistence
@@ -6574,9 +6597,8 @@ def get_sentence_progress(student_code: str, level: str):
 def load_vocab_lists():
     """
     Optional CSV for flashcards: columns Level, German, English
-    You can remove this whole section if you don't want the CSV flashcards.
     """
-    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"  # Your Google Sheet ID
     csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
     try:
         df = pd.read_csv(csv_url)
@@ -6626,6 +6648,7 @@ def normalize_join(tokens):
     for p in [",", ".", "!", "?", ":", ";"]:
         s = s.replace(f" {p}", p)
     return s
+
 
 
 # ================================
@@ -7953,6 +7976,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
