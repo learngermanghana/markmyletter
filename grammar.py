@@ -3446,6 +3446,9 @@ if tab == "Course Book":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         st.divider()
+
+        # === SUBMIT ASSIGNMENT SECTION ===
+        st.markdown("### ✅ Submit Your Assignment")
         
         # --- Save Draft to Firestore (using global db instance) ---
         def save_draft_to_db(code, lesson_key, text):
@@ -3462,7 +3465,7 @@ if tab == "Course Book":
 
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
-            "Answer (or attach on WhatsApp)",
+            "Type all your answers in the box below",
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
@@ -3479,15 +3482,15 @@ if tab == "Course Book":
 
             1. Write your complete answers in the box above.
             2. Click **Send via WhatsApp** when done.
-            3. After clicking, you will see an **Open WhatsApp** button.
+            3. After clicking, you will see an **Send Assignmentment** button.
             4. Your assignment message is organized below for you to review.
             5. Confirm your assignment number and student code are correct.
-            6. Click **Open WhatsApp** or copy the message below to directly send it to your tutor.
+            6. Click **Send Assignment** or copy the message below to directly send it to your tutor.
 
             _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
             """
         )
-
+#
         # --- WhatsApp Submission + Add to Notes ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
@@ -7175,6 +7178,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
