@@ -3482,7 +3482,7 @@ if tab == "Course Book":
 
             1. Write your complete answers in the box above.
             2. Click **Send via WhatsApp** when done.
-            3. After clicking, you will see an **Send Assignmentment** button.
+            3. After clicking, you will see an **Send Assignment** button.
             4. Your assignment message is organized below for you to review.
             5. Confirm your assignment number and student code are correct.
             6. Click **Send Assignment** or copy the message below to directly send it to your tutor.
@@ -7178,6 +7178,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
