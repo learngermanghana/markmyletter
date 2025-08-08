@@ -5732,158 +5732,241 @@ if tab == "Vocab Trainer":
                 for k in defaults: st.session_state[k]=defaults[k]
     
     elif subtab == "Writing Practice":
-        # ======= GAMIFIED WRITING PRACTICE =======
+        # ================================
+        # SENTENCE BUILDER GAME (A1–B2)
+        # ================================
+
+        # --- Firestore saver (like your other tabs) ---
+        def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
+            doc_ref = db.collection("sentence_builder_stats").document(student_code)
+            doc = doc_ref.get()
+            data = doc.to_dict() if doc.exists else {}
+            history = data.get("history", [])
+            history.append({
+                "level": level,
+                "target": target_sentence,
+                "chosen": chosen_sentence,
+                "correct": bool(correct),
+                "tip": tip,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            })
+            doc_ref.set({
+                "history": history,
+                "last_played": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "total_sessions": len(history),
+            }, merge=True)
+
+        # --- Small, extendable bank (add more!) ---
+        # Keep punctuation as separate tokens to avoid spacing issues
+        SENTENCE_BANK = {
+            "A1": [
+                {
+                    "words": ["Ich", "gehe", "jeden", "Morgen", "joggen", "."],
+                    "solution": "Ich gehe jeden Morgen joggen.",
+                    "tip": "Verb is in 2nd position in a statement."
+                },
+                {
+                    "words": ["Hast", "du", "Geschwister", "?"],
+                    "solution": "Hast du Geschwister?",
+                    "tip": "Yes/No questions start with the verb."
+                },
+                {
+                    "words": ["Wo", "wohnst", "du", "?"],
+                    "solution": "Wo wohnst du?",
+                    "tip": "W-questions: W-word first, verb second."
+                },
+            ],
+            "A2": [
+                {
+                    "words": ["Am", "Wochenende", "gehe", "ich", "oft", "ins", "Kino", "."],
+                    "solution": "Am Wochenende gehe ich oft ins Kino.",
+                    "tip": "Time-first is OK; the verb stays in 2nd position."
+                },
+                {
+                    "words": ["Ich", "bleibe", "zu", "Hause", ",", "weil", "ich", "krank", "bin", "."],
+                    "solution": "Ich bleibe zu Hause, weil ich krank bin.",
+                    "tip": "In a 'weil'-clause, the verb goes to the end."
+                },
+            ],
+            "B1": [
+                {
+                    "words": ["Ich", "weiß", ",", "dass", "du", "morgen", "kommst", "."],
+                    "solution": "Ich weiß, dass du morgen kommst.",
+                    "tip": "In 'dass'-clauses the verb goes to the end."
+                },
+                {
+                    "words": ["Wenn", "ich", "Zeit", "habe", ",", "besuche", "ich", "dich", "."],
+                    "solution": "Wenn ich Zeit habe, besuche ich dich.",
+                    "tip": "Subordinate clause first → main clause follows."
+                },
+            ],
+            "B2": [
+                {
+                    "words": ["Das", "Auto", ",", "das", "ich", "gekauft", "habe", ",", "ist", "rot", "."],
+                    "solution": "Das Auto, das ich gekauft habe, ist rot.",
+                    "tip": "Relative clause: verb goes to the end."
+                },
+                {
+                    "words": ["Ich", "lerne", "Deutsch", ",", "um", "in", "Deutschland", "zu", "studieren", "."],
+                    "solution": "Ich lerne Deutsch, um in Deutschland zu studieren.",
+                    "tip": "‘um ... zu’ + infinitive goes to the end."
+                },
+            ],
+        }
+
+        # --- Utils ---
+        def normalize_join(tokens):
+            """Join tokens and fix spaces before punctuation."""
+            s = " ".join(tokens)
+            # remove space before , . ! ? : ; )
+            for p in [",", ".", "!", "?", ":", ";"]:
+                s = s.replace(f" {p}", p)
+            return s
+
+        # --- Student / level ---
+        raw_level = (student_row.get("Level") or "A1").upper().strip()
+        student_level = raw_level if raw_level in SENTENCE_BANK else "A1"
+        st.session_state["student_level"] = student_level
+        student_code = st.session_state.get("student_code", "demo")
+
         st.markdown(
             """
-            <div style="
-                padding:10px 14px; background:#6f42c1; color:#fff;
-                border-radius:8px; text-align:center; margin-bottom:10px;
-            ">
-                <span style="font-size:1.35rem; font-weight:700;">✍️ Writing Practice (A1–C1)</span><br>
-                <span style="opacity:.9;">Pick a topic • get hints • check with A.I. • build your streak</span>
+            <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
+              ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
             </div>
             """,
             unsafe_allow_html=True
         )
+        st.caption("Tip: Click words to build the sentence. Clear to reset, Check to submit, Next for a new one.")
 
-        # --- All level topics and rules ---
-        GRAMMAR_TOPICS = {
-            "A1": [
-                {
-                    "title": "Statement Formulation",
-                    "rules": [
-                        "Begin with the subject (Ich, Du, Er...).",
-                        "Verb goes in the second position.",
-                        "Add extra information (time, place, object).",
-                        "End with a full stop."
-                    ],
-                    "practice_instruction": "Write the German sentence for: I go jogging every morning.",
-                    "example_wrong": "Gehe ich jeden Morgen joggen.",
-                    "solution": "Ich gehe jeden Morgen joggen."
-                },
-                {
-                    "title": "Modal Verb Statements",
-                    "rules": [
-                        "Start with the subject.",
-                        "Modal verb (können, müssen, etc.) is in second position.",
-                        "Main verb goes to the end (infinitive)."
-                    ],
-                    "practice_instruction": "Write the German for: I can speak German.",
-                    "example_wrong": "Kann ich Deutsch sprechen.",
-                    "solution": "Ich kann Deutsch sprechen."
-                },
-                {
-                    "title": "Separable Verbs (Statement)",
-                    "rules": [
-                        "Begin with the subject.",
-                        "Main part of verb in second position.",
-                        "Other info before prefix.",
-                        "Separable prefix at the end."
-                    ],
-                    "practice_instruction": "Write the German for: I get up at 6 a.m. every morning.",
-                    "example_wrong": "Stehe ich auf jeden Morgen um 6 Uhr.",
-                    "solution": "Ich stehe jeden Morgen um 6 Uhr auf."
-                },
-                {
-                    "title": "Yes/No Questions",
-                    "rules": [
-                        "Start with the verb.",
-                        "Follow with the subject.",
-                        "Add info.",
-                        "End with a question mark."
-                    ],
-                    "practice_instruction": "Write the German question for: Do you have siblings?",
-                    "example_wrong": "Du hast Geschwister?",
-                    "solution": "Hast du Geschwister?"
-                },
-                {
-                    "title": "W-Questions",
-                    "rules": [
-                        "Start with W-word (Wo, Wie, etc.).",
-                        "Verb is second.",
-                        "Subject follows verb.",
-                        "End with ?"
-                    ],
-                    "practice_instruction": "Write the German question for: Where do you live?",
-                    "example_wrong": "Du wohnst wo?",
-                    "solution": "Wo wohnst du?"
-                },
-            ],
-            # Continue with A2, B1, B2, C1 levels...
+        # --- Session state ---
+        init_defaults = {
+            "sb_round": 0,
+            "sb_pool": None,          # list of sentence dicts for this level
+            "sb_current": None,       # current sentence dict
+            "sb_shuffled": [],        # shuffled words
+            "sb_selected_idx": [],    # indices picked from shuffled
+            "sb_score": 0,
+            "sb_total": 0,
+            "sb_feedback": "",
+            "sb_correct": None,
         }
+        for k, v in init_defaults.items():
+            if k not in st.session_state:
+                st.session_state[k] = v
 
-        # ------ Student info -----
-        raw_level = (student_row.get("Level") or "A1")
-        student_level = raw_level.upper().strip()
-        st.session_state["student_level"] = student_level
+        # Prepare pool on first load / level change
+        if (st.session_state.sb_pool is None) or (st.session_state.get("sb_pool_level") != student_level):
+            import random
+            st.session_state.sb_pool_level = student_level
+            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK["A1"]).copy()
+            random.shuffle(st.session_state.sb_pool)
+            st.session_state.sb_round = 0
+            st.session_state.sb_score = 0
+            st.session_state.sb_total = 0
+            st.session_state.sb_feedback = ""
+            st.session_state.sb_correct = None
+            st.session_state.sb_current = None
+            st.session_state.sb_selected_idx = []
+            st.session_state.sb_shuffled = []
 
-        code = st.session_state.get("student_code", "demo")
-        topic_list = GRAMMAR_TOPICS.get(student_level, GRAMMAR_TOPICS["A1"])
+        # Get a new sentence if none active
+        def new_sentence():
+            import random
+            if not st.session_state.sb_pool:
+                # Refill if exhausted
+                st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK["A1"]).copy()
+                random.shuffle(st.session_state.sb_pool)
+            st.session_state.sb_current = st.session_state.sb_pool.pop()
+            words = st.session_state.sb_current["words"][:]
+            random.shuffle(words)
+            st.session_state.sb_shuffled = words
+            st.session_state.sb_selected_idx = []
+            st.session_state.sb_feedback = ""
+            st.session_state.sb_correct = None
+            st.session_state.sb_round += 1
 
-        topic_titles = [f"{i+1}. {topic['title']}" for i, topic in enumerate(topic_list)]
-        topic_idx = st.selectbox(
-            "Select a practice topic:",
-            options=list(range(len(topic_list))),
-            format_func=lambda i: topic_titles[i],
-            key="writing_topic_idx"
-        )
-        topic = topic_list[topic_idx]
+        if st.session_state.sb_current is None:
+            new_sentence()
 
-        st.subheader(f"{topic['title']}")
-        st.markdown("**Rules for this topic:**")
-        for r in topic["rules"]:
-            st.markdown(f"- {r}")
-        st.markdown(f"**What to do:** {topic['practice_instruction']}")
-        st.markdown(f"*Example of a common mistake (not correct!):* `{topic['example_wrong']}`")
+        # --- UI: target count & progress ---
+        cols = st.columns([3, 2, 2])
+        with cols[0]:
+            target_n = st.number_input("Number of sentences this session", min_value=1, max_value=20, value=5, key="sb_target")
+        with cols[1]:
+            st.metric("Score", f"{st.session_state.sb_score}")
+        with cols[2]:
+            st.metric("Progress", f"{st.session_state.sb_total}/{st.session_state.sb_target}")
 
-        st.markdown("---")
-        user_ans = st.text_area("Type your German answer here:", key="writing_input", value="", height=70)
+        st.divider()
 
-        ai_feedback = ""
-        if st.button("Check with A.I.", key="writing_ai_btn"):
-            if not user_ans.strip():
-                st.warning("Please enter your answer to check!")
-            else:
-                with st.spinner("Checking with A.I..."):
-                    import openai
-                    prompt = (
-                        f"You are a German teacher. Please check if this student answer fits the following {student_level} rule:\n"
-                        f"Rule: {', '.join(topic['rules'])}\n"
-                        f"Task: {topic['practice_instruction']}\n"
-                        f"Student answer: '{user_ans}'\n"
-                        "1. State if the sentence is correct or not (Correct/Incorrect).\n"
-                        "2. If incorrect, provide a corrected version.\n"
-                        "3. Explain the correction simply, in English (max 2 sentences).\n"
-                        "Use simple words for learners."
+        # --- Show word buttons (shuffled) ---
+        st.markdown("#### 🧩 Click the words in order")
+        word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
+        for i, w in enumerate(st.session_state.sb_shuffled):
+            selected = i in st.session_state.sb_selected_idx
+            btn_label = f"✅ {w}" if selected else w
+            col = word_cols[i % len(word_cols)]
+            with col:
+                if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
+                    st.session_state.sb_selected_idx.append(i)
+                    st.rerun()
+
+        # --- Selected sentence preview ---
+        chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
+        st.markdown("#### ✨ Your sentence")
+        st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
+
+        # --- Action buttons ---
+        a, b, c = st.columns(3)
+        with a:
+            if st.button("🧹 Clear"):
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.rerun()
+        with b:
+            if st.button("✅ Check"):
+                target = st.session_state.sb_current["solution"]
+                chosen = normalize_join(chosen_tokens)
+                # normalize for comparison (lowercase)
+                correct = (chosen.strip().lower() == target.strip().lower())
+                st.session_state.sb_correct = correct
+                st.session_state.sb_total += 1
+                if correct:
+                    st.session_state.sb_score += 1
+                    st.session_state.sb_feedback = "✅ **Correct!** Great job!"
+                else:
+                    st.session_state.sb_feedback = (
+                        f"❌ **Not quite.**\n\n**Correct:** {target}\n\n*Tip:* {st.session_state.sb_current['tip']}"
                     )
-                    try:
-                        client = openai.OpenAI()
-                        response = client.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[{"role": "user", "content": prompt}],
-                            max_tokens=160,
-                            temperature=0.2,
-                        )
-                        ai_feedback = response.choices[0].message.content
-                        st.markdown("**A.I. Feedback:**")
-                        st.info(ai_feedback)
+                # Save attempt
+                save_sentence_attempt(
+                    student_code=student_code,
+                    level=student_level,
+                    target_sentence=target,
+                    chosen_sentence=chosen,
+                    correct=correct,
+                    tip=st.session_state.sb_current["tip"],
+                )
+                st.rerun()
+        with c:
+            next_disabled = (st.session_state.sb_correct is None)
+            if st.button("➡️ Next", disabled=next_disabled):
+                # stop if reached target for this session
+                if st.session_state.sb_total >= st.session_state.sb_target:
+                    st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
+                new_sentence()
+                st.rerun()
 
-                        # Save attempt to Firebase
-                        save_writing_attempt(
-                            student_code=code,
-                            level=student_level,
-                            topic_name=topic['title'],
-                            user_input=user_ans,
-                            correct="Correct" in ai_feedback,
-                            solution=topic['solution'],
-                        )
+        # --- Feedback box ---
+        if st.session_state.sb_feedback:
+            if st.session_state.sb_correct:
+                st.success(st.session_state.sb_feedback)
+            else:
+                st.info(st.session_state.sb_feedback)
+#
 
-                        st.success("Result saved! Click below to start again.")
-                        if st.button("Start Again", key="next_topic"):
-                            st.session_state.pop("writing_input", None)
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Error from OpenAI: {e}")
 
 
 
@@ -6925,6 +7008,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
