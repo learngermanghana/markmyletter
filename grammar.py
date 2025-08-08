@@ -15,12 +15,10 @@ import urllib.parse
 from datetime import date, datetime, timedelta
 
 # ==== Third-Party Packages ====
-import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
 from firebase_admin import credentials, firestore
@@ -30,89 +28,81 @@ from openai import OpenAI
 from streamlit.components.v1 import html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+import firebase_admin  # keep after others; needed for _apps
 
+# ---- Firebase / Firestore init ----
+if not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate(st.secrets["gcp_service_account"])
+        firebase_admin.initialize_app(cred)
+    except Exception:
+        firebase_admin.initialize_app()
+
+db = firestore.client()
+
+# 5️⃣ Function to send a notification (admin use)
+def send_notification(user_id: str, title: str, message: str):
+    """Send a new in-app notification to a given user_id."""
+    payload = {
+        "title": title,
+        "message": message,
+        "timestamp": datetime.utcnow(),
+        "read": False
+    }
+    db.collection("users").document(user_id).collection("notifications").add(payload)
+
+# 6️⃣ Function to display notifications in-app
+def display_notifications(user_id: str):
+    """Fetch unread notifications for the user and display them."""
+    notifs = (
+        db.collection("users")
+        .document(user_id)
+        .collection("notifications")
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)
+        .stream()
+    )
+    unread_count = 0
+    for n in notifs:
+        data = n.to_dict()
+        if not data.get("read", False):
+            unread_count += 1
+            st.toast(f"🔔 {data['title']}: {data['message']}", icon="🔔")
+    if unread_count > 0:
+        st.sidebar.markdown(f"### 📬 Notifications ({unread_count} new)")
+        for n in notifs:
+            data = n.to_dict()
+            read_marker = "✅" if data.get("read") else "🆕"
+            st.sidebar.write(f"{read_marker} **{data['title']}** — {data['message']}")
 
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
-    html("""
-    <script>
-      // Page <title>
-      document.title = "Falowen – Learn German with Learn Language Education Academy";
-
-      // Meta description
-      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
-      let m = document.querySelector('meta[name="description"]');
-      if (!m) {
-        m = document.createElement('meta');
-        m.name = "description";
-        document.head.appendChild(m);
-      }
-      m.setAttribute("content", desc);
-
-      // Canonical
-      const canonicalHref = window.location.origin + "/";
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = "canonical";
-        document.head.appendChild(link);
-      }
-      link.href = canonicalHref;
-
-      // Open Graph (helps WhatsApp/FB previews)
-      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
-        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
-        t.setAttribute('content', v);
-      }
-      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
-      setOG("og:description", desc);
-      setOG("og:type", "website");
-      setOG("og:url", canonicalHref);
-
-      // JSON-LD
-      const ld = {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Falowen",
-        "alternateName": "Falowen by Learn Language Education Academy",
-        "url": canonicalHref
-      };
-      const s = document.createElement('script');
-      s.type = "application/ld+json";
-      s.text = JSON.stringify(ld);
-      document.head.appendChild(s);
-    </script>
-    """, height=0)
+    html(""" ... """, height=0)
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
     """
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+      #MainMenu {visibility: hidden;}
+      footer {visibility: hidden;}
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# ==== FIREBASE ADMIN INIT ====
-if not firebase_admin._apps:
-    cred_dict = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
-
+# ---- OAuth config ----
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
 
-# ==== OPENAI CLIENT SETUP ====
+# ---- OpenAI client ----
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 
 
 
@@ -756,8 +746,24 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 # --- Logged In UI ---
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+name = st.session_state.get("student_name", "").strip() or "Student"
+st.write(f"👋 Welcome, **{name}**")
 
+# Make sure we have `student_code` available for Stage 6
+student_code = (st.session_state.get("student_code") or "").strip().lower()
+if not student_code:
+    st.error("Missing student code in session. Please log in again.")
+    st.stop()
+
+# (Optional) Quick test to verify notifications end-to-end
+if st.button("🔔 Send test notification"):
+    try:
+        send_notification(student_code, "Welcome!", "You’re set up for alerts 🎉")
+        st.success("Test notification sent. Watch for the bell/toast.")
+    except Exception as e:
+        st.warning(f"Could not send test notification: {e}")
+
+# Log out button and flow
 if st.button("Log out"):
     # 1) Kill the cookie immediately (server side; keeps flags consistent)
     set_student_code_cookie(
@@ -822,6 +828,108 @@ if st.button("Log out"):
 
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
+
+
+# === Stage 6: In-app notifications UI ===
+# Place this right after you've set `student_code` and the user is logged in.
+
+from typing import List
+
+def _notif_list(user_id: str, limit: int = 30):
+    q = (db.collection("users").document(user_id)
+         .collection("notifications")
+         .order_by("timestamp", direction=firestore.Query.DESCENDING)
+         .limit(limit))
+    return list(q.stream())
+
+def _notif_unread(user_id: str, limit: int = 30):
+    q = (db.collection("users").document(user_id)
+         .collection("notifications")
+         .where("read", "==", False)
+         .order_by("timestamp", direction=firestore.Query.DESCENDING)
+         .limit(limit))
+    return list(q.stream())
+
+def _notif_mark_read(user_id: str, ids: List[str]):
+    if not ids: return
+    batch = db.batch()
+    col = db.collection("users").document(user_id).collection("notifications")
+    for nid in ids:
+        batch.update(col.document(nid), {"read": True})
+    batch.commit()
+
+# Run a gentle auto-refresh so new notifications show up without clicks
+st.autorefresh(interval=10_000, key="__notify_tick__")  # 10s
+
+# Keep some UI state
+st.session_state.setdefault("notif_open", False)
+st.session_state.setdefault("notif_seen_ids", set())  # avoid re-toasting same ones
+
+# Unread count + bell
+try:
+    _unread_docs = _notif_unread(student_code, limit=50)
+    unread_count = len(_unread_docs)
+except Exception as e:
+    _unread_docs = []
+    unread_count = 0
+
+c_spacer, c_bell = st.columns([8, 1])
+with c_bell:
+    label = f"🔔 {unread_count}" if unread_count else "🔔"
+    if st.button(label, key="__notif_bell__", help="Notifications"):
+        st.session_state["notif_open"] = not st.session_state["notif_open"]
+
+# Toast only the *newly seen this session* unread
+new_toast_ids = []
+for doc in reversed(_unread_docs):  # show older first for nice stacking
+    if doc.id in st.session_state["notif_seen_ids"]:
+        continue
+    d = doc.to_dict() or {}
+    title = d.get("title", "Notification")
+    msg = d.get("message", "")
+    ntype = d.get("type", "system")
+    icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(ntype, "🔔")
+    st.toast(f"**{title}**\n\n{msg}", icon=icon)
+    new_toast_ids.append(doc.id)
+# remember what we toasted this session so we don't spam
+st.session_state["notif_seen_ids"].update(new_toast_ids)
+
+# Drawer / inbox
+if st.session_state["notif_open"]:
+    st.markdown("### Notifications")
+    try:
+        rows = _notif_list(student_code, limit=50)
+    except Exception as e:
+        rows = []
+        st.warning(f"Notifications unavailable: {e}")
+
+    if not rows:
+        st.caption("No notifications yet.")
+    else:
+        to_mark = []
+        for doc in rows:
+            d = doc.to_dict() or {}
+            title = d.get("title", "(no title)")
+            msg = d.get("message", "")
+            read = bool(d.get("read", False))
+            badge = "🆕" if not read else "·"
+            st.markdown(f"**{badge} {title}**  \n{msg}")
+            link = d.get("deeplink")
+            if link:
+                st.link_button("Open", link, key=f"lnk_{doc.id}")
+            st.divider()
+            if not read:
+                to_mark.append(doc.id)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if to_mark and st.button("Mark all as read", key="__notif_mark_all__"):
+                _notif_mark_read(student_code, to_mark)
+                st.session_state["notif_open"] = False
+                st.rerun()
+        with c2:
+            if st.button("Refresh", key="__notif_refresh__"):
+                st.rerun()
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -7979,6 +8087,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
