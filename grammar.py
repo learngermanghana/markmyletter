@@ -6505,25 +6505,23 @@ def get_vocab_stats(student_code):
 # LOAD SENTENCE BANK FROM EXTERNAL FILE
 # ================================
 def load_sentence_bank():
-    """
-    Load SENTENCE_BANK dictionary from sentence.py so it can be updated externally.
-    Ensure sentence.py is in the same folder and defines SENTENCE_BANK = {...}
-    """
     try:
-        mod = importlib.import_module("sentence")  # file must be sentence.py
+        try:
+            mod = importlib.import_module("sentence_bank")  # file: sentence_bank.py
+        except ModuleNotFoundError:
+            mod = importlib.import_module("sentence")       # optional fallback
         bank = getattr(mod, "SENTENCE_BANK", None)
         if not isinstance(bank, dict):
-            st.error("`SENTENCE_BANK` found in sentence.py is not a dictionary.")
+            st.error("`SENTENCE_BANK` in the module is not a dictionary.")
             return {}
         return bank
     except ModuleNotFoundError:
-        st.error("Could not import `sentence.py`. Make sure it is in the same folder as this app.")
+        st.error("Couldn't import sentence_bank.py (or sentence.py). Put it next to the app.")
         return {}
     except Exception as e:
-        st.error(f"Error loading SENTENCE_BANK from sentence.py: {e}")
+        st.error(f"Error loading SENTENCE_BANK: {e}")
         return {}
 
-SENTENCE_BANK = load_sentence_bank()
 
 
 # ================================
@@ -7977,6 +7975,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
