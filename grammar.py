@@ -880,6 +880,18 @@ if st.button("Log out"):
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
 
+# --- Ensure login context + required vars before notifications logic ---
+if not st.session_state.get("logged_in"):
+    st.stop()  # don't render private UI for logged-out users
+
+student_row = st.session_state.get("student_row") or {}
+student_code = (st.session_state.get("student_code") or "").strip().lower()
+
+if not student_code:
+    st.error("Missing student code. Please log in again.")
+    st.stop()
+
+
 # ============================
 # Notifications-only dashboard logic (no visible widgets)
 # Paste this AFTER login (have `student_code`, `student_row`) and BEFORE your tab selector.
@@ -7922,6 +7934,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
