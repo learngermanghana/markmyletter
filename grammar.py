@@ -85,49 +85,6 @@ def _init_firebase():
 db = _init_firebase()
 
 
-# 5️⃣ Send a notification (admin/app use)
-def send_notification(user_id: str, title: str, message: str, *, type_: str = "system", deeplink: str = ""):
-    """Create an in-app notification under users/{user_id}/notifications."""
-    payload = {
-        "title": title,
-        "message": message,
-        "type": type_,
-        "deeplink": deeplink,
-        "timestamp": datetime.now(timezone.utc),
-        "read": False,
-    }
-    db.collection("users").document(user_id).collection("notifications").add(payload)
-
-
-# 6️⃣ Display notifications (lightweight helper; Stage 6 UI can replace this)
-def display_notifications(user_id: str):
-    """Toast unread and show a simple sidebar list. (Streams are materialized to a list once.)"""
-    col = db.collection("users").document(user_id).collection("notifications")
-
-    # Materialize once so we don't exhaust the generator twice
-    try:
-        docs = list(
-            col.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
-        )
-    except Exception as e:
-        st.warning(f"Notifications unavailable: {e}")
-        return
-
-    unread = [d for d in docs if not (d.to_dict() or {}).get("read", False)]
-    for d in reversed(unread):  # older first → nicer stacking
-        data = d.to_dict() or {}
-        ntype = data.get("type", "system")
-        icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(ntype, "🔔")
-        st.toast(f"**{data.get('title','Notification')}**\n\n{data.get('message','')}", icon=icon)
-
-    if unread:
-        st.sidebar.markdown(f"### 📬 Notifications ({len(unread)} new)")
-        for d in docs:
-            data = d.to_dict() or {}
-            read_marker = "✅" if data.get("read") else "🆕"
-            st.sidebar.write(f"{read_marker} **{data.get('title','(no title)')}** — {data.get('message','')}")
-
-
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
     html(""" ... """, height=0)
@@ -8176,6 +8133,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
