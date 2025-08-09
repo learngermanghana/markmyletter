@@ -891,19 +891,28 @@ if not student_code:
     st.error("Missing student code. Please log in again.")
     st.stop()
 
-
 # ============================
-# Notifications-only dashboard logic (no visible widgets)
-# Paste this AFTER login (have `student_code`, `student_row`) and BEFORE your tab selector.
+# STAGE 1: Notification + loader helpers
 # ============================
 
-from datetime import date, timedelta
 import pandas as pd
+from datetime import datetime, timezone
 
-WEEKLY_GOAL = 3
-MIN_ASSIGNMENTS_FOR_LB = 3  # min completed to appear in leaderboard
-LEVEL_TOTALS = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}  # used for rank calc filter
+# ---- Google Sheet (scores) ----
+@st.cache_data(ttl=30)  # quick refresh while testing; bump later
+def load_assignment_scores():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    GID = "2121051612"  # tab you update
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+    df = pd.read_csv(url, dtype=str)
+    df.columns = df.columns.str.strip().str.lower()
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    # normalize occasional header variants
+    df = df.rename(columns={"student code": "studentcode", "student": "name"})
+    return df
 
+# ---- Firestore: user stats + notifications collection ----
 def _user_doc(uid: str):
     return db.collection("users").document(uid)
 
@@ -922,8 +931,64 @@ def _set_user_stats(uid: str, **kv):
     except Exception:
         pass
 
+# ---- Send “new score published” only when count increases ----
+SCORES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/edit?gid=2121051612#gid=2121051612"
+
+def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
+    if df_assign is None or df_assign.empty:
+        return
+    df = df_assign.copy()
+    df.columns = df.columns.str.strip().str.lower()
+    for c in df.columns:
+        df[c] = df[c].astype(str).str.strip()
+    if "studentcode" not in df.columns:
+        return
+
+    mine = df[df["studentcode"].str.lower() == user_id.lower()]
+    current_count = len(mine)
+
+    last_count = _get_user_stat(user_id, "last_seen_score_count", None)
+    if last_count is None:
+        _set_user_stats(user_id, last_seen_score_count=int(current_count))  # baseline
+        return
+
+    if current_count > int(last_count):
+        try:
+            send_notification(
+                user_id=user_id,
+                title="New result published",
+                message="A new score is available. Tap to view it in Results & Resources.",
+                type_="assignment",
+                deeplink=SCORES_SHEET_URL,
+            )
+        finally:
+            _set_user_stats(user_id, last_seen_score_count=int(current_count))
+    elif current_count < int(last_count):
+        _set_user_stats(user_id, last_seen_score_count=int(current_count))  # resync quietly
+
+# ---- Toast unread only (no sidebar list) ----
+def display_notifications_toast_only(user_id: str):
+    try:
+        col = db.collection("users").document(user_id).collection("notifications")
+        docs = list(col.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+        unread = [d for d in docs if not (d.to_dict() or {}).get("read", False)]
+        for d in reversed(unread):  # older first → nicer stack
+            data = d.to_dict() or {}
+            icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(data.get("type","system"), "🔔")
+            st.toast(f"**{data.get('title','Notification')}**\n\n{data.get('message','')}", icon=icon)
+    except Exception:
+        pass
+
+# ============================
+# STAGE 2: Notifications-only dashboard logic (no visible widgets)
+# ============================
+
+from datetime import date, timedelta
+
+WEEKLY_GOAL = 3
+MIN_ASSIGNMENTS_FOR_LB = 3
+
 def _compute_streak(dates_sorted_desc):
-    """dates_sorted_desc: list[date] sorted newest -> oldest"""
     if not dates_sorted_desc:
         return 0
     streak = 1
@@ -934,67 +999,52 @@ def _compute_streak(dates_sorted_desc):
             break
     return streak
 
-def _weekly_count(df_assign: pd.DataFrame, student_code: str) -> int:
+def _weekly_count(df_assign: pd.DataFrame, user_code: str) -> int:
     today = date.today()
     monday = today - timedelta(days=today.weekday())
-    mask = (df_assign["studentcode"].str.lower().str.strip() == student_code.lower()) & \
+    mask = (df_assign["studentcode"].str.lower().str.strip() == user_code.lower()) & \
            (df_assign["date"] >= monday)
     return int(df_assign.loc[mask].shape[0])
 
-def _leaderboard_rank(df_assign: pd.DataFrame, user_level: str, student_code: str):
-    """
-    Return (rank:int|None, total_students:int) for this level, or (None, 0) if not enough data.
-    Rank: 1 = best. Only counts students with at least MIN_ASSIGNMENTS_FOR_LB completed at this level.
-    """
+def _leaderboard_rank(df_assign: pd.DataFrame, user_level: str, user_code: str):
     df = df_assign.copy()
     df["level"] = df["level"].astype(str).str.upper().str.strip()
     df["score"] = pd.to_numeric(df["score"], errors="coerce")
     lvl = (user_level or "").upper().strip()
     if not lvl:
         return None, 0
-
     try:
         grp = (
             df[df["level"] == lvl]
             .groupby(["studentcode", "name"], as_index=False)
-            .agg(total_score=("score","sum"),
-                 completed=("assignment","nunique"))
+            .agg(total_score=("score","sum"), completed=("assignment","nunique"))
         )
     except Exception:
         return None, 0
-
     grp = grp[grp["completed"] >= MIN_ASSIGNMENTS_FOR_LB]
     if grp.empty:
         return None, 0
-
     grp = grp.sort_values(["total_score", "completed"], ascending=[False, False]).reset_index(drop=True)
     grp["rank"] = grp.index + 1
-    mine = grp[grp["studentcode"].str.lower() == student_code.lower()]
+    mine = grp[grp["studentcode"].str.lower() == user_code.lower()]
     if mine.empty:
         return None, int(len(grp))
     return int(mine.iloc[0]["rank"]), int(len(grp))
 
-# Gentle auto-refresh so notifications can toast without clicks
+# Gentle auto-refresh (toast-only UI)
 try:
-    # Preferred if the helper is available
     from streamlit_autorefresh import st_autorefresh
     st_autorefresh(interval=15_000, key="__notify_tick__")
 except Exception:
-    # Fallback: light client-side refresh (works on Streamlit Cloud too)
-    import streamlit.components.v1 as components
-    components.html(
-        "<script>setTimeout(() => { location.reload(); }, 15000);</script>",
-        height=0,
-    )
+    components.html("<script>setTimeout(() => { location.reload(); }, 15000);</script>", height=0)
 
-
-# 1) Load the sheet (quietly)
+# 1) Load scores quietly
 try:
     df_assign = load_assignment_scores()
 except Exception:
     df_assign = pd.DataFrame()
 
-# Normalize and parse date for internal use
+# Normalize + parse date for internal logic
 if not df_assign.empty:
     df_assign = df_assign.copy()
     df_assign.columns = df_assign.columns.str.strip().str.lower()
@@ -1005,15 +1055,14 @@ if not df_assign.empty:
 else:
     df_assign = pd.DataFrame(columns=["studentcode","date","level","assignment","score"])
 
-# 2) New score rows → Firestore notification (no grade shown)
+# 2) New score rows → notification (no grade shown)
 try:
     notify_if_new_scores(student_code, df_assign)
 except Exception:
     pass
 
-# 3) Streak & weekly goal changes → notifications (no widgets)
+# 3) Streak + Weekly goal → notifications (no widgets)
 try:
-    # all my submission dates (newest → oldest)
     my_dates = sorted(
         [d for d in df_assign.loc[df_assign["studentcode"].str.lower()==student_code.lower(),"date"].dropna().unique()],
         reverse=True
@@ -1030,13 +1079,10 @@ try:
         )
         _set_user_stats(student_code, last_seen_streak=int(current_streak))
     elif current_streak < last_streak:
-        # data changed (cleanup); resync quietly
         _set_user_stats(student_code, last_seen_streak=int(current_streak))
 
-    # weekly count (notify only when you REACH the goal to avoid spam)
     wk_count = _weekly_count(df_assign, student_code)
     last_week_count = int(_get_user_stat(student_code, "last_seen_week_count", 0) or 0)
-
     if wk_count >= WEEKLY_GOAL and last_week_count < WEEKLY_GOAL:
         send_notification(
             user_id=student_code,
@@ -1044,19 +1090,18 @@ try:
             message=f"You’ve submitted {wk_count} this week. Great job!",
             type_="achievement",
         )
-    # Always keep latest for comparison next time
     if wk_count != last_week_count:
         _set_user_stats(student_code, last_seen_week_count=int(wk_count))
 except Exception:
     pass
 
-# 4) Leaderboard rank improvements → notification (no widget)
+# 4) Leaderboard rank improvements → notification
 try:
-    user_level = (student_row.get("Level") or "").strip().upper()
+    user_level = (st.session_state.get("student_row") or {}).get("Level", "")
+    user_level = (user_level or "").strip().upper()
     rank, total = _leaderboard_rank(df_assign, user_level, student_code)
     last_rank = _get_user_stat(student_code, "last_seen_rank", None)
 
-    # Notify only if rank improved (number got smaller)
     if rank is not None:
         if last_rank is None:
             _set_user_stats(student_code, last_seen_rank=int(rank))
@@ -1077,36 +1122,30 @@ try:
 except Exception:
     pass
 
-def display_notifications_toast_only(user_id: str):
-    try:
-        col = db.collection("users").document(user_id).collection("notifications")
-        docs = list(col.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
-        unread = [d for d in docs if not (d.to_dict() or {}).get("read", False)]
-        for d in reversed(unread):
-            data = d.to_dict() or {}
-            icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(data.get("type","system"), "🔔")
-            st.toast(f"**{data.get('title','Notification')}**\n\n{data.get('message','')}", icon=icon)
-    except Exception:
-        pass
+# ============================
+# STAGE 3: Toast unread + optional test controls
+# ============================
 
-@st.cache_data(ttl=30)  # refresh every 30s for testing
-def load_assignment_scores():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    GID = "2121051612"  # <- the tab you edited
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
-    df = pd.read_csv(url, dtype=str)
-    df.columns = df.columns.str.strip().str.lower()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    # Optional: normalize expected column names (friendly if headers vary slightly)
-    df = df.rename(columns={
-        "student code": "studentcode",
-        "student": "name",
-    })
-    return df
+# Toast unread notifications (no sidebar list)
+try:
+    display_notifications_toast_only(student_code)
+except Exception:
+    pass
 
+# Optional helpers while testing
+colA, colB = st.columns([1,3])
+with colA:
+    if st.button("↻ Refresh results"):
+        st.cache_data.clear()
+        st.rerun()
+with colB:
+    if st.button("🧹 Reset results baseline"):
+        _set_user_stats(student_code, last_seen_score_count=0, last_seen_streak=0, last_seen_week_count=0)
+        st.success("Baselines reset. Add a new row in the sheet to trigger notifications.")
+# ============================
+# MAIN TAB SELECTION
+# ============================
 
-# --- Main Tab Selection ---
 tab = st.radio(
     "How do you want to practice?",
     [
@@ -1119,6 +1158,7 @@ tab = st.radio(
     ],
     key="main_tab_select"
 )
+
 
 if tab == "Dashboard":
     # --- Helper to avoid AttributeError on any row type ---
@@ -7956,6 +7996,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
