@@ -84,8 +84,6 @@ def _init_firebase():
 
 db = _init_firebase()
 
-from streamlit_autorefresh import st_autorefresh
-st_autorefresh(interval=10_000, key="__notify_tick__")
 
 # 5️⃣ Send a notification (admin/app use)
 def send_notification(user_id: str, title: str, message: str, *, type_: str = "system", deeplink: str = ""):
@@ -911,8 +909,18 @@ def _notif_mark_read(user_id: str, ids: List[str]):
         batch.update(col.document(nid), {"read": True})
     batch.commit()
 
-# Run a gentle auto-refresh so new notifications show up without clicks
-st.autorefresh(interval=10_000, key="__notify_tick__")  # 10s
+# replace st.autorefresh(...) with this
+components.html(
+    """
+    <script>
+      setTimeout(() => {
+        window.parent.postMessage({ isStreamlitMessage: true, type: 'streamlit:rerun' }, '*');
+      }, 10000); // 10s
+    </script>
+    """,
+    height=0,
+)
+
 
 # Keep some UI state
 st.session_state.setdefault("notif_open", False)
@@ -8140,6 +8148,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
