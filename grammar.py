@@ -6592,23 +6592,15 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
         st.warning(f"Could not load level from roster ({e}). Using default {default}.")
         return default
 
-
-# ================================
-# HELPERS: Vocab stats (per-user)
-# ================================
 from uuid import uuid4
 from datetime import datetime
 
 def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
-    """
-    Check inside the student's vocab_stats doc whether an attempt
-    with this exact session_id has already been saved.
-    """
+    """Check if an attempt with this session_id already exists for the student."""
     if not session_id:
         return False
     _db = _get_db()
     if _db is None:
-        # If no DB, pretend it doesn't exist so caller can skip saving anyway.
         return False
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
@@ -6618,56 +6610,47 @@ def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
 
     data = doc.to_dict() or {}
     history = data.get("history", [])
-    # Older entries may not have a session_id; handle gracefully.
     return any(h.get("session_id") == session_id for h in history)
 
 
 def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
     """
     Save one vocab practice attempt to Firestore.
-    Now duplicate-safe using session_id. If session_id is None, one will be generated.
+    Duplicate-safe using session_id.
     """
     _db = _get_db()
     if _db is None:
         st.warning("Firestore not initialized; skipping stats save.")
         return
 
-    # Ensure we have a session_id (so refreshes don't double-save)
     if not session_id:
         session_id = str(uuid4())
 
-    # If we've already saved this session, bail out
     if vocab_attempt_exists(student_code, session_id):
         return
 
-    # Load current doc
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
 
-    # Compose attempt record
     attempt = {
         "level": level,
         "total": int(total) if total is not None else 0,
         "correct": int(correct) if correct is not None else 0,
         "practiced_words": list(practiced_words or []),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "session_id": session_id,  # NEW: used to dedupe saves
+        "session_id": session_id,
     }
 
-    # Append and recompute summaries
     history.append(attempt)
-    best = max((int(a.get("correct", 0)) for a in history), default=0)
-    # Flatten practiced words safely
     completed = {w for a in history for w in a.get("practiced_words", [])}
 
     doc_ref.set({
         "history":           history,
-        "best":              best,
         "last_practiced":    attempt["timestamp"],
         "completed_words":   sorted(completed),
-        "total_sessions":    len(history),  # one saved record per finished session
+        "total_sessions":    len(history),
     }, merge=True)
 
 
@@ -6677,7 +6660,6 @@ def get_vocab_stats(student_code):
     if _db is None:
         return {
             "history":           [],
-            "best":              0,
             "last_practiced":    None,
             "completed_words":   [],
             "total_sessions":    0,
@@ -6686,38 +6668,21 @@ def get_vocab_stats(student_code):
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
-        return doc.to_dict()
+        data = doc.to_dict() or {}
+        # Ensure we don't return "best"
+        return {
+            "history": data.get("history", []),
+            "last_practiced": data.get("last_practiced"),
+            "completed_words": data.get("completed_words", []),
+            "total_sessions": data.get("total_sessions", 0),
+        }
+
     return {
         "history":           [],
-        "best":              0,
         "last_practiced":    None,
         "completed_words":   [],
         "total_sessions":    0,
     }
-
-
-
-# ================================
-# LOAD SENTENCE BANK FROM EXTERNAL FILE
-# ================================
-def load_sentence_bank():
-    try:
-        try:
-            mod = importlib.import_module("sentence_bank")  # file: sentence_bank.py
-        except ModuleNotFoundError:
-            mod = importlib.import_module("sentence")       # optional fallback
-        bank = getattr(mod, "SENTENCE_BANK", None)
-        if not isinstance(bank, dict):
-            st.error("`SENTENCE_BANK` in the module is not a dictionary.")
-            return {}
-        return bank
-    except ModuleNotFoundError:
-        st.error("Couldn't import sentence_bank.py (or sentence.py). Put it next to the app.")
-        return {}
-    except Exception as e:
-        st.error(f"Error loading SENTENCE_BANK: {e}")
-        return {}
-
 
 
 # ================================
@@ -7060,7 +7025,6 @@ if tab == "Vocab Trainer":
         with st.expander("📝 Your Vocab Stats", expanded=False):
             stats = get_vocab_stats(student_code)
             st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-            st.markdown(f"- **Best:** {stats['best']}")
             st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
             st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
 
