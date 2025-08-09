@@ -10,6 +10,7 @@ import random
 import re
 import sqlite3
 import tempfile
+import streamlit.components.v1 as components
 import time
 import urllib.parse
 from datetime import date, datetime, timedelta
@@ -8087,6 +8088,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
