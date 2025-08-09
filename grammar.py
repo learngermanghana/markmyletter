@@ -4060,11 +4060,28 @@ if tab == "Course Book":
 def linkify_html(text):
     """Escape HTML and convert URLs in plain text to anchor tags."""
     s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
-    s = html.escape(s)
-    # make raw URLs clickable
+    s = html.escape(s)  # stdlib html module
     url_pat = r'(https?://[^\s<]+)'
     s = re.sub(url_pat, r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
     return s
+
+def _clean_link(val) -> str:
+    """Return a clean string or '' if empty/NaN/common placeholders."""
+    if val is None:
+        return ""
+    if isinstance(val, float) and pd.isna(val):
+        return ""
+    s = str(val).strip()
+    if s.lower() in {"", "nan", "none", "null", "0"}:
+        return ""
+    return s
+
+def _is_http_url(s: str) -> bool:
+    try:
+        u = urllib.parse.urlparse(s)
+        return u.scheme in ("http", "https") and bool(u.netloc)
+    except Exception:
+        return False
 
 
 if tab == "My Results and Resources":
@@ -4133,24 +4150,23 @@ if tab == "My Results and Resources":
         st.write("Columns found:", df_scores.columns.tolist())
         st.stop()
 
-    code = student_code.lower().strip()
-    df_user = df_scores[df_scores.student_code.str.lower().str.strip() == code]
+    code = (student_code or "").lower().strip()
+    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
     # --- Choose level
-    df_user['level'] = df_user.level.str.upper().str.strip()
+    df_user = df_user.copy()  # avoid SettingWithCopy
+    df_user['level'] = df_user['level'].astype(str).str.upper().str.strip()
     levels = sorted(df_user['level'].unique())
     level = st.selectbox("Select level:", levels)
-    df_lvl = df_user[df_user.level == level]
-
+    df_lvl = df_user[df_user.level == level].copy()
 
     # ========== METRICS ==========
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = totals.get(level, 0)
-    completed = df_lvl.assignment.nunique()
-    df_lvl = df_lvl.copy()
+    completed = df_lvl['assignment'].nunique()
     df_lvl['score'] = pd.to_numeric(df_lvl['score'], errors='coerce')
     avg_score = df_lvl['score'].mean() or 0
     best_score = df_lvl['score'].max() or 0
@@ -4160,22 +4176,21 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-#
+
     # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
-    # --- Score label function ---
     def score_label(score):
         try:
-            score = float(score)
-        except:
+            s = float(score)
+        except Exception:
             return ""
-        if score >= 90:
+        if s >= 90:
             return "Excellent 🌟"
-        elif score >= 75:
+        elif s >= 75:
             return "Good 👍"
-        elif score >= 60:
+        elif s >= 60:
             return "Sufficient ✔️"
         else:
             return "Needs Improvement ❗"
@@ -4193,10 +4208,14 @@ if tab == "My Results and Resources":
                       .reset_index(drop=True)
             )
 
-            for idx, row in df_display.iterrows():
+            for _, row in df_display.iterrows():
                 perf = score_label(row['score'])
                 comment_html = linkify_html(row['comments'])
-                ref_link = str(row.get('link', '') or '').strip()
+
+                # only show a real link
+                raw_link = row['link'] if ('link' in df_display.columns) else None
+                ref_link = _clean_link(raw_link)
+                has_valid_link = bool(ref_link) and _is_http_url(ref_link)
 
                 st.markdown(
                     f"""
@@ -4211,13 +4230,14 @@ if tab == "My Results and Resources":
                     unsafe_allow_html=True
                 )
 
-                # Show Lesen/Hören reference only if there is a valid score and a link
-                has_score = pd.to_numeric(row['score'], errors='coerce')
-                if not pd.isna(has_score) and ref_link:
-                    st.markdown(
-                        f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
-                        unsafe_allow_html=True
-                    )
+                # Show Lesen/Hören reference only if there is a valid numeric score AND a valid URL
+                if has_valid_link:
+                    has_score_num = pd.to_numeric(row['score'], errors='coerce')
+                    if not pd.isna(has_score_num):
+                        st.markdown(
+                            f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
+                            unsafe_allow_html=True
+                        )
 
                 st.divider()
         else:
@@ -4227,6 +4247,7 @@ if tab == "My Results and Resources":
                       .reset_index(drop=True)
             )
             st.table(df_display)
+
             
     st.markdown("---") 
 
