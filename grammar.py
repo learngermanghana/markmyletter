@@ -3511,8 +3511,8 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-         with st.expander("🌐 Translation Tools", expanded=False):
-
+        # --- Translation Tools ---
+        with st.expander("🌐 Translation Tools", expanded=False):
             st.markdown("---")
             st.markdown(
                 '**Need translation?** '
@@ -3522,13 +3522,10 @@ if tab == "Course Book":
             )
             st.caption("Copy any text from the course book and paste it into your preferred translator.")
 
-    
         st.divider()
 
-        st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
-#
-
-        with st.expander("🎬 Video of the Day for Your Level"):
+        # --- Video of the Day ---
+        with st.expander("🎬 Video of the Day for Your Level", expanded=False):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
             if playlist_id:
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
@@ -3544,7 +3541,8 @@ if tab == "Course Book":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
         st.divider()
-        
+
+   
         # === SUBMIT ASSIGNMENT SECTION ===
         st.markdown("### ✅ Submit Your Assignment")
         
