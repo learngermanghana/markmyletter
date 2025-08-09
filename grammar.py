@@ -955,138 +955,84 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-# ======================= DASHBOARD TOP (Triggers + Notifications) =======================
 if st.session_state.get("logged_in"):
-    from datetime import datetime, timedelta, date, timezone
-    import json, random
-
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
 
-    # ---------- helpers to persist "seen" + "snooze" in encrypted cookies ----------
-    def _load_cookie_json(key, default):
-        try:
-            raw = cookie_manager.get(key)
-            if not raw:
-                return default
-            return json.loads(raw)
-        except Exception:
-            return default
-
-    def _save_cookie_json(key, obj, days=180):
-        try:
-            raw = json.dumps(obj, separators=(",", ":"))
-            # best-effort write
-            if hasattr(cookie_manager, "set"):
-                cookie_manager.set(
-                    key, raw,
-                    expires=datetime.utcnow() + timedelta(days=days),
-                    secure=True, samesite="None"
-                )
-                cookie_manager.save()
-            else:
-                cookie_manager[key] = raw
-                cookie_manager.save()
-        except Exception:
-            pass
-
-    seen_versions  = _load_cookie_json("notif_seen", {})
-    snooze_until   = _load_cookie_json("notif_snooze", {})  # {nid: iso_utc}
-
-    def _is_snoozed(nid: str) -> bool:
-        iso = snooze_until.get(nid)
-        if not iso:
-            return False
-        try:
-            return datetime.fromisoformat(iso) > datetime.utcnow()
-        except Exception:
-            return False
-
-    def _dismiss(nid: str, version: str):
-        seen_versions[nid] = version
-        _save_cookie_json("notif_seen", seen_versions)
-
-    def _snooze(nid: str, days=7):
-        until = (datetime.utcnow() + timedelta(days=days)).isoformat()
-        snooze_until[nid] = until
-        _save_cookie_json("notif_snooze", snooze_until)
-
-    # -------------------- Load student info --------------------
+    # Load student info
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
+    # Greeting helper
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # -------------------- CONTRACT (compute + version) --------------------
+    # -------------------- CONTRACT (compute only) --------------------
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
-    today_dt = datetime.now(timezone.utc)
+    today_dt = datetime.today()
     contract_end = parse_contract_end(contract_end_str)
 
+    contract_title_extra = "• no date"
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
-    contract_title_extra = "• no date"
-    contract_ver = "none"
 
     if contract_end:
-        days_left = (contract_end.date() - today_dt.date()).days
-        contract_title_extra = f"• {contract_end:%d %b %Y}"
+        days_left = (contract_end - today_dt).days
+        contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
         if 0 < days_left <= 30:
             contract_notice_level = "warning"
             contract_msg = (
-                f"⏰ **Your contract ends in {days_left} days ({contract_end:%d %b %Y}).**\n"
-                f"Renew for **₵{MONTHLY_RENEWAL:,}/month** if you need more time."
+                f"⏰ **Your contract ends in {days_left} days "
+                f"({contract_end.strftime('%d %b %Y')}).**\n"
+                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
             )
             contract_title_extra = f"• ends in {days_left}d"
-            # bucket versions to avoid daily spam (e.g., only “<=30d” bucket)
-            contract_ver = "ending_<=30"
         elif days_left < 0:
             contract_notice_level = "error"
             contract_msg = (
-                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,}/month**."
+                f"⚠️ **Your contract has ended!** Please contact the office to renew "
+                f"for **₵{MONTHLY_RENEWAL:,} per month**."
             )
             contract_title_extra = "• ended"
-            contract_ver = "ended"
         else:
             contract_notice_level = "info"
-            contract_msg = f"✅ Contract active. End date: {contract_end:%d %b %Y}."
-            contract_ver = "active"
+            contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
-    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL (version) --------------------
+    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
+    df_assign["date"] = pd.to_datetime(
+        df_assign["date"], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
-    # streak
-    dates_submitted = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
-    streak = 1 if dates_submitted else 0
-    for i in range(1, len(dates_submitted)):
-        if (dates_submitted[i - 1] - dates_submitted[i]).days == 1:
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i - 1] - dates[i]).days == 1:
             streak += 1
         else:
             break
 
-    today_d = date.today()
-    iso_year, iso_week, _ = today_d.isocalendar()
-    monday = today_d - timedelta(days=today_d.weekday())
-    WEEKLY_GOAL = 3
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
     assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
+    WEEKLY_GOAL = 3
     goal_left = max(0, WEEKLY_GOAL - assignment_count)
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
 
-    # version is tied to THIS week + streak change only
-    assignments_ver = f"{iso_year}-W{iso_week}:{assignment_count}:{streak}"
-
-    # -------------------- VOCAB OF THE DAY (version = date) --------------------
+    # -------------------- VOCAB OF THE DAY --------------------
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
-    vocab_ver = f"{today_d.isoformat()}:{student_level}:{(vocab_item or {}).get('german','')}"
 
-    # -------------------- LEADERBOARD (version = rank or NA) --------------------
+    # -------------------- LEADERBOARD (compute only) --------------------
+    import random
     MIN_ASSIGNMENTS = 3
-    user_level = student_row.get('Level', '').upper()
+
+    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
@@ -1105,127 +1051,52 @@ if st.session_state.get("logged_in"):
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total_possible = totals.get(user_level, 0)
 
+    leaderboard_title_extra = "• not ranked"
     if not your_row.empty:
         rank_val = int(your_row.iloc[0]['Rank'])
         leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
-        leaderboard_ver = f"rank:{rank_val}/{total_students}"
-    else:
-        leaderboard_title_extra = "• not ranked"
-        leaderboard_ver = "rank:NA"
 
-    # -------------------- Tip (we don't count it as unread trigger) --------------------
+    # -------------------- DASHBOARD TIP (compute only) --------------------
     DASHBOARD_REMINDERS = [
-        "🤔 Try the Course Book—track lessons & progress.",
-        "📊 Check My Results & Resources for your wins.",
-        "📝 Use Exams Mode & Custom Chat for practice.",
-        "🗣️ Do Vocab Trainer this week—small daily gains.",
-        "✍️ Schreiben Trainer: draft ideas, then self-check.",
-        "📒 Add notes in My Learning Notes & pin the best.",
+        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
+        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
+        "📝 **Have you used Exams Mode & Custom Chat?** Practice your speaking and real exam questions or ask your own. Get instant writing feedback and AI help!",
+        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
+        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
+        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
     ]
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
 
-    # ============== Trigger logic: only unread when version changed ==============
-    current_versions = {
-        "contract":    contract_ver,
-        "assignments": assignments_ver,
-        "vocab":       vocab_ver,
-        "leaderboard": leaderboard_ver,
-        # "tip":      omit from triggers to reduce noise
-    }
-
-    def _is_triggered(nid: str) -> bool:
-        if _is_snoozed(nid):
-            return False
-        return seen_versions.get(nid) != current_versions.get(nid)
-
-    # unread count considers only triggered items
-    _NOTIF_IDS = ["contract", "assignments", "vocab", "leaderboard"]
-    _unread_count = sum(1 for nid in _NOTIF_IDS if _is_triggered(nid))
-
-    # Master toggle (opens/closes all)
-    expand_all = st.toggle(f"🔔 Notifications ({_unread_count} new)", value=False, key="notif_expand_all")
-
-    def _expanded(nid: str) -> bool:
-        # expand if master toggle or specifically triggered
-        return bool(expand_all or _is_triggered(nid))
-
-    # -------------------- Browser notifications (in-tab) + OneSignal (push) --------------------
-    # Inject tiny JS helper for Notification API
-    components.html("""
-    <script>
-    (function(){
-      if (!window.falowen) window.falowen = {};
-      window.falowen.requestNotif = async function(){
-        try { return await Notification.requestPermission(); } catch(e){ return 'denied'; }
-      };
-      window.falowen.notify = function(title, body){
-        if (!('Notification' in window)) return;
-        if (Notification.permission !== 'granted') return;
-        try {
-          const n = new Notification(title, { body: body });
-          setTimeout(()=>{ try{ n.close(); }catch(e){} }, 8000);
-        } catch(e){}
-      };
-    })();
-    </script>
-    """, height=0)
-
-    def trigger_browser_notification(title: str, body: str):
-        safe_title = json.dumps(title)
-        safe_body  = json.dumps(body)
-        components.html(f"<script>window.falowen && window.falowen.notify({safe_title},{safe_body});</script>", height=0)
-
-    # Optional true push (background) via OneSignal
-    ONESIGNAL_APP_ID = st.secrets.get("ONESIGNAL_APP_ID", "")
-    if ONESIGNAL_APP_ID:
-        components.html(f"""
-        <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
-        <script>
-          window.OneSignalDeferred = window.OneSignalDeferred || [];
-          window.OneSignalDeferred.push(function(OneSignal){{
-            OneSignal.init({{ appId: "{ONESIGNAL_APP_ID}", allowLocalhostAsSecureOrigin: true }});
-          }});
-        </script>
-        """, height=0)
-
-    # -------------------- Badges row --------------------
+    # ==================== COLLAPSIBLE NOTIFICATIONS ====================
     st.markdown(
-        f"""
+        """
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
-          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 {assignment_count}/{WEEKLY_GOAL} • {streak}d</span>
-          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ {student_level}</span>
-          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 {leaderboard_title_extra.replace('• ','')}</span>
-          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">🔔 Notifications</span>
+          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
+          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
+          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
+          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # ============== Expanders ==============
-
-    # Contract
-    with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=_expanded("contract")):
+    # Contract & renewal (collapsed)
+    with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
         if contract_notice_level == "warning":
             st.warning(contract_msg)
         elif contract_notice_level == "error":
             st.error(contract_msg)
         else:
             st.info(contract_msg)
+
         st.info(
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
         )
-        c1, c2 = st.columns(2)
-        if c1.button("Dismiss", key="dismiss_contract"):
-            _dismiss("contract", current_versions["contract"])
-            st.rerun()
-        if c2.button("Snooze 7 days", key="snooze_contract"):
-            _snooze("contract", 7)
-            st.rerun()
 
-    # Assignments
-    with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=_expanded("assignments")):
+    # Assignment streak & weekly goal (collapsed)
+    with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
         col1, col2 = st.columns(2)
         col1.metric("Streak", f"{streak} days")
         col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
@@ -1234,38 +1105,8 @@ if st.session_state.get("logged_in"):
         else:
             st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
 
-        with st.popover("🔔 Notifications"):
-            st.caption("Enable quick pop-ups here. For phone-style push, set up OneSignal.")
-            c1, c2, c3 = st.columns(3)
-            if c1.button("Enable browser pop-ups"):
-                components.html("<script>window.falowen && window.falowen.requestNotif();</script>", height=0)
-                st.toast("Requested browser notification permission")
-            if c2.button("Test pop-up"):
-                trigger_browser_notification("Falowen", "You’ll get reminders here ✨")
-            if ONESIGNAL_APP_ID and c3.button("Enable push (OneSignal)"):
-                components.html("""
-                <script>
-                  window.OneSignalDeferred = window.OneSignalDeferred || [];
-                  window.OneSignalDeferred.push(async function(OneSignal){
-                    try{
-                      await OneSignal.Notifications.requestPermission();
-                      await OneSignal.Slidedown.promptPush();
-                    }catch(e){}
-                  });
-                </script>
-                """, height=0)
-                st.toast("Prompted for push permission")
-
-        c1, c2 = st.columns(2)
-        if c1.button("Dismiss", key="dismiss_assignments"):
-            _dismiss("assignments", current_versions["assignments"])
-            st.rerun()
-        if c2.button("Snooze 7 days", key="snooze_assignments"):
-            _snooze("assignments", 7)
-            st.rerun()
-
-    # Vocab
-    with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=_expanded("vocab")):
+    # Vocab of the Day (collapsed)
+    with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=False):
         if vocab_item:
             st.markdown(f"""
             <ul style='list-style:none;margin:0;padding:0;'>
@@ -1276,16 +1117,9 @@ if st.session_state.get("logged_in"):
             """, unsafe_allow_html=True)
         else:
             st.info(f"No vocab found for level {student_level}.")
-        c1, c2 = st.columns(2)
-        if c1.button("Dismiss", key="dismiss_vocab"):
-            _dismiss("vocab", current_versions["vocab"])
-            st.rerun()
-        if c2.button("Snooze 7 days", key="snooze_vocab"):
-            _snooze("vocab", 7)
-            st.rerun()
 
-    # Leaderboard
-    with st.expander(f"🏆 Leaderboard & Progress {leaderboard_title_extra}", expanded=_expanded("leaderboard")):
+    # Leaderboard & progress (collapsed)
+    with st.expander(f"🏆 Leaderboard & Progress {leaderboard_title_extra}", expanded=False):
         if not your_row.empty:
             row = your_row.iloc[0]
             rank = int(row['Rank'])
@@ -1293,6 +1127,7 @@ if st.session_state.get("logged_in"):
             percent_rank = (rank / total_students) * 100 if total_students else 0
             progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
+            # Rotate messages (kept from your logic)
             STUDY_TIPS = [
                 "Study a little every day. Small steps lead to big progress!",
                 "Teach someone else what you learned to remember it better.",
@@ -1376,29 +1211,14 @@ if st.session_state.get("logged_in"):
                 )
             else:
                 st.info("Start submitting assignments to see your progress bar here!")
-        c1, c2 = st.columns(2)
-        if c1.button("Dismiss", key="dismiss_leaderboard"):
-            _dismiss("leaderboard", current_versions["leaderboard"])
-            st.rerun()
-        if c2.button("Snooze 7 days", key="snooze_leaderboard"):
-            _snooze("leaderboard", 7)
-            st.rerun()
 
-    # Tip (not counted as unread trigger)
+    # Tip (collapsed)
     with st.expander("💡 Dashboard Tip", expanded=False):
         st.info(dashboard_tip)
-        c1, c2 = st.columns(2)
-        if c1.button("Dismiss", key="dismiss_tip"):
-            # mark as seen to keep consistent (use today's date as version)
-            _dismiss("tip", today_d.isoformat())
-            st.rerun()
-        if c2.button("Snooze 7 days", key="snooze_tip"):
-            _snooze("tip", 7)
-            st.rerun()
 
     st.divider()
 
-    # -------------------- Main Tab Selection (unchanged) --------------------
+    # -------------------- (Tabs come after this) --------------------
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -1411,8 +1231,6 @@ if st.session_state.get("logged_in"):
         ],
         key="main_tab_select"
     )
-# ======================= END DASHBOARD TOP =======================
-
 
 
 if tab == "Dashboard":
@@ -8251,8 +8069,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
-
 
 
 
