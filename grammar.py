@@ -10,16 +10,16 @@ import random
 import re
 import sqlite3
 import tempfile
-import streamlit.components.v1 as components
 import time
 import urllib.parse
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 # ==== Third-Party Packages ====
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
 from firebase_admin import credentials, firestore
@@ -31,49 +31,94 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 import firebase_admin  # keep after others; needed for _apps
 
-# ---- Firebase / Firestore init ----
-if not firebase_admin._apps:
+
+# ---- Firebase / Firestore init (robust; single source of truth) ----
+def _init_firebase():
+    if firebase_admin._apps:
+        return firestore.client()
+
+    # 1) Preferred: Streamlit Secrets: gcp_service_account (full SA JSON)
+    sa = st.secrets.get("gcp_service_account")
+    if sa:
+        try:
+            cred = credentials.Certificate(dict(sa))
+            firebase_admin.initialize_app(cred, {"projectId": sa.get("project_id")})
+            return firestore.client()
+        except Exception as e:
+            st.warning(f"Firebase init with gcp_service_account failed: {e}")
+
+    # 2) Alternate key name if you used it
+    sa_alt = st.secrets.get("firebase")
+    if sa_alt:
+        try:
+            cred = credentials.Certificate(dict(sa_alt))
+            firebase_admin.initialize_app(cred, {"projectId": sa_alt.get("project_id")})
+            return firestore.client()
+        except Exception as e:
+            st.warning(f"Firebase init with firebase secret failed: {e}")
+
+    # 3) Fallback: environment / default creds — pass a projectId if we have one
+    proj = os.getenv("GOOGLE_CLOUD_PROJECT") or st.secrets.get("GCP_PROJECT_ID")
     try:
-        cred = credentials.Certificate(st.secrets["gcp_service_account"])
-        firebase_admin.initialize_app(cred)
-    except Exception:
-        firebase_admin.initialize_app()
+        if proj:
+            firebase_admin.initialize_app(options={"projectId": proj})
+        else:
+            firebase_admin.initialize_app()  # may still fail without ADC/project
+        return firestore.client()
+    except Exception as e:
+        st.error(
+            "Could not initialize Firestore. Provide Streamlit secrets "
+            "`gcp_service_account` (service account JSON) or set "
+            "`GOOGLE_CLOUD_PROJECT` / `GCP_PROJECT_ID`.\n\n"
+            f"Details: {e}"
+        )
+        st.stop()
 
-db = firestore.client()
+db = _init_firebase()
 
-# 5️⃣ Function to send a notification (admin use)
-def send_notification(user_id: str, title: str, message: str):
-    """Send a new in-app notification to a given user_id."""
+
+# 5️⃣ Send a notification (admin/app use)
+def send_notification(user_id: str, title: str, message: str, *, type_: str = "system", deeplink: str = ""):
+    """Create an in-app notification under users/{user_id}/notifications."""
     payload = {
         "title": title,
         "message": message,
-        "timestamp": datetime.utcnow(),
-        "read": False
+        "type": type_,
+        "deeplink": deeplink,
+        "timestamp": datetime.now(timezone.utc),
+        "read": False,
     }
     db.collection("users").document(user_id).collection("notifications").add(payload)
 
-# 6️⃣ Function to display notifications in-app
+
+# 6️⃣ Display notifications (lightweight helper; Stage 6 UI can replace this)
 def display_notifications(user_id: str):
-    """Fetch unread notifications for the user and display them."""
-    notifs = (
-        db.collection("users")
-        .document(user_id)
-        .collection("notifications")
-        .order_by("timestamp", direction=firestore.Query.DESCENDING)
-        .stream()
-    )
-    unread_count = 0
-    for n in notifs:
-        data = n.to_dict()
-        if not data.get("read", False):
-            unread_count += 1
-            st.toast(f"🔔 {data['title']}: {data['message']}", icon="🔔")
-    if unread_count > 0:
-        st.sidebar.markdown(f"### 📬 Notifications ({unread_count} new)")
-        for n in notifs:
-            data = n.to_dict()
+    """Toast unread and show a simple sidebar list. (Streams are materialized to a list once.)"""
+    col = db.collection("users").document(user_id).collection("notifications")
+
+    # Materialize once so we don't exhaust the generator twice
+    try:
+        docs = list(
+            col.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+        )
+    except Exception as e:
+        st.warning(f"Notifications unavailable: {e}")
+        return
+
+    unread = [d for d in docs if not (d.to_dict() or {}).get("read", False)]
+    for d in reversed(unread):  # older first → nicer stacking
+        data = d.to_dict() or {}
+        ntype = data.get("type", "system")
+        icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(ntype, "🔔")
+        st.toast(f"**{data.get('title','Notification')}**\n\n{data.get('message','')}", icon=icon)
+
+    if unread:
+        st.sidebar.markdown(f"### 📬 Notifications ({len(unread)} new)")
+        for d in docs:
+            data = d.to_dict() or {}
             read_marker = "✅" if data.get("read") else "🆕"
-            st.sidebar.write(f"{read_marker} **{data['title']}** — {data['message']}")
+            st.sidebar.write(f"{read_marker} **{data.get('title','(no title)')}** — {data.get('message','')}")
+
 
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
@@ -102,9 +147,6 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-
-
 
 
 
@@ -8088,6 +8130,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
