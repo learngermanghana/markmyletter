@@ -771,14 +771,19 @@ if st.button("🔔 Send test notification"):
     except Exception as e:
         st.warning(f"Could not send test notification: {e}")
 
+# -------------------------
 # Log out button and flow
+# -------------------------
 if st.button("Log out"):
     # 1) Kill the cookie immediately (server side; keeps flags consistent)
-    set_student_code_cookie(
-        cookie_manager,
-        "",
-        expires=datetime.utcnow() - timedelta(seconds=1),
-    )
+    try:
+        set_student_code_cookie(
+            cookie_manager,
+            "",
+            expires=datetime.utcnow() - timedelta(seconds=1),
+        )
+    except Exception:
+        pass
 
     # Also delete directly from cookie_manager if supported
     try:
@@ -807,7 +812,7 @@ if st.button("Log out"):
           }}
 
           // Compute base domain (e.g., "falowen.app") from current host
-          const host = window.location.hostname;                  // "www.falowen.app" or "falowen.app"
+          const host = window.location.hostname;   // "www.falowen.app" or "falowen.app"
           const parts = host.split('.');
           const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
 
@@ -817,27 +822,33 @@ if st.button("Log out"):
           // Delete base-domain cookie (covers www/apex)
           document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
 
-          // Reload so the public (logged-out) view renders immediately
-          window.location.replace(url.pathname + url.search);
+          // Hard reload so the public (logged-out) view renders immediately
+          window.location.replace(url.pathname || '/');
         }} catch (e) {{}}
       }})();
     </script>
     """, height=0)
 
-    # 3) Clear Streamlit session state immediately
+    # 3) Clear Streamlit state & caches immediately (server side)
     for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
         st.session_state[k] = False if k == "logged_in" else ""
-
-    # Optional: server-side mirror of query param removal
     try:
         st.query_params.clear()
     except Exception:
         pass
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+    try:
+        st.cache_resource.clear()
+    except Exception:
+        pass
 
-    # Stop execution; the client-side reload will show the logged-out UI
-    st.stop()
+    st.stop()  # client JS will reload into logged-out UI
 
-# --- Ensure login context + required vars before notifications logic ---
+
+# --- Ensure login context + required vars before notifications/private UI ---
 if not st.session_state.get("logged_in"):
     st.stop()  # don't render private UI for logged-out users
 
@@ -848,21 +859,40 @@ if not student_code:
     st.error("Missing student code. Please log in again.")
     st.stop()
 
+# -------------------------
+# Header + Notifications UI
+# -------------------------
+# NOTE: Make sure your notifications functions (notify_area or display_notifications)
+# are defined ABOVE this block. We'll try notify_area first; otherwise fall back.
+name = (st.session_state.get("student_name") or "Student").strip()
+left, right = st.columns([0.7, 0.3])
+with left:
+    st.write(f"👋 Welcome, **{name}**")
+with right:
+    if "notify_area" in globals():
+        notify_area(student_code)  # bell + unread banner + session-safe toasts
+    elif "display_notifications" in globals():
+        # Simpler sidebar/toast version if you haven't switched to notify_area yet
+        unread_count = display_notifications(student_code)
+        if unread_count > 0:
+            st.info(f"📬 You have **{unread_count}** unread notification{'s' if unread_count != 1 else ''}. Check the sidebar.")
+    else:
+        st.caption("")
+
 # ============================
 # STAGE 1–3: Notifications (prefs + filters + idempotent sends)
+# (Keep your existing definitions below, or import them at the top.)
 # ============================
 
 import pandas as pd
 from dataclasses import dataclass
 from typing import List, Dict
-from datetime import datetime, timezone, date, timedelta
-import streamlit as st
-from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 
 # ========= Types / Icons / Colors =========
 ICON = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌", "system": "🔔"}
 TYPE_BG = {"achievement": "#F0FFF4", "reminder": "#FFF9E6", "assignment": "#EEF3FC", "system": "#F6F6F9"}
 VALID_TYPES = set(ICON.keys())
+
 
 # ========= Preferences =========
 PREF_DEFAULTS = {"mute": [], "play_sound": False, "max_toasts": 3}
@@ -8133,6 +8163,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
