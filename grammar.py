@@ -284,6 +284,41 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
+@st.cache_data
+def load_student_data():
+    resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+    resp.raise_for_status()
+    df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    df.columns = df.columns.str.strip().str.replace(" ", "")
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+    df["ContractEnd_dt"] = pd.to_datetime(df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False)
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True)
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+    df = df.drop(columns=["ContractEnd_dt"])
+    return df
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+    else:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+    return expiry_date.date() < datetime.now().date()
+
+
 # ==== COOKIE MANAGER (singleton) ====
 def _get_secret(key: str, default: str = "") -> str:
     v = os.getenv(key)
@@ -781,7 +816,6 @@ if st.button("Log out"):
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
 
-
 # ===========================
 # TAB: Marks Notifications
 # (Assumes global `cookie_manager` exists & is ready)
@@ -966,9 +1000,6 @@ else:
     with c3:
         if st.button("Refresh 🔄", key="marks_btn_refresh"):
             st.rerun()
-
-
-
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -8126,6 +8157,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
