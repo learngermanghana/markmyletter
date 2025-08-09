@@ -3657,10 +3657,22 @@ if tab == "Course Book":
         # --- Status + history helpers ---
         def fetch_history(level, code, lesson_key):
             posts_ref = db.collection("submissions").document(level).collection("posts")
-            docs = posts_ref.where("student_code","==",code)\
-                            .where("lesson_key","==",lesson_key)\
-                            .order_by("updated_at", direction=firestore.Query.DESCENDING).stream()
-            return [d.to_dict() for d in docs]
+            try:
+                # Try ordered query (requires composite index). If it fails, fall back without ordering.
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .order_by("updated_at", direction=firestore.Query.DESCENDING).stream()
+                items = [d.to_dict() for d in docs]
+            except Exception:
+                # Fallback: no order_by (avoids FailedPrecondition when composite index is missing)
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .stream()
+                items = [d.to_dict() for d in docs]
+                st.info("ℹ️ Using fallback ordering. Add a Firestore composite index on (student_code ASC, lesson_key ASC, updated_at DESC) for submissions.")
+            # Client-side sort newest-first
+            items.sort(key=lambda x: x.get("updated_at"), reverse=True)
+            return items
 
         # Submit + Save + Ask
         col1, col2, col3 = st.columns(3)
@@ -3737,8 +3749,6 @@ if tab == "Course Book":
             st.info("No submission yet. Type your answer and click **Submit to Tutor**.")
 
 #
-
-
 
 
     # === LEARNING NOTES SUBTAB ===
@@ -8349,6 +8359,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
