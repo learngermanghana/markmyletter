@@ -1058,7 +1058,7 @@ if st.session_state.get("logged_in"):
         </div>
     """, unsafe_allow_html=True)
 
-    # -------------------- BADGES --------------------
+    # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
     st.markdown("""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
@@ -1068,7 +1068,6 @@ if st.session_state.get("logged_in"):
           <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
         </div>
     """, unsafe_allow_html=True)
-
 
     # -------------------- VOCAB OF THE DAY --------------------
     student_level = (student_row.get("Level") or "A1").upper().strip()
@@ -1116,18 +1115,6 @@ if st.session_state.get("logged_in"):
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
 
     # ==================== COLLAPSIBLE NOTIFICATIONS ====================
-    st.markdown(
-        """
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
-          <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
-          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
-          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
-          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
-          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
     # Contract & renewal (collapsed)
     with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
@@ -1178,9 +1165,9 @@ if st.session_state.get("logged_in"):
             # Rotate messages (kept from your logic)
             STUDY_TIPS = [
                 "Study a little every day. Small steps lead to big progress!",
-                "Teach someone else what you learned to remember it better.",
+                "Teach someone else what you learned to remember it better!",
                 "If you make a mistake, that’s good! Mistakes are proof you are learning.",
-                "Don’t just read—write or say your answers aloud for better memory.",
+                "Don’t just read—say your answers aloud for better memory.",
                 "Review your old assignments to see how far you’ve come!"
             ]
             INSPIRATIONAL_QUOTES = [
@@ -1197,13 +1184,13 @@ if st.session_state.get("logged_in"):
                 elif rank <= 3:
                     message = "🌟 You’re in the top 3! Excellent consistency and effort."
                 elif percent_rank <= 10:
-                    message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
+                    message = "💪 Top 10%! Keep pushing for the top!"
                 elif percent_rank <= 50:
-                    message = "👏 You’re above average! Stay consistent to reach the next level."
+                    message = "👏 Above average! Stay consistent to reach the next level."
                 elif rank == total_students:
-                    message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
+                    message = "🔄 Don’t give up! Every assignment brings you closer to the next rank."
                 else:
-                    message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
+                    message = "🚀 Keep completing assignments and watch yourself climb!"
             elif rotate in (1, 3):
                 message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
             else:
@@ -8117,6 +8104,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
