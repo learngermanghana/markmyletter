@@ -866,13 +866,6 @@ with left:
 with right:
     notify_area(student_code)   # ← renders the clickable bell + panel
 
-name = (st.session_state.get("student_name") or "Student").strip()
-left, right = st.columns([0.7, 0.3])
-with left:
-    st.write(f"👋 Welcome, **{name}**")
-with right:
-    notify_area(student_code)   # ← renders the clickable bell + panel
-
 
 # ============================
 # MAIN TAB SELECTION (unchanged)
@@ -7728,6 +7721,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
