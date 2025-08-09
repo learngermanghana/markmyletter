@@ -390,6 +390,630 @@ if not st.session_state.get("logged_in", False):
 
 # --- End of top setup ---
 
+# ==== CONSTANTS ====
+FALOWEN_DAILY_LIMIT = 20
+VOCAB_DAILY_LIMIT = 20
+SCHREIBEN_DAILY_LIMIT = 5
+
+def get_sprechen_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
+        (student_code, today)
+    )
+    row = c.fetchone()
+    return row[0] if row else 0
+
+def inc_sprechen_usage(student_code):
+    today = str(date.today())
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        INSERT INTO sprechen_usage (student_code, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(student_code, date)
+        DO UPDATE SET count = count + 1
+        """,
+        (student_code, today)
+    )
+    conn.commit()
+
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
+
+# ==== YOUTUBE PLAYLIST HELPERS ====
+
+YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": [
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
+    "B2": [
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
+    ],
+}
+
+
+@st.cache_data(ttl=43200)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
+    }
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
+
+# ==== STUDENT SHEET LOADING & SESSION SETUP ====
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
+
+@st.cache_data
+def load_student_data():
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+    df.columns = df.columns.str.strip().str.replace(" ", "")
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
+    df["ContractEnd_dt"] = pd.to_datetime(
+        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
+    )
+    mask = df["ContractEnd_dt"].isna()
+    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
+        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
+    )
+    df = df.sort_values("ContractEnd_dt", ascending=False)
+    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
+    df = df.drop(columns=["ContractEnd_dt"])
+    return df
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "")).strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed): return True
+        expiry_date = parsed.to_pydatetime()
+    today = datetime.now().date()
+    return expiry_date.date() < today
+
+# ————————————————————————————————————————————————————————
+# 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
+# ————————————————————————————————————————————————————————
+import urllib.parse
+from datetime import datetime, timedelta
+
+def _expire_str(dt: datetime) -> str:
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
+    key = "student_code"
+    norm = (value or "").strip().lower()
+
+    # Try library .set() if available (no domain control here)
+    if hasattr(cookie_manager, "set"):
+        try:
+            cookie_manager.set(
+                key, norm,
+                expires=expires,
+                secure=True,
+                samesite="None",
+            )
+            cookie_manager.save()
+        except Exception:
+            # fall through to JS
+            pass
+    else:
+        cookie_manager[key] = norm
+        cookie_manager.save()
+
+    # Always reinforce with JS so we control Domain
+    import urllib.parse
+    encoded_val = urllib.parse.quote(norm)
+    exp_str = expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          const host = window.location.hostname;         // e.g. "www.falowen.app" or "falowen.app"
+          const parts = host.split('.');
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;  // "falowen.app"
+          // Write both host-only and base-domain cookies
+          document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure";
+          document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; Domain=."+base+"; SameSite=None; Secure";
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+
+# 1) Push localStorage.student_code → URL query param via JS
+components.html("""
+<script>
+  (function(){
+    const code = localStorage.getItem('student_code');
+    if (code) {
+      const url = new URL(window.location);
+      if (!url.searchParams.get('student_code')) {
+        url.searchParams.set('student_code', code);
+        window.history.replaceState({}, '', url);
+      }
+    }
+  })();
+</script>
+""", height=0)
+
+# 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
+params = st.query_params
+if "student_code" in params and params["student_code"]:
+    sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
+
+    COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+    if not COOKIE_SECRET:
+        st.stop()
+    cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+    cookies_ready = cookie_manager.ready()  # Only call once!
+    if not cookies_ready:
+        st.warning("Cookies not ready; please refresh.")
+        st.stop()
+
+    # Only do the cookie write + rerun ONCE per session
+    if not st.session_state.get("cookie_synced", False):
+        set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
+        st.query_params.clear()
+        st.session_state["cookie_synced"] = True   # mark handshake done
+        st.rerun()
+    else:
+        # Already synced this session: just remove the param and keep going
+        st.query_params.clear()
+
+
+# 3) Normal cookie manager init (for all further cookie reads/writes)
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing.")
+    st.stop()
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+cookies_ready = cookie_manager.ready()  # Only call once per session!
+if not cookies_ready:
+    st.warning("Cookies not ready; please refresh.")
+    st.stop()
+
+
+# 4) Ensure all needed session_state keys exist
+for key, default in [
+    ("logged_in", False),
+    ("student_row", None),
+    ("student_code", ""),
+    ("student_name", "")
+]:
+    st.session_state.setdefault(key, default)
+
+# 4.5) Restore login from cookie BEFORE showing any public page
+if not st.session_state.get("logged_in", False):
+    code = (cookie_manager.get("student_code") or "").strip().lower()
+    if code:
+        try:
+            df_students = load_student_data()
+            df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+            found = df_students[df_students["StudentCode"] == code]
+        except Exception:
+            found = pd.DataFrame()
+
+        if not found.empty:
+            student_row = found.iloc[0]
+            if not is_contract_expired(student_row):
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+            else:
+                # Expired contract: clear cookie AND localStorage early to avoid loops
+                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+                components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
+                # (Do not stop here; let the public page render)
+
+
+# --- 1) Page config & session init ---------------------------------------------
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="centered",
+    initial_sidebar_state="expanded"
+)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# --- 2) Global CSS -------------------------------------------------------------
+st.markdown("""
+<style>
+  .hero {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px auto;
+    max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .help-contact-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin: 16px auto;
+    max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    border:1px solid #ebebf2; text-align:center;
+  }
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  .quick-links a {
+    background: #eef3fc;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight:600;
+    text-decoration:none;
+    color:#25317e;
+  }
+  @media (max-width:600px){
+    .hero, .help-contact-box { padding:16px 4vw; }
+  }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 3) Public Homepage --------------------------------------------------------
+if not st.session_state.get("logged_in", False):
+    st.markdown("""
+    <div class="hero">
+      <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+      <p style="text-align:center; font-size:1.1em; color:#555;">
+        Falowen is your all-in-one German learning platform, powered by <b>Learn Language Education Academy</b>,
+        with courses and vocabulary from <b>A1 to C1</b> levels and live tutor support.
+      </p>
+      <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+        <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+        <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+        <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+        <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+        <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+        <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+        <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+      </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# --- Save student code to cookie AND localStorage after login ---
+def save_cookie_after_login(student_code):
+    # Normalize once
+    value = str(student_code).strip().lower()
+
+    # 1) Persistent cookie (Safari/Chrome iOS require Secure + SameSite=None)
+    # Uses helper that falls back if cookie_manager.set(...) isn't available
+    set_student_code_cookie(
+        cookie_manager,
+        value,
+        expires=datetime.utcnow() + timedelta(days=180),
+    )
+
+    # 2) Mirror into localStorage (fallback/resilience on iOS/Safari)
+    # Use JSON encoding to avoid any quoting/XSS issues.
+    safe_code = json.dumps(value)
+    components.html(
+        f"<script>localStorage.setItem('student_code', {safe_code});</script>",
+        height=0
+    )
+
+if not st.session_state.get("logged_in", False):
+    # Support / Help section (unchanged)
+    st.markdown("""
+    <div class="help-contact-box">
+      <b>❓ Need help or access?</b><br>
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp us</a>
+      &nbsp;|&nbsp;
+      <a href="mailto:learngermanghana@gmail.com" target="_blank">✉️ Email</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+    # --- 4) Two Tab Login/Signup System ---
+    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
+
+    # --- Google OAuth helper for "Returning" tab ---
+    def do_google_oauth():
+        params = {
+            "client_id":     GOOGLE_CLIENT_ID,
+            "redirect_uri":  REDIRECT_URI,
+            "response_type": "code",
+            "scope":         "openid email profile",
+            "prompt":        "select_account"
+        }
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+        st.markdown(f"""
+        <div style="display:flex;justify-content:center;margin:20px 0 10px 0;">
+          <a href="{auth_url}" style="text-decoration:none;">
+            <button style="
+                display:flex;align-items:center;gap:10px;
+                background:#fff;
+                border:1px solid #d1d5db;
+                border-radius:7px;
+                box-shadow:0 1.5px 4px #0001;
+                padding:8px 30px 8px 16px;
+                font-size:1.11em;
+                font-weight:500;
+                color:#444;
+                cursor:pointer;
+            ">
+              <span>
+                <svg width="24" height="24" viewBox="0 0 48 48">
+                  <g>
+                    <path fill="#4285F4" d="M44.5,20H24v8.5h11.7C34.7,33.9,30.2,37,24,37c-7.2,0-13-5.8-13-13s5.8-13,13-13c3.1,0,6,.9,8.3,2.7 l6.2-6.2C34.8,4.5,29.7,2.5,24,2.5C12.3,2.5,3,11.8,3,23.5S12.3,44.5,24,44.5c10.7,0,21-8.5,21-21c0-1.4-0.1-2.4-0.3-3.5H24z"/>
+                    <path fill="#34A853" d="M6.9,14.4l7.1,5.2C16.6,16,19.9,14,24,14c3.1,0,6.1,1.1,8.3,2.7l6.2-6.2C34.8,4.5,29.7,2.5,24,2.5 C15.7,2.5,8.4,7.5,6.9,14.4z"/>
+                    <path fill="#FBBC05" d="M24,44.5c5.6,0,10.7-2.2,14.6-5.7l-7-5.7c-2,1.6-4.7,2.9-7.6,2.9c-6.1,0-11.1-4.2-12.9-9.8H6.9v6.1 C10.5,41.1,16.6,44.5,24,44.5z"/>
+                    <path fill="#EA4335" d="M44.5,20H24v8.5h11.7c-1,3.4-4.3,7.5-11.7,7.5c-4.6,0-8.4-3-9.7-7.1l-7.1,5.2 C8.4,39.1,15.7,44.5,24,44.5c10.7,0,21-8.5,21-21C45,22.2,44.8,21.1,44.5,20z"/>
+                  </g>
+                </svg>
+              </span>
+              <span style="font-weight:600; letter-spacing:0.1px;">Sign in with Google</span>
+            </button>
+          </a>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- Returning Student Tab (Google + manual login) ---
+    with tab1:
+        do_google_oauth()
+        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+        with st.form("login_form", clear_on_submit=False):
+            login_id_input   = st.text_input("Student Code or Email")
+            login_pass_input = st.text_input("Password", type="password")
+            login_btn        = st.form_submit_button("Log In")
+
+        if login_btn:
+            # Normalize AFTER submit
+            login_id   = (login_id_input or "").strip().lower()
+            login_pass = (login_pass_input or "")
+
+            df = load_student_data()
+            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+            df["Email"]       = df["Email"].str.lower().str.strip()
+            lookup = df[
+                (df["StudentCode"] == login_id) |
+                (df["Email"]       == login_id)
+            ]
+
+            if lookup.empty:
+                st.error("No matching student code or email found.")
+            else:
+                student_row = lookup.iloc[0]
+                if is_contract_expired(student_row):
+                    st.error("Your contract has expired. Contact the office.")
+                else:
+                    doc_ref = db.collection("students").document(student_row["StudentCode"])
+                    doc     = doc_ref.get()
+                    if not doc.exists:
+                        st.error("Account not found. Please create one below.")
+                    else:
+                        data       = doc.to_dict() or {}
+                        stored_pw  = data.get("password", "")
+
+                        import bcrypt
+                        def _is_bcrypt_hash(s: str) -> bool:
+                            return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
+
+                        ok = False
+                        try:
+                            if _is_bcrypt_hash(stored_pw):
+                                ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
+                            else:
+                                # Legacy plaintext support + one-time migration to bcrypt
+                                ok = (stored_pw == login_pass)
+                                if ok:
+                                    new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                                    doc_ref.update({"password": new_hash})
+                        except Exception:
+                            ok = False
+
+                        if not ok:
+                            st.error("Incorrect password.")
+                        else:
+                            st.session_state.update({
+                                "logged_in":   True,
+                                "student_row": dict(student_row),
+                                "student_code": student_row["StudentCode"],
+                                "student_name": student_row["Name"]
+                            })
+                            save_cookie_after_login(student_row["StudentCode"])
+                            st.success(f"Welcome, {student_row['Name']}!")
+                            st.rerun()
+
+    # --- New Student Tab (signup) ---
+    with tab2:
+        with st.form("signup_form", clear_on_submit=False):
+            new_name_input     = st.text_input("Full Name", key="ca_name")
+            new_email_input    = st.text_input("Email (must match teacher’s record)", key="ca_email")
+            new_code_input     = st.text_input("Student Code (from teacher)", key="ca_code")
+            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_btn         = st.form_submit_button("Create Account")
+
+        if signup_btn:
+            new_name     = (new_name_input or "").strip()
+            new_email    = (new_email_input or "").strip().lower()
+            new_code     = (new_code_input or "").strip().lower()
+            new_password = (new_password_input or "")
+
+            if not (new_name and new_email and new_code and new_password):
+                st.error("Please fill in all fields.")
+            elif len(new_password) < 8:
+                st.error("Password must be at least 8 characters.")
+            else:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                valid = df[
+                    (df["StudentCode"] == new_code) &
+                    (df["Email"]       == new_email)
+                ]
+                if valid.empty:
+                    st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
+                else:
+                    doc_ref = db.collection("students").document(new_code)
+                    if doc_ref.get().exists:
+                        st.error("An account with this student code already exists. Please log in instead.")
+                    else:
+                        import bcrypt
+                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                        doc_ref.set({
+                            "name":     new_name,
+                            "email":    new_email,
+                            "password": hashed_pw
+                        })
+                        st.success("Account created! Please log in above.")
+
+
+    # --- Autoplay Video Demo (insert before Quick Links/footer) ---
+    st.markdown("""
+    <div style="display:flex; justify-content:center; margin: 24px 0;">
+      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+        Sorry, your browser doesn't support embedded videos.
+      </video>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Quick Links and Footer
+    st.markdown("""
+    <div class="quick-links">
+      <a href="https://www.learngermanghana.com/tutors"           target="_blank">👩‍🏫 Tutors</a>
+      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank">🗓️ Upcoming Classes</a>
+      <a href="https://www.learngermanghana.com/accreditation"    target="_blank">✅ Accreditation</a>
+      <a href="https://www.learngermanghana.com/privacy-policy"  target="_blank">🔒 Privacy</a>
+      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank">📜 Terms</a>
+      <a href="https://www.learngermanghana.com/contact-us"      target="_blank">✉️ Contact</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="text-align:center; margin:24px 0;">
+      <a href="https://www.youtube.com/YourChannel" target="_blank">📺 YouTube</a>
+      &nbsp;|&nbsp;
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank">📱 WhatsApp</a>
+    </div>
+    """, unsafe_allow_html=True)
+    st.stop()
+
+# --- Logged In UI ---
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
+if st.button("Log out"):
+    # 1) Kill the cookie immediately (server side; keeps flags consistent)
+    set_student_code_cookie(
+        cookie_manager,
+        "",
+        expires=datetime.utcnow() - timedelta(seconds=1),
+    )
+
+    # Also delete directly from cookie_manager if supported
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    # Determine the actual cookie name used by your manager (prefix + key)
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name = f"{_prefix}student_code"
+
+    # 2) Clear localStorage + URL param + BOTH cookie scopes, then reload page
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          // Remove local fallback
+          localStorage.removeItem('student_code');
+
+          // Remove ?student_code=... from URL without adding to history
+          const url = new URL(window.location);
+          if (url.searchParams.has('student_code')) {{
+            url.searchParams.delete('student_code');
+            window.history.replaceState({{}}, '', url);
+          }}
+
+          // Compute base domain (e.g., "falowen.app") from current host
+          const host = window.location.hostname;                  // "www.falowen.app" or "falowen.app"
+          const parts = host.split('.');
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
+
+          // Delete host-only cookie
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
+
+          // Delete base-domain cookie (covers www/apex)
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
+
+          // Reload so the public (logged-out) view renders immediately
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately
+    for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
+        st.session_state[k] = False if k == "logged_in" else ""
+
+    # Optional: server-side mirror of query param removal
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
+    # Stop execution; the client-side reload will show the logged-out UI
+    st.stop()
 
 
 # ============================
@@ -7246,6 +7870,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
