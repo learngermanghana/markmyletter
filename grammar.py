@@ -943,6 +943,36 @@ if st.session_state["notif_open"]:
             if st.button("Refresh", key="__notif_refresh__"):
                 st.rerun()
 
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/notifications/{id} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+
+def _recipients_by_level(lvl: str):
+    df = load_student_data()
+    return df.loc[df["Level"].astype(str).str.upper().str.strip()==lvl, "StudentCode"].astype(str).str.lower().tolist()
+
+with st.sidebar.expander("🛠 Admin: Send Notification"):
+    to = st.text_input("To (student_code or LEVEL:A1/A2/B1/B2/C1)")
+    title = st.text_input("Title", "Reminder")
+    body = st.text_area("Body", "Don't forget today's practice!")
+    ntype = st.selectbox("Type", ["reminder","achievement","assignment","system"], index=0)
+    link = st.text_input("Link (optional)", "#vocab-trainer")
+    if st.button("Send"):
+        if to.upper().startswith("LEVEL:"):
+            lvl = to.split(":",1)[1].strip().upper()
+            for sc in _recipients_by_level(lvl):
+                send_notification(sc, title, body, type_=ntype, deeplink=link)
+            st.success(f"Sent to level {lvl}.")
+        else:
+            send_notification(to.strip().lower(), title, body, type_=ntype, deeplink=link)
+            st.success("Sent.")
+
+
 
 
 # ============================
@@ -7799,6 +7829,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
