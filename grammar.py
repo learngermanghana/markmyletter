@@ -4130,7 +4130,7 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-#
+
     # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -4150,17 +4150,37 @@ if tab == "My Results and Resources":
         else:
             return "Needs Improvement ❗"
 
+    # --- Make any plain URL in comments clickable ---
+    import re, html
+    def linkify_html(text: str) -> str:
+        if text is None:
+            return "<i>No feedback</i>"
+        s = str(text).strip()
+        if not s or s.lower() == "nan":
+            return "<i>No feedback</i>"
+        s = html.escape(s)
+        s = re.sub(r'(https?://[^\s<]+)',
+                   r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+                   s)
+        return s
+
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         if 'comments' in df_lvl.columns:
+            # Build the display columns dynamically (include 'link' if present)
+            base_cols = ['assignment', 'score', 'date', 'comments']
+            if 'link' in df_lvl.columns:
+                base_cols.append('link')
+
             df_display = (
                 df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date', 'comments']]
-                .reset_index(drop=True)
+                      [base_cols]
+                      .reset_index(drop=True)
             )
 
             for idx, row in df_display.iterrows():
                 perf = score_label(row['score'])
                 comment_html = linkify_html(row['comments'])
+                ref_link = str(row.get('link', '') or '').strip()
 
                 st.markdown(
                     f"""
@@ -4174,14 +4194,25 @@ if tab == "My Results and Resources":
                     """,
                     unsafe_allow_html=True
                 )
+
+                # Show Lesen/Hören reference only if there is a valid score and a link
+                has_score = pd.to_numeric(row['score'], errors='coerce')
+                if not pd.isna(has_score) and ref_link:
+                    st.markdown(
+                        f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
+                        unsafe_allow_html=True
+                    )
+
                 st.divider()
         else:
             df_display = (
                 df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                [['assignment', 'score', 'date']]
-                .reset_index(drop=True)
+                      [['assignment', 'score', 'date']]
+                      .reset_index(drop=True)
             )
             st.table(df_display)
+#
+
 
     st.markdown("---")
 
@@ -8110,6 +8141,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
