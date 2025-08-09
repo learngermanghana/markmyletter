@@ -7176,20 +7176,26 @@ if tab == "Vocab Trainer":
         # done
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
-            words = [w for w, _ in st.session_state.vt_list]
+            words = [w for w, _ in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
 
-            # 🔒 Save exactly once per session, Firestore duplicate check
-            if not st.session_state.vt_saved:
+            # 🔒 Save exactly once per session, with Firestore duplicate check
+            if not st.session_state.get("vt_saved", False):
+                # Ensure we have a session id (covers rare cases where it wasn't set)
+                if not st.session_state.get("vt_session_id"):
+                    from uuid import uuid4
+                    st.session_state.vt_session_id = str(uuid4())
+
                 if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
                     save_vocab_attempt(
-                        student_code,
-                        level,
-                        tot,
-                        score,
-                        words,
+                        student_code=student_code,
+                        level=level,
+                        total=tot,
+                        correct=score,
+                        practiced_words=words,
                         session_id=st.session_state.vt_session_id
                     )
+
                 st.session_state.vt_saved = True
                 st.rerun()
 
@@ -7198,6 +7204,7 @@ if tab == "Vocab Trainer":
                     st.session_state[k] = defaults[k]
                 st.rerun()
 #
+
 
 
 
