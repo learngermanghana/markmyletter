@@ -84,6 +84,8 @@ def _init_firebase():
 
 db = _init_firebase()
 
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=10_000, key="__notify_tick__")
 
 # 5️⃣ Send a notification (admin/app use)
 def send_notification(user_id: str, title: str, message: str, *, type_: str = "system", deeplink: str = ""):
@@ -8138,6 +8140,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
