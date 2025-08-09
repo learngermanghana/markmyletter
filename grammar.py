@@ -992,6 +992,93 @@ if st.session_state["notif_open"]:
             if st.button("Refresh", key="__notif_refresh__"):
                 st.rerun()
 
+# ---- New score → notification helper ----
+SCORES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/edit?gid=2121051612#gid=2121051612"
+
+def _user_doc(user_id: str):
+    # store a small marker on the user doc for "last notified score"
+    return db.collection("users").document(user_id)
+
+def _get_last_notified_score_key(user_id: str) -> str | None:
+    try:
+        d = _user_doc(user_id).get()
+        if not d.exists:
+            return None
+        return (d.to_dict() or {}).get("last_assignment_notified_key")
+    except Exception:
+        return None
+
+def _set_last_notified_score_key(user_id: str, key: str):
+    try:
+        _user_doc(user_id).set({"last_assignment_notified_key": key}, merge=True)
+    except Exception:
+        pass
+
+def _row_key(row: dict) -> str:
+    """
+    Create a stable fingerprint for the newest score row so we don't alert twice.
+    Adjust field names if your sheet differs.
+    """
+    return "|".join([
+        str(row.get("date", "")).strip(),
+        str(row.get("teil", "") or row.get("module", "") or row.get("task", "")).strip(),
+        str(row.get("score", "") or row.get("points", "")).strip(),
+        str(row.get("comment", "") or row.get("remarks", "")).strip(),
+    ])
+
+def maybe_notify_new_assignment_score(user_id: str, df_assign: pd.DataFrame):
+    """
+    If the newest assignment row for this user is different from the last one
+    we notified about, send a notification with a deep link to the sheet.
+    """
+    if df_assign is None or df_assign.empty:
+        return
+
+    # normalize columns and values
+    df = df_assign.copy()
+    df.columns = df.columns.str.strip().str.lower()
+    for c in df.columns:
+        df[c] = df[c].astype(str).str.strip()
+
+    if "studentcode" not in df.columns:
+        return
+
+    sub = df[df["studentcode"].str.lower() == user_id.lower()].copy()
+    if sub.empty:
+        return
+
+    # sort newest first (by parsed date if available)
+    if "date" in sub.columns:
+        sub["__dt__"] = pd.to_datetime(sub["date"], errors="coerce")
+        sub = sub.sort_values(["__dt__"], ascending=[False])
+    newest = sub.iloc[0].to_dict()
+
+    key = _row_key(newest)
+    last_key = _get_last_notified_score_key(user_id)
+
+    # First run for a user? Prime marker silently so we don't spam old rows.
+    if not last_key:
+        _set_last_notified_score_key(user_id, key)
+        return
+
+    if key != last_key:
+        # craft message (tweak fields to your sheet)
+        teil  = newest.get("teil") or newest.get("module") or "Assignment"
+        score = newest.get("score") or newest.get("points") or ""
+        date_ = newest.get("date") or ""
+        msg = f"{teil} — {score} ({date_}). Tap to view details."
+        try:
+            send_notification(
+                user_id,
+                title="New score posted",
+                message=msg,
+                type_="assignment",
+                deeplink=SCORES_SHEET_URL,
+            )
+        finally:
+            # Always advance marker so we don't loop even if send errors
+            _set_last_notified_score_key(user_id, key)
+
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -1121,6 +1208,14 @@ if st.session_state.get("logged_in"):
     else:
         rem = WEEKLY_GOAL - assignment_count
         st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
+
+    # --- Trigger per-student notification if a NEW score row appears in the sheet ---
+    try:
+        maybe_notify_new_assignment_score(student_code, df_assign)
+    except Exception as e:
+        # Silent fail so UI isn't broken by sheet/Firestore issues
+        pass
+#
 
         # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
     student_level = (student_row.get("Level") or "A1").upper().strip()
@@ -8148,6 +8243,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
