@@ -6799,7 +6799,7 @@ if tab == "Vocab Trainer":
         key="vocab_practice_subtab"
     )
 
-        # ===========================
+    # ===========================
     # SUBTAB: Writing Practice (Sentence Builder)
     # ===========================
     elif subtab == "Sentence Builder":
