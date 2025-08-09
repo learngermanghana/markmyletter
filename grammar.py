@@ -865,8 +865,13 @@ def _notif_mark_read(user_id: str, ids: List[str]):
         batch.update(col.document(nid), {"read": True})
     batch.commit()
 
-# Run a gentle auto-refresh so new notifications show up without clicks
-st.autorefresh(interval=10_000, key="__notify_tick__")  # 10s
+# Auto mark on open (optional)
+to_mark_auto = [doc.id for doc in rows if not (doc.to_dict() or {}).get("read")]
+if to_mark_auto:
+    _notif_mark_read(student_code, to_mark_auto)
+    # refresh unread count instantly
+    st.session_state["notif_open"] = True  # keep drawer open
+
 
 # Keep some UI state
 st.session_state.setdefault("notif_open", False)
@@ -7794,6 +7799,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
