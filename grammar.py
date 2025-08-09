@@ -284,39 +284,39 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-@st.cache_data
-def load_student_data():
-    resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-    resp.raise_for_status()
-    df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+
+# === Student sheet URL (define BEFORE load_student_data) ===
+STUDENTS_SHEET_CSV = (
+    os.getenv("STUDENTS_SHEET_CSV")
+    or (st.secrets.get("STUDENTS_SHEET_CSV") if hasattr(st, "secrets") else None)
+    or "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
+)
+
+@st.cache_data(show_spinner=False)
+def load_student_data(url: str = STUDENTS_SHEET_CSV):
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception as e:
+        st.error(f"❌ Could not load student data. ({e})")
+        st.stop()
+
+    # normalize
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
+
+    # keep only rows with ContractEnd
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
     df["ContractEnd_dt"] = pd.to_datetime(df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False)
     mask = df["ContractEnd_dt"].isna()
     df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True)
+
     df = df.sort_values("ContractEnd_dt", ascending=False)
     df = df.drop_duplicates(subset=["StudentCode"], keep="first")
     df = df.drop(columns=["ContractEnd_dt"])
     return df
-
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
-        except ValueError:
-            continue
-    else:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
-        expiry_date = parsed.to_pydatetime()
-    return expiry_date.date() < datetime.now().date()
 
 
 # ==== COOKIE MANAGER (singleton) ====
@@ -8157,6 +8157,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
