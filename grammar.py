@@ -1077,11 +1077,18 @@ try:
 except Exception:
     pass
 
-# 5) Show unread notifications as TOASTS ONLY (no widgets at top)
-try:
-    display_notifications_toast_only(student_code)
-except Exception:
-    pass
+def display_notifications_toast_only(user_id: str):
+    try:
+        col = db.collection("users").document(user_id).collection("notifications")
+        docs = list(col.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+        unread = [d for d in docs if not (d.to_dict() or {}).get("read", False)]
+        for d in reversed(unread):
+            data = d.to_dict() or {}
+            icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(data.get("type","system"), "🔔")
+            st.toast(f"**{data.get('title','Notification')}**\n\n{data.get('message','')}", icon=icon)
+    except Exception:
+        pass
+
 
 
 # --- Main Tab Selection ---
@@ -7934,6 +7941,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
