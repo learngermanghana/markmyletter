@@ -6596,36 +6596,80 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
 # ================================
 # HELPERS: Vocab stats (per-user)
 # ================================
-def save_vocab_attempt(student_code, level, total, correct, practiced_words):
-    """Save one vocab practice attempt to Firestore."""
+from uuid import uuid4
+from datetime import datetime
+
+def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
+    """
+    Check inside the student's vocab_stats doc whether an attempt
+    with this exact session_id has already been saved.
+    """
+    if not session_id:
+        return False
+    _db = _get_db()
+    if _db is None:
+        # If no DB, pretend it doesn't exist so caller can skip saving anyway.
+        return False
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return False
+
+    data = doc.to_dict() or {}
+    history = data.get("history", [])
+    # Older entries may not have a session_id; handle gracefully.
+    return any(h.get("session_id") == session_id for h in history)
+
+
+def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
+    """
+    Save one vocab practice attempt to Firestore.
+    Now duplicate-safe using session_id. If session_id is None, one will be generated.
+    """
     _db = _get_db()
     if _db is None:
         st.warning("Firestore not initialized; skipping stats save.")
         return
 
+    # Ensure we have a session_id (so refreshes don't double-save)
+    if not session_id:
+        session_id = str(uuid4())
+
+    # If we've already saved this session, bail out
+    if vocab_attempt_exists(student_code, session_id):
+        return
+
+    # Load current doc
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
 
+    # Compose attempt record
     attempt = {
         "level": level,
-        "total": total,
-        "correct": correct,
-        "practiced_words": practiced_words,
+        "total": int(total) if total is not None else 0,
+        "correct": int(correct) if correct is not None else 0,
+        "practiced_words": list(practiced_words or []),
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "session_id": session_id,  # NEW: used to dedupe saves
     }
+
+    # Append and recompute summaries
     history.append(attempt)
-    best = max((a.get("correct", 0) for a in history), default=0)
-    completed = set(sum((a.get("practiced_words", []) for a in history), []))
+    best = max((int(a.get("correct", 0)) for a in history), default=0)
+    # Flatten practiced words safely
+    completed = {w for a in history for w in a.get("practiced_words", [])}
 
     doc_ref.set({
         "history":           history,
         "best":              best,
         "last_practiced":    attempt["timestamp"],
-        "completed_words":   list(completed),
-        "total_sessions":    len(history),
+        "completed_words":   sorted(completed),
+        "total_sessions":    len(history),  # one saved record per finished session
     }, merge=True)
+
 
 def get_vocab_stats(student_code):
     """Load vocab practice stats from Firestore (or defaults)."""
@@ -6650,6 +6694,7 @@ def get_vocab_stats(student_code):
         "completed_words":   [],
         "total_sessions":    0,
     }
+
 
 
 # ================================
@@ -7004,7 +7049,9 @@ if tab == "Vocab Trainer":
             "vt_list": [],
             "vt_index": 0,
             "vt_score": 0,
-            "vt_total": None
+            "vt_total": None,
+            "vt_saved": False,       # save-once guard
+            "vt_session_id": None,   # unique id per practice session
         }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
@@ -7047,15 +7094,19 @@ if tab == "Vocab Trainer":
             if maxc == 0:
                 st.success("🎉 All done! Switch to 'All words' to repeat.")
                 st.stop()
+
             count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
             if st.button("Start", key="vt_start"):
                 import random
+                from uuid import uuid4
                 random.shuffle(session_vocab)
                 st.session_state.vt_list = session_vocab[:count]
                 st.session_state.vt_total = count
                 st.session_state.vt_index = 0
                 st.session_state.vt_score = 0
                 st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+                st.session_state.vt_saved = False
+                st.session_state.vt_session_id = str(uuid4())
                 st.rerun()
 
         # show chat/history
@@ -7072,19 +7123,24 @@ if tab == "Vocab Trainer":
 
             # audio
             if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-                t = gTTS(text=word, lang="de")
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-                    t.save(fp.name)
-                    st.audio(fp.name, format="audio/mp3")
-                    fp.seek(0)
-                    blob = fp.read()
-                st.download_button(
-                    f"⬇️ {word}.mp3",
-                    data=blob,
-                    file_name=f"{word}.mp3",
-                    mime="audio/mp3",
-                    key=f"tts_dl_{idx}"
-                )
+                try:
+                    from gtts import gTTS
+                    import tempfile
+                    t = gTTS(text=word, lang="de")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                        t.save(fp.name)
+                        st.audio(fp.name, format="audio/mp3")
+                        fp.seek(0)
+                        blob = fp.read()
+                    st.download_button(
+                        f"⬇️ {word}.mp3",
+                        data=blob,
+                        file_name=f"{word}.mp3",
+                        mime="audio/mp3",
+                        key=f"tts_dl_{idx}"
+                    )
+                except Exception as e:
+                    st.error(f"Could not generate audio (gTTS): {e}")
 
             # bigger, bolder, clearer input
             st.markdown(
@@ -7122,11 +7178,27 @@ if tab == "Vocab Trainer":
             score = st.session_state.vt_score
             words = [w for w, _ in st.session_state.vt_list]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-            save_vocab_attempt(student_code, level, tot, score, words)
+
+            # 🔒 Save exactly once per session, Firestore duplicate check
+            if not st.session_state.vt_saved:
+                if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
+                    save_vocab_attempt(
+                        student_code,
+                        level,
+                        tot,
+                        score,
+                        words,
+                        session_id=st.session_state.vt_session_id
+                    )
+                st.session_state.vt_saved = True
+                st.rerun()
+
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
+#
+
 
 
 
