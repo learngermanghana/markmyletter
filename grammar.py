@@ -32,49 +32,69 @@ from streamlit_quill import st_quill
 import firebase_admin  # keep after others; needed for _apps
 
 
-# ---- Firebase / Firestore init (robust; single source of truth) ----
+# ---- Firebase / Firestore init (uses [firebase] first) ----
+import os
+import firebase_admin
+from firebase_admin import credentials, firestore
+
 def _init_firebase():
+    # Already initialized?
     if firebase_admin._apps:
+        # Ensure env var exists even on hot-reload
+        if not os.getenv("GOOGLE_CLOUD_PROJECT"):
+            sa_probe = st.secrets.get("firebase") or st.secrets.get("gcp_service_account") or {}
+            proj = (sa_probe or {}).get("project_id") or st.secrets.get("GCP_PROJECT_ID") or ""
+            if proj:
+                os.environ["GOOGLE_CLOUD_PROJECT"] = str(proj)
         return firestore.client()
 
-    # 1) Preferred: Streamlit Secrets: gcp_service_account (full SA JSON)
-    sa = st.secrets.get("gcp_service_account")
+    # 1) Preferred: [firebase] block in Streamlit secrets (your current setup)
+    sa = st.secrets.get("firebase")
     if sa:
-        try:
-            cred = credentials.Certificate(dict(sa))
-            firebase_admin.initialize_app(cred, {"projectId": sa.get("project_id")})
-            return firestore.client()
-        except Exception as e:
-            st.warning(f"Firebase init with gcp_service_account failed: {e}")
+        sa = dict(sa)
+        project_id = sa.get("project_id") or sa.get("projectId")
+        if not project_id:
+            st.error("Your [firebase] secret is missing `project_id`.")
+            st.stop()
 
-    # 2) Alternate key name if you used it
-    sa_alt = st.secrets.get("firebase")
-    if sa_alt:
-        try:
-            cred = credentials.Certificate(dict(sa_alt))
-            firebase_admin.initialize_app(cred, {"projectId": sa_alt.get("project_id")})
-            return firestore.client()
-        except Exception as e:
-            st.warning(f"Firebase init with firebase secret failed: {e}")
+        # Ensure Firestore sees a project id
+        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", str(project_id))
 
-    # 3) Fallback: environment / default creds — pass a projectId if we have one
-    proj = os.getenv("GOOGLE_CLOUD_PROJECT") or st.secrets.get("GCP_PROJECT_ID")
-    try:
-        if proj:
-            firebase_admin.initialize_app(options={"projectId": proj})
-        else:
-            firebase_admin.initialize_app()  # may still fail without ADC/project
+        cred = credentials.Certificate(sa)
+        firebase_admin.initialize_app(cred, {"projectId": project_id})
         return firestore.client()
-    except Exception as e:
+
+    # 2) Fallback: gcp_service_account (if you ever switch key names)
+    sa_alt = st.secrets.get("gcp_service_account")
+    if sa_alt:
+        sa_alt = dict(sa_alt)
+        project_id = sa_alt.get("project_id") or sa_alt.get("projectId")
+        if not project_id:
+            st.error("Your [gcp_service_account] secret is missing `project_id`.")
+            st.stop()
+
+        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", str(project_id))
+
+        cred = credentials.Certificate(sa_alt)
+        firebase_admin.initialize_app(cred, {"projectId": project_id})
+        return firestore.client()
+
+    # 3) Last resort: env/ADC
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or str(st.secrets.get("GCP_PROJECT_ID") or "")
+    if not project_id:
         st.error(
-            "Could not initialize Firestore. Provide Streamlit secrets "
-            "`gcp_service_account` (service account JSON) or set "
-            "`GOOGLE_CLOUD_PROJECT` / `GCP_PROJECT_ID`.\n\n"
-            f"Details: {e}"
+            "Firestore init failed: no project id.\n\n"
+            "Add a service account JSON under `[firebase]` in Streamlit secrets "
+            "with a `project_id`, or set `GOOGLE_CLOUD_PROJECT`."
         )
         st.stop()
 
+    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", str(project_id))
+    firebase_admin.initialize_app(options={"projectId": project_id})
+    return firestore.client()
+
 db = _init_firebase()
+
 
 
 # 5️⃣ Send a notification (admin/app use)
@@ -8130,6 +8150,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
