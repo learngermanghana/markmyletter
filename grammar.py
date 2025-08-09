@@ -823,156 +823,221 @@ if st.button("Log out"):
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
 
-# ================== Assignment MARKS notifications (uses your existing columns) ==================
-# Expected columns in the sheet (case-insensitive): studentcode, name, assignment, score, comments, date, level
+# ===========================
+# MARKS NOTIFICATION WIDGET
+# ===========================
 
-import hashlib
-import pandas as pd
-from datetime import datetime
 import json
+import hashlib
+from datetime import datetime
+import pandas as pd
+import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
 
+# --- Your Google Sheet (from the link you shared) ---
 SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
 GID = "2121051612"
 CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
 
-# Who is logged in (you already store this in your app)
-student_code = (st.session_state.get("student_code") or st.session_state.get("user_code") or "").strip()
+# --- Identify the current student (your app already sets one of these) ---
+STUDENT_CODE = (st.session_state.get("student_code")
+                or st.session_state.get("user_code")
+                or "").strip()
 
-# --- Cookies/session to remember which notifications the student has seen ---
-def _cookie_ready():
-    try:
-        return EncryptedCookieManager(prefix="falowen_marks").ready()
-    except Exception:
-        return False
+# --- Cookies: persist seen notifications per-student, per-browser ---
+cookie = EncryptedCookieManager(prefix="falowen_marks")
+cookie_ready = cookie.ready()  # returns False on first run until a rerun happens
 
 def _seen_key(code: str) -> str:
-    return f"seen_marks::{code or 'guest'}"
+    return f"seen_marks::{(code or 'guest').lower()}"
 
-def _load_seen(code: str) -> set[str]:
-    if _cookie_ready():
-        raw = EncryptedCookieManager(prefix="falowen_marks").get(_seen_key(code), "[]")
-    else:
-        raw = st.session_state.get(_seen_key(code), "[]")
+def load_seen(code: str) -> set[str]:
+    raw = cookie.get(_seen_key(code), "[]") if cookie_ready else st.session_state.get(_seen_key(code), "[]")
     try:
         return set(json.loads(raw))
     except Exception:
         return set()
 
-def _save_seen(code: str, ids: set[str]):
+def save_seen(code: str, ids: set[str]):
     raw = json.dumps(sorted(list(ids)))
-    if _cookie_ready():
-        c = EncryptedCookieManager(prefix="falowen_marks")
-        c[_seen_key(code)] = raw
-        c.save()
+    if cookie_ready:
+        cookie[_seen_key(code)] = raw
+        try:
+            cookie.save()
+        except Exception:
+            pass
     else:
         st.session_state[_seen_key(code)] = raw
 
-# --- Load and normalize your sheet ---
+# --- Load & normalize your marks sheet ---
+EXPECTED_COLS = ["studentcode","name","assignment","score","comments","date","level"]
+
 def load_marks() -> pd.DataFrame:
-    df = pd.read_csv(CSV_URL)
+    try:
+        df = pd.read_csv(CSV_URL)
+    except Exception as e:
+        st.error(f"Could not read marks sheet: {e}")
+        return pd.DataFrame(columns=EXPECTED_COLS)
+
+    # Normalize headers to lower-case
     df.columns = [c.strip().lower() for c in df.columns]
-    # Map flexible headers (just in case of slight name variants)
-    aliases = {
-        "studentcode": "studentcode",
-        "name": "name",
-        "assignment": "assignment",
-        "score": "score",
-        "comments": "comments",
-        "date": "date",
-        "level": "level",
-    }
-    missing = [v for v in aliases.values() if v not in df.columns]
+
+    # Check required columns
+    missing = [c for c in EXPECTED_COLS if c not in df.columns]
     if missing:
         st.warning("Marks sheet is missing columns: " + ", ".join(missing))
-        return pd.DataFrame(columns=list(aliases.values()))
-    # Parse date
-    df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    # Clean text fields
-    for c in ["studentcode", "name", "assignment", "comments", "level"]:
-        df[c] = df[c].astype(str).fillna("").str.strip()
-    # Numeric score
-    with pd.option_context("future.no_silent_downcasting", True):
-        df["score"] = pd.to_numeric(df["score"], errors="coerce")
+        # Return empty frame with expected schema so rest of code doesn't crash
+        return pd.DataFrame(columns=EXPECTED_COLS)
 
-    # Sort newest first (by date, then assignment)
-    df = df.sort_values(["date", "assignment"], ascending=[False, True])
+    # Parse date safely, coerce invalid to NaT
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Normalize text fields
+    for c in ["studentcode","name","assignment","comments","level"]:
+        df[c] = df[c].astype(str).fillna("").str.strip()
+
+    # Scores numeric (keeps floats/ints)
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+
+    # Sort newest first; NaT dates go last
+    df = df.sort_values(["date","assignment"], ascending=[False, True], na_position="last")
     return df
 
-# Build a stable row-id that changes when score/comments change (so updates notify too)
+# --- Stable row id that changes if score/comments change; safe with missing dates ---
 def row_id(row: pd.Series) -> str:
-    base = f"{row['studentcode'].lower()}|{row['assignment']}|{row['date']:%Y-%m-%d}"
-    # include score + a short hash of comments to catch edits
+    scode = (row.get("studentcode") or "").strip().lower()
+    assign = (row.get("assignment") or "").strip()
+
+    d = row.get("date")
+    if isinstance(d, (pd.Timestamp, datetime)) and pd.notna(d):
+        date_part = d.strftime("%Y-%m-%d")
+    else:
+        # Attempt parsing if it's a string; otherwise default
+        try:
+            d2 = pd.to_datetime(d, errors="raise")
+            date_part = d2.strftime("%Y-%m-%d")
+        except Exception:
+            date_part = "nodate"
+
+    s = row.get("score")
+    if pd.isna(s):
+        score_txt = ""
+    else:
+        # Format like pandas would (no trailing .0 if integer)
+        try:
+            score_txt = f"{float(s):g}"
+        except Exception:
+            score_txt = str(s)
+
     com = (row.get("comments") or "").strip()
     com_digest = hashlib.sha1(com.encode("utf-8")).hexdigest()[:10]
-    sc = "" if pd.isna(row.get("score")) else str(int(row["score"])) if float(row["score"]).is_integer() else str(row["score"])
-    return f"{base}|{sc}|{com_digest}"
 
-# Auto-refresh every 30s (if available)
+    return f"{scode}|{assign}|{date_part}|{score_txt}|{com_digest}"
+
+# --- Auto-refresh every 30s (newer Streamlit supports st.autorefresh) ---
 try:
     st.autorefresh(interval=30_000, key="marks_poll")
 except Exception:
     pass
 
+# --- Load, filter by student, compute unseen ---
 df_all = load_marks()
-
-# If a student is logged in, filter to their rows; otherwise show all (optional)
-if student_code:
-    df = df_all[df_all["studentcode"].str.lower() == student_code.lower()].copy()
-else:
-    df = df_all.copy()
-
-seen = _load_seen(student_code)
-df["__id"] = df.apply(row_id, axis=1)
-unseen_ids = [rid for rid in df["__id"].tolist() if rid not in seen]
-unread_count = len(unseen_ids)
-
-# --- UI: Bell + count ---
-bell = "🔔" if unread_count else "🔕"
-st.markdown(
-    f"""
-    <div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;">
-      <span style="font-size:1.4rem">{bell}</span>
-      <span style="font-weight:600">Marks</span>
-      <span style="background:#eee;border-radius:999px;padding:.1rem .6rem;font-size:.85rem">{unread_count}</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# Toast the newest unseen mark
-if unread_count:
-    newest = df[df["__id"].isin(unseen_ids)].head(1)
-    if not newest.empty:
-        r = newest.iloc[0]
-        when = r["date"].strftime("%Y-%m-%d") if pd.notna(r["date"]) else "TBA"
-        st.toast(f"New mark posted: {r['assignment']} — {'' if pd.isna(r['score']) else int(r['score']) if float(r['score']).is_integer() else r['score']}/100 ({when})")
-
-# List marks (new ones get 🆕)
-def fmt_row(r: pd.Series) -> str:
-    date_txt = r["date"].strftime("%Y-%m-%d") if pd.notna(r["date"]) else "—"
-    score_txt = "—"
-    if not pd.isna(r["score"]):
-        score_txt = str(int(r["score"])) if float(r["score"]).is_integer() else str(r["score"])
-    tag = "🆕 " if r["__id"] in unseen_ids else ""
-    com = r["comments"].strip()
-    com = (com[:160] + "…") if len(com) > 160 else com
-    return f"{tag}**{r['assignment']}** · Score: **{score_txt}** · Date: {date_txt}" + (f"<br/><span style='opacity:.85'>{com}</span>" if com else "")
+df = df_all.copy()
+if STUDENT_CODE:
+    df = df[df["studentcode"].str.lower() == STUDENT_CODE.lower()].copy()
 
 if df.empty:
+    # Minimal header UI so the section looks consistent
+    st.markdown(
+        """
+        <div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;">
+          <span style="font-size:1.4rem">🔕</span>
+          <span style="font-weight:600">Marks</span>
+          <span style="background:#eee;border-radius:999px;padding:.1rem .6rem;font-size:.85rem">0</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     st.info("No marks yet.")
 else:
-    for _, rr in df.iterrows():
-        st.markdown(fmt_row(rr), unsafe_allow_html=True)
+    # Build ids
+    df["__id"] = df.apply(row_id, axis=1)
 
-# Actions
-c1, c2 = st.columns(2)
-with c1:
-    if st.button("Mark all as read ✅"):
-        _save_seen(student_code, set(df["__id"].tolist()))
-        st.success("All current marks marked as read.")
-with c2:
-    if st.button("Refresh 🔄"):
-        st.experimental_rerun()
+    seen_ids = load_seen(STUDENT_CODE)
+    current_ids = df["__id"].tolist()
+    unseen_ids = [rid for rid in current_ids if rid not in seen_ids]
+    unread_count = len(unseen_ids)
+
+    # Header: bell with unread count
+    bell = "🔔" if unread_count else "🔕"
+    st.markdown(
+        f"""
+        <div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;">
+          <span style="font-size:1.4rem">{bell}</span>
+          <span style="font-weight:600">Marks</span>
+          <span style="background:#eee;border-radius:999px;padding:.1rem .6rem;font-size:.85rem">{unread_count}</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Toast the newest unseen mark
+    if unread_count:
+        newest = df[df["__id"].isin(unseen_ids)].head(1)
+        if not newest.empty:
+            r = newest.iloc[0]
+            when = r["date"].strftime("%Y-%m-%d") if pd.notna(r["date"]) else "TBA"
+            score_txt = ("—" if pd.isna(r["score"])
+                         else f"{int(r['score'])}" if float(r["score"]).is_integer()
+                         else f"{r['score']}")
+            st.toast(f"New mark posted: {r['assignment']} — {score_txt}/100 ({when})")
+
+    # Optional: Toggle to show only new marks
+    show_only_new = st.toggle("Show only new", value=False)
+    view_df = df[df["__id"].isin(unseen_ids)] if show_only_new else df
+
+    # List items (🆕 tag for unseen)
+    def fmt_row(rr: pd.Series) -> str:
+        date_txt = rr["date"].strftime("%Y-%m-%d") if pd.notna(rr["date"]) else "—"
+        if pd.isna(rr["score"]):
+            score_txt = "—"
+        else:
+            score_txt = str(int(rr["score"])) if float(rr["score"]).is_integer() else str(rr["score"])
+        tag = "🆕 " if rr["__id"] in unseen_ids else ""
+        com = (rr["comments"] or "").strip()
+        com = (com[:200] + "…") if len(com) > 200 else com
+        # name/level shown only if you decide to show all students (admin view)
+        extra = []
+        if not STUDENT_CODE:
+            if rr.get("name"): extra.append(rr["name"])
+            if rr.get("level"): extra.append(rr["level"])
+        extra_txt = (" · " + " · ".join(extra)) if extra else ""
+        comment_html = f"<br/><span style='opacity:.85'>{com}</span>" if com else ""
+        return f"{tag}**{rr['assignment']}** · Score: **{score_txt}** · Date: {date_txt}{extra_txt}{comment_html}"
+
+    if view_df.empty:
+        st.info("No marks to show with this filter.")
+    else:
+        for _, rr in view_df.iterrows():
+            st.markdown(fmt_row(rr), unsafe_allow_html=True)
+
+    # Actions
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("Mark all as read ✅"):
+            save_seen(STUDENT_CODE, set(current_ids))
+            st.success("All current marks marked as read.")
+    with c2:
+        if st.button("Mark visible as read 👀✅"):
+            save_seen(STUDENT_CODE, set(seen_ids).union(set(view_df["__id"].tolist())))
+            st.success("Visible marks marked as read.")
+    with c3:
+        if st.button("Refresh 🔄"):
+            st.experimental_rerun()
+
+# In case cookies were just initialized, ask Streamlit to rerun once so they become usable
+if not cookie_ready:
+    st.experimental_rerun()
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -8130,6 +8195,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
