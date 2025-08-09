@@ -3933,73 +3933,83 @@ if tab == "Course Book":
                         st.caption("")
 
 
-        # === COMMUNITY SUBTAB ===
-        elif cb_subtab == "🗣️ Community":
-            st.markdown("""
-                <div style="padding: 16px; background: #3b82f6; color: #fff; border-radius: 8px;
-                text-align: center; margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;">
-                🗣️ Class Discussion Board
-                </div>
-            """, unsafe_allow_html=True)
+    # === COMMUNITY SUBTAB ===
+    elif cb_subtab == "🗣️ Community":
+        st.markdown("""
+            <div style="padding: 16px; background: #3b82f6; color: #fff; border-radius: 8px;
+            text-align: center; margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;">
+            🗣️ Class Discussion Board
+            </div>
+        """, unsafe_allow_html=True)
 
-            student_row = st.session_state.get("student_row", {})
-            student_level = student_row.get("Level", "A1").upper()
-            student_code = student_row.get("StudentCode", "demo001")
-            student_name = student_row.get("Name", "Student")
+        student_row = st.session_state.get("student_row", {})
+        student_level = student_row.get("Level", "A1").upper()
+        student_code = student_row.get("StudentCode", "demo001")
+        student_name = student_row.get("Name", "Student")
 
-            def post_message(level, code, name, text, reply_to=None):
-                posts_ref = db.collection("class_board").document(level).collection("posts")
-                posts_ref.add({
-                    "student_code": code,
-                    "student_name": name,
-                    "text": text.strip(),
-                    "timestamp": datetime.utcnow(),
-                    "reply_to": reply_to,
-                })
+        def post_message(level, code, name, text, reply_to=None):
+            posts_ref = db.collection("class_board").document(level).collection("posts")
+            posts_ref.add({
+                "student_code": code,
+                "student_name": name,
+                "text": text.strip(),
+                "timestamp": datetime.utcnow(),
+                "reply_to": reply_to,
+            })
 
-            def get_all_posts(level):
-                posts_ref = db.collection("class_board").document(level).collection("posts")
-                posts = posts_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
-                return [dict(post.to_dict(), id=post.id) for post in posts]
+        def get_all_posts(level):
+            posts_ref = db.collection("class_board").document(level).collection("posts")
+            posts = posts_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+            return [dict(post.to_dict(), id=post.id) for post in posts]
 
-            # --- New post form ---
-            with st.form("post_form"):
-                new_msg = st.text_area(
-                    "💬 Post a question, tip, or message to your classmates:",
-                    max_chars=400
-                )
-                if st.form_submit_button("Post") and new_msg.strip():
-                    post_message(student_level, student_code, student_name, new_msg)
-                    st.success("Your message was posted!")
+        # --- Motivation Banner ---
+        st.markdown("""
+            <div style="padding: 12px; background: #facc15; color: #000; border-radius: 6px;
+            font-size: 1rem; margin-bottom: 16px; text-align: center; font-weight: 500;">
+            💡 <b>Your classmates are waiting to hear from you!</b> Share a tip, question, or idea to help everyone learn faster.
+            </div>
+        """, unsafe_allow_html=True)
+
+        # --- New post form ---
+        with st.form("post_form"):
+            new_msg = st.text_area(
+                "💬 Post a question, tip, or message to your classmates:",
+                max_chars=400
+            )
+            if st.form_submit_button("Post") and new_msg.strip():
+                post_message(student_level, student_code, student_name, new_msg)
+                st.success("Your message was posted!")
+                st.rerun()
+
+        st.divider()
+
+        all_posts = get_all_posts(student_level)
+
+        # --- Show posts and replies ---
+        for post in [p for p in all_posts if not p.get("reply_to")]:
+            st.markdown(
+                f"**{post['student_name']}** <span style='color:#888;'>{post['timestamp'].strftime('%d %b %H:%M')}</span>",
+                unsafe_allow_html=True
+            )
+            st.write(post["text"])
+            with st.expander("Reply"):
+                reply = st.text_input(f"Reply to {post['id']}", key=f"reply_{post['id']}")
+                if st.button("Send Reply", key=f"reply_btn_{post['id']}") and reply.strip():
+                    post_message(student_level, student_code, student_name, reply.strip(), reply_to=post["id"])
+                    st.success("Reply sent!")
                     st.rerun()
 
-            st.divider()
-
-            all_posts = get_all_posts(student_level)
-
-            # --- Show posts and replies ---
-            for post in [p for p in all_posts if not p.get("reply_to")]:
+            # --- Show replies ---
+            for reply_post in [r for r in all_posts if r.get("reply_to") == post["id"]]:
                 st.markdown(
-                    f"**{post['student_name']}** <span style='color:#888;'>{post['timestamp'].strftime('%d %b %H:%M')}</span>",
+                    f"<div style='margin-left:30px; color:#444;'>↳ <b>{reply_post['student_name']}</b> "
+                    f"<span style='color:#bbb;'>{reply_post['timestamp'].strftime('%d %b %H:%M')}</span><br>"
+                    f"{reply_post['text']}</div>",
                     unsafe_allow_html=True
                 )
-                st.write(post["text"])
-                with st.expander("Reply"):
-                    reply = st.text_input(f"Reply to {post['id']}", key=f"reply_{post['id']}")
-                    if st.button("Send Reply", key=f"reply_btn_{post['id']}") and reply.strip():
-                        post_message(student_level, student_code, student_name, reply.strip(), reply_to=post["id"])
-                        st.success("Reply sent!")
-                        st.rerun()
+            st.markdown("---")
+#
 
-                # --- Show replies ---
-                for reply_post in [r for r in all_posts if r.get("reply_to") == post["id"]]:
-                    st.markdown(
-                        f"<div style='margin-left:30px; color:#444;'>↳ <b>{reply_post['student_name']}</b> "
-                        f"<span style='color:#bbb;'>{reply_post['timestamp'].strftime('%d %b %H:%M')}</span><br>"
-                        f"{reply_post['text']}</div>",
-                        unsafe_allow_html=True
-                    )
-                st.markdown("---")
 
 
 if tab == "My Results and Resources":
