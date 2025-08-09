@@ -284,57 +284,33 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-# ==== STUDENT SHEET LOADING & SESSION SETUP ====
-GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
-
-@st.cache_data
-def load_student_data():
+# ==== COOKIE MANAGER (singleton) ====
+def _get_secret(key: str, default: str = "") -> str:
+    v = os.getenv(key)
+    if v: 
+        return v
     try:
-        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+        return st.secrets.get(key, default)
     except Exception:
-        st.error("❌ Could not load student data.")
-        st.stop()
-    df.columns = df.columns.str.strip().str.replace(" ", "")
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["ContractEnd_dt"] = pd.to_datetime(
-        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
-    )
-    mask = df["ContractEnd_dt"].isna()
-    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
-        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
-    )
-    df = df.sort_values("ContractEnd_dt", ascending=False)
-    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-    df = df.drop(columns=["ContractEnd_dt"])
-    return df
+        return default
 
-def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
-    if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
-        except ValueError:
-            continue
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed): return True
-        expiry_date = parsed.to_pydatetime()
-    today = datetime.now().date()
-    return expiry_date.date() < today
+COOKIE_SECRET = _get_secret("COOKIE_SECRET", "falowen-dev-cookie-secret")  # set real secret in prod
+
+def get_cookie_manager():
+    if "cookie_manager" not in st.session_state:
+        st.session_state["cookie_manager"] = EncryptedCookieManager(
+            prefix="falowen_",           # keep same prefix you already use
+            password=COOKIE_SECRET
+        )
+    return st.session_state["cookie_manager"]
+
+cookie_manager = get_cookie_manager()
+cookies_ready = cookie_manager.ready()  # only call once
+
 
 # ————————————————————————————————————————————————————————
-# 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
+# 0) Cookie + localStorage “SSO” Setup
 # ————————————————————————————————————————————————————————
-import urllib.parse
-from datetime import datetime, timedelta
 
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -343,7 +319,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     key = "student_code"
     norm = (value or "").strip().lower()
 
-    # Try library .set() if available (no domain control here)
+    # Try library set()
     if hasattr(cookie_manager, "set"):
         try:
             cookie_manager.set(
@@ -354,32 +330,27 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
             )
             cookie_manager.save()
         except Exception:
-            # fall through to JS
             pass
     else:
         cookie_manager[key] = norm
         cookie_manager.save()
 
-    # Always reinforce with JS so we control Domain
-    import urllib.parse
+    # Reinforce with JS for domain control
     encoded_val = urllib.parse.quote(norm)
     exp_str = expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
     components.html(f"""
     <script>
       (function() {{
         try {{
-          const host = window.location.hostname;         // e.g. "www.falowen.app" or "falowen.app"
+          const host = window.location.hostname;
           const parts = host.split('.');
-          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;  // "falowen.app"
-          // Write both host-only and base-domain cookies
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
           document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure";
           document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; Domain=."+base+"; SameSite=None; Secure";
         }} catch(e) {{}}
       }})();
     </script>
     """, height=0)
-
 
 # 1) Push localStorage.student_code → URL query param via JS
 components.html("""
@@ -397,42 +368,27 @@ components.html("""
 </script>
 """, height=0)
 
-# 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
+# 2) Read student_code from URL, save to cookie, then rerun ONCE to clear the param
 params = st.query_params
 if "student_code" in params and params["student_code"]:
     sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
 
-    COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-    if not COOKIE_SECRET:
-        st.stop()
-    cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-    cookies_ready = cookie_manager.ready()  # Only call once!
     if not cookies_ready:
-        st.warning("Cookies not ready; please refresh.")
+        st.warning("Initializing cookies… please refresh.")
         st.stop()
 
-    # Only do the cookie write + rerun ONCE per session
     if not st.session_state.get("cookie_synced", False):
         set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
         st.query_params.clear()
-        st.session_state["cookie_synced"] = True   # mark handshake done
+        st.session_state["cookie_synced"] = True
         st.rerun()
     else:
-        # Already synced this session: just remove the param and keep going
         st.query_params.clear()
 
-
-# 3) Normal cookie manager init (for all further cookie reads/writes)
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing.")
-    st.stop()
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-cookies_ready = cookie_manager.ready()  # Only call once per session!
+# 3) Ensure cookie component is ready before proceeding
 if not cookies_ready:
-    st.warning("Cookies not ready; please refresh.")
+    st.warning("Initializing cookies… please refresh.")
     st.stop()
-
 
 # 4) Ensure all needed session_state keys exist
 for key, default in [
@@ -464,10 +420,11 @@ if not st.session_state.get("logged_in", False):
                     "student_name": student_row["Name"]
                 })
             else:
-                # Expired contract: clear cookie AND localStorage early to avoid loops
+                # Expired contract: clear cookie & localStorage
                 set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
                 components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
-                # (Do not stop here; let the public page render)
+                # let public page render
+
 
 
 # --- 1) Page config & session init ---------------------------------------------
@@ -824,41 +781,32 @@ if st.button("Log out"):
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
 
+
 # ===========================
-# MARKS NOTIFICATION WIDGET (fixed cookie setup)
+# TAB: Marks Notifications
+# (Assumes global `cookie_manager` exists & is ready)
 # ===========================
 
 
-# --- tiny helper for secrets/env with fallback ---
-def _get_secret(key: str, default: str = "") -> str:
-    v = os.getenv(key)
-    if v: return v
-    try:
-        v = st.secrets.get(key, "")
-    except Exception:
-        v = ""
-    return v or default
-
-# --- Your Google Sheet (from the link you shared) ---
-SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-GID = "2121051612"
-CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
-
-# --- Identify the current student (your app already sets one of these) ---
+# Reuse your existing cookie manager
+cookies = cookie_manager              # provided by your SSO/singleton setup
 STUDENT_CODE = (st.session_state.get("student_code")
                 or st.session_state.get("user_code")
                 or "").strip()
 
-# --- Cookies: MUST provide a password (env/secret recommended) ---
-COOKIE_PASSWORD = _get_secret("COOKIE_PASSWORD", "falowen-dev-cookie-secret")  # set a real secret in prod!
-cookies = EncryptedCookieManager(prefix="falowen_marks", password=COOKIE_PASSWORD)
-cookies_ready = cookies.ready()  # False on first run until rerender
+# --- Google Sheet (marks) ---
+SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+GID = "2121051612"
+CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+
+# --- helpers (no cookie instantiation) ---
+EXPECTED_COLS = ["studentcode","name","assignment","score","comments","date","level"]
 
 def _seen_key(code: str) -> str:
-    return f"seen_marks::{(code or 'guest').lower()}"
+    return f"marks::seen::{(code or 'guest').lower()}"
 
 def load_seen(code: str) -> set[str]:
-    raw = cookies.get(_seen_key(code), "[]") if cookies_ready else st.session_state.get(_seen_key(code), "[]")
+    raw = cookies.get(_seen_key(code), "[]")
     try:
         return set(json.loads(raw))
     except Exception:
@@ -866,17 +814,11 @@ def load_seen(code: str) -> set[str]:
 
 def save_seen(code: str, ids: set[str]):
     raw = json.dumps(sorted(list(ids)))
-    if cookies_ready:
-        cookies[_seen_key(code)] = raw
-        try:
-            cookies.save()
-        except Exception:
-            pass
-    else:
-        st.session_state[_seen_key(code)] = raw
-
-# --- Load & normalize your marks sheet ---
-EXPECTED_COLS = ["studentcode","name","assignment","score","comments","date","level"]
+    cookies[_seen_key(code)] = raw
+    try:
+        cookies.save()
+    except Exception:
+        pass
 
 def load_marks() -> pd.DataFrame:
     try:
@@ -885,6 +827,7 @@ def load_marks() -> pd.DataFrame:
         st.error(f"Could not read marks sheet: {e}")
         return pd.DataFrame(columns=EXPECTED_COLS)
 
+    # normalize
     df.columns = [c.strip().lower() for c in df.columns]
     missing = [c for c in EXPECTED_COLS if c not in df.columns]
     if missing:
@@ -898,7 +841,6 @@ def load_marks() -> pd.DataFrame:
     df = df.sort_values(["date","assignment"], ascending=[False, True], na_position="last")
     return df
 
-# --- Stable row id (safe with missing dates) ---
 def row_id(row: pd.Series) -> str:
     scode = (row.get("studentcode") or "").strip().lower()
     assign = (row.get("assignment") or "").strip()
@@ -918,7 +860,7 @@ def row_id(row: pd.Series) -> str:
         score_txt = ""
     else:
         try:
-            score_txt = f"{float(s):g}"  # no trailing .0 if int
+            score_txt = f"{float(s):g}"   # strips trailing .0
         except Exception:
             score_txt = str(s)
 
@@ -927,13 +869,13 @@ def row_id(row: pd.Series) -> str:
 
     return f"{scode}|{assign}|{date_part}|{score_txt}|{com_digest}"
 
-# --- Auto-refresh every 30s (if available) ---
+# --- optional auto-refresh (make sure the key is unique in your app) ---
 try:
-    st.autorefresh(interval=30_000, key="marks_poll")
+    st.autorefresh(interval=30_000, key="marks_poll_widget")
 except Exception:
     pass
 
-# --- Load, filter, compute unseen ---
+# --- main UI ---
 df_all = load_marks()
 df = df_all.copy()
 if STUDENT_CODE:
@@ -959,6 +901,7 @@ else:
     unseen_ids = [rid for rid in current_ids if rid not in seen_ids]
     unread_count = len(unseen_ids)
 
+    # header
     bell = "🔔" if unread_count else "🔕"
     st.markdown(
         f"""
@@ -971,6 +914,7 @@ else:
         unsafe_allow_html=True
     )
 
+    # toast newest
     if unread_count:
         newest = df[df["__id"].isin(unseen_ids)].head(1)
         if not newest.empty:
@@ -981,9 +925,11 @@ else:
                          else f"{r['score']}")
             st.toast(f"New mark posted: {r['assignment']} — {score_txt}/100 ({when})")
 
-    show_only_new = st.toggle("Show only new", value=False)
+    # toggle
+    show_only_new = st.toggle("Show only new", value=False, key="marks_show_only_new")
     view_df = df[df["__id"].isin(unseen_ids)] if show_only_new else df
 
+    # list
     def fmt_row(rr: pd.Series) -> str:
         date_txt = rr["date"].strftime("%Y-%m-%d") if pd.notna(rr["date"]) else "—"
         if pd.isna(rr["score"]):
@@ -1007,22 +953,21 @@ else:
         for _, rr in view_df.iterrows():
             st.markdown(fmt_row(rr), unsafe_allow_html=True)
 
+    # actions
     c1, c2, c3 = st.columns(3)
     with c1:
-        if st.button("Mark all as read ✅"):
+        if st.button("Mark all as read ✅", key="marks_btn_all"):
             save_seen(STUDENT_CODE, set(current_ids))
             st.success("All current marks marked as read.")
     with c2:
-        if st.button("Mark visible as read 👀✅"):
+        if st.button("Mark visible as read 👀✅", key="marks_btn_visible"):
             save_seen(STUDENT_CODE, set(seen_ids).union(set(view_df["__id"].tolist())))
             st.success("Visible marks marked as read.")
     with c3:
-        if st.button("Refresh 🔄"):
+        if st.button("Refresh 🔄", key="marks_btn_refresh"):
             st.rerun()
 
-# If cookies just initialized, rerun once so they're usable
-if not cookies_ready:
-    st.rerun()
+
 
 
 
@@ -8181,6 +8126,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
