@@ -955,13 +955,61 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-# ======================= DASHBOARD TOP (Notifications + Collapsible) =======================
+# ======================= DASHBOARD TOP (Triggers + Notifications) =======================
 if st.session_state.get("logged_in"):
     from datetime import datetime, timedelta, date, timezone
-    import random, json
+    import json, random
 
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
+
+    # ---------- helpers to persist "seen" + "snooze" in encrypted cookies ----------
+    def _load_cookie_json(key, default):
+        try:
+            raw = cookie_manager.get(key)
+            if not raw:
+                return default
+            return json.loads(raw)
+        except Exception:
+            return default
+
+    def _save_cookie_json(key, obj, days=180):
+        try:
+            raw = json.dumps(obj, separators=(",", ":"))
+            # best-effort write
+            if hasattr(cookie_manager, "set"):
+                cookie_manager.set(
+                    key, raw,
+                    expires=datetime.utcnow() + timedelta(days=days),
+                    secure=True, samesite="None"
+                )
+                cookie_manager.save()
+            else:
+                cookie_manager[key] = raw
+                cookie_manager.save()
+        except Exception:
+            pass
+
+    seen_versions  = _load_cookie_json("notif_seen", {})
+    snooze_until   = _load_cookie_json("notif_snooze", {})  # {nid: iso_utc}
+
+    def _is_snoozed(nid: str) -> bool:
+        iso = snooze_until.get(nid)
+        if not iso:
+            return False
+        try:
+            return datetime.fromisoformat(iso) > datetime.utcnow()
+        except Exception:
+            return False
+
+    def _dismiss(nid: str, version: str):
+        seen_versions[nid] = version
+        _save_cookie_json("notif_seen", seen_versions)
+
+    def _snooze(nid: str, days=7):
+        until = (datetime.utcnow() + timedelta(days=days)).isoformat()
+        snooze_until[nid] = until
+        _save_cookie_json("notif_snooze", snooze_until)
 
     # -------------------- Load student info --------------------
     df_students = load_student_data()
@@ -969,44 +1017,47 @@ if st.session_state.get("logged_in"):
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # -------------------- CONTRACT (compute only) --------------------
+    # -------------------- CONTRACT (compute + version) --------------------
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
     today_dt = datetime.now(timezone.utc)
     contract_end = parse_contract_end(contract_end_str)
 
-    contract_title_extra = "• no date"
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
+    contract_title_extra = "• no date"
+    contract_ver = "none"
 
     if contract_end:
-        # treat parsed date as naive local; compare on date only
         days_left = (contract_end.date() - today_dt.date()).days
-        contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
+        contract_title_extra = f"• {contract_end:%d %b %Y}"
         if 0 < days_left <= 30:
             contract_notice_level = "warning"
             contract_msg = (
-                f"⏰ **Your contract ends in {days_left} days "
-                f"({contract_end.strftime('%d %b %Y')}).**\n"
+                f"⏰ **Your contract ends in {days_left} days ({contract_end:%d %b %Y}).**\n"
                 f"Renew for **₵{MONTHLY_RENEWAL:,}/month** if you need more time."
             )
             contract_title_extra = f"• ends in {days_left}d"
+            # bucket versions to avoid daily spam (e.g., only “<=30d” bucket)
+            contract_ver = "ending_<=30"
         elif days_left < 0:
             contract_notice_level = "error"
             contract_msg = (
-                f"⚠️ **Your contract has ended!** Please contact the office to renew "
-                f"for **₵{MONTHLY_RENEWAL:,}/month**."
+                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,}/month**."
             )
             contract_title_extra = "• ended"
+            contract_ver = "ended"
         else:
             contract_notice_level = "info"
-            contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
+            contract_msg = f"✅ Contract active. End date: {contract_end:%d %b %Y}."
+            contract_ver = "active"
 
-    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
+    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL (version) --------------------
     df_assign = load_assignment_scores()
     df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
+    # streak
     dates_submitted = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
     streak = 1 if dates_submitted else 0
     for i in range(1, len(dates_submitted)):
@@ -1016,19 +1067,24 @@ if st.session_state.get("logged_in"):
             break
 
     today_d = date.today()
+    iso_year, iso_week, _ = today_d.isocalendar()
     monday = today_d - timedelta(days=today_d.weekday())
     WEEKLY_GOAL = 3
     assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
     goal_left = max(0, WEEKLY_GOAL - assignment_count)
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
 
-    # -------------------- VOCAB OF THE DAY --------------------
+    # version is tied to THIS week + streak change only
+    assignments_ver = f"{iso_year}-W{iso_week}:{assignment_count}:{streak}"
+
+    # -------------------- VOCAB OF THE DAY (version = date) --------------------
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
+    vocab_ver = f"{today_d.isoformat()}:{student_level}:{(vocab_item or {}).get('german','')}"
 
-    # -------------------- LEADERBOARD (compute only) --------------------
+    # -------------------- LEADERBOARD (version = rank or NA) --------------------
     MIN_ASSIGNMENTS = 3
     user_level = student_row.get('Level', '').upper()
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
@@ -1049,58 +1105,52 @@ if st.session_state.get("logged_in"):
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total_possible = totals.get(user_level, 0)
 
-    leaderboard_title_extra = "• not ranked"
     if not your_row.empty:
         rank_val = int(your_row.iloc[0]['Rank'])
         leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
+        leaderboard_ver = f"rank:{rank_val}/{total_students}"
+    else:
+        leaderboard_title_extra = "• not ranked"
+        leaderboard_ver = "rank:NA"
 
-    # -------------------- DASHBOARD TIP (compute only) --------------------
+    # -------------------- Tip (we don't count it as unread trigger) --------------------
     DASHBOARD_REMINDERS = [
-        "🤔 **Have you tried the Course Book?** Explore lessons and track progress.",
-        "📊 **Check My Results & Resources.** See your wins and downloads.",
-        "📝 **Exams Mode & Custom Chat.** Practice speaking and real exam questions.",
-        "🗣️ **Do Vocab Trainer this week.** Small daily practice → big fluency.",
-        "✍️ **Use Schreiben Trainer.** Draft with ideas, then self-check.",
-        "📒 **Add notes in My Learning Notes.** Pin and download your best ideas.",
+        "🤔 Try the Course Book—track lessons & progress.",
+        "📊 Check My Results & Resources for your wins.",
+        "📝 Use Exams Mode & Custom Chat for practice.",
+        "🗣️ Do Vocab Trainer this week—small daily gains.",
+        "✍️ Schreiben Trainer: draft ideas, then self-check.",
+        "📒 Add notes in My Learning Notes & pin the best.",
     ]
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
 
-    # -------------------- Notifications state & helpers --------------------
-    st.session_state.setdefault("notif_read", set())        # ids marked read/dismissed
-    st.session_state.setdefault("notif_snooze", dict())     # id -> ISO datetime
+    # ============== Trigger logic: only unread when version changed ==============
+    current_versions = {
+        "contract":    contract_ver,
+        "assignments": assignments_ver,
+        "vocab":       vocab_ver,
+        "leaderboard": leaderboard_ver,
+        # "tip":      omit from triggers to reduce noise
+    }
 
-    def _is_snoozed(nid: str) -> bool:
-        iso = st.session_state["notif_snooze"].get(nid)
-        if not iso:
+    def _is_triggered(nid: str) -> bool:
+        if _is_snoozed(nid):
             return False
-        try:
-            return datetime.fromisoformat(iso) > datetime.utcnow()
-        except Exception:
-            return False
+        return seen_versions.get(nid) != current_versions.get(nid)
 
-    def notif_actions(nid: str):
-        c1, c2 = st.columns(2)
-        if c1.button("Dismiss", key=f"dismiss_{nid}"):
-            st.session_state["notif_read"].add(nid)
-            st.rerun()
-        if c2.button("Snooze 7 days", key=f"snooze_{nid}"):
-            st.session_state["notif_snooze"][nid] = (datetime.utcnow() + timedelta(days=7)).isoformat()
-            st.rerun()
-
-    _NOTIF_IDS = ["contract", "assignments", "vocab", "leaderboard", "tip"]
-    _unread_count = sum(
-        1 for nid in _NOTIF_IDS
-        if (nid not in st.session_state["notif_read"]) and (not _is_snoozed(nid))
-    )
+    # unread count considers only triggered items
+    _NOTIF_IDS = ["contract", "assignments", "vocab", "leaderboard"]
+    _unread_count = sum(1 for nid in _NOTIF_IDS if _is_triggered(nid))
 
     # Master toggle (opens/closes all)
-    expand_all = st.toggle(f"🔔 Notifications ({_unread_count} unread)", value=False, key="notif_expand_all")
+    expand_all = st.toggle(f"🔔 Notifications ({_unread_count} new)", value=False, key="notif_expand_all")
 
     def _expanded(nid: str) -> bool:
-        return bool(expand_all or ((nid not in st.session_state["notif_read"]) and (not _is_snoozed(nid))))
+        # expand if master toggle or specifically triggered
+        return bool(expand_all or _is_triggered(nid))
 
-    # -------------------- Browser notifications (in-page) --------------------
-    # Inject tiny JS helper (safe to include once)
+    # -------------------- Browser notifications (in-tab) + OneSignal (push) --------------------
+    # Inject tiny JS helper for Notification API
     components.html("""
     <script>
     (function(){
@@ -1125,7 +1175,7 @@ if st.session_state.get("logged_in"):
         safe_body  = json.dumps(body)
         components.html(f"<script>window.falowen && window.falowen.notify({safe_title},{safe_body});</script>", height=0)
 
-    # -------------------- Optional real push via OneSignal --------------------
+    # Optional true push (background) via OneSignal
     ONESIGNAL_APP_ID = st.secrets.get("ONESIGNAL_APP_ID", "")
     if ONESIGNAL_APP_ID:
         components.html(f"""
@@ -1138,7 +1188,7 @@ if st.session_state.get("logged_in"):
         </script>
         """, height=0)
 
-    # -------------------- Tiny badges row --------------------
+    # -------------------- Badges row --------------------
     st.markdown(
         f"""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
@@ -1146,15 +1196,15 @@ if st.session_state.get("logged_in"):
           <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 {assignment_count}/{WEEKLY_GOAL} • {streak}d</span>
           <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ {student_level}</span>
           <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 {leaderboard_title_extra.replace('• ','')}</span>
-          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
+          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">🔔 Notifications</span>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # ==================== COLLAPSIBLE NOTIFICATIONS ====================
+    # ============== Expanders ==============
 
-    # Contract & renewal
+    # Contract
     with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=_expanded("contract")):
         if contract_notice_level == "warning":
             st.warning(contract_msg)
@@ -1162,14 +1212,19 @@ if st.session_state.get("logged_in"):
             st.error(contract_msg)
         else:
             st.info(contract_msg)
-
         st.info(
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
         )
-        notif_actions("contract")
+        c1, c2 = st.columns(2)
+        if c1.button("Dismiss", key="dismiss_contract"):
+            _dismiss("contract", current_versions["contract"])
+            st.rerun()
+        if c2.button("Snooze 7 days", key="snooze_contract"):
+            _snooze("contract", 7)
+            st.rerun()
 
-    # Assignment streak & weekly goal (+ browser notif popover)
+    # Assignments
     with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=_expanded("assignments")):
         col1, col2 = st.columns(2)
         col1.metric("Streak", f"{streak} days")
@@ -1179,13 +1234,13 @@ if st.session_state.get("logged_in"):
         else:
             st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
 
-        with st.popover("🔔 Browser notifications"):
-            st.caption("Quick pop-ups while this tab is open.")
+        with st.popover("🔔 Notifications"):
+            st.caption("Enable quick pop-ups here. For phone-style push, set up OneSignal.")
             c1, c2, c3 = st.columns(3)
-            if c1.button("Enable"):
+            if c1.button("Enable browser pop-ups"):
                 components.html("<script>window.falowen && window.falowen.requestNotif();</script>", height=0)
-                st.toast("Requested permission")
-            if c2.button("Test"):
+                st.toast("Requested browser notification permission")
+            if c2.button("Test pop-up"):
                 trigger_browser_notification("Falowen", "You’ll get reminders here ✨")
             if ONESIGNAL_APP_ID and c3.button("Enable push (OneSignal)"):
                 components.html("""
@@ -1201,9 +1256,15 @@ if st.session_state.get("logged_in"):
                 """, height=0)
                 st.toast("Prompted for push permission")
 
-        notif_actions("assignments")
+        c1, c2 = st.columns(2)
+        if c1.button("Dismiss", key="dismiss_assignments"):
+            _dismiss("assignments", current_versions["assignments"])
+            st.rerun()
+        if c2.button("Snooze 7 days", key="snooze_assignments"):
+            _snooze("assignments", 7)
+            st.rerun()
 
-    # Vocab of the Day
+    # Vocab
     with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=_expanded("vocab")):
         if vocab_item:
             st.markdown(f"""
@@ -1215,9 +1276,15 @@ if st.session_state.get("logged_in"):
             """, unsafe_allow_html=True)
         else:
             st.info(f"No vocab found for level {student_level}.")
-        notif_actions("vocab")
+        c1, c2 = st.columns(2)
+        if c1.button("Dismiss", key="dismiss_vocab"):
+            _dismiss("vocab", current_versions["vocab"])
+            st.rerun()
+        if c2.button("Snooze 7 days", key="snooze_vocab"):
+            _snooze("vocab", 7)
+            st.rerun()
 
-    # Leaderboard & progress
+    # Leaderboard
     with st.expander(f"🏆 Leaderboard & Progress {leaderboard_title_extra}", expanded=_expanded("leaderboard")):
         if not your_row.empty:
             row = your_row.iloc[0]
@@ -1309,16 +1376,29 @@ if st.session_state.get("logged_in"):
                 )
             else:
                 st.info("Start submitting assignments to see your progress bar here!")
-        notif_actions("leaderboard")
+        c1, c2 = st.columns(2)
+        if c1.button("Dismiss", key="dismiss_leaderboard"):
+            _dismiss("leaderboard", current_versions["leaderboard"])
+            st.rerun()
+        if c2.button("Snooze 7 days", key="snooze_leaderboard"):
+            _snooze("leaderboard", 7)
+            st.rerun()
 
-    # Tip
-    with st.expander("💡 Dashboard Tip", expanded=_expanded("tip")):
+    # Tip (not counted as unread trigger)
+    with st.expander("💡 Dashboard Tip", expanded=False):
         st.info(dashboard_tip)
-        notif_actions("tip")
+        c1, c2 = st.columns(2)
+        if c1.button("Dismiss", key="dismiss_tip"):
+            # mark as seen to keep consistent (use today's date as version)
+            _dismiss("tip", today_d.isoformat())
+            st.rerun()
+        if c2.button("Snooze 7 days", key="snooze_tip"):
+            _snooze("tip", 7)
+            st.rerun()
 
     st.divider()
 
-    # -------------------- Main Tab Selection (unchanged below) --------------------
+    # -------------------- Main Tab Selection (unchanged) --------------------
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -1332,6 +1412,7 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 # ======================= END DASHBOARD TOP =======================
+
 
 
 if tab == "Dashboard":
@@ -8170,6 +8251,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
