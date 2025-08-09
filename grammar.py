@@ -962,8 +962,19 @@ def _leaderboard_rank(df_assign: pd.DataFrame, user_level: str, student_code: st
         return None, int(len(grp))
     return int(mine.iloc[0]["rank"]), int(len(grp))
 
-# Gentle auto-refresh so updates can toast without clicks
-st.autorefresh(interval=15_000, key="__notify_tick__")
+# Gentle auto-refresh so notifications can toast without clicks
+try:
+    # Preferred if the helper is available
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=15_000, key="__notify_tick__")
+except Exception:
+    # Fallback: light client-side refresh (works on Streamlit Cloud too)
+    import streamlit.components.v1 as components
+    components.html(
+        "<script>setTimeout(() => { location.reload(); }, 15000);</script>",
+        height=0,
+    )
+
 
 # 1) Load the sheet (quietly)
 try:
@@ -7911,6 +7922,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
