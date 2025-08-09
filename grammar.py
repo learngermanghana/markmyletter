@@ -4014,8 +4014,27 @@ if tab == "Course Book":
 #
 
 
+import re, html
 
+def linkify_html(text: str) -> str:
+    """
+    Turn plain URLs inside text into clickable <a> links.
+    Keeps everything else HTML-escaped.
+    """
+    if text is None:
+        return "<i>No feedback</i>"
+    s = str(text).strip()
+    if not s or s.lower() == "nan":
+        return "<i>No feedback</i>"
 
+    s = html.escape(s)  # escape HTML
+    url_re = r'(https?://[^\s<]+)'
+    s = re.sub(
+        url_re,
+        r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+        s
+    )
+    return s
 
 
 if tab == "My Results and Resources":
@@ -4138,16 +4157,19 @@ if tab == "My Results and Resources":
                 [['assignment', 'score', 'date', 'comments']]
                 .reset_index(drop=True)
             )
+
             for idx, row in df_display.iterrows():
                 perf = score_label(row['score'])
+                comment_html = linkify_html(row['comments'])
+
                 st.markdown(
                     f"""
                     <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span>  
-                    <br>Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                    <b>Feedback:</b> {row['comments'] if pd.notnull(row['comments']) and str(row['comments']).strip().lower() != 'nan' else '<i>No feedback</i>'}
-                    </div>
+                        <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                        Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                        <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                            <b>Feedback:</b> {comment_html}
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -4160,7 +4182,8 @@ if tab == "My Results and Resources":
                 .reset_index(drop=True)
             )
             st.table(df_display)
-    st.markdown("---") 
+
+    st.markdown("---")
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
@@ -8087,6 +8110,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
