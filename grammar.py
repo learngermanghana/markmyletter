@@ -3568,88 +3568,176 @@ if tab == "Course Book":
 
         st.divider()
 
-   
-            # === SUBMIT ASSIGNMENT SECTION ===
-        st.markdown("### ✅ Submit Your Assignment")
+            # === SUBMIT ASSIGNMENT SECTION (IN-APP, PROFESSIONAL) ===
+            st.markdown("### ✅ Submit Your Assignment")
 
-        # --- Save Draft to Firestore ---
-        def save_draft_to_db(code, lesson_key, text):
-            doc_ref = db.collection('draft_answers').document(code)
-            doc_ref.set({lesson_key: text}, merge=True)
+            # --- Save Draft to Firestore ---
+            def save_draft_to_db(code, lesson_key, text):
+                doc_ref = db.collection('draft_answers').document(code)
+                doc_ref.set({lesson_key: text}, merge=True)
 
-        code = student_row.get('StudentCode', 'demo001')
-        lesson_key = f"draft_{info['chapter']}"
+            code = student_row.get('StudentCode', 'demo001')
+            lesson_key = f"draft_{info['chapter']}"
+            chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+            name = st.text_input("Name", value=student_row.get('Name', ''))
 
-        def autosave_draft():
-            text = st.session_state.get(lesson_key, "")
-            save_draft_to_db(code, lesson_key, text)
-            st.session_state[f"{lesson_key}_saved"] = True
+            # Lock control persisted per lesson
+            locked_key = f"{lesson_key}_locked"
+            locked = st.session_state.get(locked_key, False)
 
-        # --- Answer Box ---
-        st.subheader("✍️ Your Answer (Autosaves)")
-        st.text_area(
-            "Type all your answers here",
-            value=st.session_state.get(lesson_key, ""),
-            height=500,
-            key=lesson_key,
-            on_change=autosave_draft,
-        )
-        if st.session_state.get(f"{lesson_key}_saved", False):
-            st.success("✅ Draft autosaved!")
+            def autosave_draft():
+                text = st.session_state.get(lesson_key, "")
+                save_draft_to_db(code, lesson_key, text)
+                st.session_state[f"{lesson_key}_saved"] = True
 
-        # --- Instructions in Expander ---
-        with st.expander("📌 How to Submit", expanded=False):
-            st.markdown("""
-                1. Complete your answers in the box above.  
-                2. Click **Send via WhatsApp** when ready.  
-                3. Review the pre-filled message.  
-                4. Make sure your **assignment number & student code** are correct.  
-                5. Send your work to your tutor.  
-                _Tip: Always double-check before sending._
-            """)
-
-        # --- WhatsApp Submission ---
-        chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-        name = st.text_input("Name", value=student_row.get('Name', ''))
-        msg = build_wa_message(
-            name, code, student_level, info['day'], chapter_name, st.session_state.get(lesson_key, "")
-        )
-        url = "https://api.whatsapp.com/send?phone=233205706589&text=" + urllib.parse.quote(msg)
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if st.button("📤 Send via WhatsApp"):
-                st.success("Click the link below to send your assignment.")
-                st.markdown(f"[📨 **Send Assignment**]({url})")
-
-        with col2:
-            if st.button("📝 Save Answer to Notes"):
-                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-                st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
-                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
-                st.session_state["edit_note_idx"] = None
-                st.session_state["switch_to_notes"] = True
-                st.rerun()
-
-        with col3:
-            q_for_teacher = st.text_area(
-                "💬 Question for Teacher",
-                key=f"ask_teacher_{lesson_key}",
-                height=100,
-                placeholder="Ask anything about this lesson (visible to all students)"
+            # --- Answer Box ---
+            st.subheader("✍️ Your Answer (Autosaves)")
+            st.text_area(
+                "Type all your answers here",
+                value=st.session_state.get(lesson_key, ""),
+                height=500,
+                key=lesson_key,
+                on_change=autosave_draft,
+                disabled=locked,   # lock if returned and no resubmit
             )
-            if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
-                post_message(
-                    student_level,
-                    code,
-                    name,
-                    f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
-                )
-                st.success("✅ Question posted to the community board!")
+            if st.session_state.get(f"{lesson_key}_saved", False):
+                st.success("✅ Draft autosaved!")
 
-        # --- Copy Message Box ---
-        st.text_area("📋 Copy message (if needed):", msg, height=500)
+            # --- Instructions in Expander ---
+            with st.expander("📌 How to Submit", expanded=False):
+                st.markdown("""
+                    1) Type your answer in the box above.  
+                    2) Click **Submit to Tutor**.  
+                    3) You’ll get a receipt ID and see your status (Submitted → Marked → Returned).  
+                    4) If resubmissions are disabled, your box will lock after submit.
+                """)
+
+            # --- Firestore: create/update submission ---
+            def submit_answer(code, name, level, day, chapter, lesson_key, answer):
+                if not answer or not answer.strip():
+                    st.warning("Please type your answer before submitting.")
+                    return False, None
+
+                posts_ref = db.collection("submissions").document(level).collection("posts")
+
+                # check if a submission already exists for this student+lesson
+                q = posts_ref.where("student_code", "==", code)\
+                             .where("lesson_key", "==", lesson_key)\
+                             .limit(1).stream()
+                existing = None
+                for d in q:
+                    existing = d
+                    break
+
+                now = datetime.utcnow()
+                payload = {
+                    "student_code": code,
+                    "student_name": name or "Student",
+                    "level": level,
+                    "day": info["day"],
+                    "chapter": chapter,
+                    "lesson_key": lesson_key,
+                    "answer": answer.strip(),
+                    "status": "submitted",
+                    "updated_at": now,
+                }
+
+                if existing:
+                    prev = existing.to_dict()
+                    payload["created_at"] = prev.get("created_at", now)
+                    payload["version"] = prev.get("version", 1) + 1
+                    posts_ref.document(existing.id).set(payload, merge=True)
+                    return True, existing.id
+                else:
+                    payload["created_at"] = now
+                    payload["version"] = 1
+                    _, ref = posts_ref.add(payload)
+                    return True, ref.id
+
+            # --- Status + history helpers ---
+            def fetch_history(level, code, lesson_key):
+                posts_ref = db.collection("submissions").document(level).collection("posts")
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .order_by("updated_at", direction=firestore.Query.DESCENDING).stream()
+                return [d.to_dict() for d in docs]
+
+            # Submit + Save + Ask
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                allow_resubmit = st.toggle(
+                    "Allow resubmission?",
+                    value=False,
+                    help="If off, your box locks after submit."
+                )
+                if st.button("✅ Submit to Tutor", type="primary", disabled=locked):
+                    ok, sid = submit_answer(
+                        code=code,
+                        name=name,
+                        level=student_level,
+                        day=info["day"],
+                        chapter=chapter_name,
+                        lesson_key=lesson_key,
+                        answer=st.session_state.get(lesson_key, "")
+                    )
+                    if ok:
+                        st.success(f"Submitted! Receipt ID: `{sid}`")
+                        st.session_state[locked_key] = not allow_resubmit
+                        locked = st.session_state[locked_key]
+
+            with col2:
+                if st.button("📝 Save Answer to Notes", disabled=locked):
+                    st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+                    st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+                    st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
+                    st.session_state["edit_note_idx"] = None
+                    st.session_state["switch_to_notes"] = True
+                    st.rerun()
+
+            with col3:
+                q_for_teacher = st.text_area(
+                    "💬 Question for Teacher",
+                    key=f"ask_teacher_{lesson_key}",
+                    height=100,
+                    placeholder="Ask anything about this lesson (visible to all students)"
+                )
+                if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
+                    post_message(
+                        student_level,
+                        code,
+                        name or "Student",
+                        f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
+                    )
+                    st.success("✅ Question posted to the community board!")
+
+            st.divider()
+
+            # --- Current status + history view ---
+            hist = fetch_history(student_level, code, lesson_key)
+            if hist:
+                latest = hist[0]
+                ts = latest['updated_at'].strftime('%Y-%m-%d %H:%M') + " UTC"
+                st.markdown(
+                    f"**Status:** `{latest['status']}`  ·  **Version:** `{latest.get('version',1)}`  ·  **Last updated:** {ts}"
+                )
+                if latest.get("feedback"):
+                    st.success(f"📝 Tutor feedback: {latest['feedback']}")
+                with st.expander("Submission history"):
+                    for h in hist:
+                        st.markdown(
+                            f"- v{h.get('version',1)} — {h['status']} — {h['updated_at'].strftime('%Y-%m-%d %H:%M')} UTC"
+                        )
+
+                # --- Optional auto-lock after returned ---
+                latest_status = latest['status']
+                if latest_status == "returned" and not allow_resubmit:
+                    st.session_state[locked_key] = True
+
+            else:
+                st.info("No submission yet. Type your answer and click **Submit to Tutor**.")
+#
+
 
 
     # === LEARNING NOTES SUBTAB ===
@@ -4059,7 +4147,7 @@ if tab == "Course Book":
             st.markdown("---")
 
 
-
+#Myresults
 def linkify_html(text):
     """Escape HTML and convert URLs in plain text to anchor tags."""
     s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
@@ -8260,6 +8348,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
