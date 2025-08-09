@@ -1027,31 +1027,16 @@ if st.session_state.get("logged_in"):
 
     urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
 
-    # -------------------- BELL ANIMATION LOGIC --------------------
-    bell_color = "#333"       # Non-urgent color
+
+    # -------------------- BELL STATIC LOGIC --------------------
+    bell_color = "#333"  # Static, non-urgent color
 
     st.markdown(f"""
-        <style>
-        @keyframes bell-ring {{
-            0%   {{ transform: rotate(0); }}
-            10%  {{ transform: rotate(15deg); }}
-            20%  {{ transform: rotate(-10deg); }}
-            30%  {{ transform: rotate(5deg); }}
-            40%  {{ transform: rotate(-5deg); }}
-            50%  {{ transform: rotate(0); }}
-            100% {{ transform: rotate(0); }}
-        }}
-        @keyframes bell-pulse {{
-            0%   {{ transform: scale(1); }}
-            50%  {{ transform: scale(1.15); }}
-            100% {{ transform: scale(1); }}
-        }}
-        </style>
         <div style="display:flex;align-items:center;gap:10px;
                     font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
                     padding:6px 10px;background:#fdf6e3;border-radius:8px;">
-            <span style="font-size:1.3em;animation:{bell_anim} 1.2s infinite;
-                         display:inline-block;transform-origin: top center;
+            <span style="font-size:1.3em;display:inline-block;
+                         transform-origin: top center;
                          color:{bell_color};">🔔</span> Your Notifications
         </div>
     """, unsafe_allow_html=True)
@@ -8102,6 +8087,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
