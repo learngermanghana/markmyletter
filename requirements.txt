@@ -15,3 +15,4 @@ streamlit-oauth>=0.1.5
 streamlit-quill
 beautifulsoup4
 streamlit-lottie>=0.0.5
+streamlit-autorefresh>=1.0.1
