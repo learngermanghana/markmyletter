@@ -979,148 +979,161 @@ def display_notifications_toast_only(user_id: str):
     except Exception:
         pass
 
-# ============================
-# STAGE 2: Notifications-only dashboard logic (no visible widgets)
-# ============================
+# ========= Notifications v2 (clean UI) =========
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
-from datetime import date, timedelta
+ICON = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌", "system": "🔔"}
+TYPE_BG = {"achievement": "#F0FFF4", "reminder": "#FFF9E6", "assignment": "#EEF3FC", "system": "#F6F6F9"}
 
-WEEKLY_GOAL = 3
-MIN_ASSIGNMENTS_FOR_LB = 3
+@dataclass
+class Notice:
+    id: str
+    title: str
+    message: str
+    type: str
+    deeplink: str
+    timestamp: datetime
+    read: bool
 
-def _compute_streak(dates_sorted_desc):
-    if not dates_sorted_desc:
-        return 0
-    streak = 1
-    for i in range(1, len(dates_sorted_desc)):
-        if (dates_sorted_desc[i-1] - dates_sorted_desc[i]).days == 1:
-            streak += 1
-        else:
-            break
-    return streak
+def _time_ago(dt: datetime) -> str:
+    if not isinstance(dt, datetime):
+        return ""
+    now = datetime.now(timezone.utc)
+    diff = (now - (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)))
+    s = int(diff.total_seconds())
+    if s < 60: return f"{s}s ago"
+    m = s // 60
+    if m < 60: return f"{m}m ago"
+    h = m // 60
+    if h < 24: return f"{h}h ago"
+    d = h // 24
+    return f"{d}d ago"
 
-def _weekly_count(df_assign: pd.DataFrame, user_code: str) -> int:
-    today = date.today()
-    monday = today - timedelta(days=today.weekday())
-    mask = (df_assign["studentcode"].str.lower().str.strip() == user_code.lower()) & \
-           (df_assign["date"] >= monday)
-    return int(df_assign.loc[mask].shape[0])
+def _notif_col(user_id):
+    return db.collection("users").document(user_id).collection("notifications")
 
-def _leaderboard_rank(df_assign: pd.DataFrame, user_level: str, user_code: str):
-    df = df_assign.copy()
-    df["level"] = df["level"].astype(str).str.upper().str.strip()
-    df["score"] = pd.to_numeric(df["score"], errors="coerce")
-    lvl = (user_level or "").upper().strip()
-    if not lvl:
-        return None, 0
+def fetch_notifications(user_id: str, *, limit: int = 50) -> List[Notice]:
     try:
-        grp = (
-            df[df["level"] == lvl]
-            .groupby(["studentcode", "name"], as_index=False)
-            .agg(total_score=("score","sum"), completed=("assignment","nunique"))
+        docs = list(
+            _notif_col(user_id)
+            .order_by("timestamp", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+            .stream()
         )
+    except Exception as e:
+        st.warning(f"Notifications unavailable: {e}")
+        return []
+    notices = []
+    for d in docs:
+        data = d.to_dict() or {}
+        notices.append(
+            Notice(
+                id=d.id,
+                title=data.get("title", "Notification"),
+                message=data.get("message", ""),
+                type=data.get("type", "system"),
+                deeplink=data.get("deeplink", ""),
+                timestamp=data.get("timestamp") or datetime.now(timezone.utc),
+                read=bool(data.get("read", False)),
+            )
+        )
+    return notices
+
+def mark_read(user_id: str, doc_ids: List[str]):
+    if not doc_ids: return
+    try:
+        batch = db.batch()
+        for _id in doc_ids:
+            batch.update(_notif_col(user_id).document(_id), {"read": True})
+        batch.commit()
     except Exception:
-        return None, 0
-    grp = grp[grp["completed"] >= MIN_ASSIGNMENTS_FOR_LB]
-    if grp.empty:
-        return None, 0
-    grp = grp.sort_values(["total_score", "completed"], ascending=[False, False]).reset_index(drop=True)
-    grp["rank"] = grp.index + 1
-    mine = grp[grp["studentcode"].str.lower() == user_code.lower()]
-    if mine.empty:
-        return None, int(len(grp))
-    return int(mine.iloc[0]["rank"]), int(len(grp))
+        pass
 
-# Gentle auto-refresh (toast-only UI)
-try:
-    from streamlit_autorefresh import st_autorefresh
-    st_autorefresh(interval=15_000, key="__notify_tick__")
-except Exception:
-    components.html("<script>setTimeout(() => { location.reload(); }, 15000);</script>", height=0)
+def toast_unread_once(user_id: str, *, max_toasts: int = 3):
+    """Show unread toasts once per session (prevents re-stacking on rerun)."""
+    st.session_state.setdefault("__toasted_ids__", set())
+    toasted = st.session_state["__toasted_ids__"]
 
-# 1) Load scores quietly
-try:
-    df_assign = load_assignment_scores()
-except Exception:
-    df_assign = pd.DataFrame()
+    notices = fetch_notifications(user_id, limit=100)
+    unread = [n for n in notices if not n.read and n.id not in toasted]
+    # Show older first so stacking feels natural
+    for n in reversed(unread[-max_toasts:]):
+        st.toast(f"**{n.title}**\n\n{n.message}", icon=ICON.get(n.type, "🔔"))
+        toasted.add(n.id)
 
-# Normalize + parse date for internal logic
-if not df_assign.empty:
-    df_assign = df_assign.copy()
-    df_assign.columns = df_assign.columns.str.strip().str.lower()
-    for c in df_assign.columns:
-        df_assign[c] = df_assign[c].astype(str).str.strip()
-    if "date" in df_assign.columns:
-        df_assign["date"] = pd.to_datetime(df_assign["date"], errors="coerce").dt.date
-else:
-    df_assign = pd.DataFrame(columns=["studentcode","date","level","assignment","score"])
+def notification_bell(user_id: str):
+    """Header bell with unread badge + popover center."""
+    notices = fetch_notifications(user_id, limit=100)
+    unread = [n for n in notices if not n.read]
+    unread_count = len(unread)
 
-# 2) New score rows → notification (no grade shown)
-try:
-    notify_if_new_scores(student_code, df_assign)
-except Exception:
-    pass
+    # Badge label
+    label = f"🔔 {unread_count}" if unread_count else "🔔"
 
-# 3) Streak + Weekly goal → notifications (no widgets)
-try:
-    my_dates = sorted(
-        [d for d in df_assign.loc[df_assign["studentcode"].str.lower()==student_code.lower(),"date"].dropna().unique()],
-        reverse=True
-    )
-    current_streak = _compute_streak(my_dates)
-    last_streak = int(_get_user_stat(student_code, "last_seen_streak", 0) or 0)
+    # Right-align the bell
+    _, bell_col = st.columns([0.70, 0.30])  # tweak to taste
+    with bell_col:
+        with st.popover(label, use_container_width=True):
+            st.markdown("### 📬 Notifications")
+            if not notices:
+                st.info("No notifications yet.")
+                return
 
-    if current_streak > last_streak:
-        send_notification(
-            user_id=student_code,
-            title="Streak updated 🎯",
-            message=f"Nice! Your streak is now {current_streak} day(s). Keep it going!",
-            type_="achievement",
-        )
-        _set_user_stats(student_code, last_seen_streak=int(current_streak))
-    elif current_streak < last_streak:
-        _set_user_stats(student_code, last_seen_streak=int(current_streak))
+            # Actions row
+            c1, c2 = st.columns([1,1])
+            with c1:
+                if st.button("Mark all as read", key="__mark_all__"):
+                    mark_read(user_id, [n.id for n in unread])
+                    st.rerun()
+            with c2:
+                if st.button("Refresh", key="__refresh_notifs__"):
+                    st.rerun()
 
-    wk_count = _weekly_count(df_assign, student_code)
-    last_week_count = int(_get_user_stat(student_code, "last_seen_week_count", 0) or 0)
-    if wk_count >= WEEKLY_GOAL and last_week_count < WEEKLY_GOAL:
-        send_notification(
-            user_id=student_code,
-            title="Weekly goal reached ✅",
-            message=f"You’ve submitted {wk_count} this week. Great job!",
-            type_="achievement",
-        )
-    if wk_count != last_week_count:
-        _set_user_stats(student_code, last_seen_week_count=int(wk_count))
-except Exception:
-    pass
+            # List
+            for i, n in enumerate(notices):
+                bg = TYPE_BG.get(n.type, "#F6F6F9")
+                icon = ICON.get(n.type, "🔔")
+                ago = _time_ago(n.timestamp)
+                read_flag = "✅" if n.read else "🆕"
 
-# 4) Leaderboard rank improvements → notification
-try:
-    user_level = (st.session_state.get("student_row") or {}).get("Level", "")
-    user_level = (user_level or "").strip().upper()
-    rank, total = _leaderboard_rank(df_assign, user_level, student_code)
-    last_rank = _get_user_stat(student_code, "last_seen_rank", None)
+                st.markdown(
+                    f"""
+                    <div style="background:{bg}; padding:10px 12px; border-radius:10px; margin:8px 0; border:1px solid #ebebf2;">
+                      <div style="display:flex; gap:8px; align-items:flex-start;">
+                        <div style="font-size:18px; line-height:1;">{icon}</div>
+                        <div style="flex:1;">
+                          <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>{n.title}</strong>
+                            <span style="font-size:12px; color:#666;">{ago} {read_flag}</span>
+                          </div>
+                          <div style="color:#444; margin-top:4px;">{n.message}</div>
+                          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                            {"<a href='"+n.deeplink+"' target='_blank'>Open</a>" if n.deeplink else ""}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-    if rank is not None:
-        if last_rank is None:
-            _set_user_stats(student_code, last_seen_rank=int(rank))
-        else:
-            try:
-                last_rank_int = int(last_rank)
-                if rank < last_rank_int:
-                    send_notification(
-                        user_id=student_code,
-                        title="You moved up the leaderboard 🚀",
-                        message=f"You’re now ranked #{rank} in {user_level}. Keep going!",
-                        type_="achievement",
-                    )
-            except Exception:
-                pass
-            finally:
-                _set_user_stats(student_code, last_seen_rank=int(rank))
-except Exception:
-    pass
+                # Per-item controls
+                cc1, cc2, cc3 = st.columns([0.25, 0.25, 0.5])
+                with cc1:
+                    if not n.read and st.button("Mark read", key=f"__mark_{n.id}"):
+                        mark_read(user_id, [n.id])
+                        st.rerun()
+                with cc2:
+                    if n.deeplink and st.button("Open", key=f"__open_{n.id}"):
+                        # Opening is just the anchor above; we can also toast feedback
+                        st.toast("Opening…", icon=icon)
+
+def notify_area(user_id: str):
+    """One place to call in your logged-in header."""
+    toast_unread_once(user_id, max_toasts=3)
+    notification_bell(user_id)
+
 
 # ============================
 # STAGE 3: Toast unread + optional test controls
@@ -7996,6 +8009,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
