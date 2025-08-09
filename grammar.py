@@ -892,11 +892,14 @@ if not student_code:
     st.stop()
 
 # ============================
-# STAGE 1: Notification + loader helpers
+# STAGE 1–3: Notifications (clean UI + unread banner)
 # ============================
 
 import pandas as pd
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from typing import List
+from datetime import datetime, timezone, date, timedelta
+import streamlit as st
 
 # ---- Google Sheet (scores) ----
 @st.cache_data(ttl=30)  # quick refresh while testing; bump later
@@ -966,23 +969,7 @@ def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
     elif current_count < int(last_count):
         _set_user_stats(user_id, last_seen_score_count=int(current_count))  # resync quietly
 
-# ---- Toast unread only (no sidebar list) ----
-def display_notifications_toast_only(user_id: str):
-    try:
-        col = db.collection("users").document(user_id).collection("notifications")
-        docs = list(col.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
-        unread = [d for d in docs if not (d.to_dict() or {}).get("read", False)]
-        for d in reversed(unread):  # older first → nicer stack
-            data = d.to_dict() or {}
-            icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(data.get("type","system"), "🔔")
-            st.toast(f"**{data.get('title','Notification')}**\n\n{data.get('message','')}", icon=icon)
-    except Exception:
-        pass
-
 # ========= Notifications v2 (clean UI) =========
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
-
 ICON = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌", "system": "🔔"}
 TYPE_BG = {"achievement": "#F0FFF4", "reminder": "#FFF9E6", "assignment": "#EEF3FC", "system": "#F6F6F9"}
 
@@ -1010,10 +997,10 @@ def _time_ago(dt: datetime) -> str:
     d = h // 24
     return f"{d}d ago"
 
-def _notif_col(user_id):
+def _notif_col(user_id: str):
     return db.collection("users").document(user_id).collection("notifications")
 
-def fetch_notifications(user_id: str, *, limit: int = 50) -> List[Notice]:
+def fetch_notifications(user_id: str, *, limit: int = 100) -> List[Notice]:
     try:
         docs = list(
             _notif_col(user_id)
@@ -1024,7 +1011,7 @@ def fetch_notifications(user_id: str, *, limit: int = 50) -> List[Notice]:
     except Exception as e:
         st.warning(f"Notifications unavailable: {e}")
         return []
-    notices = []
+    notices: List[Notice] = []
     for d in docs:
         data = d.to_dict() or {}
         notices.append(
@@ -1032,7 +1019,7 @@ def fetch_notifications(user_id: str, *, limit: int = 50) -> List[Notice]:
                 id=d.id,
                 title=data.get("title", "Notification"),
                 message=data.get("message", ""),
-                type=data.get("type", "system"),
+                type=str(data.get("type", "system")),
                 deeplink=data.get("deeplink", ""),
                 timestamp=data.get("timestamp") or datetime.now(timezone.utc),
                 read=bool(data.get("read", False)),
@@ -1055,16 +1042,31 @@ def toast_unread_once(user_id: str, *, max_toasts: int = 3):
     st.session_state.setdefault("__toasted_ids__", set())
     toasted = st.session_state["__toasted_ids__"]
 
-    notices = fetch_notifications(user_id, limit=100)
+    notices = fetch_notifications(user_id)
     unread = [n for n in notices if not n.read and n.id not in toasted]
     # Show older first so stacking feels natural
     for n in reversed(unread[-max_toasts:]):
         st.toast(f"**{n.title}**\n\n{n.message}", icon=ICON.get(n.type, "🔔"))
         toasted.add(n.id)
 
+def unread_banner(user_id: str):
+    """Small banner so the student clearly knows they have unread notifications."""
+    notices = fetch_notifications(user_id)
+    unread = [n for n in notices if not n.read]
+    if not unread:
+        return
+    count = len(unread)
+    cols = st.columns([0.80, 0.20])
+    with cols[0]:
+        st.info(f"📬 You have **{count}** unread notification{'s' if count != 1 else ''}. Click the bell to view.")
+    with cols[1]:
+        if st.button("Mark all read", key="__banner_mark_all__"):
+            mark_read(user_id, [n.id for n in unread])
+            st.rerun()
+
 def notification_bell(user_id: str):
     """Header bell with unread badge + popover center."""
-    notices = fetch_notifications(user_id, limit=100)
+    notices = fetch_notifications(user_id)
     unread = [n for n in notices if not n.read]
     unread_count = len(unread)
 
@@ -1091,7 +1093,7 @@ def notification_bell(user_id: str):
                     st.rerun()
 
             # List
-            for i, n in enumerate(notices):
+            for n in notices:
                 bg = TYPE_BG.get(n.type, "#F6F6F9")
                 icon = ICON.get(n.type, "🔔")
                 ago = _time_ago(n.timestamp)
@@ -1119,33 +1121,51 @@ def notification_bell(user_id: str):
                 )
 
                 # Per-item controls
-                cc1, cc2, cc3 = st.columns([0.25, 0.25, 0.5])
-                with cc1:
+                cA, cB, _ = st.columns([0.25, 0.25, 0.5])
+                with cA:
                     if not n.read and st.button("Mark read", key=f"__mark_{n.id}"):
                         mark_read(user_id, [n.id])
                         st.rerun()
-                with cc2:
+                with cB:
                     if n.deeplink and st.button("Open", key=f"__open_{n.id}"):
-                        # Opening is just the anchor above; we can also toast feedback
                         st.toast("Opening…", icon=icon)
 
 def notify_area(user_id: str):
     """One place to call in your logged-in header."""
-    toast_unread_once(user_id, max_toasts=3)
-    notification_bell(user_id)
+    toast_unread_once(user_id, max_toasts=3)  # gentle toasts (older first)
+    unread_banner(user_id)                    # visible hint they have unread
+    notification_bell(user_id)               # bell + popover
 
-
-# ============================
-# STAGE 3: Toast unread + optional test controls
-# ============================
-
-# Toast unread notifications (no sidebar list)
+# ========= Gentle auto-refresh (so new scores can trigger) =========
 try:
-    display_notifications_toast_only(student_code)
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=15_000, key="__notify_tick__")
+except Exception:
+    components.html("<script>setTimeout(() => { location.reload(); }, 15000);</script>", height=0)
+
+# ========= Load + normalize scores, then drive notifications =========
+try:
+    df_assign = load_assignment_scores()
+except Exception:
+    df_assign = pd.DataFrame()
+
+if not df_assign.empty:
+    df_assign = df_assign.copy()
+    df_assign.columns = df_assign.columns.str.strip().str.lower()
+    for c in df_assign.columns:
+        df_assign[c] = df_assign[c].astype(str).str.strip()
+    if "date" in df_assign.columns:
+        df_assign["date"] = pd.to_datetime(df_assign["date"], errors="coerce").dt.date
+else:
+    df_assign = pd.DataFrame(columns=["studentcode","date","level","assignment","score"])
+
+# New score rows → notification (no grade shown)
+try:
+    notify_if_new_scores(student_code, df_assign)
 except Exception:
     pass
 
-# Optional helpers while testing
+# ========= Optional test/reset helpers (no extra toasts) =========
 colA, colB = st.columns([1,3])
 with colA:
     if st.button("↻ Refresh results"):
@@ -1155,6 +1175,7 @@ with colB:
     if st.button("🧹 Reset results baseline"):
         _set_user_stats(student_code, last_seen_score_count=0, last_seen_streak=0, last_seen_week_count=0)
         st.success("Baselines reset. Add a new row in the sheet to trigger notifications.")
+
 # ============================
 # MAIN TAB SELECTION
 # ============================
@@ -8009,6 +8030,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
