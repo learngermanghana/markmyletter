@@ -3543,10 +3543,10 @@ if tab == "Course Book":
         st.divider()
 
    
-        # === SUBMIT ASSIGNMENT SECTION ===
+            # === SUBMIT ASSIGNMENT SECTION ===
         st.markdown("### ✅ Submit Your Assignment")
-        
-        # --- Save Draft to Firestore (using global db instance) ---
+
+        # --- Save Draft to Firestore ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
             doc_ref.set({lesson_key: text}, merge=True)
@@ -3559,36 +3559,30 @@ if tab == "Course Book":
             save_draft_to_db(code, lesson_key, text)
             st.session_state[f"{lesson_key}_saved"] = True
 
+        # --- Answer Box ---
         st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
-            "Type all your answers in the box below",
+            "Type all your answers here",
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
             on_change=autosave_draft,
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
-            st.success("Draft autosaved!")
+            st.success("✅ Draft autosaved!")
 
-        
-        # === INSTRUCTIONS: Place below columns and above copy box ===
-        st.info(
-            """
-            **How to submit your assignment:**
+        # --- Instructions in Expander ---
+        with st.expander("📌 How to Submit", expanded=False):
+            st.markdown("""
+                1. Complete your answers in the box above.  
+                2. Click **Send via WhatsApp** when ready.  
+                3. Review the pre-filled message.  
+                4. Make sure your **assignment number & student code** are correct.  
+                5. Send your work to your tutor.  
+                _Tip: Always double-check before sending._
+            """)
 
-            1. Write your complete answers in the box above.
-            2. Click **Send via WhatsApp** when done.
-            3. After clicking, you will see an **Send Assignment** button.
-            4. Your assignment message is organized below for you to review.
-            5. Confirm your assignment number and student code are correct.
-            6. Click **Send Assignment** or copy the message below to directly send it to your tutor.
-
-            _(Tip: Double-check your name and code before sending to ensure your work is properly recorded!)_
-            """
-        )
-#
-
-        # --- WhatsApp Submission + Add to Notes ---
+        # --- WhatsApp Submission ---
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
         msg = build_wa_message(
@@ -3600,25 +3594,24 @@ if tab == "Course Book":
 
         with col1:
             if st.button("📤 Send via WhatsApp"):
-                st.success("Click link below to submit through WhatsApp.")
-                st.markdown(f"[📨 Send Assignment]({url})")
-                st.caption("You can also save your answer as a note for future reference.")
+                st.success("Click the link below to send your assignment.")
+                st.markdown(f"[📨 **Send Assignment**]({url})")
 
         with col2:
-            if st.button("📝 Add Answer to Notes"):
+            if st.button("📝 Save Answer to Notes"):
                 st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
                 st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
                 st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
-                st.session_state["edit_note_idx"] = None  # Signal: this is a new note
+                st.session_state["edit_note_idx"] = None
                 st.session_state["switch_to_notes"] = True
                 st.rerun()
 
         with col3:
             q_for_teacher = st.text_area(
-                "Question for teacher?", 
-                key=f"ask_teacher_{lesson_key}", 
+                "💬 Question for Teacher",
+                key=f"ask_teacher_{lesson_key}",
                 height=100,
-                placeholder="Ask the teacher anything about this lesson. Everyone will see it!"
+                placeholder="Ask anything about this lesson (visible to all students)"
             )
             if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
                 post_message(
@@ -3627,11 +3620,11 @@ if tab == "Course Book":
                     name,
                     f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
                 )
-                st.success("Your question was posted to the community board!")              
+                st.success("✅ Question posted to the community board!")
 
-        st.text_area("📋 Copy message:", msg, height=500)
+        # --- Copy Message Box ---
+        st.text_area("📋 Copy message (if needed):", msg, height=500)
 
-#
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
