@@ -3511,23 +3511,22 @@ if tab == "Course Book":
                 unsafe_allow_html=True
             )
 
-        st.divider()
+         with st.expander("🌐 Translation Tools", expanded=False):
 
-        
-        # --- Translation Links Only ---
-        st.markdown("---")
-        st.markdown(
-            '**Need translation?** '
-            '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
-            '[🌐 Google Translate](https://translate.google.com)',
-            unsafe_allow_html=True
-        )
-        st.caption("Copy any text from the course book and paste it into your preferred translator.")
+            st.markdown("---")
+            st.markdown(
+                '**Need translation?** '
+                '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
+                '[🌐 Google Translate](https://translate.google.com)',
+                unsafe_allow_html=True
+            )
+            st.caption("Copy any text from the course book and paste it into your preferred translator.")
 
-
+    
         st.divider()
 
         st.info("Before you submit your assignment, do you mind watching the Video of the Day? Click below to open it.")
+#
 
         with st.expander("🎬 Video of the Day for Your Level"):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
