@@ -586,7 +586,6 @@ def save_cookie_after_login(student_code):
     safe_code = json.dumps(value)
     components.html(f"<script>localStorage.setItem('student_code', {safe_code});</script>", height=0)
 
-
 if not st.session_state.get("logged_in", False):
     # Support / Help section
     st.markdown("""
@@ -6996,29 +6995,36 @@ if tab == "Vocab Trainer":
                 st.info(st.session_state.sb_feedback)
 
     # ===========================
-    # SUBTAB: Vocab Practice (flashcards) — second
+    # SUBTAB: Vocab Practice (flashcards)
     # ===========================
     elif subtab == "Vocab Practice":
         # init session vars
-        defaults = {"vt_history": [], "vt_list": [], "vt_index": 0, "vt_score": 0, "vt_total": None}
+        defaults = {
+            "vt_history": [],
+            "vt_list": [],
+            "vt_index": 0,
+            "vt_score": 0,
+            "vt_total": None
+        }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
 
-        # stats
-        stats = get_vocab_stats(student_code)
-        st.markdown("### 📝 Your Vocab Stats")
-        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-        st.markdown(f"- **Best:** {stats['best']}")
-        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-        if st.checkbox("Show Last 5 Sessions"):
-            for a in stats["history"][-5:][::-1]:
-                st.markdown(
-                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                    unsafe_allow_html=True
-                )
-#
+        # --- Stats ---
+        with st.expander("📝 Your Vocab Stats", expanded=False):
+            stats = get_vocab_stats(student_code)
+            st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+            st.markdown(f"- **Best:** {stats['best']}")
+            st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+            st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+
+            if st.checkbox("Show Last 5 Sessions"):
+                for a in stats["history"][-5:][::-1]:
+                    st.markdown(
+                        f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                        f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                        unsafe_allow_html=True
+                    )
+
         # lock level
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
@@ -8157,7 +8163,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
