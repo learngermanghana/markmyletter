@@ -6794,113 +6794,15 @@ if tab == "Vocab Trainer":
 
     subtab = st.radio(
         "Choose practice:",
-        ["Vocab Practice", "Writing Practice"],
+        ["Sentence Buider", "Vocab Practice"],
         horizontal=True,
         key="vocab_practice_subtab"
     )
 
-    # ===========================
-    # SUBTAB: Vocab Practice (flashcards)
-    # ===========================
-    if subtab == "Vocab Practice":
-        # init session vars
-        defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
-        for k,v in defaults.items(): st.session_state.setdefault(k,v)
-
-        # stats
-        stats = get_vocab_stats(student_code)
-        st.markdown("### 📝 Your Vocab Stats")
-        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-        st.markdown(f"- **Best:** {stats['best']}")
-        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-        if st.checkbox("Show Last 5 Sessions"):
-            for a in stats["history"][-5:][::-1]:
-                st.markdown(
-                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                    unsafe_allow_html=True
-                )
-
-        # lock level
-        level = student_level_locked
-        items = VOCAB_LISTS.get(level, [])
-        completed = set(stats["completed_words"])
-        not_done  = [p for p in items if p[0] not in completed]
-        st.info(f"{len(not_done)} words NOT yet done at {level}.")
-
-        # reset button
-        if st.button("🔁 Start New Practice", key="vt_reset"):
-            for k in defaults: st.session_state[k]=defaults[k]
-            st.rerun()
-
-        mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
-        session_vocab = (not_done if mode=="Only new words" else items).copy()
-
-        # pick count and start
-        if st.session_state.vt_total is None:
-            maxc = len(session_vocab)
-            if maxc == 0:
-                st.success("🎉 All done! Switch to 'All words' to repeat.")
-                st.stop()
-            count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
-            if st.button("Start", key="vt_start"):
-                import random
-                random.shuffle(session_vocab)
-                st.session_state.vt_list    = session_vocab[:count]
-                st.session_state.vt_total   = count
-                st.session_state.vt_index   = 0
-                st.session_state.vt_score   = 0
-                st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
-                st.rerun()
-
-        # show chat/history
-        if st.session_state.vt_history:
-            st.markdown("### 🗨️ Practice Chat")
-            for who,msg in st.session_state.vt_history:
-                render_message(who,msg)
-
-        # practice loop
-        tot = st.session_state.vt_total
-        idx = st.session_state.vt_index
-        if isinstance(tot,int) and idx<tot:
-            word,answer = st.session_state.vt_list[idx]
-
-            # audio
-            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-                t = gTTS(text=word, lang="de")
-                with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
-                    t.save(fp.name)
-                    st.audio(fp.name,format="audio/mp3")
-                    fp.seek(0); blob = fp.read()
-                st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
-
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
-            if usr and st.button("Check", key=f"vt_check_{idx}"):
-                st.session_state.vt_history.append(("user",usr))
-                if is_correct_answer(usr,answer):
-                    st.session_state.vt_score += 1
-                    fb = f"✅ Correct! '{word}' = '{answer}'"
-                else:
-                    fb = f"❌ Nope. '{word}' = '{answer}'"
-                st.session_state.vt_history.append(("assistant",fb))
-                st.session_state.vt_index += 1
-                st.rerun()
-
-        # done
-        if isinstance(tot,int) and idx>=tot:
-            score = st.session_state.vt_score
-            words = [w for w,_ in st.session_state.vt_list]
-            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-            save_vocab_attempt(student_code, level, tot, score, words)
-            if st.button("Practice Again", key="vt_again"):
-                for k in defaults: st.session_state[k]=defaults[k]
-                st.rerun()
-
         # ===========================
     # SUBTAB: Writing Practice (Sentence Builder)
     # ===========================
-    elif subtab == "Writing Practice":
+    elif subtab == "Sentence Builder":
         student_level = student_level_locked
         st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
@@ -7068,6 +6970,104 @@ if tab == "Vocab Trainer":
                 st.success(st.session_state.sb_feedback)
             else:
                 st.info(st.session_state.sb_feedback)
+
+    # ===========================
+    # SUBTAB: Vocab Practice (flashcards)
+    # ===========================
+    if subtab == "Vocab Practice":
+        # init session vars
+        defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
+        for k,v in defaults.items(): st.session_state.setdefault(k,v)
+
+        # stats
+        stats = get_vocab_stats(student_code)
+        st.markdown("### 📝 Your Vocab Stats")
+        st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+        st.markdown(f"- **Best:** {stats['best']}")
+        st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+        st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+        if st.checkbox("Show Last 5 Sessions"):
+            for a in stats["history"][-5:][::-1]:
+                st.markdown(
+                    f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                    f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                    unsafe_allow_html=True
+                )
+
+        # lock level
+        level = student_level_locked
+        items = VOCAB_LISTS.get(level, [])
+        completed = set(stats["completed_words"])
+        not_done  = [p for p in items if p[0] not in completed]
+        st.info(f"{len(not_done)} words NOT yet done at {level}.")
+
+        # reset button
+        if st.button("🔁 Start New Practice", key="vt_reset"):
+            for k in defaults: st.session_state[k]=defaults[k]
+            st.rerun()
+
+        mode = st.radio("Select words:", ["Only new words","All words"], horizontal=True, key="vt_mode")
+        session_vocab = (not_done if mode=="Only new words" else items).copy()
+
+        # pick count and start
+        if st.session_state.vt_total is None:
+            maxc = len(session_vocab)
+            if maxc == 0:
+                st.success("🎉 All done! Switch to 'All words' to repeat.")
+                st.stop()
+            count = st.number_input("How many today?", 1, maxc, min(7,maxc), key="vt_count")
+            if st.button("Start", key="vt_start"):
+                import random
+                random.shuffle(session_vocab)
+                st.session_state.vt_list    = session_vocab[:count]
+                st.session_state.vt_total   = count
+                st.session_state.vt_index   = 0
+                st.session_state.vt_score   = 0
+                st.session_state.vt_history = [("assistant",f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
+                st.rerun()
+
+        # show chat/history
+        if st.session_state.vt_history:
+            st.markdown("### 🗨️ Practice Chat")
+            for who,msg in st.session_state.vt_history:
+                render_message(who,msg)
+
+        # practice loop
+        tot = st.session_state.vt_total
+        idx = st.session_state.vt_index
+        if isinstance(tot,int) and idx<tot:
+            word,answer = st.session_state.vt_list[idx]
+
+            # audio
+            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
+                t = gTTS(text=word, lang="de")
+                with tempfile.NamedTemporaryFile(delete=False,suffix=".mp3") as fp:
+                    t.save(fp.name)
+                    st.audio(fp.name,format="audio/mp3")
+                    fp.seek(0); blob = fp.read()
+                st.download_button(f"⬇️ {word}.mp3", data=blob, file_name=f"{word}.mp3", mime="audio/mp3", key=f"tts_dl_{idx}")
+
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            if usr and st.button("Check", key=f"vt_check_{idx}"):
+                st.session_state.vt_history.append(("user",usr))
+                if is_correct_answer(usr,answer):
+                    st.session_state.vt_score += 1
+                    fb = f"✅ Correct! '{word}' = '{answer}'"
+                else:
+                    fb = f"❌ Nope. '{word}' = '{answer}'"
+                st.session_state.vt_history.append(("assistant",fb))
+                st.session_state.vt_index += 1
+                st.rerun()
+
+        # done
+        if isinstance(tot,int) and idx>=tot:
+            score = st.session_state.vt_score
+            words = [w for w,_ in st.session_state.vt_list]
+            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
+            save_vocab_attempt(student_code, level, tot, score, words)
+            if st.button("Practice Again", key="vt_again"):
+                for k in defaults: st.session_state[k]=defaults[k]
+                st.rerun()
 
 
 
