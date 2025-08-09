@@ -32,69 +32,57 @@ from streamlit_quill import st_quill
 import firebase_admin  # keep after others; needed for _apps
 
 
-# ---- Firebase / Firestore init (uses [firebase] first) ----
-import os
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-def _init_firebase():
-    # Already initialized?
-    if firebase_admin._apps:
-        # Ensure env var exists even on hot-reload
-        if not os.getenv("GOOGLE_CLOUD_PROJECT"):
-            sa_probe = st.secrets.get("firebase") or st.secrets.get("gcp_service_account") or {}
-            proj = (sa_probe or {}).get("project_id") or st.secrets.get("GCP_PROJECT_ID") or ""
-            if proj:
-                os.environ["GOOGLE_CLOUD_PROJECT"] = str(proj)
-        return firestore.client()
-
-    # 1) Preferred: [firebase] block in Streamlit secrets (your current setup)
+def _get_project_from_secrets():
+    # Prefer your [firebase] block
     sa = st.secrets.get("firebase")
     if sa:
         sa = dict(sa)
-        project_id = sa.get("project_id") or sa.get("projectId")
-        if not project_id:
-            st.error("Your [firebase] secret is missing `project_id`.")
-            st.stop()
+        proj = sa.get("project_id") or sa.get("projectId")
+        return sa, str(proj) if proj else None
+    # Optional fallback if you ever switch names
+    sa_alt = st.secrets.get("gcp_service_account")
+    if sa_alt:
+        sa_alt = dict(sa_alt)
+        proj = sa_alt.get("project_id") or sa_alt.get("projectId")
+        return sa_alt, str(proj) if proj else None
+    return None, None
 
-        # Ensure Firestore sees a project id
-        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", str(project_id))
+def _init_firebase():
+    sa, project_id = _get_project_from_secrets()
 
+    # If there is already an app, ensure it has a project; otherwise delete & reinit
+    if firebase_admin._apps:
+        app = firebase_admin.get_app()
+        # Try to see if the app has a project from options or credentials
+        has_project = bool(getattr(app, "project_id", None) or app.options.get("projectId"))
+        if not has_project:
+            # Nuking the bad init so we can reinit correctly
+            firebase_admin.delete_app(app)
+        else:
+            return firestore.client()
+
+    # We get here if: (a) no app yet, or (b) deleted a bad one
+    if sa and project_id:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = project_id  # keep Firestore happy
         cred = credentials.Certificate(sa)
         firebase_admin.initialize_app(cred, {"projectId": project_id})
         return firestore.client()
 
-    # 2) Fallback: gcp_service_account (if you ever switch key names)
-    sa_alt = st.secrets.get("gcp_service_account")
-    if sa_alt:
-        sa_alt = dict(sa_alt)
-        project_id = sa_alt.get("project_id") or sa_alt.get("projectId")
-        if not project_id:
-            st.error("Your [gcp_service_account] secret is missing `project_id`.")
-            st.stop()
-
-        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", str(project_id))
-
-        cred = credentials.Certificate(sa_alt)
-        firebase_admin.initialize_app(cred, {"projectId": project_id})
-        return firestore.client()
-
-    # 3) Last resort: env/ADC
+    # Last resort: env/ADC – but demand a project id
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT") or str(st.secrets.get("GCP_PROJECT_ID") or "")
     if not project_id:
         st.error(
             "Firestore init failed: no project id.\n\n"
-            "Add a service account JSON under `[firebase]` in Streamlit secrets "
-            "with a `project_id`, or set `GOOGLE_CLOUD_PROJECT`."
+            "Add a service account JSON under [firebase] with `project_id`, "
+            "or set GOOGLE_CLOUD_PROJECT."
         )
         st.stop()
 
-    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", str(project_id))
+    os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
     firebase_admin.initialize_app(options={"projectId": project_id})
     return firestore.client()
 
 db = _init_firebase()
-
 
 
 # 5️⃣ Send a notification (admin/app use)
@@ -8150,6 +8138,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
