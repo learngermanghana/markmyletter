@@ -1028,7 +1028,6 @@ if st.session_state.get("logged_in"):
     urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
 
     # -------------------- BELL ANIMATION LOGIC --------------------
-    bell_anim = "bell-pulse"  # Always pulse, never ring
     bell_color = "#333"       # Non-urgent color
 
     st.markdown(f"""
@@ -8103,6 +8102,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
