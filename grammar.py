@@ -3396,51 +3396,46 @@ if tab == "Course Book":
         st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
         st.divider()
 
-        # Recommended time
-        LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-        rec_time = LEVEL_TIME.get(student_level, 20)
-        st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
-        
-        # Suggested end dates
-        start_str = student_row.get("ContractStart", "")
-        start_date = None
-        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-            try:
-                start_date = datetime.strptime(start_str, fmt).date()
-                break
-            except:
-                continue
+        # ===== COURSE BOOK INFO =====
+        with st.expander("📚 Course Book & Study Recommendations", expanded=False):
 
-        if start_date:
-            # calculate how many weeks for each pace
-            weeks_three = (total + 2) // 3
-            weeks_two   = (total + 1) // 2
-            weeks_one   = total
+            # Recommended time
+            LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
+            rec_time = LEVEL_TIME.get(student_level, 20)
+            st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-            end_three = start_date + timedelta(weeks=weeks_three)
-            end_two   = start_date + timedelta(weeks=weeks_two)
-            end_one   = start_date + timedelta(weeks=weeks_one)
+            # Suggested end dates
+            start_str = student_row.get("ContractStart", "")
+            start_date = None
+            for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    start_date = datetime.strptime(start_str, fmt).date()
+                    break
+                except:
+                    continue
 
-            # indent right with a spacer column
-            spacer, content = st.columns([3, 7])
-            with content:
-                st.success(
-                    f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**."
-                )
-                st.info(
-                    f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**."
-                )
-                st.warning(
-                    f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**."
-                )
-        else:
-            spacer, content = st.columns([3, 7])
-            with content:
-                st.warning(
-                    "❓ Start date missing or invalid. Please update your contract start date."
-                )
+            if start_date:
+                total = total  # assuming this variable is already defined earlier in your code
+                # calculate weeks for different paces
+                weeks_three = (total + 2) // 3
+                weeks_two   = (total + 1) // 2
+                weeks_one   = total
+
+                end_three = start_date + timedelta(weeks=weeks_three)
+                end_two   = start_date + timedelta(weeks=weeks_two)
+                end_one   = start_date + timedelta(weeks=weeks_one)
+
+                # spacer layout
+                spacer, content = st.columns([3, 7])
+                with content:
+                    st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
+                    st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
+                    st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
+            else:
+                spacer, content = st.columns([3, 7])
+                with content:
+                    st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 #
-
         info = schedule[idx]
         # ---- Fix for highlight and header ----
         lesson_title = f"Day {info['day']}: {info['topic']}"
@@ -4014,29 +4009,6 @@ if tab == "Course Book":
 #
 
 
-import re, html
-
-def linkify_html(text: str) -> str:
-    """
-    Turn plain URLs inside text into clickable <a> links.
-    Keeps everything else HTML-escaped.
-    """
-    if text is None:
-        return "<i>No feedback</i>"
-    s = str(text).strip()
-    if not s or s.lower() == "nan":
-        return "<i>No feedback</i>"
-
-    s = html.escape(s)  # escape HTML
-    url_re = r'(https?://[^\s<]+)'
-    s = re.sub(
-        url_re,
-        r'<a href="\1" target="_blank" rel="noopener">\1</a>',
-        s
-    )
-    return s
-
-
 if tab == "My Results and Resources":
     # 📊 Compact Results & Resources header
     st.markdown(
@@ -4130,7 +4102,7 @@ if tab == "My Results and Resources":
     col2.metric("Completed", completed)
     col3.metric("Average Score", f"{avg_score:.1f}")
     col4.metric("Best Score", best_score)
-
+#
     # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
@@ -4149,20 +4121,6 @@ if tab == "My Results and Resources":
             return "Sufficient ✔️"
         else:
             return "Needs Improvement ❗"
-
-    # --- Make any plain URL in comments clickable ---
-    import re, html
-    def linkify_html(text: str) -> str:
-        if text is None:
-            return "<i>No feedback</i>"
-        s = str(text).strip()
-        if not s or s.lower() == "nan":
-            return "<i>No feedback</i>"
-        s = html.escape(s)
-        s = re.sub(r'(https?://[^\s<]+)',
-                   r'<a href="\1" target="_blank" rel="noopener">\1</a>',
-                   s)
-        return s
 
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         if 'comments' in df_lvl.columns:
@@ -4211,10 +4169,8 @@ if tab == "My Results and Resources":
                       .reset_index(drop=True)
             )
             st.table(df_display)
-#
-
-
-    st.markdown("---")
+            
+    st.markdown("---") 
 
     # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
@@ -7754,7 +7710,7 @@ if tab == "Schreiben Trainer":
                 "After each student reply, check their answer, give gentle feedback, and then again state 'Your next recommended step:' and prompt for just the next section. "
                 "Only help with basic connectors ('und', 'aber', 'weil', 'deshalb', 'ich möchte wissen'). Never write the full letter yourself—coach one part at a time. "
                 "The chat session should last for about 10 student replies. If the student is not done by then, gently remind them: 'Most letters can be completed in about 10 steps. Please try to finish soon.' "
-                "If after 14 student replies, the letter is still not finished, end the session with: 'We have reached the end of this coaching session. Please copy your letter so far and paste it into the “Mark My Letter” tool for full AI feedback and a score.' "
+                "If after 14 student replies, the letter is still not finished, end the session with: 'We have reached the end of this coaching session. Please copy your letter below so far and paste it into the “Mark My Letter” tool for full AI feedback and a score.' "
                 "Throughout, your questions must be progressive, one at a time, and always guide the student logically through the structure."
             ),
             "A2": (
@@ -7774,8 +7730,9 @@ if tab == "Schreiben Trainer":
                 "    10. To say sorry, use: 'Es tut mir leid.' "
                 "    11. Always correct grammar and suggest improved phrases when needed. "
                 "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then final point 'Zum Schluss', then polite closing phrase 'Ich freue mich'). "
-                "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter into 'Mark My Letter' for feedback. "
+                "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter below and paste into 'Mark My Letter' for feedback. "
                 "    14. Throughout, do not write the whole letter—guide only one part at a time."
+                
             ),
             "B1": (
                 "You are Herr Felix, a supportive German letter/essay coach for B1 students. "
@@ -7794,7 +7751,7 @@ if tab == "Schreiben Trainer":
                 "After your overview, always use the phrase 'Your next recommended step:' and ask for only one section at a time—greeting, then introduction, then main points, then closing—never more than one at a time. "
                 "After each answer, provide feedback, then again prompt with 'Your next recommended step:'. "
                 "Encourage the use of appropriate connectors ('außerdem', 'trotzdem', 'weil', 'deshalb'). "
-                "If the student is still writing after 10 turns, encourage them to finish. At 14, end the chat, reminding them to paste their draft in 'Mark My Letter' for feedback."
+                "If the student is still writing after 10 turns, encourage them to finish. At 14, end the chat, reminding them to copy their letter below and paste their draft in 'Mark My Letter' for feedback."
             ),
             "B2": (
                 "You are Herr Felix, a supportive German writing coach for B2 students. "
@@ -7813,7 +7770,7 @@ if tab == "Schreiben Trainer":
                 "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only one section at a time. "
                 "After each student reply, give feedback, then use 'Your next recommended step:' again. "
                 "Suggest and model advanced connectors ('denn', 'dennoch', 'außerdem', 'jedoch', 'zum Beispiel', 'einerseits...andererseits'). "
-                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to paste their draft in 'Mark My Letter' for feedback."
+                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to copy their letter below and paste their draft in 'Mark My Letter' for feedback."
             ),
             "C1": (
                 "You are Herr Felix, an advanced and supportive German writing coach for C1 students. "
@@ -7832,7 +7789,7 @@ if tab == "Schreiben Trainer":
                 "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only one section at a time. "
                 "After each answer, provide feedback, then again prompt with 'Your next recommended step:'. "
                 "Model and suggest advanced connectors ('nicht nur... sondern auch', 'obwohl', 'dennoch', 'folglich', 'somit'). "
-                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to paste their draft in 'Mark My Letter' for feedback and a score."
+                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to  paste their draft in 'Mark My Letter' for feedback and a score."
             ),
         }
 
@@ -8141,7 +8098,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
