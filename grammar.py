@@ -601,15 +601,27 @@ if not st.session_state.get("logged_in", False):
     # --- Google OAuth (Optional) ---
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
     GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
-    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://falowen.app/")  # must match in Google Cloud
+    # Must match Google Cloud exactly (use www)
+    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+
+    def _qp_first(val):
+        if isinstance(val, list):
+            return val[0]
+        return val
 
     def do_google_oauth():
+        import secrets
+        # create and store anti-CSRF state
+        st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
         params = {
             "client_id": GOOGLE_CLIENT_ID,
             "redirect_uri": REDIRECT_URI,
             "response_type": "code",
             "scope": "openid email profile",
-            "prompt": "select_account"
+            "prompt": "select_account",
+            "state": st.session_state["_oauth_state"],
+            "include_granted_scopes": "true",
+            "access_type": "online",
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
@@ -625,9 +637,20 @@ if not st.session_state.get("logged_in", False):
 
     def handle_google_login():
         qp = qp_get()
-        if "code" not in qp:
+        code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
+        state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+        if not code:
             return False
-        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+
+        # verify state if present
+        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
+            st.error("OAuth state mismatch. Please try again.")
+            return False
+
+        # prevent double redemption on reruns
+        if st.session_state.get("_oauth_code_redeemed") == code:
+            return False
+
         token_url = "https://oauth2.googleapis.com/token"
         data = {
             "code": code,
@@ -639,23 +662,22 @@ if not st.session_state.get("logged_in", False):
         try:
             resp = requests.post(token_url, data=data, timeout=10)
             if not resp.ok:
-                err = ""
-                try:
-                    err = resp.json().get("error", "")
-                except Exception:
-                    pass
-                if err != "invalid_grant":
-                    st.error(f"Google login failed: {resp.text}")
+                st.error(f"Google login failed: {resp.status_code} {resp.text}")
                 return False
 
-            access_token = resp.json().get("access_token")
+            tokens = resp.json()
+            access_token = tokens.get("access_token")
             if not access_token:
                 st.error("Google login failed: no access token.")
                 return False
 
+            # mark this code as redeemed (single-use)
+            st.session_state["_oauth_code_redeemed"] = code
+
             userinfo = requests.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"}
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10
             ).json()
             email = (userinfo.get("email") or "").lower().strip()
             if not email:
@@ -663,7 +685,6 @@ if not st.session_state.get("logged_in", False):
                 return False
 
             df = load_student_data()
-            # Email already normalized in load_student_data, but normalize again defensively
             df["Email"] = df["Email"].str.lower().str.strip()
             match = df[df["Email"] == email]
             if match.empty:
@@ -683,7 +704,7 @@ if not st.session_state.get("logged_in", False):
             })
             save_cookie_after_login(student_row["StudentCode"])
 
-            # Clean URL to avoid reruns with ?code=
+            # Clean URL to avoid reruns with ?code=...
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
             st.rerun()
@@ -729,8 +750,8 @@ if not st.session_state.get("logged_in", False):
                     if not doc.exists:
                         st.error("Account not found. Please create one below.")
                     else:
-                        data       = doc.to_dict() or {}
-                        stored_pw  = data.get("password", "")
+                        data      = doc.to_dict() or {}
+                        stored_pw = data.get("password", "")
 
                         import bcrypt
                         def _is_bcrypt_hash(s: str) -> bool:
@@ -8136,6 +8157,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
