@@ -102,9 +102,64 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
+# ---- Google OAuth config (env -> secrets -> hardcoded) ----
+def _get_secret(key: str, default: str | None = None) -> str | None:
+    v = os.getenv(key)
+    if v: return v
+    try:
+        v = st.secrets.get(key, None)
+    except Exception:
+        v = None
+    return v or default
+
+GOOGLE_CLIENT_ID = _get_secret("GOOGLE_CLIENT_ID", "123-your-client-id.apps.googleusercontent.com")
+GOOGLE_CLIENT_SECRET = _get_secret("GOOGLE_CLIENT_SECRET", "your-google-client-secret")
+
+# Hardcoded redirect to your domain (must EXACTLY match in Google console)
+REDIRECT_URI = _get_secret("REDIRECT_URI", "https://www.falowen.app/")
+
+AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+def google_auth_link():
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,          # <- use the variable
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": st.session_state.get("oauth_state") or str(random.randint(100000, 999999)),
+        # If you add PKCE: include code_challenge & code_challenge_method here
+    }
+    return AUTH_URL + "?" + urllib.parse.urlencode(params)
+
+# Show Sign-in button when logged out
+if not st.session_state.get("logged_in", False):
+    st.markdown(f'[🔐 Sign in with Google]({google_auth_link()})')
+
+# --- Handle redirect back to https://www.falowen.app/ ---
+_qp = getattr(st, "query_params", None)
+qp = _qp if _qp is not None else st.experimental_get_query_params()
+
+code = qp.get("code", [None])[0] if isinstance(qp.get("code"), list) else qp.get("code")
+if code:
+    data = {
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,         # <- same exact value as above
+        "grant_type": "authorization_code",
+    }
+    resp = requests.post(TOKEN_URL, data=data, timeout=20)
+    if resp.ok:
+        tokens = resp.json()
+        # TODO: verify id_token and create your session
+        st.session_state["logged_in"] = True
+        st.success("Signed in with Google.")
+    else:
+        st.error(f"Token exchange failed: {resp.status_code} — {resp.text}")
+
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -113,3 +168,4 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
+
