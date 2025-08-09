@@ -964,34 +964,42 @@ if st.session_state.get("logged_in"):
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # Greeting and contract info
+    # Greeting helper
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
+    # -------------------- CONTRACT (compute only) --------------------
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
-    today = datetime.today()
+    today_dt = datetime.today()
     contract_end = parse_contract_end(contract_end_str)
+
+    contract_title_extra = "• no date"
+    contract_notice_level = "info"
+    contract_msg = "Contract end date unavailable or in wrong format."
+
     if contract_end:
-        days_left = (contract_end - today).days
+        days_left = (contract_end - today_dt).days
+        contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
         if 0 < days_left <= 30:
-            st.warning(
-                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
+            contract_notice_level = "warning"
+            contract_msg = (
+                f"⏰ **Your contract ends in {days_left} days "
+                f"({contract_end.strftime('%d %b %Y')}).**\n"
                 f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
             )
+            contract_title_extra = f"• ends in {days_left}d"
         elif days_left < 0:
-            st.error(
-                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            contract_notice_level = "error"
+            contract_msg = (
+                f"⚠️ **Your contract has ended!** Please contact the office to renew "
+                f"for **₵{MONTHLY_RENEWAL:,} per month**."
             )
-    else:
-        st.info("Contract end date unavailable or in wrong format.")
+            contract_title_extra = "• ended"
+        else:
+            contract_notice_level = "info"
+            contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
-    st.info(
-        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-        "Do your best to complete your course on time to avoid extra fees!"
-    )
-
-    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
+    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
     df_assign["date"] = pd.to_datetime(
         df_assign["date"], format="%Y-%m-%d", errors="coerce"
@@ -1009,84 +1017,32 @@ if st.session_state.get("logged_in"):
 
     today = date.today()
     monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[
-        mask_student & (df_assign["date"] >= monday)
-    ].shape[0]
+    assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
     WEEKLY_GOAL = 3
+    goal_left = max(0, WEEKLY_GOAL - assignment_count)
+    streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
 
-    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
-    col1, col2 = st.columns(2)
-    col1.metric("Streak", f"{streak} days")
-    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-    if assignment_count >= WEEKLY_GOAL:
-        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
-    else:
-        rem = WEEKLY_GOAL - assignment_count
-        st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
-
-        # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
+    # -------------------- VOCAB OF THE DAY --------------------
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+    vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
 
-    if vocab_item:
-        st.markdown(f"### 🗣️ Vocab of the Day <span style='font-size:1rem;color:#999;'>({student_level})</span>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <ul style='list-style:none;margin:0;padding:0;'>
-            <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
-            <li><b>English:</b> {vocab_item['english']}</li>
-            {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
-        </ul>
-        """, unsafe_allow_html=True)
-    else:
-        st.info(f"No vocab found for level {student_level}.")
-
-    st.divider()
-
-
+    # -------------------- LEADERBOARD (compute only) --------------------
     import random
-
-    # --- Rotating Motivation/Encouragement Lists ---
-    STUDY_TIPS = [
-        "Study a little every day. Small steps lead to big progress!",
-        "Teach someone else what you learned to remember it better.",
-        "If you make a mistake, that’s good! Mistakes are proof you are learning.",
-        "Don’t just read—write or say your answers aloud for better memory.",
-        "Review your old assignments to see how far you’ve come!"
-    ]
-
-    INSPIRATIONAL_QUOTES = [
-        "“The secret of getting ahead is getting started.” – Mark Twain",
-        "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
-        "“It always seems impossible until it’s done.” – Nelson Mandela",
-        "“The expert in anything was once a beginner.” – Helen Hayes",
-        "“Learning never exhausts the mind.” – Leonardo da Vinci"
-    ]
-
-
-    # --- Personalized Leaderboard Position on Main Dashboard ---
     MIN_ASSIGNMENTS = 3
 
     user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
-    # Calculate leaderboard by total score and number of assignments
     df_level = (
         df_assign[df_assign['level'] == user_level]
         .groupby(['studentcode', 'name'], as_index=False)
-        .agg(
-            total_score=('score', 'sum'),
-            completed=('assignment', 'nunique')
-        )
+        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
     )
     df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
-
-    # Sort: most total points, then most completed
-    df_level = df_level.sort_values(
-        ['total_score', 'completed'],
-        ascending=[False, False]
-    ).reset_index(drop=True)
+    df_level = df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
     df_level['Rank'] = df_level.index + 1
 
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
@@ -1095,99 +1051,12 @@ if st.session_state.get("logged_in"):
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total_possible = totals.get(user_level, 0)
 
+    leaderboard_title_extra = "• not ranked"
     if not your_row.empty:
-        row = your_row.iloc[0]
-        rank = int(row['Rank'])
-        percent = (rank / total_students) * 100 if total_students else 0
-        completed = int(row['completed'])
+        rank_val = int(your_row.iloc[0]['Rank'])
+        leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
 
-        progress_pct = (completed / total_possible) * 100 if total_possible else 0
-
-        # --- Rotating motivation style ---
-        rotate = random.randint(0, 3)
-        if rotate == 0:
-            if rank == 1:
-                message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
-            elif rank <= 3:
-                message = "🌟 You’re in the top 3! Excellent consistency and effort."
-            elif percent <= 10:
-                message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
-            elif percent <= 50:
-                message = "👏 You’re above average! Stay consistent to reach the next level."
-            elif rank == total_students:
-                message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
-            else:
-                message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
-        elif rotate == 1 or rotate == 3:
-            message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
-        else:
-            message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
-
-        st.markdown(
-            f"""
-            <div style="
-                background:#b388ff;
-                border-left: 7px solid #8d4de8;
-                color:#181135;
-                padding:18px 20px;
-                border-radius:14px;
-                margin:10px 0 18px 0;
-                box-shadow: 0 3px 12px rgba(0,0,0,0.13);
-                font-weight: 500;
-                ">
-                <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
-                <span style="font-size:1.21em;">
-                    <b>Rank:</b> #{rank} <b>out of</b> {total_students} students
-                </span>
-                <br>
-                <span style="font-size:0.98em; color:#444;">(Your Level: <b>{user_level}</b>)</span>
-                <div style="margin-top:10px;font-size:1.09em;">{message}</div>
-            </div>
-            """, unsafe_allow_html=True
-        )
-
-        # Progress Bar or Progress Text
-        st.markdown(
-            f"""
-            <div style='margin-top:8px;'>
-                <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
-                <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
-                    <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True
-        )
-    else:
-        st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
-
-        # Even if not on leaderboard, show student's assignment count
-        completed = df_assign[
-            (df_assign['studentcode'].str.lower() == student_code.lower()) &
-            (df_assign['level'] == user_level)
-        ]['assignment'].nunique()
-
-        # Always use your hardcoded total for max
-        total_possible = totals.get(user_level, 0)
-        progress_pct = (completed / total_possible) * 100 if total_possible else 0
-
-        if completed > 0:
-            st.markdown(
-                f"""
-                <div style='margin-top:8px;'>
-                    <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
-                    <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
-                        <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True
-            )
-        else:
-            st.info("Start submitting assignments to see your progress bar here!")
-
-    st.divider()
-
-
-    # ---------- Tab Tips Section (only on Dashboard) ----------
+    # -------------------- DASHBOARD TIP (compute only) --------------------
     DASHBOARD_REMINDERS = [
         "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
         "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
@@ -1196,11 +1065,160 @@ if st.session_state.get("logged_in"):
         "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
         "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
     ]
-    import random
     dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
 
-    # --- Main Tab Selection ---
+    # ==================== COLLAPSIBLE NOTIFICATIONS ====================
+    st.markdown(
+        """
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
+          <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
+          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
+          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
+          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
+          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Contract & renewal (collapsed)
+    with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
+        if contract_notice_level == "warning":
+            st.warning(contract_msg)
+        elif contract_notice_level == "error":
+            st.error(contract_msg)
+        else:
+            st.info(contract_msg)
+
+        st.info(
+            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+            "Do your best to complete your course on time to avoid extra fees!"
+        )
+
+    # Assignment streak & weekly goal (collapsed)
+    with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
+        col1, col2 = st.columns(2)
+        col1.metric("Streak", f"{streak} days")
+        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+        if assignment_count >= WEEKLY_GOAL:
+            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        else:
+            st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
+
+    # Vocab of the Day (collapsed)
+    with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=False):
+        if vocab_item:
+            st.markdown(f"""
+            <ul style='list-style:none;margin:0;padding:0;'>
+                <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
+                <li><b>English:</b> {vocab_item['english']}</li>
+                {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
+            </ul>
+            """, unsafe_allow_html=True)
+        else:
+            st.info(f"No vocab found for level {student_level}.")
+
+    # Leaderboard & progress (collapsed)
+    with st.expander(f"🏆 Leaderboard & Progress {leaderboard_title_extra}", expanded=False):
+        if not your_row.empty:
+            row = your_row.iloc[0]
+            rank = int(row['Rank'])
+            completed = int(row['completed'])
+            percent_rank = (rank / total_students) * 100 if total_students else 0
+            progress_pct = (completed / total_possible) * 100 if total_possible else 0
+
+            # Rotate messages (kept from your logic)
+            STUDY_TIPS = [
+                "Study a little every day. Small steps lead to big progress!",
+                "Teach someone else what you learned to remember it better.",
+                "If you make a mistake, that’s good! Mistakes are proof you are learning.",
+                "Don’t just read—write or say your answers aloud for better memory.",
+                "Review your old assignments to see how far you’ve come!"
+            ]
+            INSPIRATIONAL_QUOTES = [
+                "“The secret of getting ahead is getting started.” – Mark Twain",
+                "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
+                "“It always seems impossible until it’s done.” – Nelson Mandela",
+                "“The expert in anything was once a beginner.” – Helen Hayes",
+                "“Learning never exhausts the mind.” – Leonardo da Vinci"
+            ]
+            rotate = random.randint(0, 3)
+            if rotate == 0:
+                if rank == 1:
+                    message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
+                elif rank <= 3:
+                    message = "🌟 You’re in the top 3! Excellent consistency and effort."
+                elif percent_rank <= 10:
+                    message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
+                elif percent_rank <= 50:
+                    message = "👏 You’re above average! Stay consistent to reach the next level."
+                elif rank == total_students:
+                    message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
+                else:
+                    message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
+            elif rotate in (1, 3):
+                message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
+            else:
+                message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
+
+            st.markdown(
+                f"""
+                <div style="
+                    background:#b388ff;
+                    border-left: 7px solid #8d4de8;
+                    color:#181135;
+                    padding:18px 20px;
+                    border-radius:14px;
+                    margin:10px 0 18px 0;
+                    box-shadow: 0 3px 12px rgba(0,0,0,0.13);
+                    font-weight: 500;">
+                    <b>Level {user_level}:</b> Rank #{rank} out of {total_students} students
+                    <div style="margin-top:10px;font-size:1.02em;">{message}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                f"""
+                <div style='margin-top:8px;'>
+                    <b>Your Progress:</b> {completed} / {total_possible} assignments
+                    <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                        <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
+            completed = df_assign[
+                (df_assign['studentcode'].str.lower() == student_code.lower()) &
+                (df_assign['level'] == user_level)
+            ]['assignment'].nunique()
+            total_possible = totals.get(user_level, 0)
+            progress_pct = (completed / total_possible) * 100 if total_possible else 0
+            if completed > 0:
+                st.markdown(
+                    f"""
+                    <div style='margin-top:8px;'>
+                        <b>Your Progress:</b> {completed} / {total_possible} assignments
+                        <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                            <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("Start submitting assignments to see your progress bar here!")
+
+    # Tip (collapsed)
+    with st.expander("💡 Dashboard Tip", expanded=False):
+        st.info(dashboard_tip)
+
+    st.divider()
+
+    # -------------------- (Tabs come after this) --------------------
     tab = st.radio(
         "How do you want to practice?",
         [
@@ -1213,6 +1231,7 @@ if st.session_state.get("logged_in"):
         ],
         key="main_tab_select"
     )
+
 
 if tab == "Dashboard":
     # --- Helper to avoid AttributeError on any row type ---
@@ -8050,6 +8069,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
