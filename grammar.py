@@ -6983,14 +6983,13 @@ if tab == "Vocab Trainer":
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
 
-    # --- Stats ---
-    with st.expander("📝 Your Vocab Stats", expanded=False):
+        # stats
         stats = get_vocab_stats(student_code)
+        st.markdown("### 📝 Your Vocab Stats")
         st.markdown(f"- **Sessions:** {stats['total_sessions']}")
         st.markdown(f"- **Best:** {stats['best']}")
         st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
         st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-
         if st.checkbox("Show Last 5 Sessions"):
             for a in stats["history"][-5:][::-1]:
                 st.markdown(
@@ -6998,7 +6997,7 @@ if tab == "Vocab Trainer":
                     f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
                     unsafe_allow_html=True
                 )
-
+#
         # lock level
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
