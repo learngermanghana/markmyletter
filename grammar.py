@@ -881,160 +881,35 @@ if st.button("Log out"):
     st.stop()
 
 
-# === Stage 6: In-app notifications UI ===
-# Place this right after you've set `student_code` and the user is logged in.
-
-from typing import List
-
-def _notif_list(user_id: str, limit: int = 30):
-    q = (db.collection("users").document(user_id)
-         .collection("notifications")
-         .order_by("timestamp", direction=firestore.Query.DESCENDING)
-         .limit(limit))
-    return list(q.stream())
-
-def _notif_unread(user_id: str, limit: int = 30):
-    q = (db.collection("users").document(user_id)
-         .collection("notifications")
-         .where("read", "==", False)
-         .order_by("timestamp", direction=firestore.Query.DESCENDING)
-         .limit(limit))
-    return list(q.stream())
-
-def _notif_mark_read(user_id: str, ids: List[str]):
-    if not ids: return
-    batch = db.batch()
-    col = db.collection("users").document(user_id).collection("notifications")
-    for nid in ids:
-        batch.update(col.document(nid), {"read": True})
-    batch.commit()
-
-# replace st.autorefresh(...) with this
-components.html(
-    """
-    <script>
-      setTimeout(() => {
-        window.parent.postMessage({ isStreamlitMessage: true, type: 'streamlit:rerun' }, '*');
-      }, 10000); // 10s
-    </script>
-    """,
-    height=0,
-)
-
-
-# Keep some UI state
-st.session_state.setdefault("notif_open", False)
-st.session_state.setdefault("notif_seen_ids", set())  # avoid re-toasting same ones
-
-# Unread count + bell
-try:
-    _unread_docs = _notif_unread(student_code, limit=50)
-    unread_count = len(_unread_docs)
-except Exception as e:
-    _unread_docs = []
-    unread_count = 0
-
-c_spacer, c_bell = st.columns([8, 1])
-with c_bell:
-    label = f"🔔 {unread_count}" if unread_count else "🔔"
-    if st.button(label, key="__notif_bell__", help="Notifications"):
-        st.session_state["notif_open"] = not st.session_state["notif_open"]
-
-# Toast only the *newly seen this session* unread
-new_toast_ids = []
-for doc in reversed(_unread_docs):  # show older first for nice stacking
-    if doc.id in st.session_state["notif_seen_ids"]:
-        continue
-    d = doc.to_dict() or {}
-    title = d.get("title", "Notification")
-    msg = d.get("message", "")
-    ntype = d.get("type", "system")
-    icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(ntype, "🔔")
-    st.toast(f"**{title}**\n\n{msg}", icon=icon)
-    new_toast_ids.append(doc.id)
-# remember what we toasted this session so we don't spam
-st.session_state["notif_seen_ids"].update(new_toast_ids)
-
-# Drawer / inbox
-if st.session_state["notif_open"]:
-    st.markdown("### Notifications")
-    try:
-        rows = _notif_list(student_code, limit=50)
-    except Exception as e:
-        rows = []
-        st.warning(f"Notifications unavailable: {e}")
-
-    if not rows:
-        st.caption("No notifications yet.")
-    else:
-        to_mark = []
-        for doc in rows:
-            d = doc.to_dict() or {}
-            title = d.get("title", "(no title)")
-            msg = d.get("message", "")
-            read = bool(d.get("read", False))
-            badge = "🆕" if not read else "·"
-            st.markdown(f"**{badge} {title}**  \n{msg}")
-            link = d.get("deeplink")
-            if link:
-                st.link_button("Open", link, key=f"lnk_{doc.id}")
-            st.divider()
-            if not read:
-                to_mark.append(doc.id)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            if to_mark and st.button("Mark all as read", key="__notif_mark_all__"):
-                _notif_mark_read(student_code, to_mark)
-                st.session_state["notif_open"] = False
-                st.rerun()
-        with c2:
-            if st.button("Refresh", key="__notif_refresh__"):
-                st.rerun()
-
-# ---- New score → notification helper ----
+# ---- Notify student ONLY when a NEW score row appears (no grade display) ----
 SCORES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/edit?gid=2121051612#gid=2121051612"
 
 def _user_doc(user_id: str):
-    # store a small marker on the user doc for "last notified score"
     return db.collection("users").document(user_id)
 
-def _get_last_notified_score_key(user_id: str) -> str | None:
+def _get_last_seen_score_count(user_id: str) -> int | None:
     try:
         d = _user_doc(user_id).get()
         if not d.exists:
             return None
-        return (d.to_dict() or {}).get("last_assignment_notified_key")
+        return int((d.to_dict() or {}).get("last_seen_score_count"))
     except Exception:
         return None
 
-def _set_last_notified_score_key(user_id: str, key: str):
+def _set_last_seen_score_count(user_id: str, n: int):
     try:
-        _user_doc(user_id).set({"last_assignment_notified_key": key}, merge=True)
+        _user_doc(user_id).set({"last_seen_score_count": int(n)}, merge=True)
     except Exception:
         pass
 
-def _row_key(row: dict) -> str:
+def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
     """
-    Create a stable fingerprint for the newest score row so we don't alert twice.
-    Adjust field names if your sheet differs.
-    """
-    return "|".join([
-        str(row.get("date", "")).strip(),
-        str(row.get("teil", "") or row.get("module", "") or row.get("task", "")).strip(),
-        str(row.get("score", "") or row.get("points", "")).strip(),
-        str(row.get("comment", "") or row.get("remarks", "")).strip(),
-    ])
-
-def maybe_notify_new_assignment_score(user_id: str, df_assign: pd.DataFrame):
-    """
-    If the newest assignment row for this user is different from the last one
-    we notified about, send a notification with a deep link to the sheet.
+    Fire a notification ONLY when the number of the student's score rows increases.
+    No grades shown, just a link to Results/Resources.
     """
     if df_assign is None or df_assign.empty:
         return
 
-    # normalize columns and values
     df = df_assign.copy()
     df.columns = df.columns.str.strip().str.lower()
     for c in df.columns:
@@ -1044,40 +919,30 @@ def maybe_notify_new_assignment_score(user_id: str, df_assign: pd.DataFrame):
         return
 
     sub = df[df["studentcode"].str.lower() == user_id.lower()].copy()
-    if sub.empty:
+    current_count = len(sub)
+
+    last_count = _get_last_seen_score_count(user_id)
+    if last_count is None:
+        # First run for this user → prime baseline (don’t spam old results)
+        _set_last_seen_score_count(user_id, current_count)
         return
 
-    # sort newest first (by parsed date if available)
-    if "date" in sub.columns:
-        sub["__dt__"] = pd.to_datetime(sub["date"], errors="coerce")
-        sub = sub.sort_values(["__dt__"], ascending=[False])
-    newest = sub.iloc[0].to_dict()
-
-    key = _row_key(newest)
-    last_key = _get_last_notified_score_key(user_id)
-
-    # First run for a user? Prime marker silently so we don't spam old rows.
-    if not last_key:
-        _set_last_notified_score_key(user_id, key)
-        return
-
-    if key != last_key:
-        # craft message (tweak fields to your sheet)
-        teil  = newest.get("teil") or newest.get("module") or "Assignment"
-        score = newest.get("score") or newest.get("points") or ""
-        date_ = newest.get("date") or ""
-        msg = f"{teil} — {score} ({date_}). Tap to view details."
+    if current_count > last_count:
+        # One or more NEW results published
         try:
             send_notification(
-                user_id,
-                title="New score posted",
-                message=msg,
+                user_id=user_id,
+                title="New result published",
+                message="A new score is available. Tap to view it in Results & Resources.",
                 type_="assignment",
-                deeplink=SCORES_SHEET_URL,
+                deeplink=SCORES_SHEET_URL,  # takes them to your sheet/results hub
             )
         finally:
-            # Always advance marker so we don't loop even if send errors
-            _set_last_notified_score_key(user_id, key)
+            _set_last_seen_score_count(user_id, current_count)
+    elif current_count < last_count:
+        # Rows got cleaned up; resync quietly
+        _set_last_seen_score_count(user_id, current_count)
+
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -1215,7 +1080,14 @@ if st.session_state.get("logged_in"):
     except Exception as e:
         # Silent fail so UI isn't broken by sheet/Firestore issues
         pass
-#
+   
+    # --- 🔔 Notify only when NEW results are published (no grade display here) ---
+    try:
+        notify_if_new_scores(student_code, df_assign)
+    except Exception:
+        pass
+
+
 
         # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
     student_level = (student_row.get("Level") or "A1").upper().strip()
@@ -8243,6 +8115,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
