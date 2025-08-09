@@ -47,6 +47,70 @@ def _get_project_from_secrets():
         return sa_alt, str(proj) if proj else None
     return None, None
 
+# ================================
+# Notifications: sender + helpers
+# ================================
+def send_notification(user_id: str, title: str, message: str, *, type_: str = "system", deeplink: str = ""):
+    """Create a notification for a user. De-dupes same title in last 12h."""
+    col = db.collection("users").document(user_id).collection("notifications")
+    twelve_hours_ago = datetime.now(timezone.utc) - timedelta(hours=12)
+
+    # De-dupe by title within 12h (optional but nice)
+    try:
+        q = (col.where("title", "==", title)
+               .where("timestamp", ">=", twelve_hours_ago)
+               .order_by("timestamp", direction=firestore.Query.DESCENDING)
+               .limit(1))
+        recent = list(q.stream())
+        if recent:
+            return
+    except Exception:
+        # Older Firestore emulators can’t chain that query—just fall through
+        pass
+
+    col.add({
+        "title": title,
+        "message": message,
+        "type": type_,
+        "deeplink": deeplink,
+        "timestamp": datetime.now(timezone.utc),
+        "read": False,
+    })
+
+from typing import List
+
+def _notif_list(user_id: str, limit: int = 30):
+    return list(
+        db.collection("users").document(user_id)
+        .collection("notifications")
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
+
+def _notif_unread(user_id: str, limit: int = 30):
+    return list(
+        db.collection("users").document(user_id)
+        .collection("notifications")
+        .where("read", "==", False)
+        .order_by("timestamp", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
+
+def _notif_mark_read(user_id: str, ids: List[str]):
+    if not ids:
+        return
+    batch = db.batch()
+    col = db.collection("users").document(user_id).collection("notifications")
+    for nid in ids:
+        batch.update(col.document(nid), {"read": True})
+    batch.commit()
+
+
+
+
+
 def _init_firebase():
     sa, project_id = _get_project_from_secrets()
 
@@ -754,130 +818,78 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 # --- Logged In UI ---
-name = st.session_state.get("student_name", "").strip() or "Student"
+name = (st.session_state.get("student_name") or "").strip() or "Student"
 st.write(f"👋 Welcome, **{name}**")
 
-# Make sure we have `student_code` available for Stage 6
+# Ensure we have a student_code for notifications
 student_code = (st.session_state.get("student_code") or "").strip().lower()
 if not student_code:
     st.error("Missing student code in session. Please log in again.")
     st.stop()
 
-# (Optional) Quick test to verify notifications end-to-end
-if st.button("🔔 Send test notification"):
-    try:
-        send_notification(student_code, "Welcome!", "You’re set up for alerts 🎉")
-        st.success("Test notification sent. Watch for the bell/toast.")
-    except Exception as e:
-        st.warning(f"Could not send test notification: {e}")
+# (Optional) Quick test
+colA, colB = st.columns([1,1])
+with colA:
+    if st.button("🔔 Send test notification"):
+        try:
+            send_notification(student_code, "Welcome!", "You’re set up for alerts 🎉", type_="system")
+            st.success("Test notification sent. Watch for the bell/toast.")
+        except Exception as e:
+            st.warning(f"Could not send test notification: {e}")
 
-# Log out button and flow
-if st.button("Log out"):
-    # 1) Kill the cookie immediately (server side; keeps flags consistent)
-    set_student_code_cookie(
-        cookie_manager,
-        "",
-        expires=datetime.utcnow() - timedelta(seconds=1),
-    )
+with colB:
+    if st.button("Log out"):
+        # 1) Kill cookie immediately
+        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+        try:
+            cookie_manager.delete("student_code")
+            cookie_manager.save()
+        except Exception:
+            pass
 
-    # Also delete directly from cookie_manager if supported
-    try:
-        cookie_manager.delete("student_code")
-        cookie_manager.save()
-    except Exception:
-        pass
+        # 2) Clear localStorage + URL param + both cookie scopes; reload page
+        _prefix = getattr(cookie_manager, "prefix", "") or ""
+        _cookie_name = f"{_prefix}student_code"
+        components.html(f"""
+        <script>
+          (function(){{
+            try {{
+              localStorage.removeItem('student_code');
+              const url = new URL(window.location);
+              if (url.searchParams.has('student_code')) {{
+                url.searchParams.delete('student_code');
+                window.history.replaceState({{}}, '', url);
+              }}
+              const host = window.location.hostname;
+              const parts = host.split('.');
+              const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
+              document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
+              document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
+              window.location.replace(url.pathname + url.search);
+            }} catch (e) {{}}
+          }})();
+        </script>
+        """, height=0)
 
-    # Determine the actual cookie name used by your manager (prefix + key)
-    _prefix = getattr(cookie_manager, "prefix", "") or ""
-    _cookie_name = f"{_prefix}student_code"
-
-    # 2) Clear localStorage + URL param + BOTH cookie scopes, then reload page
-    components.html(f"""
-    <script>
-      (function() {{
-        try {{
-          // Remove local fallback
-          localStorage.removeItem('student_code');
-
-          // Remove ?student_code=... from URL without adding to history
-          const url = new URL(window.location);
-          if (url.searchParams.has('student_code')) {{
-            url.searchParams.delete('student_code');
-            window.history.replaceState({{}}, '', url);
-          }}
-
-          // Compute base domain (e.g., "falowen.app") from current host
-          const host = window.location.hostname;                  // "www.falowen.app" or "falowen.app"
-          const parts = host.split('.');
-          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
-
-          // Delete host-only cookie
-          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
-
-          // Delete base-domain cookie (covers www/apex)
-          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
-
-          // Reload so the public (logged-out) view renders immediately
-          window.location.replace(url.pathname + url.search);
-        }} catch (e) {{}}
-      }})();
-    </script>
-    """, height=0)
-
-    # 3) Clear Streamlit session state immediately
-    for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
-        st.session_state[k] = False if k == "logged_in" else ""
-
-    # Optional: server-side mirror of query param removal
-    try:
-        st.query_params.clear()
-    except Exception:
-        pass
-
-    # Stop execution; the client-side reload will show the logged-out UI
-    st.stop()
+        # 3) Clear Streamlit session state
+        for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
+            st.session_state[k] = False if k == "logged_in" else ""
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.stop()
 
 # === Stage 6: In-app notifications UI ===
-# Place this right after you've set `student_code` and the user is logged in.
 
-from typing import List
+# Light auto-refresh so new notifications appear without clicks
+st.autorefresh(interval=10_000, key="__notify_tick__")  # 10s
 
-def _notif_list(user_id: str, limit: int = 30):
-    q = (db.collection("users").document(user_id)
-         .collection("notifications")
-         .order_by("timestamp", direction=firestore.Query.DESCENDING)
-         .limit(limit))
-    return list(q.stream())
-
-def _notif_unread(user_id: str, limit: int = 30):
-    q = (db.collection("users").document(user_id)
-         .collection("notifications")
-         .where("read", "==", False)
-         .order_by("timestamp", direction=firestore.Query.DESCENDING)
-         .limit(limit))
-    return list(q.stream())
-
-def _notif_mark_read(user_id: str, ids: List[str]):
-    if not ids: return
-    batch = db.batch()
-    col = db.collection("users").document(user_id).collection("notifications")
-    for nid in ids:
-        batch.update(col.document(nid), {"read": True})
-    batch.commit()
-
-# Auto mark on open (optional)
-to_mark_auto = [doc.id for doc in rows if not (doc.to_dict() or {}).get("read")]
-if to_mark_auto:
-    _notif_mark_read(student_code, to_mark_auto)
-    # refresh unread count instantly
-    st.session_state["notif_open"] = True  # keep drawer open
-
-
-# Keep some UI state
+# Keep UI state
 st.session_state.setdefault("notif_open", False)
 st.session_state.setdefault("notif_seen_ids", set())  # avoid re-toasting same ones
 
-# Unread count + bell
+# Fetch unread for badge + toasts
 try:
     _unread_docs = _notif_unread(student_code, limit=50)
     unread_count = len(_unread_docs)
@@ -885,25 +897,25 @@ except Exception as e:
     _unread_docs = []
     unread_count = 0
 
+# Bell in a small column
 c_spacer, c_bell = st.columns([8, 1])
 with c_bell:
     label = f"🔔 {unread_count}" if unread_count else "🔔"
     if st.button(label, key="__notif_bell__", help="Notifications"):
         st.session_state["notif_open"] = not st.session_state["notif_open"]
 
-# Toast only the *newly seen this session* unread
+# Toast only the *new to this session* unread
 new_toast_ids = []
-for doc in reversed(_unread_docs):  # show older first for nice stacking
+for doc in reversed(_unread_docs):  # oldest first for nice stacking
     if doc.id in st.session_state["notif_seen_ids"]:
         continue
-    d = doc.to_dict() or {}
-    title = d.get("title", "Notification")
-    msg = d.get("message", "")
-    ntype = d.get("type", "system")
+    data = doc.to_dict() or {}
+    title = data.get("title", "Notification")
+    msg = data.get("message", "")
+    ntype = data.get("type", "system")
     icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(ntype, "🔔")
     st.toast(f"**{title}**\n\n{msg}", icon=icon)
     new_toast_ids.append(doc.id)
-# remember what we toasted this session so we don't spam
 st.session_state["notif_seen_ids"].update(new_toast_ids)
 
 # Drawer / inbox
@@ -918,7 +930,11 @@ if st.session_state["notif_open"]:
     if not rows:
         st.caption("No notifications yet.")
     else:
-        to_mark = []
+        # (Optional) auto mark unread as read when opening the drawer
+        to_mark_auto = [doc.id for doc in rows if not (doc.to_dict() or {}).get("read")]
+        if to_mark_auto:
+            _notif_mark_read(student_code, to_mark_auto)
+
         for doc in rows:
             d = doc.to_dict() or {}
             title = d.get("title", "(no title)")
@@ -930,31 +946,27 @@ if st.session_state["notif_open"]:
             if link:
                 st.link_button("Open", link, key=f"lnk_{doc.id}")
             st.divider()
-            if not read:
-                to_mark.append(doc.id)
 
         c1, c2 = st.columns(2)
         with c1:
+            # Manual mark all as read
+            to_mark = [doc.id for doc in rows if not (doc.to_dict() or {}).get("read")]
             if to_mark and st.button("Mark all as read", key="__notif_mark_all__"):
                 _notif_mark_read(student_code, to_mark)
-                st.session_state["notif_open"] = False
                 st.rerun()
         with c2:
             if st.button("Refresh", key="__notif_refresh__"):
                 st.rerun()
 
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid}/notifications/{id} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-  }
-}
-
+# ================================
+# Admin sender (optional)
+# ================================
 def _recipients_by_level(lvl: str):
     df = load_student_data()
-    return df.loc[df["Level"].astype(str).str.upper().str.strip()==lvl, "StudentCode"].astype(str).str.lower().tolist()
+    return (
+        df.loc[df["Level"].astype(str).str.upper().str.strip() == lvl, "StudentCode"]
+        .astype(str).str.lower().tolist()
+    )
 
 with st.sidebar.expander("🛠 Admin: Send Notification"):
     to = st.text_input("To (student_code or LEVEL:A1/A2/B1/B2/C1)")
@@ -962,17 +974,18 @@ with st.sidebar.expander("🛠 Admin: Send Notification"):
     body = st.text_area("Body", "Don't forget today's practice!")
     ntype = st.selectbox("Type", ["reminder","achievement","assignment","system"], index=0)
     link = st.text_input("Link (optional)", "#vocab-trainer")
-    if st.button("Send"):
-        if to.upper().startswith("LEVEL:"):
-            lvl = to.split(":",1)[1].strip().upper()
-            for sc in _recipients_by_level(lvl):
-                send_notification(sc, title, body, type_=ntype, deeplink=link)
-            st.success(f"Sent to level {lvl}.")
-        else:
-            send_notification(to.strip().lower(), title, body, type_=ntype, deeplink=link)
-            st.success("Sent.")
-
-
+    if st.button("Send", key="__admin_send__"):
+        try:
+            if to.upper().startswith("LEVEL:"):
+                lvl = to.split(":", 1)[1].strip().upper()
+                for sc in _recipients_by_level(lvl):
+                    send_notification(sc, title, body, type_=ntype, deeplink=link)
+                st.success(f"Sent to level {lvl}.")
+            else:
+                send_notification(to.strip().lower(), title, body, type_=ntype, deeplink=link)
+                st.success("Sent.")
+        except Exception as e:
+            st.warning(f"Could not send: {e}")
 
 
 # ============================
@@ -7829,6 +7842,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
