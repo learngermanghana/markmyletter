@@ -3,7 +3,7 @@ import atexit
 import base64
 import bcrypt
 import difflib
-import html
+import html as html_stdlib  # renamed stdlib html to avoid conflicts
 import io
 import json
 import os
@@ -32,6 +32,9 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
+# --- Compatibility alias ---
+html = st_html  # ensures any html(...) calls use the Streamlit component
 
 
 
@@ -8257,6 +8260,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
