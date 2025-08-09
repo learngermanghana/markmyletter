@@ -817,22 +817,28 @@ if st.button("Log out"):
     st.stop()
 
 # ===========================
-# Floating Marks Bell (badge + dropdown, max 3)
-# Assumes: cookie_manager exists & STUDENT_CODE in session
+# TAB: Marks Notifications (minimal style)
+# (Assumes global `cookie_manager` exists & is ready)
 # ===========================
 
-# Reuse global cookies
+import json, hashlib
+import pandas as pd
+import streamlit as st
+from datetime import datetime
+
+# Reuse your existing cookie manager + logged-in code
 cookies = cookie_manager
 STUDENT_CODE = (st.session_state.get("student_code")
                 or st.session_state.get("user_code")
                 or "").strip()
 
+# --- Google Sheet (marks) ---
 SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
 GID = "2121051612"
 CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+
 EXPECTED_COLS = ["studentcode","name","assignment","score","comments","date","level"]
 
-# ----- helpers (remove these if you already defined them) -----
 def _seen_key(code: str) -> str:
     return f"marks::seen::{(code or 'guest').lower()}"
 
@@ -853,20 +859,19 @@ def load_marks() -> pd.DataFrame:
     try:
         df = pd.read_csv(CSV_URL)
     except Exception as e:
-        # stay silent; we don't want a big error popup from a floating UI
+        st.error(f"Could not read marks sheet: {e}")
         return pd.DataFrame(columns=EXPECTED_COLS)
+
     df.columns = [c.strip().lower() for c in df.columns]
+    missing = [c for c in EXPECTED_COLS if c not in df.columns]
+    if missing:
+        st.warning("Marks sheet is missing columns: " + ", ".join(missing))
+        return pd.DataFrame(columns=EXPECTED_COLS)
+
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
     for c in ["studentcode","name","assignment","comments","level"]:
-        if c not in df.columns: df[c] = ""
         df[c] = df[c].astype(str).fillna("").str.strip()
-    if "score" in df.columns:
-        df["score"] = pd.to_numeric(df.get("score"), errors="coerce")
-    else:
-        df["score"] = pd.NA
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    else:
-        df["date"] = pd.NaT
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
     df = df.sort_values(["date","assignment"], ascending=[False, True], na_position="last")
     return df
 
@@ -887,167 +892,59 @@ def row_id(row: pd.Series) -> str:
     com = (row.get("comments") or "").strip()
     com_digest = hashlib.sha1(com.encode("utf-8")).hexdigest()[:10]
     return f"{scode}|{assign}|{date_part}|{score_txt}|{com_digest}"
-# ---------------------------------------------------------------
 
-# Auto-refresh every 30s so the badge stays live
+# --- auto-refresh every 30s (unique key) ---
 try:
-    st.autorefresh(interval=30_000, key="marks_floating_poll")
+    st.autorefresh(interval=30_000, key="marks_minimal_poll")
 except Exception:
     pass
 
-# Load marks and compute notifications (max 3)
+# ---- main ----
 df_all = load_marks()
-df_view = df_all.copy()
+df = df_all.copy()
 if STUDENT_CODE:
-    df_view = df_view[df_view["studentcode"].str.lower() == STUDENT_CODE.lower()].copy()
+    df = df[df["studentcode"].str.lower() == STUDENT_CODE.lower()].copy()
 
-notif_items = []
-unread_count = 0
-
-if not df_view.empty:
-    df_view["__id"] = df_view.apply(row_id, axis=1)
+# Header: just a bell + count
+if df.empty:
+    st.markdown("### 🔕 Marks")
+    st.info("No marks yet.")
+else:
+    df["__id"] = df.apply(row_id, axis=1)
     seen_ids = load_seen(STUDENT_CODE)
-    current_ids = df_view["__id"].tolist()
+    current_ids = df["__id"].tolist()
     unseen_ids = [rid for rid in current_ids if rid not in seen_ids]
     unread_count = len(unseen_ids)
 
-    # Pick up to 3: unseen first; else latest 3
+    st.markdown(f"### {'🔔' if unread_count else '🔕'} Marks")
+
+    # Build up to 3 minimal notifications (unseen first; if none unseen, show latest 3 anyway)
     if unseen_ids:
-        notif_df = df_view[df_view["__id"].isin(unseen_ids)].head(3)
+        notif_df = df[df["__id"].isin(unseen_ids)].head(3)
     else:
-        notif_df = df_view.head(3)
+        notif_df = df.head(3)
 
-    for _, r in notif_df.iterrows():
-        # minimal, friendly message
-        notif_items.append({
-            "id": r["__id"],
-            "assignment": r["assignment"]
-        })
+    # Render notifications
+    if notif_df.empty:
+        st.write("No new notifications.")
+    else:
+        for _, r in notif_df.iterrows():
+            # concise message only
+            st.markdown(
+                f"• Your assignment **{r['assignment']}** has been marked. "
+                f"Check **Results & Resources**."
+            )
 
-# Render floating bell with HTML/CSS + a checkbox to toggle dropdown
-# (No external JS or custom components needed)
-badge = f"""<span class="falowen-badge">{min(unread_count, 99)}</span>""" if unread_count else ""
+    # Actions
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Mark shown as read ✅", key="marks_minimal_markshown"):
+            save_seen(STUDENT_CODE, set(seen_ids).union(set(notif_df["__id"].tolist())))
+            st.success("Marked shown notifications as read.")
+    with c2:
+        if st.button("Refresh 🔄", key="marks_minimal_refresh"):
+            st.rerun()
 
-items_html = "".join(
-    f"""<div class="falowen-item">Your assignment <b>{it['assignment']}</b> has been marked. <span class="link">Open Results & Resources</span></div>"""
-    for it in notif_items
-) or """<div class="falowen-empty">No notifications</div>"""
-
-# Unique keys per page
-checkbox_key = "falowen_bell_toggle"
-if checkbox_key not in st.session_state:
-    st.session_state[checkbox_key] = False
-
-# Controls under the dropdown
-controls_html = """
-<div class="falowen-controls">
-  <button id="falowen-markread" class="btn">Mark shown as read</button>
-  <button id="falowen-refresh" class="btn btn-ghost">Refresh</button>
-</div>
-"""
-
-st.markdown(
-    f"""
-<style>
-  .falowen-bell {{
-    position: fixed;
-    top: 18px;
-    right: 18px;
-    z-index: 9999;
-  }}
-  .falowen-bell button {{
-    appearance: none;
-    border: none;
-    background: white;
-    width: 42px; height: 42px;
-    border-radius: 999px;
-    box-shadow: 0 2px 10px rgba(0,0,0,.08);
-    font-size: 20px;
-    cursor: pointer;
-    position: relative;
-  }}
-  .falowen-badge {{
-    position: absolute;
-    top: -6px; right: -6px;
-    background: #E11D48; /* rose-600 */
-    color: #fff;
-    font-size: 11px;
-    line-height: 18px;
-    height: 18px; min-width: 18px;
-    padding: 0 6px;
-    border-radius: 999px;
-    text-align: center;
-    box-shadow: 0 0 0 2px #fff;
-  }}
-  .falowen-panel {{
-    position: fixed;
-    top: 68px; right: 18px;
-    width: min(92vw, 360px);
-    background: #fff;
-    border-radius: 14px;
-    box-shadow: 0 12px 30px rgba(0,0,0,.14);
-    padding: 10px 10px 8px 10px;
-    z-index: 9999;
-    display: none;
-  }}
-  input#falowen-bell-toggle:checked ~ .falowen-panel {{ display: block; }}
-
-  .falowen-item {{
-    padding: 10px 10px;
-    border-radius: 10px;
-    font-size: 14px;
-    line-height: 1.35;
-    border: 1px solid #f1f1f4;
-    margin: 6px 0;
-    background: #fafafa;
-  }}
-  .falowen-item .link {{
-    color: #2563EB;
-    cursor: pointer;
-    white-space: nowrap;
-  }}
-  .falowen-empty {{
-    padding: 10px; color: #666; font-size: 13px;
-  }}
-  .falowen-controls {{
-    display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px;
-  }}
-  .btn {{
-    padding: 6px 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer;
-    font-size: 12.5px;
-  }}
-  .btn-ghost {{ background: transparent; }}
-</style>
-
-<div class="falowen-bell">
-  <input id="falowen-bell-toggle" type="checkbox" style="display:none;">
-  <label for="falowen-bell-toggle">
-    <button title="Notifications">{'🔔' if unread_count else '🔕'}{badge}</button>
-  </label>
-  <div class="falowen-panel">
-    <div style="font-weight:600; font-size:13.5px; padding: 4px 6px 8px 6px;">Notifications</div>
-    {items_html}
-    {controls_html}
-  </div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-# Wire the two dropdown buttons to Streamlit actions with lightweight forms
-colA, colB = st.columns([1,1])
-with colA:
-    if st.button("Mark shown as read ✅", key="falowen_mark_shown_hidden"):
-        # mark only the currently displayed ones (notif_items)
-        if notif_items:
-            df_all_safe = df_view.copy()
-            ids_to_mark = {it["id"] for it in notif_items}
-            prev = load_seen(STUDENT_CODE)
-            save_seen(STUDENT_CODE, prev.union(ids_to_mark))
-        st.rerun()
-with colB:
-    if st.button("Refresh 🔄", key="falowen_refresh_hidden"):
-        st.rerun()
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -8205,6 +8102,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
