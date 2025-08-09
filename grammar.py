@@ -1028,24 +1028,23 @@ if st.session_state.get("logged_in"):
     urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
 
     # -------------------- BELL ANIMATION LOGIC --------------------
-    urgent = urgent_contract or urgent_assignments
-    bell_anim = "bell-pulse" if urgent else "bell-pulse"
-    bell_color = "#e63946" if urgent else "#333"
+    bell_anim = "bell-pulse"  # Always pulse, never ring
+    bell_color = "#333"       # Non-urgent color
 
     st.markdown(f"""
         <style>
         @keyframes bell-ring {{
-            0% {{ transform: rotate(0); }}
-            10% {{ transform: rotate(15deg); }}
-            20% {{ transform: rotate(-10deg); }}
-            30% {{ transform: rotate(5deg); }}
-            40% {{ transform: rotate(-5deg); }}
-            50% {{ transform: rotate(0); }}
+            0%   {{ transform: rotate(0); }}
+            10%  {{ transform: rotate(15deg); }}
+            20%  {{ transform: rotate(-10deg); }}
+            30%  {{ transform: rotate(5deg); }}
+            40%  {{ transform: rotate(-5deg); }}
+            50%  {{ transform: rotate(0); }}
             100% {{ transform: rotate(0); }}
         }}
         @keyframes bell-pulse {{
-            0% {{ transform: scale(1); }}
-            50% {{ transform: scale(1.15); }}
+            0%   {{ transform: scale(1); }}
+            50%  {{ transform: scale(1.15); }}
             100% {{ transform: scale(1); }}
         }}
         </style>
@@ -1057,7 +1056,7 @@ if st.session_state.get("logged_in"):
                          color:{bell_color};">🔔</span> Your Notifications
         </div>
     """, unsafe_allow_html=True)
-#
+
     # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
     st.markdown("""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
@@ -8104,6 +8103,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
