@@ -3970,15 +3970,38 @@ if tab == "Course Book":
             </div>
         """, unsafe_allow_html=True)
 
+        # --- Quick Templates ---
+        st.markdown("#### 📌 Quick Post Templates")
+        colt1, colt2, colt3 = st.columns(3)
+
+        TEMPLATES = {
+            "❓ Question": "I’m confused about [topic]. Here’s where I got stuck: …\nWhat’s a simple way to remember it?",
+            "💡 Tip": "A quick tip that helped me today: …\nTry this when you do [chapter/skill].",
+            "🤝 Study Buddy": "Anyone free to practice speaking for 15 minutes this week? I’m available on [days/times].",
+        }
+
+        with colt1:
+            if st.button("❓ Question"):
+                st.session_state["post_template"] = TEMPLATES["❓ Question"]
+        with colt2:
+            if st.button("💡 Tip"):
+                st.session_state["post_template"] = TEMPLATES["💡 Tip"]
+        with colt3:
+            if st.button("🤝 Study Buddy"):
+                st.session_state["post_template"] = TEMPLATES["🤝 Study Buddy"]
+
         # --- New post form ---
         with st.form("post_form"):
             new_msg = st.text_area(
                 "💬 Post a question, tip, or message to your classmates:",
+                value=st.session_state.get("post_template", ""),
                 max_chars=400
             )
             if st.form_submit_button("Post") and new_msg.strip():
                 post_message(student_level, student_code, student_name, new_msg)
                 st.success("Your message was posted!")
+                # Clear the template after posting
+                st.session_state["post_template"] = ""
                 st.rerun()
 
         st.divider()
