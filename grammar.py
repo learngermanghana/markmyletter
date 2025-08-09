@@ -102,9 +102,6 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or st.secrets.get("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET") or st.secrets.get("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI") or st.secrets.get("REDIRECT_URI")
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -113,8 +110,6 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-
-
 
 
 # ==== DB CONNECTION & INITIALIZATION ====
@@ -286,35 +281,62 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 # ==== STUDENT SHEET LOADING & SESSION SETUP ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
-@st.cache_data
+@st.cache_data(ttl=300)  # refresh every 5 minutes
 def load_student_data():
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
         resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text), dtype=str)
+        df = pd.read_csv(
+            io.StringIO(resp.text),
+            dtype=str,
+            keep_default_na=True,
+            na_values=["", " ", "nan", "NaN", "None"]
+        )
     except Exception:
         st.error("❌ Could not load student data.")
         st.stop()
+
+    # Normalize headers and trim cells while preserving NaN
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    df = df[df["ContractEnd"].notna() & (df["ContractEnd"] != "")]
-    df["ContractEnd_dt"] = pd.to_datetime(
-        df["ContractEnd"], format="%m/%d/%Y", errors="coerce", dayfirst=False
-    )
-    mask = df["ContractEnd_dt"].isna()
-    df.loc[mask, "ContractEnd_dt"] = pd.to_datetime(
-        df.loc[mask, "ContractEnd"], format="%d/%m/%Y", errors="coerce", dayfirst=True
-    )
-    df = df.sort_values("ContractEnd_dt", ascending=False)
-    df = df.drop_duplicates(subset=["StudentCode"], keep="first")
-    df = df.drop(columns=["ContractEnd_dt"])
+        s = df[col]
+        df[col] = s.where(s.isna(), s.str.strip())
+
+    # Keep only rows with a ContractEnd value
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
+
+    # Robust parse (MM/DD/YYYY, DD/MM/YYYY, ISO, fallback)
+    def _parse_contract_end(s: str):
+        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                return pd.to_datetime(s, format=fmt, errors="raise")
+            except Exception:
+                continue
+        return pd.to_datetime(s, errors="coerce")
+
+    df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
+    df = df[df["ContractEnd_dt"].notna()]
+
+    # Normalize identifiers for later lookups
+    if "StudentCode" in df.columns:
+        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    if "Email" in df.columns:
+        df["Email"] = df["Email"].str.lower().str.strip()
+
+    # Keep most recent per student
+    df = (df.sort_values("ContractEnd_dt", ascending=False)
+            .drop_duplicates(subset=["StudentCode"], keep="first")
+            .drop(columns=["ContractEnd_dt"]))
     return df
 
+
+from datetime import datetime, timedelta, timezone
+
 def is_contract_expired(row):
-    expiry_str = str(row.get("ContractEnd", "")).strip()
+    expiry_str = str(row.get("ContractEnd", "") or "").strip()
     if not expiry_str or expiry_str.lower() == "nan":
         return True
+
     expiry_date = None
     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
         try:
@@ -322,18 +344,22 @@ def is_contract_expired(row):
             break
         except ValueError:
             continue
+
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed): return True
+        if pd.isnull(parsed):
+            return True
         expiry_date = parsed.to_pydatetime()
-    today = datetime.now().date()
+
+    # Use UTC date to avoid local skew/DST issues
+    today = datetime.now(timezone.utc).date()
     return expiry_date.date() < today
+
 
 # ————————————————————————————————————————————————————————
 # 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
 # ————————————————————————————————————————————————————————
 import urllib.parse
-from datetime import datetime, timedelta
 
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -341,6 +367,7 @@ def _expire_str(dt: datetime) -> str:
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     key = "student_code"
     norm = (value or "").strip().lower()
+    use_secure = os.getenv("ENV", "prod") != "dev"  # set ENV=dev locally
 
     # Try library .set() if available (no domain control here)
     if hasattr(cookie_manager, "set"):
@@ -348,32 +375,34 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
             cookie_manager.set(
                 key, norm,
                 expires=expires,
-                secure=True,
-                samesite="None",
+                secure=use_secure,
+                samesite=("None" if use_secure else "Lax"),
             )
             cookie_manager.save()
         except Exception:
-            # fall through to JS
             pass
     else:
         cookie_manager[key] = norm
         cookie_manager.save()
 
-    # Always reinforce with JS so we control Domain
-    import urllib.parse
+    # Reinforce with JS so we control Domain when secure
     encoded_val = urllib.parse.quote(norm)
     exp_str = expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
     components.html(f"""
     <script>
       (function() {{
         try {{
-          const host = window.location.hostname;         // e.g. "www.falowen.app" or "falowen.app"
+          const host = window.location.hostname;
           const parts = host.split('.');
-          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;  // "falowen.app"
-          // Write both host-only and base-domain cookies
-          document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; SameSite=None; Secure";
-          document.cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; Domain=."+base+"; SameSite=None; Secure";
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
+
+          // Build common cookie string
+          var cookie = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; SameSite=" + ({str(use_secure).lower()} ? "None" : "Lax");
+          if ({str(use_secure).lower()}) cookie += "; Secure";
+          document.cookie = cookie;  // host-only
+          if ({str(use_secure).lower()}) {{
+            document.cookie = cookie + "; Domain=." + base;  // base-domain, covers www/apex
+          }}
         }} catch(e) {{}}
       }})();
     </script>
@@ -397,7 +426,22 @@ components.html("""
 """, height=0)
 
 # 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
-params = st.query_params
+def qp_get():
+    try:
+        return st.query_params
+    except Exception:
+        return st.experimental_get_query_params()
+
+def qp_clear():
+    try:
+        st.query_params.clear()
+    except Exception:
+        try:
+            st.experimental_set_query_params()
+        except Exception:
+            pass
+
+params = qp_get()
 if "student_code" in params and params["student_code"]:
     sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
 
@@ -413,13 +457,12 @@ if "student_code" in params and params["student_code"]:
     # Only do the cookie write + rerun ONCE per session
     if not st.session_state.get("cookie_synced", False):
         set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
-        st.query_params.clear()
+        qp_clear()
         st.session_state["cookie_synced"] = True   # mark handshake done
         st.rerun()
     else:
         # Already synced this session: just remove the param and keep going
-        st.query_params.clear()
-
+        qp_clear()
 
 # 3) Normal cookie manager init (for all further cookie reads/writes)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
@@ -448,7 +491,7 @@ if not st.session_state.get("logged_in", False):
     if code:
         try:
             df_students = load_student_data()
-            df_students["StudentCode"] = df_students["StudentCode"].str.lower().str.strip()
+            # StudentCode already normalized in load_student_data
             found = df_students[df_students["StudentCode"] == code]
         except Exception:
             found = pd.DataFrame()
@@ -538,27 +581,14 @@ if not st.session_state.get("logged_in", False):
 
 # --- Save student code to cookie AND localStorage after login ---
 def save_cookie_after_login(student_code):
-    # Normalize once
     value = str(student_code).strip().lower()
-
-    # 1) Persistent cookie (Safari/Chrome iOS require Secure + SameSite=None)
-    # Uses helper that falls back if cookie_manager.set(...) isn't available
-    set_student_code_cookie(
-        cookie_manager,
-        value,
-        expires=datetime.utcnow() + timedelta(days=180),
-    )
-
-    # 2) Mirror into localStorage (fallback/resilience on iOS/Safari)
-    # Use JSON encoding to avoid any quoting/XSS issues.
+    set_student_code_cookie(cookie_manager, value, expires=datetime.utcnow() + timedelta(days=180))
     safe_code = json.dumps(value)
-    components.html(
-        f"<script>localStorage.setItem('student_code', {safe_code});</script>",
-        height=0
-    )
+    components.html(f"<script>localStorage.setItem('student_code', {safe_code});</script>", height=0)
+
 
 if not st.session_state.get("logged_in", False):
-    # Support / Help section (unchanged)
+    # Support / Help section
     st.markdown("""
     <div class="help-contact-box">
       <b>❓ Need help or access?</b><br>
@@ -568,50 +598,105 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
+    # --- Google OAuth (Optional) ---
+    GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
+    GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
+    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://falowen.app/")  # must match in Google Cloud
+
+    def do_google_oauth():
+        params = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": REDIRECT_URI,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "prompt": "select_account"
+        }
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+        st.markdown(
+            f"""<div style='text-align:center;margin:12px 0;'>
+                    <a href="{auth_url}">
+                        <button style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                            Sign in with Google
+                        </button>
+                    </a>
+                </div>""",
+            unsafe_allow_html=True
+        )
+
+    def handle_google_login():
+        qp = qp_get()
+        if "code" not in qp:
+            return False
+        code = qp["code"][0] if isinstance(qp["code"], list) else qp["code"]
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code"
+        }
+        try:
+            resp = requests.post(token_url, data=data, timeout=10)
+            if not resp.ok:
+                err = ""
+                try:
+                    err = resp.json().get("error", "")
+                except Exception:
+                    pass
+                if err != "invalid_grant":
+                    st.error(f"Google login failed: {resp.text}")
+                return False
+
+            access_token = resp.json().get("access_token")
+            if not access_token:
+                st.error("Google login failed: no access token.")
+                return False
+
+            userinfo = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"}
+            ).json()
+            email = (userinfo.get("email") or "").lower().strip()
+            if not email:
+                st.error("Google login failed: no email returned.")
+                return False
+
+            df = load_student_data()
+            # Email already normalized in load_student_data, but normalize again defensively
+            df["Email"] = df["Email"].str.lower().str.strip()
+            match = df[df["Email"] == email]
+            if match.empty:
+                st.error("No student account found for that Google email.")
+                return False
+
+            student_row = match.iloc[0]
+            if is_contract_expired(student_row):
+                st.error("Your contract has expired. Contact the office.")
+                return False
+
+            st.session_state.update({
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
+            })
+            save_cookie_after_login(student_row["StudentCode"])
+
+            # Clean URL to avoid reruns with ?code=
+            qp_clear()
+            st.success(f"Welcome, {student_row['Name']}!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Google OAuth error: {e}")
+        return False
+
+    # If we just returned from Google with ?code=..., handle it first.
+    if handle_google_login():
+        st.stop()
 
     # --- 4) Two Tab Login/Signup System ---
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
-
-    # --- Google OAuth helper for "Returning" tab ---
-    def do_google_oauth():
-        params = {
-            "client_id":     GOOGLE_CLIENT_ID,
-            "redirect_uri":  REDIRECT_URI,
-            "response_type": "code",
-            "scope":         "openid email profile",
-            "prompt":        "select_account"
-        }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(f"""
-        <div style="display:flex;justify-content:center;margin:20px 0 10px 0;">
-          <a href="{auth_url}" style="text-decoration:none;">
-            <button style="
-                display:flex;align-items:center;gap:10px;
-                background:#fff;
-                border:1px solid #d1d5db;
-                border-radius:7px;
-                box-shadow:0 1.5px 4px #0001;
-                padding:8px 30px 8px 16px;
-                font-size:1.11em;
-                font-weight:500;
-                color:#444;
-                cursor:pointer;
-            ">
-              <span>
-                <svg width="24" height="24" viewBox="0 0 48 48">
-                  <g>
-                    <path fill="#4285F4" d="M44.5,20H24v8.5h11.7C34.7,33.9,30.2,37,24,37c-7.2,0-13-5.8-13-13s5.8-13,13-13c3.1,0,6,.9,8.3,2.7 l6.2-6.2C34.8,4.5,29.7,2.5,24,2.5C12.3,2.5,3,11.8,3,23.5S12.3,44.5,24,44.5c10.7,0,21-8.5,21-21c0-1.4-0.1-2.4-0.3-3.5H24z"/>
-                    <path fill="#34A853" d="M6.9,14.4l7.1,5.2C16.6,16,19.9,14,24,14c3.1,0,6.1,1.1,8.3,2.7l6.2-6.2C34.8,4.5,29.7,2.5,24,2.5 C15.7,2.5,8.4,7.5,6.9,14.4z"/>
-                    <path fill="#FBBC05" d="M24,44.5c5.6,0,10.7-2.2,14.6-5.7l-7-5.7c-2,1.6-4.7,2.9-7.6,2.9c-6.1,0-11.1-4.2-12.9-9.8H6.9v6.1 C10.5,41.1,16.6,44.5,24,44.5z"/>
-                    <path fill="#EA4335" d="M44.5,20H24v8.5h11.7c-1,3.4-4.3,7.5-11.7,7.5c-4.6,0-8.4-3-9.7-7.1l-7.1,5.2 C8.4,39.1,15.7,44.5,24,44.5c10.7,0,21-8.5,21-21C45,22.2,44.8,21.1,44.5,20z"/>
-                  </g>
-                </svg>
-              </span>
-              <span style="font-weight:600; letter-spacing:0.1px;">Sign in with Google</span>
-            </button>
-          </a>
-        </div>
-        """, unsafe_allow_html=True)
 
     # --- Returning Student Tab (Google + manual login) ---
     with tab1:
@@ -623,17 +708,14 @@ if not st.session_state.get("logged_in", False):
             login_btn        = st.form_submit_button("Log In")
 
         if login_btn:
-            # Normalize AFTER submit
             login_id   = (login_id_input or "").strip().lower()
             login_pass = (login_pass_input or "")
 
             df = load_student_data()
+            # StudentCode/Email normalized in loader, but normalize again in case of schema drift
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
-            lookup = df[
-                (df["StudentCode"] == login_id) |
-                (df["Email"]       == login_id)
-            ]
+            lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
 
             if lookup.empty:
                 st.error("No matching student code or email found.")
@@ -703,10 +785,7 @@ if not st.session_state.get("logged_in", False):
                 df = load_student_data()
                 df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
                 df["Email"]       = df["Email"].str.lower().str.strip()
-                valid = df[
-                    (df["StudentCode"] == new_code) &
-                    (df["Email"]       == new_email)
-                ]
+                valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
                 if valid.empty:
                     st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
                 else:
@@ -722,7 +801,6 @@ if not st.session_state.get("logged_in", False):
                             "password": hashed_pw
                         })
                         st.success("Account created! Please log in above.")
-
 
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
@@ -760,11 +838,7 @@ st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
     # 1) Kill the cookie immediately (server side; keeps flags consistent)
-    set_student_code_cookie(
-        cookie_manager,
-        "",
-        expires=datetime.utcnow() - timedelta(seconds=1),
-    )
+    set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
 
     # Also delete directly from cookie_manager if supported
     try:
@@ -773,7 +847,6 @@ if st.button("Log out"):
     except Exception:
         pass
 
-    # Determine the actual cookie name used by your manager (prefix + key)
     _prefix = getattr(cookie_manager, "prefix", "") or ""
     _cookie_name = f"{_prefix}student_code"
 
@@ -782,46 +855,44 @@ if st.button("Log out"):
     <script>
       (function() {{
         try {{
-          // Remove local fallback
           localStorage.removeItem('student_code');
 
-          // Remove ?student_code=... from URL without adding to history
           const url = new URL(window.location);
           if (url.searchParams.has('student_code')) {{
             url.searchParams.delete('student_code');
             window.history.replaceState({{}}, '', url);
           }}
 
-          // Compute base domain (e.g., "falowen.app") from current host
-          const host = window.location.hostname;                  // "www.falowen.app" or "falowen.app"
+          const host = window.location.hostname;
           const parts = host.split('.');
           const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
 
-          // Delete host-only cookie
           document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
-
-          // Delete base-domain cookie (covers www/apex)
           document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
 
-          // Reload so the public (logged-out) view renders immediately
           window.location.replace(url.pathname + url.search);
         }} catch (e) {{}}
       }})();
     </script>
     """, height=0)
 
-    # 3) Clear Streamlit session state immediately
-    for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
-        st.session_state[k] = False if k == "logged_in" else ""
+    # 3) Clear Streamlit session state immediately (type-safe)
+    for k, v in {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "cookie_synced": False,
+    }.items():
+        st.session_state[k] = v
 
-    # Optional: server-side mirror of query param removal
     try:
-        st.query_params.clear()
+        qp_clear()
     except Exception:
         pass
 
-    # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
+
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -7979,6 +8050,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
