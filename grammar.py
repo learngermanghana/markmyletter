@@ -955,6 +955,33 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+# ==================== NOTIFICATIONS HEADER ====================
+st.markdown(
+    """
+    <div style="display:flex;align-items:center;gap:10px;
+                font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
+                padding:6px 10px;background:#fdf6e3;border-radius:8px;">
+        <span style="font-size:1.3em;">🔔</span> Your Notifications
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Small badge row under the title
+st.markdown(
+    """
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
+      <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
+      <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
+      <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
+      <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
+      <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
@@ -8069,6 +8096,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
