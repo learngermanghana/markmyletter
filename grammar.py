@@ -771,19 +771,14 @@ if st.button("🔔 Send test notification"):
     except Exception as e:
         st.warning(f"Could not send test notification: {e}")
 
-# -------------------------
 # Log out button and flow
-# -------------------------
 if st.button("Log out"):
     # 1) Kill the cookie immediately (server side; keeps flags consistent)
-    try:
-        set_student_code_cookie(
-            cookie_manager,
-            "",
-            expires=datetime.utcnow() - timedelta(seconds=1),
-        )
-    except Exception:
-        pass
+    set_student_code_cookie(
+        cookie_manager,
+        "",
+        expires=datetime.utcnow() - timedelta(seconds=1),
+    )
 
     # Also delete directly from cookie_manager if supported
     try:
@@ -812,7 +807,7 @@ if st.button("Log out"):
           }}
 
           // Compute base domain (e.g., "falowen.app") from current host
-          const host = window.location.hostname;   // "www.falowen.app" or "falowen.app"
+          const host = window.location.hostname;                  // "www.falowen.app" or "falowen.app"
           const parts = host.split('.');
           const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
 
@@ -822,49 +817,127 @@ if st.button("Log out"):
           // Delete base-domain cookie (covers www/apex)
           document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
 
-          // Hard reload so the public (logged-out) view renders immediately
-          window.location.replace(url.pathname || '/');
+          // Reload so the public (logged-out) view renders immediately
+          window.location.replace(url.pathname + url.search);
         }} catch (e) {{}}
       }})();
     </script>
     """, height=0)
 
-    # 3) Clear Streamlit state & caches immediately (server side)
+    # 3) Clear Streamlit session state immediately
     for k in ["logged_in", "student_row", "student_code", "student_name", "cookie_synced"]:
         st.session_state[k] = False if k == "logged_in" else ""
+
+    # Optional: server-side mirror of query param removal
     try:
         st.query_params.clear()
     except Exception:
         pass
-    try:
-        st.cache_data.clear()
-    except Exception:
-        pass
-    try:
-        st.cache_resource.clear()
-    except Exception:
-        pass
 
-    st.stop()  # client JS will reload into logged-out UI
-
-
-# --- Ensure login context + required vars before notifications/private UI ---
-if not st.session_state.get("logged_in"):
-    st.stop()  # don't render private UI for logged-out users
-
-student_row = st.session_state.get("student_row") or {}
-student_code = (st.session_state.get("student_code") or "").strip().lower()
-
-if not student_code:
-    st.error("Missing student code. Please log in again.")
+    # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
 
-name = (st.session_state.get("student_name") or "Student").strip()
-left, right = st.columns([0.7, 0.3])
-with left:
-    st.write(f"👋 Welcome, **{name}**")
-with right:
-    notify_area(student_code)   # ← renders the clickable bell + panel
+# === Stage 6: In-app notifications UI ===
+# Place this right after you've set `student_code` and the user is logged in.
+
+from typing import List
+
+def _notif_list(user_id: str, limit: int = 30):
+    q = (db.collection("users").document(user_id)
+         .collection("notifications")
+         .order_by("timestamp", direction=firestore.Query.DESCENDING)
+         .limit(limit))
+    return list(q.stream())
+
+def _notif_unread(user_id: str, limit: int = 30):
+    q = (db.collection("users").document(user_id)
+         .collection("notifications")
+         .where("read", "==", False)
+         .order_by("timestamp", direction=firestore.Query.DESCENDING)
+         .limit(limit))
+    return list(q.stream())
+
+def _notif_mark_read(user_id: str, ids: List[str]):
+    if not ids: return
+    batch = db.batch()
+    col = db.collection("users").document(user_id).collection("notifications")
+    for nid in ids:
+        batch.update(col.document(nid), {"read": True})
+    batch.commit()
+
+# Run a gentle auto-refresh so new notifications show up without clicks
+st.autorefresh(interval=10_000, key="__notify_tick__")  # 10s
+
+# Keep some UI state
+st.session_state.setdefault("notif_open", False)
+st.session_state.setdefault("notif_seen_ids", set())  # avoid re-toasting same ones
+
+# Unread count + bell
+try:
+    _unread_docs = _notif_unread(student_code, limit=50)
+    unread_count = len(_unread_docs)
+except Exception as e:
+    _unread_docs = []
+    unread_count = 0
+
+c_spacer, c_bell = st.columns([8, 1])
+with c_bell:
+    label = f"🔔 {unread_count}" if unread_count else "🔔"
+    if st.button(label, key="__notif_bell__", help="Notifications"):
+        st.session_state["notif_open"] = not st.session_state["notif_open"]
+
+# Toast only the *newly seen this session* unread
+new_toast_ids = []
+for doc in reversed(_unread_docs):  # show older first for nice stacking
+    if doc.id in st.session_state["notif_seen_ids"]:
+        continue
+    d = doc.to_dict() or {}
+    title = d.get("title", "Notification")
+    msg = d.get("message", "")
+    ntype = d.get("type", "system")
+    icon = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌"}.get(ntype, "🔔")
+    st.toast(f"**{title}**\n\n{msg}", icon=icon)
+    new_toast_ids.append(doc.id)
+# remember what we toasted this session so we don't spam
+st.session_state["notif_seen_ids"].update(new_toast_ids)
+
+# Drawer / inbox
+if st.session_state["notif_open"]:
+    st.markdown("### Notifications")
+    try:
+        rows = _notif_list(student_code, limit=50)
+    except Exception as e:
+        rows = []
+        st.warning(f"Notifications unavailable: {e}")
+
+    if not rows:
+        st.caption("No notifications yet.")
+    else:
+        to_mark = []
+        for doc in rows:
+            d = doc.to_dict() or {}
+            title = d.get("title", "(no title)")
+            msg = d.get("message", "")
+            read = bool(d.get("read", False))
+            badge = "🆕" if not read else "·"
+            st.markdown(f"**{badge} {title}**  \n{msg}")
+            link = d.get("deeplink")
+            if link:
+                st.link_button("Open", link, key=f"lnk_{doc.id}")
+            st.divider()
+            if not read:
+                to_mark.append(doc.id)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if to_mark and st.button("Mark all as read", key="__notif_mark_all__"):
+                _notif_mark_read(student_code, to_mark)
+                st.session_state["notif_open"] = False
+                st.rerun()
+        with c2:
+            if st.button("Refresh", key="__notif_refresh__"):
+                st.rerun()
+
 
 
 # ============================
@@ -7721,6 +7794,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
