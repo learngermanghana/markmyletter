@@ -892,30 +892,64 @@ if not student_code:
     st.stop()
 
 # ============================
-# STAGE 1–3: Notifications (clean UI + unread banner)
+# STAGE 1–3: Notifications (prefs + filters + idempotent sends)
 # ============================
 
 import pandas as pd
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 from datetime import datetime, timezone, date, timedelta
 import streamlit as st
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 
-# ---- Google Sheet (scores) ----
-@st.cache_data(ttl=30)  # quick refresh while testing; bump later
+# ========= Types / Icons / Colors =========
+ICON = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌", "system": "🔔"}
+TYPE_BG = {"achievement": "#F0FFF4", "reminder": "#FFF9E6", "assignment": "#EEF3FC", "system": "#F6F6F9"}
+VALID_TYPES = set(ICON.keys())
+
+# ========= Preferences =========
+PREF_DEFAULTS = {"mute": [], "play_sound": False, "max_toasts": 3}
+
+def get_prefs(uid: str) -> Dict:
+    try:
+        snap = db.collection("users").document(uid).collection("meta").document("prefs").get()
+        data = snap.to_dict() or {}
+        # sanitize
+        mute = [t for t in (data.get("mute") or []) if t in VALID_TYPES]
+        play_sound = bool(data.get("play_sound", False))
+        max_toasts = int(data.get("max_toasts", 3) or 3)
+        max_toasts = max(0, min(max_toasts, 10))
+        return {"mute": mute, "play_sound": play_sound, "max_toasts": max_toasts}
+    except Exception:
+        return PREF_DEFAULTS.copy()
+
+def set_prefs(uid: str, **kv):
+    safe = get_prefs(uid)
+    safe.update(kv)
+    # persist
+    try:
+        db.collection("users").document(uid).collection("meta").document("prefs").set(safe, merge=True)
+    except Exception:
+        pass
+    return safe
+
+def _is_muted(prefs: Dict, ntype: str) -> bool:
+    return ntype in (prefs.get("mute") or [])
+
+# ========= Google Sheet (scores) =========
+@st.cache_data(ttl=30)
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    GID = "2121051612"  # tab you update
+    GID = "2121051612"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
     df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.str.strip().str.lower()
     for col in df.columns:
         df[col] = df[col].astype(str).str.strip()
-    # normalize occasional header variants
     df = df.rename(columns={"student code": "studentcode", "student": "name"})
     return df
 
-# ---- Firestore: user stats + notifications collection ----
+# ========= User stats =========
 def _user_doc(uid: str):
     return db.collection("users").document(uid)
 
@@ -934,7 +968,46 @@ def _set_user_stats(uid: str, **kv):
     except Exception:
         pass
 
-# ---- Send “new score published” only when count increases ----
+# ========= Idempotent send (3) =========
+def _notif_col(user_id: str):
+    return db.collection("users").document(user_id).collection("notifications")
+
+def send_notification(user_id: str, title: str, message: str, *, type_: str = "system", deeplink: str = "", event_key: str | None = None):
+    """Create an in-app notification; prevents duplicates when event_key repeats."""
+    t = (type_ or "system").strip().lower()
+    if t not in VALID_TYPES:
+        t = "system"
+
+    # De-dupe on event_key (if provided)
+    if event_key:
+        try:
+            exist = list(_notif_col(user_id).where("event_key", "==", event_key).limit(1).stream())
+            if exist:
+                return False
+        except Exception:
+            pass
+
+    # Clip to keep UI tidy
+    def _clip(s, n): 
+        s = (s or "").strip()
+        return (s[: n-1] + "…") if len(s) > n else s
+
+    payload = {
+        "title": _clip(title, 80) or "Notification",
+        "message": _clip(message, 240),
+        "type": t,
+        "deeplink": (deeplink or "").strip(),
+        "timestamp": SERVER_TIMESTAMP,  # server-ordered
+        "read": False,
+        "event_key": event_key or "",
+    }
+    try:
+        _notif_col(user_id).add(payload)
+        return True
+    except Exception:
+        return False
+
+# ========= “New score” notifier (unchanged behavior, now with event_key) =========
 SCORES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/edit?gid=2121051612#gid=2121051612"
 
 def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
@@ -956,6 +1029,8 @@ def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
         return
 
     if current_count > int(last_count):
+        # Build a stable event_key so repeats won’t duplicate
+        event_key = f"score:new:{user_id}:{current_count}"
         try:
             send_notification(
                 user_id=user_id,
@@ -963,16 +1038,14 @@ def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
                 message="A new score is available. Tap to view it in Results & Resources.",
                 type_="assignment",
                 deeplink=SCORES_SHEET_URL,
+                event_key=event_key,
             )
         finally:
             _set_user_stats(user_id, last_seen_score_count=int(current_count))
     elif current_count < int(last_count):
         _set_user_stats(user_id, last_seen_score_count=int(current_count))  # resync quietly
 
-# ========= Notifications v2 (clean UI) =========
-ICON = {"achievement": "🏆", "reminder": "⏰", "assignment": "📌", "system": "🔔"}
-TYPE_BG = {"achievement": "#F0FFF4", "reminder": "#FFF9E6", "assignment": "#EEF3FC", "system": "#F6F6F9"}
-
+# ========= Model + helpers =========
 @dataclass
 class Notice:
     id: str
@@ -987,7 +1060,9 @@ def _time_ago(dt: datetime) -> str:
     if not isinstance(dt, datetime):
         return ""
     now = datetime.now(timezone.utc)
-    diff = (now - (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    diff = now - dt
     s = int(diff.total_seconds())
     if s < 60: return f"{s}s ago"
     m = s // 60
@@ -996,9 +1071,6 @@ def _time_ago(dt: datetime) -> str:
     if h < 24: return f"{h}h ago"
     d = h // 24
     return f"{d}d ago"
-
-def _notif_col(user_id: str):
-    return db.collection("users").document(user_id).collection("notifications")
 
 def fetch_notifications(user_id: str, *, limit: int = 100) -> List[Notice]:
     try:
@@ -1027,32 +1099,54 @@ def fetch_notifications(user_id: str, *, limit: int = 100) -> List[Notice]:
         )
     return notices
 
-def mark_read(user_id: str, doc_ids: List[str]):
+def mark_read(user_id: str, doc_ids: List[str], *, read: bool = True):
     if not doc_ids: return
     try:
         batch = db.batch()
         for _id in doc_ids:
-            batch.update(_notif_col(user_id).document(_id), {"read": True})
+            batch.update(_notif_col(user_id).document(_id), {"read": bool(read)})
         batch.commit()
     except Exception:
         pass
 
-def toast_unread_once(user_id: str, *, max_toasts: int = 3):
-    """Show unread toasts once per session (prevents re-stacking on rerun)."""
-    st.session_state.setdefault("__toasted_ids__", set())
-    toasted = st.session_state["__toasted_ids__"]
+# ========= Optional: tiny beep via Web Audio (autoplay-friendly) =========
+def _play_beep():
+    components.html("""
+    <script>
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = 880;
+        o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.05, ctx.currentTime + 0.01);
+        o.start(); o.stop(ctx.currentTime + 0.12);
+      } catch(e) {}
+    </script>
+    """, height=0)
+
+# ========= Toasts (respect prefs.mute + prefs.max_toasts + optional sound) =========
+def toast_unread_once(user_id: str, prefs: Dict):
+    st.session_state.setdefault("__toasted_ids__", [])
+    toasted = set(st.session_state["__toasted_ids__"])
 
     notices = fetch_notifications(user_id)
-    unread = [n for n in notices if not n.read and n.id not in toasted]
-    # Show older first so stacking feels natural
-    for n in reversed(unread[-max_toasts:]):
+    unread = [n for n in notices if not n.read and n.id not in toasted and not _is_muted(prefs, n.type)]
+
+    # limit and order
+    to_show = list(reversed(unread[-int(prefs.get("max_toasts", 3)):]))
+    for n in to_show:
         st.toast(f"**{n.title}**\n\n{n.message}", icon=ICON.get(n.type, "🔔"))
+        if prefs.get("play_sound"):
+            _play_beep()
         toasted.add(n.id)
 
-def unread_banner(user_id: str):
-    """Small banner so the student clearly knows they have unread notifications."""
+    st.session_state["__toasted_ids__"] = list(toasted)
+
+# ========= Banner (unchanged, just keeps visibility) =========
+def unread_banner(user_id: str, prefs: Dict):
     notices = fetch_notifications(user_id)
-    unread = [n for n in notices if not n.read]
+    unread = [n for n in notices if not n.read and not _is_muted(prefs, n.type)]
     if not unread:
         return
     count = len(unread)
@@ -1061,39 +1155,87 @@ def unread_banner(user_id: str):
         st.info(f"📬 You have **{count}** unread notification{'s' if count != 1 else ''}. Click the bell to view.")
     with cols[1]:
         if st.button("Mark all read", key="__banner_mark_all__"):
-            mark_read(user_id, [n.id for n in unread])
+            mark_read(user_id, [n.id for n in unread], read=True)
             st.rerun()
 
-def notification_bell(user_id: str):
-    """Header bell with unread badge + popover center."""
+# ========= Popover (2: filters + mark unread) + (1: settings UI) =========
+def notification_bell(user_id: str, prefs: Dict):
     notices = fetch_notifications(user_id)
-    unread = [n for n in notices if not n.read]
+    unread = [n for n in notices if not n.read and not _is_muted(prefs, n.type)]
     unread_count = len(unread)
 
     # Badge label
     label = f"🔔 {unread_count}" if unread_count else "🔔"
 
     # Right-align the bell
-    _, bell_col = st.columns([0.70, 0.30])  # tweak to taste
+    _, bell_col = st.columns([0.70, 0.30])
     with bell_col:
         with st.popover(label, use_container_width=True):
             st.markdown("### 📬 Notifications")
+
+            # --- Settings (1) ---
+            with st.expander("⚙️ Notification Settings", expanded=False):
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    play_sound = st.toggle("Sound", value=prefs.get("play_sound", False), key="__pref_sound__")
+                with c2:
+                    max_toasts = st.number_input("Toasts per session", 0, 10, prefs.get("max_toasts", 3), 1, key="__pref_max_toasts__")
+                with c3:
+                    st.caption("Mute types:")
+                    m_ach = st.checkbox("Achievement", value=("achievement" in prefs.get("mute", [])), key="__pref_m_ach__")
+                    m_rem = st.checkbox("Reminder",   value=("reminder" in prefs.get("mute", [])),   key="__pref_m_rem__")
+                    m_ass = st.checkbox("Assignment", value=("assignment" in prefs.get("mute", [])), key="__pref_m_ass__")
+                    m_sys = st.checkbox("System",     value=("system" in prefs.get("mute", [])),     key="__pref_m_sys__")
+                if st.button("Save settings", key="__save_prefs__"):
+                    new_mute = [t for t, on in {
+                        "achievement": m_ach, "reminder": m_rem, "assignment": m_ass, "system": m_sys
+                    }.items() if on]
+                    set_prefs(user_id, play_sound=bool(play_sound), max_toasts=int(max_toasts), mute=new_mute)
+                    st.success("Preferences saved.")
+                    st.rerun()
+
             if not notices:
                 st.info("No notifications yet.")
                 return
 
-            # Actions row
-            c1, c2 = st.columns([1,1])
+            # --- Filters (2) ---
+            st.divider()
+            st.write("**Filter by type**")
+            fcols = st.columns(4)
+            with fcols[0]: f_ach = st.checkbox("🏆", value=True, key="__flt_ach__")
+            with fcols[1]: f_rem = st.checkbox("⏰", value=True, key="__flt_rem__")
+            with fcols[2]: f_ass = st.checkbox("📌", value=True, key="__flt_ass__")
+            with fcols[3]: f_sys = st.checkbox("🔔", value=True, key="__flt_sys__")
+            allowed = {
+                "achievement": f_ach,
+                "reminder": f_rem,
+                "assignment": f_ass,
+                "system": f_sys,
+            }
+
+            # --- Actions row ---
+            c1, c2, c3 = st.columns([1,1,1])
             with c1:
                 if st.button("Mark all as read", key="__mark_all__"):
-                    mark_read(user_id, [n.id for n in unread])
+                    # Respect filters & mutes for bulk action
+                    ids = [n.id for n in notices if (allowed.get(n.type, True) and not _is_muted(prefs, n.type) and not n.read)]
+                    mark_read(user_id, ids, read=True)
                     st.rerun()
             with c2:
                 if st.button("Refresh", key="__refresh_notifs__"):
                     st.rerun()
+            with c3:
+                if st.button("Unmute all", key="__unmute_all__"):
+                    set_prefs(user_id, mute=[])
+                    st.rerun()
 
-            # List
+            # --- List ---
             for n in notices:
+                if not allowed.get(n.type, True): 
+                    continue
+                if _is_muted(prefs, n.type):
+                    continue
+
                 bg = TYPE_BG.get(n.type, "#F6F6F9")
                 icon = ICON.get(n.type, "🔔")
                 ago = _time_ago(n.timestamp)
@@ -1120,23 +1262,28 @@ def notification_bell(user_id: str):
                     unsafe_allow_html=True
                 )
 
-                # Per-item controls
-                cA, cB, _ = st.columns([0.25, 0.25, 0.5])
+                # Per-item controls: Mark read / Mark unread / Open
+                cA, cB, cC = st.columns([0.25, 0.25, 0.5])
                 with cA:
                     if not n.read and st.button("Mark read", key=f"__mark_{n.id}"):
-                        mark_read(user_id, [n.id])
+                        mark_read(user_id, [n.id], read=True)
                         st.rerun()
                 with cB:
+                    if n.read and st.button("Mark unread", key=f"__unread_{n.id}"):
+                        mark_read(user_id, [n.id], read=False)
+                        st.rerun()
+                with cC:
                     if n.deeplink and st.button("Open", key=f"__open_{n.id}"):
                         st.toast("Opening…", icon=icon)
 
+# ========= Orchestrator =========
 def notify_area(user_id: str):
-    """One place to call in your logged-in header."""
-    toast_unread_once(user_id, max_toasts=3)  # gentle toasts (older first)
-    unread_banner(user_id)                    # visible hint they have unread
-    notification_bell(user_id)               # bell + popover
+    prefs = get_prefs(user_id)
+    toast_unread_once(user_id, prefs)
+    unread_banner(user_id, prefs)
+    notification_bell(user_id, prefs)
 
-# ========= Gentle auto-refresh (so new scores can trigger) =========
+# ========= Auto-refresh =========
 try:
     from streamlit_autorefresh import st_autorefresh
     st_autorefresh(interval=15_000, key="__notify_tick__")
@@ -1159,13 +1306,12 @@ if not df_assign.empty:
 else:
     df_assign = pd.DataFrame(columns=["studentcode","date","level","assignment","score"])
 
-# New score rows → notification (no grade shown)
 try:
     notify_if_new_scores(student_code, df_assign)
 except Exception:
     pass
 
-# ========= Optional test/reset helpers (no extra toasts) =========
+# ========= Optional test/reset helpers =========
 colA, colB = st.columns([1,3])
 with colA:
     if st.button("↻ Refresh results"):
@@ -1177,9 +1323,8 @@ with colB:
         st.success("Baselines reset. Add a new row in the sheet to trigger notifications.")
 
 # ============================
-# MAIN TAB SELECTION
+# MAIN TAB SELECTION (unchanged)
 # ============================
-
 tab = st.radio(
     "How do you want to practice?",
     [
@@ -1192,6 +1337,7 @@ tab = st.radio(
     ],
     key="main_tab_select"
 )
+
 
 
 if tab == "Dashboard":
@@ -8030,6 +8176,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
