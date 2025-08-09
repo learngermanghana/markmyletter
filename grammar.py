@@ -824,15 +824,19 @@ if st.button("Log out"):
     st.stop()
 
 # ===========================
-# MARKS NOTIFICATION WIDGET
+# MARKS NOTIFICATION WIDGET (fixed cookie setup)
 # ===========================
 
-import json
-import hashlib
-from datetime import datetime
-import pandas as pd
-import streamlit as st
-from streamlit_cookies_manager import EncryptedCookieManager
+
+# --- tiny helper for secrets/env with fallback ---
+def _get_secret(key: str, default: str = "") -> str:
+    v = os.getenv(key)
+    if v: return v
+    try:
+        v = st.secrets.get(key, "")
+    except Exception:
+        v = ""
+    return v or default
 
 # --- Your Google Sheet (from the link you shared) ---
 SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
@@ -844,15 +848,16 @@ STUDENT_CODE = (st.session_state.get("student_code")
                 or st.session_state.get("user_code")
                 or "").strip()
 
-# --- Cookies: persist seen notifications per-student, per-browser ---
-cookie = EncryptedCookieManager(prefix="falowen_marks")
-cookie_ready = cookie.ready()  # returns False on first run until a rerun happens
+# --- Cookies: MUST provide a password (env/secret recommended) ---
+COOKIE_PASSWORD = _get_secret("COOKIE_PASSWORD", "falowen-dev-cookie-secret")  # set a real secret in prod!
+cookies = EncryptedCookieManager(prefix="falowen_marks", password=COOKIE_PASSWORD)
+cookies_ready = cookies.ready()  # False on first run until rerender
 
 def _seen_key(code: str) -> str:
     return f"seen_marks::{(code or 'guest').lower()}"
 
 def load_seen(code: str) -> set[str]:
-    raw = cookie.get(_seen_key(code), "[]") if cookie_ready else st.session_state.get(_seen_key(code), "[]")
+    raw = cookies.get(_seen_key(code), "[]") if cookies_ready else st.session_state.get(_seen_key(code), "[]")
     try:
         return set(json.loads(raw))
     except Exception:
@@ -860,10 +865,10 @@ def load_seen(code: str) -> set[str]:
 
 def save_seen(code: str, ids: set[str]):
     raw = json.dumps(sorted(list(ids)))
-    if cookie_ready:
-        cookie[_seen_key(code)] = raw
+    if cookies_ready:
+        cookies[_seen_key(code)] = raw
         try:
-            cookie.save()
+            cookies.save()
         except Exception:
             pass
     else:
@@ -879,31 +884,20 @@ def load_marks() -> pd.DataFrame:
         st.error(f"Could not read marks sheet: {e}")
         return pd.DataFrame(columns=EXPECTED_COLS)
 
-    # Normalize headers to lower-case
     df.columns = [c.strip().lower() for c in df.columns]
-
-    # Check required columns
     missing = [c for c in EXPECTED_COLS if c not in df.columns]
     if missing:
         st.warning("Marks sheet is missing columns: " + ", ".join(missing))
-        # Return empty frame with expected schema so rest of code doesn't crash
         return pd.DataFrame(columns=EXPECTED_COLS)
 
-    # Parse date safely, coerce invalid to NaT
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
-
-    # Normalize text fields
     for c in ["studentcode","name","assignment","comments","level"]:
         df[c] = df[c].astype(str).fillna("").str.strip()
-
-    # Scores numeric (keeps floats/ints)
     df["score"] = pd.to_numeric(df["score"], errors="coerce")
-
-    # Sort newest first; NaT dates go last
     df = df.sort_values(["date","assignment"], ascending=[False, True], na_position="last")
     return df
 
-# --- Stable row id that changes if score/comments change; safe with missing dates ---
+# --- Stable row id (safe with missing dates) ---
 def row_id(row: pd.Series) -> str:
     scode = (row.get("studentcode") or "").strip().lower()
     assign = (row.get("assignment") or "").strip()
@@ -912,7 +906,6 @@ def row_id(row: pd.Series) -> str:
     if isinstance(d, (pd.Timestamp, datetime)) and pd.notna(d):
         date_part = d.strftime("%Y-%m-%d")
     else:
-        # Attempt parsing if it's a string; otherwise default
         try:
             d2 = pd.to_datetime(d, errors="raise")
             date_part = d2.strftime("%Y-%m-%d")
@@ -923,9 +916,8 @@ def row_id(row: pd.Series) -> str:
     if pd.isna(s):
         score_txt = ""
     else:
-        # Format like pandas would (no trailing .0 if integer)
         try:
-            score_txt = f"{float(s):g}"
+            score_txt = f"{float(s):g}"  # no trailing .0 if int
         except Exception:
             score_txt = str(s)
 
@@ -934,20 +926,19 @@ def row_id(row: pd.Series) -> str:
 
     return f"{scode}|{assign}|{date_part}|{score_txt}|{com_digest}"
 
-# --- Auto-refresh every 30s (newer Streamlit supports st.autorefresh) ---
+# --- Auto-refresh every 30s (if available) ---
 try:
     st.autorefresh(interval=30_000, key="marks_poll")
 except Exception:
     pass
 
-# --- Load, filter by student, compute unseen ---
+# --- Load, filter, compute unseen ---
 df_all = load_marks()
 df = df_all.copy()
 if STUDENT_CODE:
     df = df[df["studentcode"].str.lower() == STUDENT_CODE.lower()].copy()
 
 if df.empty:
-    # Minimal header UI so the section looks consistent
     st.markdown(
         """
         <div style="display:flex;align-items:center;gap:.6rem;padding:.5rem 0;">
@@ -960,7 +951,6 @@ if df.empty:
     )
     st.info("No marks yet.")
 else:
-    # Build ids
     df["__id"] = df.apply(row_id, axis=1)
 
     seen_ids = load_seen(STUDENT_CODE)
@@ -968,7 +958,6 @@ else:
     unseen_ids = [rid for rid in current_ids if rid not in seen_ids]
     unread_count = len(unseen_ids)
 
-    # Header: bell with unread count
     bell = "🔔" if unread_count else "🔕"
     st.markdown(
         f"""
@@ -981,7 +970,6 @@ else:
         unsafe_allow_html=True
     )
 
-    # Toast the newest unseen mark
     if unread_count:
         newest = df[df["__id"].isin(unseen_ids)].head(1)
         if not newest.empty:
@@ -992,11 +980,9 @@ else:
                          else f"{r['score']}")
             st.toast(f"New mark posted: {r['assignment']} — {score_txt}/100 ({when})")
 
-    # Optional: Toggle to show only new marks
     show_only_new = st.toggle("Show only new", value=False)
     view_df = df[df["__id"].isin(unseen_ids)] if show_only_new else df
 
-    # List items (🆕 tag for unseen)
     def fmt_row(rr: pd.Series) -> str:
         date_txt = rr["date"].strftime("%Y-%m-%d") if pd.notna(rr["date"]) else "—"
         if pd.isna(rr["score"]):
@@ -1006,7 +992,6 @@ else:
         tag = "🆕 " if rr["__id"] in unseen_ids else ""
         com = (rr["comments"] or "").strip()
         com = (com[:200] + "…") if len(com) > 200 else com
-        # name/level shown only if you decide to show all students (admin view)
         extra = []
         if not STUDENT_CODE:
             if rr.get("name"): extra.append(rr["name"])
@@ -1021,7 +1006,6 @@ else:
         for _, rr in view_df.iterrows():
             st.markdown(fmt_row(rr), unsafe_allow_html=True)
 
-    # Actions
     c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("Mark all as read ✅"):
@@ -1033,11 +1017,12 @@ else:
             st.success("Visible marks marked as read.")
     with c3:
         if st.button("Refresh 🔄"):
-            st.experimental_rerun()
+            st.rerun()
 
-# In case cookies were just initialized, ask Streamlit to rerun once so they become usable
-if not cookie_ready:
-    st.experimental_rerun()
+# If cookies just initialized, rerun once so they're usable
+if not cookies_ready:
+    st.rerun()
+
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
@@ -8195,6 +8180,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
