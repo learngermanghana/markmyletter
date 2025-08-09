@@ -1089,6 +1089,21 @@ def display_notifications_toast_only(user_id: str):
     except Exception:
         pass
 
+@st.cache_data(ttl=30)  # refresh every 30s for testing
+def load_assignment_scores():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    GID = "2121051612"  # <- the tab you edited
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}"
+    df = pd.read_csv(url, dtype=str)
+    df.columns = df.columns.str.strip().str.lower()
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    # Optional: normalize expected column names (friendly if headers vary slightly)
+    df = df.rename(columns={
+        "student code": "studentcode",
+        "student": "name",
+    })
+    return df
 
 
 # --- Main Tab Selection ---
@@ -7941,6 +7956,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
