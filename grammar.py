@@ -6802,7 +6802,7 @@ if tab == "Vocab Trainer":
     # ===========================
     # SUBTAB: Writing Practice (Sentence Builder)
     # ===========================
-    elif subtab == "Sentence Builder":
+    if subtab == "Sentence Builder":
         student_level = student_level_locked
         st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
@@ -6974,7 +6974,7 @@ if tab == "Vocab Trainer":
     # ===========================
     # SUBTAB: Vocab Practice (flashcards)
     # ===========================
-    if subtab == "Vocab Practice":
+    elif subtab == "Vocab Practice":
         # init session vars
         defaults = {"vt_history":[], "vt_list":[], "vt_index":0, "vt_score":0, "vt_total":None}
         for k,v in defaults.items(): st.session_state.setdefault(k,v)
