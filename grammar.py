@@ -4063,10 +4063,10 @@ if tab == "Course Book":
 def linkify_html(text):
     """Escape HTML and convert URLs in plain text to anchor tags."""
     s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
-    s = html.escape(s)  # stdlib html module
-    url_pat = r'(https?://[^\s<]+)'
-    s = re.sub(url_pat, r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+    s = html_stdlib.escape(s)  # <-- use stdlib html, not the component
+    s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
     return s
+
 
 def _clean_link(val) -> str:
     """Return a clean string or '' if empty/NaN/common placeholders."""
@@ -8260,6 +8260,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
