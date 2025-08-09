@@ -1029,7 +1029,7 @@ if st.session_state.get("logged_in"):
 
     # -------------------- BELL ANIMATION LOGIC --------------------
     urgent = urgent_contract or urgent_assignments
-    bell_anim = "bell-ring" if urgent else "bell-pulse"
+    bell_anim = "bell-pulse" if urgent else "bell-pulse"
     bell_color = "#e63946" if urgent else "#333"
 
     st.markdown(f"""
@@ -1057,7 +1057,7 @@ if st.session_state.get("logged_in"):
                          color:{bell_color};">🔔</span> Your Notifications
         </div>
     """, unsafe_allow_html=True)
-
+#
     # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
     st.markdown("""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
@@ -8104,6 +8104,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
