@@ -7086,7 +7086,26 @@ if tab == "Vocab Trainer":
                     key=f"tts_dl_{idx}"
                 )
 
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}")
+            # bigger, bolder, clearer input
+            st.markdown(
+                """
+                <style>
+                div[data-baseweb="input"] input {
+                    font-size: 18px !important;
+                    font-weight: 600 !important;
+                    color: black !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+            usr = st.text_input(
+                f"{word} = ?",
+                key=f"vt_input_{idx}",
+                placeholder="Type your answer here..."
+            )
+
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
@@ -7108,6 +7127,7 @@ if tab == "Vocab Trainer":
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
+
 
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
