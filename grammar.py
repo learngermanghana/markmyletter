@@ -880,404 +880,200 @@ if st.button("Log out"):
     # Stop execution; the client-side reload will show the logged-out UI
     st.stop()
 
+# ============================
+# Notifications-only dashboard logic (no visible widgets)
+# Paste this AFTER login (have `student_code`, `student_row`) and BEFORE your tab selector.
+# ============================
 
-# ---- Notify student ONLY when a NEW score row appears (no grade display) ----
-SCORES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/edit?gid=2121051612#gid=2121051612"
+from datetime import date, timedelta
+import pandas as pd
 
-def _user_doc(user_id: str):
-    return db.collection("users").document(user_id)
+WEEKLY_GOAL = 3
+MIN_ASSIGNMENTS_FOR_LB = 3  # min completed to appear in leaderboard
+LEVEL_TOTALS = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}  # used for rank calc filter
 
-def _get_last_seen_score_count(user_id: str) -> int | None:
+def _user_doc(uid: str):
+    return db.collection("users").document(uid)
+
+def _get_user_stat(uid: str, key: str, default=None):
     try:
-        d = _user_doc(user_id).get()
-        if not d.exists:
-            return None
-        return int((d.to_dict() or {}).get("last_seen_score_count"))
+        snap = _user_doc(uid).get()
+        if not snap.exists:
+            return default
+        return (snap.to_dict() or {}).get(key, default)
     except Exception:
-        return None
+        return default
 
-def _set_last_seen_score_count(user_id: str, n: int):
+def _set_user_stats(uid: str, **kv):
     try:
-        _user_doc(user_id).set({"last_seen_score_count": int(n)}, merge=True)
+        _user_doc(uid).set(kv, merge=True)
     except Exception:
         pass
 
-def notify_if_new_scores(user_id: str, df_assign: pd.DataFrame):
-    """
-    Fire a notification ONLY when the number of the student's score rows increases.
-    No grades shown, just a link to Results/Resources.
-    """
-    if df_assign is None or df_assign.empty:
-        return
-
-    df = df_assign.copy()
-    df.columns = df.columns.str.strip().str.lower()
-    for c in df.columns:
-        df[c] = df[c].astype(str).str.strip()
-
-    if "studentcode" not in df.columns:
-        return
-
-    sub = df[df["studentcode"].str.lower() == user_id.lower()].copy()
-    current_count = len(sub)
-
-    last_count = _get_last_seen_score_count(user_id)
-    if last_count is None:
-        # First run for this user → prime baseline (don’t spam old results)
-        _set_last_seen_score_count(user_id, current_count)
-        return
-
-    if current_count > last_count:
-        # One or more NEW results published
-        try:
-            send_notification(
-                user_id=user_id,
-                title="New result published",
-                message="A new score is available. Tap to view it in Results & Resources.",
-                type_="assignment",
-                deeplink=SCORES_SHEET_URL,  # takes them to your sheet/results hub
-            )
-        finally:
-            _set_last_seen_score_count(user_id, current_count)
-    elif current_count < last_count:
-        # Rows got cleaned up; resync quietly
-        _set_last_seen_score_count(user_id, current_count)
-
-
-
-# ==== GOOGLE SHEET LOADING FUNCTIONS ====
-@st.cache_data
-def load_assignment_scores():
-    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url, dtype=str)
-    df.columns = df.columns.str.strip().str.lower()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
-    return df
-
-@st.cache_data
-def load_full_vocab_sheet():
-    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    try:
-        df = pd.read_csv(csv_url, dtype=str)
-    except Exception:
-        st.error("Could not load vocab sheet.")
-        return pd.DataFrame()
-    df.columns = df.columns.str.strip()
-    if "Level" not in df.columns:
-        return pd.DataFrame()
-    df = df[df["Level"].notna()]
-    df["Level"] = df["Level"].str.upper().str.strip()
-    return df
-
-def get_vocab_of_the_day(df, level):
-    level = level.upper().strip()
-    subset = df[df["Level"] == level]
-    if subset.empty:
-        return None
-    from datetime import date as _date
-    today_ordinal = _date.today().toordinal()
-    idx = today_ordinal % len(subset)
-    row = subset.reset_index(drop=True).iloc[idx]
-    return {
-        "german": row.get("German", ""),
-        "english": row.get("English", ""),
-        "example": row.get("Example", "") if "Example" in row else ""
-    }
-
-def parse_contract_end(date_str):
-    if not date_str or str(date_str).lower() in ("nan", "none", ""):
-        return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
-    return None
-
-@st.cache_data
-def load_reviews():
-    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
-    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
-
-if st.session_state.get("logged_in"):
-    student_code = st.session_state["student_code"].strip().lower()
-    student_name = st.session_state["student_name"]
-
-    # Load student info
-    df_students = load_student_data()
-    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
-    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
-
-    # Greeting and contract info
-    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
-
-    # --- Contract End and Renewal Policy (ALWAYS VISIBLE) ---
-    MONTHLY_RENEWAL = 1000
-    contract_end_str = student_row.get("ContractEnd", "")
-    today = datetime.today()
-    contract_end = parse_contract_end(contract_end_str)
-    if contract_end:
-        days_left = (contract_end - today).days
-        if 0 < days_left <= 30:
-            st.warning(
-                f"⏰ **Your contract ends in {days_left} days ({contract_end.strftime('%d %b %Y')}).**\n"
-                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
-            )
-        elif days_left < 0:
-            st.error(
-                f"⚠️ **Your contract has ended!** Please contact the office to renew for **₵{MONTHLY_RENEWAL:,} per month**."
-            )
-    else:
-        st.info("Contract end date unavailable or in wrong format.")
-
-    st.info(
-        f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-        "Do your best to complete your course on time to avoid extra fees!"
-    )
-
-    # --- Assignment Streak + Weekly Goal (ALWAYS VISIBLE, BEFORE TAB SELECTION) ---
-    df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(
-        df_assign["date"], format="%Y-%m-%d", errors="coerce"
-    ).dt.date
-    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
-
-    from datetime import timedelta, date
-    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
-    streak = 1 if dates else 0
-    for i in range(1, len(dates)):
-        if (dates[i - 1] - dates[i]).days == 1:
+def _compute_streak(dates_sorted_desc):
+    """dates_sorted_desc: list[date] sorted newest -> oldest"""
+    if not dates_sorted_desc:
+        return 0
+    streak = 1
+    for i in range(1, len(dates_sorted_desc)):
+        if (dates_sorted_desc[i-1] - dates_sorted_desc[i]).days == 1:
             streak += 1
         else:
             break
+    return streak
 
+def _weekly_count(df_assign: pd.DataFrame, student_code: str) -> int:
     today = date.today()
     monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[
-        mask_student & (df_assign["date"] >= monday)
-    ].shape[0]
-    WEEKLY_GOAL = 3
+    mask = (df_assign["studentcode"].str.lower().str.strip() == student_code.lower()) & \
+           (df_assign["date"] >= monday)
+    return int(df_assign.loc[mask].shape[0])
 
-    st.markdown("### 🏅 Assignment Streak & Weekly Goal")
-    col1, col2 = st.columns(2)
-    col1.metric("Streak", f"{streak} days")
-    col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
-    if assignment_count >= WEEKLY_GOAL:
-        st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
-    else:
-        rem = WEEKLY_GOAL - assignment_count
-        st.info(f"Submit {rem} more assignment{'s' if rem > 1 else ''} by Sunday to hit your goal.")
+def _leaderboard_rank(df_assign: pd.DataFrame, user_level: str, student_code: str):
+    """
+    Return (rank:int|None, total_students:int) for this level, or (None, 0) if not enough data.
+    Rank: 1 = best. Only counts students with at least MIN_ASSIGNMENTS_FOR_LB completed at this level.
+    """
+    df = df_assign.copy()
+    df["level"] = df["level"].astype(str).str.upper().str.strip()
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+    lvl = (user_level or "").upper().strip()
+    if not lvl:
+        return None, 0
 
-    # --- Trigger per-student notification if a NEW score row appears in the sheet ---
     try:
-        maybe_notify_new_assignment_score(student_code, df_assign)
-    except Exception as e:
-        # Silent fail so UI isn't broken by sheet/Firestore issues
-        pass
-   
-    # --- 🔔 Notify only when NEW results are published (no grade display here) ---
-    try:
-        notify_if_new_scores(student_code, df_assign)
+        grp = (
+            df[df["level"] == lvl]
+            .groupby(["studentcode", "name"], as_index=False)
+            .agg(total_score=("score","sum"),
+                 completed=("assignment","nunique"))
+        )
     except Exception:
-        pass
+        return None, 0
 
+    grp = grp[grp["completed"] >= MIN_ASSIGNMENTS_FOR_LB]
+    if grp.empty:
+        return None, 0
 
+    grp = grp.sort_values(["total_score", "completed"], ascending=[False, False]).reset_index(drop=True)
+    grp["rank"] = grp.index + 1
+    mine = grp[grp["studentcode"].str.lower() == student_code.lower()]
+    if mine.empty:
+        return None, int(len(grp))
+    return int(mine.iloc[0]["rank"]), int(len(grp))
 
-        # ==== VOCAB OF THE DAY (level-specific, NO INPUT) ====
-    student_level = (student_row.get("Level") or "A1").upper().strip()
-    vocab_df = load_full_vocab_sheet()
-    vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+# Gentle auto-refresh so updates can toast without clicks
+st.autorefresh(interval=15_000, key="__notify_tick__")
 
-    if vocab_item:
-        st.markdown(f"### 🗣️ Vocab of the Day <span style='font-size:1rem;color:#999;'>({student_level})</span>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <ul style='list-style:none;margin:0;padding:0;'>
-            <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
-            <li><b>English:</b> {vocab_item['english']}</li>
-            {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
-        </ul>
-        """, unsafe_allow_html=True)
-    else:
-        st.info(f"No vocab found for level {student_level}.")
+# 1) Load the sheet (quietly)
+try:
+    df_assign = load_assignment_scores()
+except Exception:
+    df_assign = pd.DataFrame()
 
-    st.divider()
+# Normalize and parse date for internal use
+if not df_assign.empty:
+    df_assign = df_assign.copy()
+    df_assign.columns = df_assign.columns.str.strip().str.lower()
+    for c in df_assign.columns:
+        df_assign[c] = df_assign[c].astype(str).str.strip()
+    if "date" in df_assign.columns:
+        df_assign["date"] = pd.to_datetime(df_assign["date"], errors="coerce").dt.date
+else:
+    df_assign = pd.DataFrame(columns=["studentcode","date","level","assignment","score"])
 
+# 2) New score rows → Firestore notification (no grade shown)
+try:
+    notify_if_new_scores(student_code, df_assign)
+except Exception:
+    pass
 
-    import random
-
-    # --- Rotating Motivation/Encouragement Lists ---
-    STUDY_TIPS = [
-        "Study a little every day. Small steps lead to big progress!",
-        "Teach someone else what you learned to remember it better.",
-        "If you make a mistake, that’s good! Mistakes are proof you are learning.",
-        "Don’t just read—write or say your answers aloud for better memory.",
-        "Review your old assignments to see how far you’ve come!"
-    ]
-
-    INSPIRATIONAL_QUOTES = [
-        "“The secret of getting ahead is getting started.” – Mark Twain",
-        "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
-        "“It always seems impossible until it’s done.” – Nelson Mandela",
-        "“The expert in anything was once a beginner.” – Helen Hayes",
-        "“Learning never exhausts the mind.” – Leonardo da Vinci"
-    ]
-
-
-    # --- Personalized Leaderboard Position on Main Dashboard ---
-    MIN_ASSIGNMENTS = 3
-
-    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
-    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
-    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
-
-    # Calculate leaderboard by total score and number of assignments
-    df_level = (
-        df_assign[df_assign['level'] == user_level]
-        .groupby(['studentcode', 'name'], as_index=False)
-        .agg(
-            total_score=('score', 'sum'),
-            completed=('assignment', 'nunique')
-        )
+# 3) Streak & weekly goal changes → notifications (no widgets)
+try:
+    # all my submission dates (newest → oldest)
+    my_dates = sorted(
+        [d for d in df_assign.loc[df_assign["studentcode"].str.lower()==student_code.lower(),"date"].dropna().unique()],
+        reverse=True
     )
-    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
+    current_streak = _compute_streak(my_dates)
+    last_streak = int(_get_user_stat(student_code, "last_seen_streak", 0) or 0)
 
-    # Sort: most total points, then most completed
-    df_level = df_level.sort_values(
-        ['total_score', 'completed'],
-        ascending=[False, False]
-    ).reset_index(drop=True)
-    df_level['Rank'] = df_level.index + 1
-
-    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
-    total_students = len(df_level)
-
-    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total_possible = totals.get(user_level, 0)
-
-    if not your_row.empty:
-        row = your_row.iloc[0]
-        rank = int(row['Rank'])
-        percent = (rank / total_students) * 100 if total_students else 0
-        completed = int(row['completed'])
-
-        progress_pct = (completed / total_possible) * 100 if total_possible else 0
-
-        # --- Rotating motivation style ---
-        rotate = random.randint(0, 3)
-        if rotate == 0:
-            if rank == 1:
-                message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
-            elif rank <= 3:
-                message = "🌟 You’re in the top 3! Excellent consistency and effort."
-            elif percent <= 10:
-                message = "💪 You’re in the top 10%. Great progress—keep pushing for the top!"
-            elif percent <= 50:
-                message = "👏 You’re above average! Stay consistent to reach the next level."
-            elif rank == total_students:
-                message = "🔄 Don’t give up! Every assignment you finish brings you closer to the next rank."
-            else:
-                message = "🚀 Every journey starts somewhere—keep completing assignments and watch yourself climb!"
-        elif rotate == 1 or rotate == 3:
-            message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
-        else:
-            message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
-
-        st.markdown(
-            f"""
-            <div style="
-                background:#b388ff;
-                border-left: 7px solid #8d4de8;
-                color:#181135;
-                padding:18px 20px;
-                border-radius:14px;
-                margin:10px 0 18px 0;
-                box-shadow: 0 3px 12px rgba(0,0,0,0.13);
-                font-weight: 500;
-                ">
-                <b>🏅 Your Leaderboard Position (Level {user_level}):</b><br>
-                <span style="font-size:1.21em;">
-                    <b>Rank:</b> #{rank} <b>out of</b> {total_students} students
-                </span>
-                <br>
-                <span style="font-size:0.98em; color:#444;">(Your Level: <b>{user_level}</b>)</span>
-                <div style="margin-top:10px;font-size:1.09em;">{message}</div>
-            </div>
-            """, unsafe_allow_html=True
+    if current_streak > last_streak:
+        send_notification(
+            user_id=student_code,
+            title="Streak updated 🎯",
+            message=f"Nice! Your streak is now {current_streak} day(s). Keep it going!",
+            type_="achievement",
         )
+        _set_user_stats(student_code, last_seen_streak=int(current_streak))
+    elif current_streak < last_streak:
+        # data changed (cleanup); resync quietly
+        _set_user_stats(student_code, last_seen_streak=int(current_streak))
 
-        # Progress Bar or Progress Text
-        st.markdown(
-            f"""
-            <div style='margin-top:8px;'>
-                <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
-                <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
-                    <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True
+    # weekly count (notify only when you REACH the goal to avoid spam)
+    wk_count = _weekly_count(df_assign, student_code)
+    last_week_count = int(_get_user_stat(student_code, "last_seen_week_count", 0) or 0)
+
+    if wk_count >= WEEKLY_GOAL and last_week_count < WEEKLY_GOAL:
+        send_notification(
+            user_id=student_code,
+            title="Weekly goal reached ✅",
+            message=f"You’ve submitted {wk_count} this week. Great job!",
+            type_="achievement",
         )
-    else:
-        st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
+    # Always keep latest for comparison next time
+    if wk_count != last_week_count:
+        _set_user_stats(student_code, last_seen_week_count=int(wk_count))
+except Exception:
+    pass
 
-        # Even if not on leaderboard, show student's assignment count
-        completed = df_assign[
-            (df_assign['studentcode'].str.lower() == student_code.lower()) &
-            (df_assign['level'] == user_level)
-        ]['assignment'].nunique()
+# 4) Leaderboard rank improvements → notification (no widget)
+try:
+    user_level = (student_row.get("Level") or "").strip().upper()
+    rank, total = _leaderboard_rank(df_assign, user_level, student_code)
+    last_rank = _get_user_stat(student_code, "last_seen_rank", None)
 
-        # Always use your hardcoded total for max
-        total_possible = totals.get(user_level, 0)
-        progress_pct = (completed / total_possible) * 100 if total_possible else 0
-
-        if completed > 0:
-            st.markdown(
-                f"""
-                <div style='margin-top:8px;'>
-                    <b>Your Progress:</b> {completed} out of {total_possible} assignments completed
-                    <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
-                        <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True
-            )
+    # Notify only if rank improved (number got smaller)
+    if rank is not None:
+        if last_rank is None:
+            _set_user_stats(student_code, last_seen_rank=int(rank))
         else:
-            st.info("Start submitting assignments to see your progress bar here!")
+            try:
+                last_rank_int = int(last_rank)
+                if rank < last_rank_int:
+                    send_notification(
+                        user_id=student_code,
+                        title="You moved up the leaderboard 🚀",
+                        message=f"You’re now ranked #{rank} in {user_level}. Keep going!",
+                        type_="achievement",
+                    )
+            except Exception:
+                pass
+            finally:
+                _set_user_stats(student_code, last_seen_rank=int(rank))
+except Exception:
+    pass
 
-    st.divider()
+# 5) Show unread notifications as TOASTS ONLY (no widgets at top)
+try:
+    display_notifications_toast_only(student_code)
+except Exception:
+    pass
 
 
-    # ---------- Tab Tips Section (only on Dashboard) ----------
-    DASHBOARD_REMINDERS = [
-        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
-        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-        "📝 **Have you used Exams Mode & Custom Chat?** Practice your speaking and real exam questions or ask your own. Get instant writing feedback and AI help!",
-        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
-        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
-        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
-    ]
-    import random
-    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-    st.info(dashboard_tip)  # This line gives the tip as a friendly info box
-
-    # --- Main Tab Selection ---
-    tab = st.radio(
-        "How do you want to practice?",
-        [
-            "Dashboard",
-            "Course Book",
-            "My Results and Resources",
-            "Exams Mode & Custom Chat",
-            "Vocab Trainer",
-            "Schreiben Trainer",
-        ],
-        key="main_tab_select"
-    )
+# --- Main Tab Selection ---
+tab = st.radio(
+    "How do you want to practice?",
+    [
+        "Dashboard",
+        "Course Book",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+    ],
+    key="main_tab_select"
+)
 
 if tab == "Dashboard":
     # --- Helper to avoid AttributeError on any row type ---
@@ -8115,6 +7911,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
