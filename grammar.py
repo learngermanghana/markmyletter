@@ -3568,7 +3568,7 @@ if tab == "Course Book":
 
         st.divider()
 
-        # === SUBMIT ASSIGNMENT SECTION (IN-APP, PROFESSIONAL) ===
+        # === SUBMIT ASSIGNMENT SECTION (Simple: submit + receipt + lock) ===
         st.markdown("### ✅ Submit Your Assignment")
 
         # --- Save Draft to Firestore ---
@@ -3577,11 +3577,11 @@ if tab == "Course Book":
             doc_ref.set({lesson_key: text}, merge=True)
 
         code = student_row.get('StudentCode', 'demo001')
-        lesson_key = f"draft_{info['chapter']}"
+        lesson_key = f"draft_{info['chapter']}"     # unique per chapter
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
 
-        # Lock control persisted per lesson
+        # Persisted lock per lesson
         locked_key = f"{lesson_key}_locked"
         locked = st.session_state.get(locked_key, False)
 
@@ -3598,157 +3598,95 @@ if tab == "Course Book":
             height=500,
             key=lesson_key,
             on_change=autosave_draft,
-            disabled=locked,   # lock if returned and no resubmit
+            disabled=locked,
         )
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("✅ Draft autosaved!")
 
-        # --- Instructions in Expander ---
+        # --- Instructions ---
         with st.expander("📌 How to Submit", expanded=False):
             st.markdown("""
-                1) Type your answer in the box above.  
-                2) Click **Submit to Tutor**.  
-                3) You’ll get a receipt ID and see your status (Submitted → Marked → Returned).  
-                4) If resubmissions are disabled, your box will lock after submit.
+                1) Type your answer above.  
+                2) Click **Submit to Tutor** to get a **receipt ID**.  
+                3) Your box will lock.  
+                _You can still read your submission; edits are disabled._
             """)
 
-        # --- Firestore: create/update submission ---
+        # --- Firestore: create submission, return receipt ID ---
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
             if not answer or not answer.strip():
                 st.warning("Please type your answer before submitting.")
-                return False, None
+                return False, None, None
 
             posts_ref = db.collection("submissions").document(level).collection("posts")
-
-            # check if a submission already exists for this student+lesson
-            q = posts_ref.where("student_code", "==", code)\
-                         .where("lesson_key", "==", lesson_key)\
-                         .limit(1).stream()
-            existing = None
-            for d in q:
-                existing = d
-                break
 
             now = datetime.utcnow()
             payload = {
                 "student_code": code,
                 "student_name": name or "Student",
                 "level": level,
-                "day": info["day"],
+                "day": day,
                 "chapter": chapter,
                 "lesson_key": lesson_key,
                 "answer": answer.strip(),
                 "status": "submitted",
+                "created_at": now,
                 "updated_at": now,
+                "version": 1,
             }
 
-            if existing:
-                prev = existing.to_dict()
-                payload["created_at"] = prev.get("created_at", now)
-                payload["version"] = prev.get("version", 1) + 1
-                posts_ref.document(existing.id).set(payload, merge=True)
-                return True, existing.id
-            else:
-                payload["created_at"] = now
-                payload["version"] = 1
-                _, ref = posts_ref.add(payload)
-                return True, ref.id
+            # new submission per chapter
+            _, ref = posts_ref.add(payload)
+            doc_id = ref.id
+            # Short, human-friendly receipt (first 8 chars)
+            receipt = f"{doc_id[:8].upper()}-{day}"
+            return True, doc_id, receipt
 
-        # --- Status + history helpers ---
-        def fetch_history(level, code, lesson_key):
-            posts_ref = db.collection("submissions").document(level).collection("posts")
-            try:
-                # Try ordered query (requires composite index). If it fails, fall back without ordering.
-                docs = posts_ref.where("student_code","==",code)\
-                                .where("lesson_key","==",lesson_key)\
-                                .order_by("updated_at", direction=firestore.Query.DESCENDING).stream()
-                items = [d.to_dict() for d in docs]
-            except Exception:
-                # Fallback: no order_by (avoids FailedPrecondition when composite index is missing)
-                docs = posts_ref.where("student_code","==",code)\
-                                .where("lesson_key","==",lesson_key)\
-                                .stream()
-                items = [d.to_dict() for d in docs]
-                st.info("ℹ️ Using fallback ordering. Add a Firestore composite index on (student_code ASC, lesson_key ASC, updated_at DESC) for submissions.")
-            # Client-side sort newest-first
-            items.sort(key=lambda x: x.get("updated_at"), reverse=True)
-            return items
-
-        # Submit + Save + Ask
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            allow_resubmit = st.toggle(
-                "Allow resubmission?",
-                value=False,
-                help="If off, your box locks after submit."
+        # --- Submit + lock ---
+        if st.button("✅ Submit to Tutor", type="primary", disabled=locked):
+            ok, doc_id, receipt = submit_answer(
+                code=code,
+                name=name,
+                level=student_level,
+                day=info["day"],
+                chapter=chapter_name,
+                lesson_key=lesson_key,
+                answer=st.session_state.get(lesson_key, "")
             )
-            if st.button("✅ Submit to Tutor", type="primary", disabled=locked):
-                ok, sid = submit_answer(
-                    code=code,
-                    name=name,
-                    level=student_level,
-                    day=info["day"],
-                    chapter=chapter_name,
-                    lesson_key=lesson_key,
-                    answer=st.session_state.get(lesson_key, "")
-                )
-                if ok:
-                    st.success(f"Submitted! Receipt ID: `{sid}`")
-                    st.session_state[locked_key] = not allow_resubmit
-                    locked = st.session_state[locked_key]
-
-        with col2:
-            if st.button("📝 Save Answer to Notes", disabled=locked):
-                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-                st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
-                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
-                st.session_state["edit_note_idx"] = None
-                st.session_state["switch_to_notes"] = True
-                st.rerun()
-
-        with col3:
-            q_for_teacher = st.text_area(
-                "💬 Question for Teacher",
-                key=f"ask_teacher_{lesson_key}",
-                height=100,
-                placeholder="Ask anything about this lesson (visible to all students)"
-            )
-            if st.button("❓ Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
-                post_message(
-                    student_level,
-                    code,
-                    name or "Student",
-                    f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
-                )
-                st.success("✅ Question posted to the community board!")
+            if ok:
+                st.session_state[locked_key] = True
+                st.success(f"Submitted! Receipt: `{receipt}`")
+                st.caption("Keep this receipt. Your tutor has been notified.")
 
         st.divider()
 
-        # --- Current status + history view ---
-        hist = fetch_history(student_level, code, lesson_key)
-        if hist:
-            latest = hist[0]
-            ts = latest['updated_at'].strftime('%Y-%m-%d %H:%M') + " UTC"
-            st.markdown(
-                f"**Status:** `{latest['status']}`  ·  **Version:** `{latest.get('version',1)}`  ·  **Last updated:** {ts}"
-            )
-            if latest.get("feedback"):
-                st.success(f"📝 Tutor feedback: {latest['feedback']}")
-            with st.expander("Submission history"):
-                for h in hist:
-                    st.markdown(
-                        f"- v{h.get('version',1)} — {h['status']} — {h['updated_at'].strftime('%Y-%m-%d %H:%M')} UTC"
-                    )
+        # --- Read-only receipt + status (latest only) ---
+        def fetch_latest(level, code, lesson_key):
+            posts_ref = db.collection("submissions").document(level).collection("posts")
+            try:
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .order_by("updated_at", direction=firestore.Query.DESCENDING)\
+                                .limit(1).stream()
+                for d in docs:
+                    return d.id, d.to_dict()
+            except Exception:
+                # fallback without ordering if index missing
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .stream()
+                items = [(d.id, d.to_dict()) for d in docs]
+                items.sort(key=lambda x: x[1].get("updated_at"), reverse=True)
+                return items[0] if items else (None, None)
+            return None, None
 
-            # --- Optional auto-lock after returned ---
-            latest_status = latest['status']
-            if latest_status == "returned" and not allow_resubmit:
-                st.session_state[locked_key] = True
+        latest_id, latest = fetch_latest(student_level, code, lesson_key)
+        if latest:
+            receipt_show = f"{latest_id[:8].upper()}-{latest.get('day', info['day'])}"
+            st.markdown(f"**Receipt:** `{receipt_show}`  ·  **Status:** `{latest.get('status','submitted')}`")
         else:
             st.info("No submission yet. Type your answer and click **Submit to Tutor**.")
 
-#
 
 
     # === LEARNING NOTES SUBTAB ===
