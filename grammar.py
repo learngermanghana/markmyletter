@@ -3,6 +3,7 @@ import atexit
 import base64
 import bcrypt
 import difflib
+import html
 import io
 import json
 import os
@@ -13,6 +14,7 @@ import tempfile
 import time
 import urllib.parse
 from datetime import date, datetime, timedelta
+from uuid import uuid4
 
 # ==== Third-Party Packages ====
 import firebase_admin
@@ -27,9 +29,10 @@ from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
-from streamlit.components.v1 import html
+from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 # --- SEO: head tags (only on public/landing) ---
@@ -4051,8 +4054,17 @@ if tab == "Course Book":
                     unsafe_allow_html=True
                 )
             st.markdown("---")
-#
 
+
+
+def linkify_html(text):
+    """Escape HTML and convert URLs in plain text to anchor tags."""
+    s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
+    s = html.escape(s)
+    # make raw URLs clickable
+    url_pat = r'(https?://[^\s<]+)'
+    s = re.sub(url_pat, r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+    return s
 
 
 if tab == "My Results and Resources":
@@ -6592,8 +6604,6 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
         st.warning(f"Could not load level from roster ({e}). Using default {default}.")
         return default
 
-from uuid import uuid4
-from datetime import datetime
 
 def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
     """Check if an attempt with this session_id already exists for the student."""
