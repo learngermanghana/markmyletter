@@ -955,33 +955,6 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-# ==================== NOTIFICATIONS HEADER ====================
-st.markdown(
-    """
-    <div style="display:flex;align-items:center;gap:10px;
-                font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
-                padding:6px 10px;background:#fdf6e3;border-radius:8px;">
-        <span style="font-size:1.3em;">🔔</span> Your Notifications
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-# Small badge row under the title
-st.markdown(
-    """
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
-      <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
-      <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
-      <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
-      <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
-      <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
@@ -1004,6 +977,7 @@ if st.session_state.get("logged_in"):
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
 
+    urgent_contract = False
     if contract_end:
         days_left = (contract_end - today_dt).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
@@ -1015,6 +989,7 @@ if st.session_state.get("logged_in"):
                 f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
             )
             contract_title_extra = f"• ends in {days_left}d"
+            urgent_contract = True
         elif days_left < 0:
             contract_notice_level = "error"
             contract_msg = (
@@ -1022,6 +997,7 @@ if st.session_state.get("logged_in"):
                 f"for **₵{MONTHLY_RENEWAL:,} per month**."
             )
             contract_title_extra = "• ended"
+            urgent_contract = True
         else:
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
@@ -1048,6 +1024,51 @@ if st.session_state.get("logged_in"):
     WEEKLY_GOAL = 3
     goal_left = max(0, WEEKLY_GOAL - assignment_count)
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
+
+    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
+
+    # -------------------- BELL ANIMATION LOGIC --------------------
+    urgent = urgent_contract or urgent_assignments
+    bell_anim = "bell-ring" if urgent else "bell-pulse"
+    bell_color = "#e63946" if urgent else "#333"
+
+    st.markdown(f"""
+        <style>
+        @keyframes bell-ring {{
+            0% {{ transform: rotate(0); }}
+            10% {{ transform: rotate(15deg); }}
+            20% {{ transform: rotate(-10deg); }}
+            30% {{ transform: rotate(5deg); }}
+            40% {{ transform: rotate(-5deg); }}
+            50% {{ transform: rotate(0); }}
+            100% {{ transform: rotate(0); }}
+        }}
+        @keyframes bell-pulse {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.15); }}
+            100% {{ transform: scale(1); }}
+        }}
+        </style>
+        <div style="display:flex;align-items:center;gap:10px;
+                    font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
+                    padding:6px 10px;background:#fdf6e3;border-radius:8px;">
+            <span style="font-size:1.3em;animation:{bell_anim} 1.2s infinite;
+                         display:inline-block;transform-origin: top center;
+                         color:{bell_color};">🔔</span> Your Notifications
+        </div>
+    """, unsafe_allow_html=True)
+
+    # -------------------- BADGES --------------------
+    st.markdown("""
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
+          <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
+          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
+          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
+          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
+          <span style="background:#eaf7ff;color:#17617a;padding:4px 10px;border-radius:999px;font-size:0.9em;">💡 Tip</span>
+        </div>
+    """, unsafe_allow_html=True)
+
 
     # -------------------- VOCAB OF THE DAY --------------------
     student_level = (student_row.get("Level") or "A1").upper().strip()
@@ -8096,6 +8117,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
