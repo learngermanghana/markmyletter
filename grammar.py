@@ -3568,8 +3568,24 @@ if tab == "Course Book":
 
         st.divider()
 
-        # === SUBMIT ASSIGNMENT SECTION (Submit + lock + Slack + 2-step confirm; no receipt shown to student) ===
+        # === SUBMIT ASSIGNMENT SECTION (context banner + submit + lock + Slack) ===
         st.markdown("### ✅ Submit Your Assignment")
+
+        # --- Clear context banner so students know the exact page they are on ---
+        st.markdown(
+            f"""
+            <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
+                        background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
+              <div style="font-size:1.05rem;">
+                📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
+              </div>
+              <div style="color:#0369a1;margin-top:4px;">
+                Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         # --- Save Draft to Firestore ---
         def save_draft_to_db(code, lesson_key, text):
@@ -3603,18 +3619,29 @@ if tab == "Course Book":
         if st.session_state.get(f"{lesson_key}_saved", False):
             st.success("✅ Draft autosaved!")
 
-        # --- Instructions ---
+        # --- Instructions (remind again) ---
         with st.expander("📌 How to Submit", expanded=False):
-            st.markdown("""
-                1) Type your answer above.  
-                2) Tick the **two confirmations** below.  
+            st.markdown(f"""
+                1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
+                2) Tick the two confirmations below.  
                 3) Click **Confirm & Submit**.  
                 4) Your box will lock (read-only).  
-                _You’ll get an **email when it’s marked**. Check **Results & Resources** for scores & feedback._
+                _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
             """)
 
-        # --- Slack notify helper ---
-        import requests
+        # --- Slack notify helper (uses hardcoded fallback so it works even without secrets) ---
+        import os, requests
+        HARDCODED_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"  # ← replace with your webhook if you want it hardcoded
+
+        def get_slack_webhook():
+            # Prefer hardcoded (if provided); else Secrets; else env; else session override
+            return (
+                (HARDCODED_SLACK_WEBHOOK_URL or "").strip()
+                or (st.secrets.get("SLACK_WEBHOOK_URL") or "").strip()
+                or (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+                or (st.session_state.get("SLACK_WEBHOOK_URL_OVERRIDE") or "").strip()
+            )
+
         def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
                                     level: str, day: int, chapter: str, receipt: str, preview: str):
             text = (
@@ -3630,7 +3657,7 @@ if tab == "Course Book":
                 # Don't block the student if Slack fails
                 st.info("Submission saved. Slack notification could not be sent.")
 
-        # --- Firestore: create submission, return internal ref for Slack ---
+        # --- Firestore: create submission, return internal short ref (not shown to student) ---
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
             if not answer or not answer.strip():
                 st.warning("Please type your answer before submitting.")
@@ -3653,7 +3680,7 @@ if tab == "Course Book":
             }
             _, ref = posts_ref.add(payload)
             doc_id = ref.id
-            short_ref = f"{doc_id[:8].upper()}-{day}"   # for Slack only (not shown to student)
+            short_ref = f"{doc_id[:8].upper()}-{day}"   # for Slack only
             return True, short_ref
 
         # --- Two-step confirm + Submit / Save to Notes / Ask a Question ---
@@ -3662,12 +3689,12 @@ if tab == "Course Book":
         with col1:
             st.markdown("#### 🧾 Finalize")
             confirm_final = st.checkbox(
-                "I confirm this is my final answer.",
+                f"I checked I’m on Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
                 key=f"confirm_final_{lesson_key}",
                 disabled=locked
             )
             confirm_lock = st.checkbox(
-                "I understand it will be locked.",
+                "I understand it will be locked after I submit.",
                 key=f"confirm_lock_{lesson_key}",
                 disabled=locked
             )
@@ -3688,8 +3715,8 @@ if tab == "Course Book":
                     st.success("Submitted! Your work has been sent to your tutor.")
                     st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
-                    # Slack notify (if secret present)
-                    webhook = st.secrets.get("SLACK_WEBHOOK_URL")
+                    # Slack notify (direct; uses hardcoded fallback if present)
+                    webhook = get_slack_webhook()
                     if webhook:
                         notify_slack_submission(
                             webhook_url=webhook,
@@ -3740,47 +3767,31 @@ if tab == "Course Book":
                                 .order_by("updated_at", direction=firestore.Query.DESCENDING)\
                                 .limit(1).stream()
                 for d in docs:
-                    return d.id, d.to_dict()
+                    return d.to_dict()
             except Exception:
                 # fallback without ordering if index missing
                 docs = posts_ref.where("student_code","==",code)\
                                 .where("lesson_key","==",lesson_key)\
                                 .stream()
-                items = [(d.id, d.to_dict()) for d in docs]
-                items.sort(key=lambda x: x[1].get("updated_at"), reverse=True)
-                return items[0] if items else (None, None)
-            return None, None
+                items = [d.to_dict() for d in docs]
+                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
+                return items[0] if items else None
+            return None
 
-        latest_id, latest = fetch_latest(student_level, code, lesson_key)
+        latest = fetch_latest(student_level, code, lesson_key)
         if latest:
             ts = latest.get('updated_at')
             when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
             st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-            st.caption("You’ll receive an **email** when your work is marked. Check **Results & Resources** for scores and feedback.")
+            st.caption("You’ll receive an **email** when your work is marked. Check **Results & Resources** for scores & feedback.")
 
-            # --- Notification tools (no PIN; temporary while testing) ---
+            # (Optional) Notification tools while you test – uses same webhook getter
             with st.expander("🔔 Notification tools (temporary)", expanded=False):
-                import os
-                webhook = (
-                    st.secrets.get("SLACK_WEBHOOK_URL")
-                    or os.getenv("SLACK_WEBHOOK_URL")
-                    or st.session_state.get("SLACK_WEBHOOK_URL_OVERRIDE")
-                )
-
+                webhook = get_slack_webhook()
                 if not webhook:
-                    st.warning("No SLACK_WEBHOOK_URL found in secrets or environment.")
-                    tmp = st.text_input(
-                        "Paste a Slack webhook URL (temporary, not saved)",
-                        type="password",
-                        key=f"tmp_webhook_{lesson_key}"
-                    )
-                    if st.button("Use this webhook for this session", key=f"use_webhook_{lesson_key}") and (tmp or "").strip():
-                        st.session_state["SLACK_WEBHOOK_URL_OVERRIDE"] = tmp.strip()
-                        st.success("Webhook set for this session.")
-                        st.rerun()
+                    st.warning("No Slack webhook found. Set HARDCODED_SLACK_WEBHOOK_URL or Secrets/Env.")
                 else:
                     colA, colB = st.columns(2)
-
                     with colA:
                         if st.button("Send Test Slack Ping", key=f"test_slack_{lesson_key}"):
                             notify_slack_submission(
@@ -3794,10 +3805,10 @@ if tab == "Course Book":
                                 preview="This is a manual test notification."
                             )
                             st.success("Test ping sent to Slack.")
-
                     with colB:
                         if st.button("Resend Tutor Notification", key=f"resend_slack_{lesson_key}"):
-                            short_ref = f"{(latest_id or '')[:8].upper()}-{latest.get('day', info['day'])}"
+                            # Rebuild a short ref from the latest Firestore doc if needed
+                            st.info("Use the button above after a fresh submit for the most accurate preview.")
                             notify_slack_submission(
                                 webhook_url=webhook,
                                 student_name=name or latest.get("student_name") or "Student",
@@ -3805,7 +3816,7 @@ if tab == "Course Book":
                                 level=student_level,
                                 day=latest.get("day", info["day"]),
                                 chapter=latest.get("chapter", chapter_name),
-                                receipt=short_ref,
+                                receipt="LATEST",
                                 preview=latest.get("answer","")
                             )
                             st.success("Resent latest submission to Slack.")
