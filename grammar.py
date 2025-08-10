@@ -643,30 +643,31 @@ if not st.session_state.get("logged_in", False):
     </p>
     """, unsafe_allow_html=True)
 
-    # --- Rotating multi-country reviews ---
-    import json
-    import streamlit.components.v1 as components
+# --- Rotating multi-country reviews (fixed braces) ---
 
-    REVIEWS = [
-      {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-       "author": "Ama — Accra, Ghana", "level": "A2"},
-      {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-       "author": "Tunde — Lagos, Nigeria", "level": "B1"},
-      {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-       "author": "Nadia — Nairobi, Kenya", "level": "A1"},
-      {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-       "author": "Lea — Berlin, Germany", "level": "B2"},
-      {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-       "author": "James — London, UK", "level": "B1"},
-      {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
-       "author": "Maya — New York, USA", "level": "A1"},
-      {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-       "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
-      {"quote": "I like the locked submissions and the clean Results tab.",
-       "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
-    ]
 
-    components.html(f"""
+REVIEWS = [
+  {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
+   "author": "Ama — Accra, Ghana", "level": "A2"},
+  {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
+   "author": "Tunde — Lagos, Nigeria", "level": "B1"},
+  {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
+   "author": "Nadia — Nairobi, Kenya", "level": "A1"},
+  {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
+   "author": "Lea — Berlin, Germany", "level": "B2"},
+  {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
+   "author": "James — London, UK", "level": "B1"},
+  {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
+   "author": "Maya — New York, USA", "level": "A1"},
+  {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
+   "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
+  {"quote": "I like the locked submissions and the clean Results tab.",
+   "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
+]
+
+reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
+
+components.html(f"""
 <div role="region" aria-label="Student reviews" style="max-width:820px;margin:10px auto 0;">
   <div id="rev-quote" style="
       background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
@@ -684,7 +685,7 @@ if not st.session_state.get("logged_in", False):
 </div>
 
 <script>
-  const data = {json.dumps(REVIEWS)};
+  const data = {reviews_json};
   let i = 0;
 
   const quoteEl = document.getElementById('rev-quote');
@@ -692,9 +693,9 @@ if not st.session_state.get("logged_in", False):
   const prevBtn = document.getElementById('rev-prev');
   const nextBtn = document.getElementById('rev-next');
 
-  function renderDots(){
+  function renderDots(){{
     dotsEl.innerHTML = '';
-    data.forEach((_, idx) => {
+    data.forEach((_, idx) => {{
       const d = document.createElement('button');
       d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
       d.style.width = '10px';
@@ -705,17 +706,17 @@ if not st.session_state.get("logged_in", False):
       d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
       d.addEventListener('click', () => {{ i = idx; render(); }});
       dotsEl.appendChild(d);
-    });
-  }
+    }});
+  }}
 
-  function render(){
+  function render(){{
     const r = data[i];
     quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
     renderDots();
-  }
+  }}
 
-  function next(){ i = (i + 1) % data.length; render(); }
-  function prev(){ i = (i - 1 + data.length) % data.length; render(); }
+  function next(){{ i = (i + 1) % data.length; render(); }}
+  function prev(){{ i = (i - 1 + data.length) % data.length; render(); }}
 
   prevBtn.addEventListener('click', prev);
   nextBtn.addEventListener('click', next);
@@ -726,7 +727,8 @@ if not st.session_state.get("logged_in", False):
 
   render();
 </script>
-    """, height=200)
+""", height=200)
+
 
 
     # Support / Help section
