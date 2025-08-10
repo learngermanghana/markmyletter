@@ -591,8 +591,8 @@ st.markdown("""
 if not st.session_state.get("logged_in", False):
     st.markdown("""
     <div class="hero" aria-label="Falowen app introduction">
-      <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-      <p style="text-align:center; font-size:1.1em; color:#555;">
+      <h1 style="text-align:wide; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+      <p style="text-align:wide; font-size:1.1em; color:#555;">
         Falowen is your all-in-one German learning platform, powered by
         <b>Learn Language Education Academy</b>, with courses and vocabulary from
         <b>A1 to C1</b> levels and live tutor support.
@@ -8600,6 +8600,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
