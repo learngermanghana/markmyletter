@@ -654,22 +654,14 @@ if not st.session_state.get("logged_in", False):
     import streamlit.components.v1 as components
 
     REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-         "author": "Ama — Accra, Ghana", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-         "author": "Tunde — Lagos, Nigeria", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-         "author": "Nadia — Nairobi, Kenya", "level": "A1"},
-        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-         "author": "Lea — Berlin, Germany", "level": "B2"},
-        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-         "author": "James — London, UK", "level": "B1"},
-        {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
-         "author": "Maya — New York, USA", "level": "A1"},
-        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-         "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
-        {"quote": "I like the locked submissions and the clean Results tab.",
-         "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
+        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana", "level": "A2"},
+        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria", "level": "B1"},
+        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Nadia — Nairobi, Kenya", "level": "A1"},
+        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.", "author": "Lea — Berlin, Germany", "level": "B2"},
+        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.", "author": "James — London, UK", "level": "B1"},
+        {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.", "author": "Maya — New York, USA", "level": "A1"},
+        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.", "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
+        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
     ]
     _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
 
@@ -682,11 +674,9 @@ if not st.session_state.get("logged_in", False):
   </div>
 
   <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="
-      background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
+    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
     <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="
-      background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
+    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
   </div>
 </div>
 
@@ -735,54 +725,17 @@ if not st.session_state.get("logged_in", False):
 """
     components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
 
-    # --- Access options (3-path, Play-Store friendly) --------------------------
+    # --- Simple access explainer (no complex UI) -------------------------------
     st.markdown("""
     <div class="page-wrap" style="margin-top:16px;">
-      <div style="display:flex; flex-wrap:wrap; gap:14px; justify-content:center;">
-        <!-- New / not paid yet -->
-        <div style="flex:1 1 320px; max-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px;">
-          <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">New to Falowen?</div>
-          <div style="color:#475569; margin-bottom:12px;">Request access and we’ll contact you about payment & enrollment.</div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
-               target="_blank" rel="noopener"
-               style="background:#0ea5e9; color:#fff; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:600;">
-               Request access
-            </a>
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener"
-               style="background:#22c55e; color:#0b3b17; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:700;">
-               WhatsApp us
-            </a>
-          </div>
-          <div style="font-size:.85rem; color:#64748b; margin-top:10px;">
-            No payments inside the app (Play Store policy).
-          </div>
-        </div>
-
-        <!-- Approved student (email + code on roster) -->
-        <div style="flex:1 1 320px; max-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px;">
-          <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">Approved student ✅</div>
-          <div style="color:#475569; margin-bottom:12px;">
-            If we’ve added your <b>email + code</b> to the roster, create your account.
-          </div>
-          <a href="#signup"
-             style="background:#2563eb; color:#fff; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:600;">
-             Sign up
-          </a>
-          <div style="font-size:.85rem; color:#64748b; margin-top:10px;">Use your school email and your Falowen code.</div>
-        </div>
-
-        <!-- Returning student -->
-        <div style="flex:1 1 320px; max-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px;">
-          <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">Returning student</div>
-          <div style="color:#475569; margin-bottom:12px;">
-            Already created an account? Log in with your code or email.
-          </div>
-          <a href="#login_form"
-             style="background:#334155; color:#fff; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:600;">
-             Log in
-          </a>
-        </div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:14px;border-radius:12px;">
+        <div style="font-weight:700;color:#0f172a;margin-bottom:6px;">How to get access</div>
+        <ol style="margin:0 0 10px 22px;color:#334155;line-height:1.6;">
+          <li><b>New student:</b> <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" target="_blank" rel="noopener">Request access</a> or <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp us</a>. We’ll send payment steps and add your email + code.</li>
+          <li><b>Approved student:</b> After we add your details, open the <a href="#signup">Sign Up</a> tab and create your account.</li>
+          <li><b>Returning student:</b> Open the <a href="#login_form">Returning</a> tab and sign in with your Student Code or Email.</li>
+        </ol>
+        <div style="font-size:.9rem;color:#64748b;">Note: No payments inside the app (Play Store policy).</div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -838,13 +791,7 @@ if not st.session_state.get("logged_in", False):
             return False
 
         token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code"
-        }
+        data = {"code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET, "redirect_uri": REDIRECT_URI, "grant_type": "authorization_code"}
         try:
             resp = requests.post(token_url, data=data, timeout=10)
             if not resp.ok:
@@ -859,11 +806,7 @@ if not st.session_state.get("logged_in", False):
 
             st.session_state["_oauth_code_redeemed"] = code
 
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10
-            ).json()
+            userinfo = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10).json()
             email = (userinfo.get("email") or "").lower().strip()
             if not email:
                 st.error("Google login failed: no email returned.")
@@ -904,7 +847,7 @@ if not st.session_state.get("logged_in", False):
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
     with tab1:
-        st.markdown('<span id="login_form"></span>', unsafe_allow_html=True)  # anchor
+        st.markdown('<span id="login_form"></span>', unsafe_allow_html=True)
         do_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
@@ -966,7 +909,7 @@ if not st.session_state.get("logged_in", False):
                             st.rerun()
 
     with tab2:
-        st.markdown('<span id="signup"></span>', unsafe_allow_html=True)  # anchor
+        st.markdown('<span id="signup"></span>', unsafe_allow_html=True)
         with st.form("signup_form", clear_on_submit=False):
             new_name_input     = st.text_input("Full Name", key="ca_name")
             new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
@@ -1001,7 +944,7 @@ if not st.session_state.get("logged_in", False):
                         doc_ref.set({ "name": new_name, "email": new_email, "password": hashed_pw })
                         st.success("Account created! Please log in above.")
 
-    # --- Autoplay Video Demo (accessible label) --------------------------------
+    # --- Autoplay Video Demo ---------------------------------------------------
     st.markdown("""
     <div class="page-wrap" style="display:flex; justify-content:center; margin: 24px auto;">
       <video width="420" autoplay muted loop controls
@@ -1013,7 +956,7 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Quick Links (high-contrast)
+    # Quick Links
     st.markdown("""
     <div class="page-wrap">
       <div class="quick-links" aria-label="Useful links">
@@ -1053,7 +996,7 @@ if not st.session_state.get("logged_in", False):
 
     st.markdown("---")
 
-    # 3) Why learners choose Falowen (cards; removed bottom 'Create account' CTA)
+    # 3) Why learners choose Falowen (cards)
     st.markdown("### Why learners choose Falowen")
 
     def _feature_card(emoji: str, title: str, desc: str) -> str:
@@ -1080,7 +1023,7 @@ if not st.session_state.get("logged_in", False):
 
     st.markdown("---")
 
-    # Social row + footer (includes 'Need help?' links)
+    # Social row + footer
     st.markdown("""
     <div class="page-wrap" style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
@@ -1098,8 +1041,8 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Stop after public homepage so the logged-in UI below doesn’t render
     st.stop()
+
 
 
 
