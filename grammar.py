@@ -3570,6 +3570,39 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+import re, html
+
+def _ann_clean_markdown(s: str) -> str:
+    """Normalize user-entered text (from Google Sheet/form) so it renders nicely."""
+    s = (s or "").replace("\r\n", "\n").replace("\r", "\n")
+    s = re.sub(r"[ \t]+\n", "\n", s)          # trim trailing spaces
+    s = re.sub(r"\n{3,}", "\n\n", s)          # collapse 3+ blank lines -> one blank line
+    s = re.sub(r"(?m)^\s*[•·]\s*", "- ", s)   # bullet symbols -> "- "
+    s = re.sub(r"(?m)^\s*-\s*", "- ", s)      # ensure "- " has a space
+    s = re.sub(r"(?m)^(\s*\d+)[\)\-]\s*", r"\1. ", s)  # "1)" or "1-" -> "1. "
+    return s.strip()
+
+def _ann_body_html(raw: str) -> str:
+    """Escape + linkify + convert newlines to <p>/<br> for safe display inside an HTML card."""
+    txt = _ann_clean_markdown(raw)
+    safe = html.escape(txt)
+
+    # auto-link URLs with a readable label
+    def _link(m):
+        url = m.group(0)
+        try:
+            label = _short_label_from_url(url)
+        except Exception:
+            label = url
+        return f'<a href="{html.escape(url)}" target="_blank" rel="noopener">{html.escape(label)}</a>'
+
+    safe = re.sub(r"(https?://[^\s]+)", _link, safe)
+
+    # paragraphs + soft line breaks
+    parts = safe.split("\n\n")
+    return "".join(f"<p style='margin:0 0 8px 0'>{p.replace('\n','<br>')}</p>" for p in parts)
+
+
 
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
@@ -4433,106 +4466,126 @@ if tab == "My Course":
             pinned_df = view[view["Pinned"] == True]
             latest_df = view[view["Pinned"] == False]
 
-            def render_announcement(row, is_pinned=False):
-                # teacher card
-                try:
-                    ts_label = row.get("__dt").strftime("%d %b %H:%M")
-                except Exception:
-                    ts_label = ""
-                st.markdown(
-                    f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
-                    f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
-                    f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                    f"<b>Teacher</b> <span style='color:#888;'>{ts_label} GMT</span><br>"
-                    f"{row.get('Announcement','')}"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
+           def render_assignment(row, is_pinned=False):
+            """
+            Expects row to have:
+              - 'Title' (or 'Assignment')
+              - 'Details' (main text/instructions)
+              - 'Due' (or use '__dt' for timestamp label)
+              - 'Links' (list or comma string)
+              - '__id' (stable id)
+            Reuses: _short_label_from_url, _guess_link_emoji_and_label, _ann_body_html (optional)
+            """
+            import html
 
-                # links
-                links = row.get("Links") or []
-                if isinstance(links, str):
-                    links = [links] if links.strip() else []
-                if links:
-                    st.markdown("**🔗 Links:**")
-                    for u in links:
+            # --- timestamp label (prefer __dt; else 'Due') ---
+            try:
+                ts_label = row.get("__dt").strftime("%d %b %H:%M")
+            except Exception:
+                ts_label = str(row.get("Due", "") or "")
+
+            # --- title + body ---
+            title = row.get("Title") or row.get("Assignment") or "Assignment"
+            raw_body = row.get("Details", "") or row.get("Announcement", "") or ""
+
+            # Use the announcement body formatter if available; else escape + nl2br
+            try:
+                body_html = _ann_body_html(raw_body)  # defined in your Announcements section
+            except Exception:
+                safe = html.escape((raw_body or "").replace("\r\n", "\n").replace("\r", "\n"))
+                body_html = "<br>".join(safe.split("\n"))
+
+            # --- card ---
+            st.markdown(
+                f"<div style='padding:12px 14px; background:{'#fff7ed' if is_pinned else '#f8fafc'};"
+                f"border:1px solid #e5e7eb; border-radius:10px; margin:10px 0;'>"
+                f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                f"<b>{html.escape(title)}</b> "
+                f"<span style='color:#888;'>{('• ' + ts_label + ' GMT') if ts_label else ''}</span><br>"
+                f"{body_html}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # --- links ---
+            links = row.get("Links") or []
+            if isinstance(links, str):
+                parts = [p for chunk in links.split(",") for p in chunk.split()]
+                links = [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
+            if links:
+                st.markdown("**🔗 Links:**")
+                for u in links:
+                    try:
                         emoji, label = _guess_link_emoji_and_label(u)
-                        label = label or _short_label_from_url(u)
-                        st.markdown(f"- {emoji} [{label}]({u})")
+                    except Exception:
+                        emoji, label = "🔗", None
+                    label = label or (globals().get("_short_label_from_url", lambda x: x)(u))
+                    st.markdown(f"- {emoji} [{label}]({u})")
 
-                # replies
-                ann_id = row.get("__id")
-                replies = _load_replies_with_ids(ann_id)
-                if replies:
-                    for r in replies:
-                        ts = r.get("timestamp")
-                        when = ""
+            # --- replies thread (optional, if you store per-assignment like announcements) ---
+            ann_id = row.get("__id")
+            if not ann_id:
+                return
+
+            def _assign_reply_coll(_id: str):
+                return (db.collection("class_assignments")
+                         .document(class_name)
+                         .collection("replies")
+                         .document(_id)
+                         .collection("posts"))
+
+            def _load_replies(_id: str):
+                try:
+                    docs = list(_assign_reply_coll(_id).order_by("timestamp").stream())
+                except Exception:
+                    docs = list(_assign_reply_coll(_id).stream())
+                    docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
+                out = []
+                for d in docs:
+                    x = d.to_dict() or {}
+                    x["__id"] = d.id
+                    out.append(x)
+                return out
+
+            replies = _load_replies(ann_id)
+            if replies:
+                for r in replies:
+                    ts = r.get("timestamp")
+                    when = ""
+                    try:
+                        when = ts.strftime("%d %b %H:%M") + " UTC"
+                    except Exception:
+                        pass
+                    edited_badge = ""
+                    if r.get("edited_at"):
                         try:
-                            when = ts.strftime("%d %b %H:%M") + " UTC"
+                            edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
                         except Exception:
-                            pass
-                        edited_badge = ""
-                        if r.get("edited_at"):
-                            try:
-                                edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
-                            except Exception:
-                                edited_badge = " <span style='color:#aaa;'>(edited)</span>"
+                            edited_badge = " <span style='color:#aaa;'>(edited)</span>"
 
-                        st.markdown(
-                            f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
-                            f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
-                            f"{r.get('text','')}</div>",
-                            unsafe_allow_html=True,
-                        )
+                    st.markdown(
+                        f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
+                        f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
+                        f"{html.escape(r.get('text',''))}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                        # edit/delete (own or admin)
-                        can_edit = IS_ADMIN or (r.get("student_code") == student_code)
-                        if can_edit:
-                            c_ed, c_del = st.columns([1, 1])
-                            with c_ed:
-                                if st.button("✏️ Edit", key=f"ann_edit_reply_{ann_id}_{r['__id']}"):
-                                    st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
-                                    st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text", "")
-                                    st.rerun()
-                            with c_del:
-                                if st.button("🗑️ Delete", key=f"ann_del_reply_{ann_id}_{r['__id']}"):
-                                    _delete_reply(ann_id, r["__id"])
-                                    _notify_slack(
-                                        f"🗑️ *Announcement reply deleted* — {class_name}\n"
-                                        f"*By:* {student_name} ({student_code})\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
-                                    )
-                                    st.success("Reply deleted.")
-                                    st.rerun()
+            # --- add reply (optional) ---
+            with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
+                ta_key = f"assign_reply_{ann_id}"
+                reply_text = st.text_area("Your reply…", key=ta_key, height=90)
+                if st.button("Send Reply", key=f"assign_send_{ann_id}") and reply_text.strip():
+                    _assign_reply_coll(ann_id).add({
+                        "student_code": student_code,
+                        "student_name": student_name,
+                        "text": reply_text.strip(),
+                        "timestamp": datetime.utcnow(),
+                    })
+                    st.session_state[ta_key] = ""
+                    st.success("Reply sent!")
+                    st.rerun()
+#
 
-                            # inline editor
-                            if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
-                                new_txt = st.text_area(
-                                    "Edit reply",
-                                    key=f"ann_editbox_{ann_id}_{r['__id']}",
-                                    value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text", "")),
-                                    height=100,
-                                )
-                                ec1, ec2 = st.columns([1, 1])
-                                with ec1:
-                                    if st.button("💾 Save", key=f"ann_save_reply_{ann_id}_{r['__id']}"):
-                                        if new_txt.strip():
-                                            _update_reply_text(ann_id, r["__id"], new_txt)
-                                            _notify_slack(
-                                                f"✏️ *Announcement reply edited* — {class_name}\n"
-                                                f"*By:* {student_name} ({student_code})\n"
-                                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                                                f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
-                                            )
-                                            st.success("Reply updated.")
-                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
-                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                        st.rerun()
-                                with ec2:
-                                    if st.button("❌ Cancel", key=f"ann_cancel_reply_{ann_id}_{r['__id']}"):
-                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
-                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                        st.rerun()
 
                 # new reply (single click -> rerun)
                 with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
@@ -4572,7 +4625,7 @@ if tab == "My Course":
                 render_announcement(row, is_pinned=False)
 
         st.divider()
-
+#
         # ===================== CLASS Q&A (POST / REPLY + EDIT/DELETE) =====================
         st.markdown("### 💬 Class Q&A")
 
