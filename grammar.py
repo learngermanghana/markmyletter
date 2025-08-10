@@ -4465,127 +4465,125 @@ if tab == "My Course":
             view.sort_values("__dt", ascending=False, inplace=True, na_position="last")
             pinned_df = view[view["Pinned"] == True]
             latest_df = view[view["Pinned"] == False]
+            def render_assignment(row, is_pinned=False):
+                """
+                Expects row to have:
+                  - 'Title' (or 'Assignment')
+                  - 'Details' (main text/instructions)
+                  - 'Due' (or use '__dt' for timestamp label)
+                  - 'Links' (list or comma string)
+                  - '__id' (stable id)
+                Reuses: _short_label_from_url, _guess_link_emoji_and_label, _ann_body_html (optional)
+                """
+                import html
 
-           def render_assignment(row, is_pinned=False):
-            """
-            Expects row to have:
-              - 'Title' (or 'Assignment')
-              - 'Details' (main text/instructions)
-              - 'Due' (or use '__dt' for timestamp label)
-              - 'Links' (list or comma string)
-              - '__id' (stable id)
-            Reuses: _short_label_from_url, _guess_link_emoji_and_label, _ann_body_html (optional)
-            """
-            import html
-
-            # --- timestamp label (prefer __dt; else 'Due') ---
-            try:
-                ts_label = row.get("__dt").strftime("%d %b %H:%M")
-            except Exception:
-                ts_label = str(row.get("Due", "") or "")
-
-            # --- title + body ---
-            title = row.get("Title") or row.get("Assignment") or "Assignment"
-            raw_body = row.get("Details", "") or row.get("Announcement", "") or ""
-
-            # Use the announcement body formatter if available; else escape + nl2br
-            try:
-                body_html = _ann_body_html(raw_body)  # defined in your Announcements section
-            except Exception:
-                safe = html.escape((raw_body or "").replace("\r\n", "\n").replace("\r", "\n"))
-                body_html = "<br>".join(safe.split("\n"))
-
-            # --- card ---
-            st.markdown(
-                f"<div style='padding:12px 14px; background:{'#fff7ed' if is_pinned else '#f8fafc'};"
-                f"border:1px solid #e5e7eb; border-radius:10px; margin:10px 0;'>"
-                f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                f"<b>{html.escape(title)}</b> "
-                f"<span style='color:#888;'>{('• ' + ts_label + ' GMT') if ts_label else ''}</span><br>"
-                f"{body_html}"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-            # --- links ---
-            links = row.get("Links") or []
-            if isinstance(links, str):
-                parts = [p for chunk in links.split(",") for p in chunk.split()]
-                links = [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
-            if links:
-                st.markdown("**🔗 Links:**")
-                for u in links:
-                    try:
-                        emoji, label = _guess_link_emoji_and_label(u)
-                    except Exception:
-                        emoji, label = "🔗", None
-                    label = label or (globals().get("_short_label_from_url", lambda x: x)(u))
-                    st.markdown(f"- {emoji} [{label}]({u})")
-
-            # --- replies thread (optional, if you store per-assignment like announcements) ---
-            ann_id = row.get("__id")
-            if not ann_id:
-                return
-
-            def _assign_reply_coll(_id: str):
-                return (db.collection("class_assignments")
-                         .document(class_name)
-                         .collection("replies")
-                         .document(_id)
-                         .collection("posts"))
-
-            def _load_replies(_id: str):
+                # --- timestamp label (prefer __dt; else 'Due') ---
                 try:
-                    docs = list(_assign_reply_coll(_id).order_by("timestamp").stream())
+                    ts_label = row.get("__dt").strftime("%d %b %H:%M")
                 except Exception:
-                    docs = list(_assign_reply_coll(_id).stream())
-                    docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
-                out = []
-                for d in docs:
-                    x = d.to_dict() or {}
-                    x["__id"] = d.id
-                    out.append(x)
-                return out
+                    ts_label = str(row.get("Due", "") or "")
 
-            replies = _load_replies(ann_id)
-            if replies:
-                for r in replies:
-                    ts = r.get("timestamp")
-                    when = ""
-                    try:
-                        when = ts.strftime("%d %b %H:%M") + " UTC"
-                    except Exception:
-                        pass
-                    edited_badge = ""
-                    if r.get("edited_at"):
+                # --- title + body ---
+                title = row.get("Title") or row.get("Assignment") or "Assignment"
+                raw_body = row.get("Details", "") or row.get("Announcement", "") or ""
+
+                # Use the announcement body formatter if available; else escape + nl2br
+                try:
+                    body_html = _ann_body_html(raw_body)  # defined in your Announcements section
+                except Exception:
+                    safe = html.escape((raw_body or "").replace("\r\n", "\n").replace("\r", "\n"))
+                    body_html = "<br>".join(safe.split("\n"))
+
+                # --- card ---
+                st.markdown(
+                    f"<div style='padding:12px 14px; background:{'#fff7ed' if is_pinned else '#f8fafc'};"
+                    f"border:1px solid #e5e7eb; border-radius:10px; margin:10px 0;'>"
+                    f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                    f"<b>{html.escape(title)}</b> "
+                    f"<span style='color:#888;'>{('• ' + ts_label + ' GMT') if ts_label else ''}</span><br>"
+                    f"{body_html}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+                # --- links ---
+                links = row.get("Links") or []
+                if isinstance(links, str):
+                    parts = [p for chunk in links.split(",") for p in chunk.split()]
+                    links = [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
+                if links:
+                    st.markdown("**🔗 Links:**")
+                    for u in links:
                         try:
-                            edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
+                            emoji, label = _guess_link_emoji_and_label(u)
                         except Exception:
-                            edited_badge = " <span style='color:#aaa;'>(edited)</span>"
+                            emoji, label = "🔗", None
+                        label = label or (globals().get("_short_label_from_url", lambda x: x)(u))
+                        st.markdown(f"- {emoji} [{label}]({u})")
 
-                    st.markdown(
-                        f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
-                        f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
-                        f"{html.escape(r.get('text',''))}</div>",
-                        unsafe_allow_html=True,
-                    )
+                # --- replies thread (optional, if you store per-assignment like announcements) ---
+                ann_id = row.get("__id")
+                if not ann_id:
+                    return
 
-            # --- add reply (optional) ---
-            with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
-                ta_key = f"assign_reply_{ann_id}"
-                reply_text = st.text_area("Your reply…", key=ta_key, height=90)
-                if st.button("Send Reply", key=f"assign_send_{ann_id}") and reply_text.strip():
-                    _assign_reply_coll(ann_id).add({
-                        "student_code": student_code,
-                        "student_name": student_name,
-                        "text": reply_text.strip(),
-                        "timestamp": datetime.utcnow(),
-                    })
-                    st.session_state[ta_key] = ""
-                    st.success("Reply sent!")
-                    st.rerun()
+                def _assign_reply_coll(_id: str):
+                    return (db.collection("class_assignments")
+                             .document(class_name)
+                             .collection("replies")
+                             .document(_id)
+                             .collection("posts"))
+
+                def _load_replies(_id: str):
+                    try:
+                        docs = list(_assign_reply_coll(_id).order_by("timestamp").stream())
+                    except Exception:
+                        docs = list(_assign_reply_coll(_id).stream())
+                        docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
+                    out = []
+                    for d in docs:
+                        x = d.to_dict() or {}
+                        x["__id"] = d.id
+                        out.append(x)
+                    return out
+
+                replies = _load_replies(ann_id)
+                if replies:
+                    for r in replies:
+                        ts = r.get("timestamp")
+                        when = ""
+                        try:
+                            when = ts.strftime("%d %b %H:%M") + " UTC"
+                        except Exception:
+                            pass
+                        edited_badge = ""
+                        if r.get("edited_at"):
+                            try:
+                                edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
+                            except Exception:
+                                edited_badge = " <span style='color:#aaa;'>(edited)</span>"
+
+                        st.markdown(
+                            f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
+                            f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
+                            f"{html.escape(r.get('text',''))}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                # --- add reply (optional) ---
+                with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
+                    ta_key = f"assign_reply_{ann_id}"
+                    reply_text = st.text_area("Your reply…", key=ta_key, height=90)
+                    if st.button("Send Reply", key=f"assign_send_{ann_id}") and reply_text.strip():
+                        _assign_reply_coll(ann_id).add({
+                            "student_code": student_code,
+                            "student_name": student_name,
+                            "text": reply_text.strip(),
+                            "timestamp": datetime.utcnow(),
+                        })
+                        st.session_state[ta_key] = ""
+                        st.success("Reply sent!")
+                        st.rerun()
 #
-
 
                 # new reply (single click -> rerun)
                 with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
@@ -9429,6 +9427,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
