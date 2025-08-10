@@ -735,19 +735,59 @@ if not st.session_state.get("logged_in", False):
 """
     components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
 
-    # Support / Help section
+    # --- Access options (3-path, Play-Store friendly) --------------------------
     st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+    <div class="page-wrap" style="margin-top:16px;">
+      <div style="display:flex; flex-wrap:wrap; gap:14px; justify-content:center;">
+        <!-- New / not paid yet -->
+        <div style="flex:1 1 320px; max-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px;">
+          <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">New to Falowen?</div>
+          <div style="color:#475569; margin-bottom:12px;">Request access and we’ll contact you about payment & enrollment.</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
+               target="_blank" rel="noopener"
+               style="background:#0ea5e9; color:#fff; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:600;">
+               Request access
+            </a>
+            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener"
+               style="background:#22c55e; color:#0b3b17; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:700;">
+               WhatsApp us
+            </a>
+          </div>
+          <div style="font-size:.85rem; color:#64748b; margin-top:10px;">
+            No payments inside the app (Play Store policy).
+          </div>
+        </div>
+
+        <!-- Approved student (email + code on roster) -->
+        <div style="flex:1 1 320px; max-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px;">
+          <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">Approved student ✅</div>
+          <div style="color:#475569; margin-bottom:12px;">
+            If we’ve added your <b>email + code</b> to the roster, create your account.
+          </div>
+          <a href="#signup"
+             style="background:#2563eb; color:#fff; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:600;">
+             Sign up
+          </a>
+          <div style="font-size:.85rem; color:#64748b; margin-top:10px;">Use your school email and your Falowen code.</div>
+        </div>
+
+        <!-- Returning student -->
+        <div style="flex:1 1 320px; max-width:360px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px;">
+          <div style="font-weight:700; color:#0f172a; margin-bottom:6px;">Returning student</div>
+          <div style="color:#475569; margin-bottom:12px;">
+            Already created an account? Log in with your code or email.
+          </div>
+          <a href="#login_form"
+             style="background:#334155; color:#fff; padding:8px 12px; border-radius:10px; text-decoration:none; font-weight:600;">
+             Log in
+          </a>
+        </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Google OAuth (Optional) ---
+    # --- Google OAuth (Optional) ----------------------------------------------
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
     GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
     REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
@@ -772,14 +812,14 @@ if not st.session_state.get("logged_in", False):
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
-            f"""<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                    <a href="{auth_url}">
+            """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+                    <a href=\"""" + auth_url + """\">
                         <button aria-label="Sign in with Google"
                                 style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
                             Sign in with Google
                         </button>
                     </a>
-                </div>""",
+               </div>""",
             unsafe_allow_html=True
         )
 
@@ -860,65 +900,13 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-    # --- Access options band (Play-Store friendly) -----------------------------
-    st.markdown("""
-    <div class="page-wrap" style="margin:14px 0;">
-      <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;
-                  padding:14px 16px;box-shadow:0 1px 6px rgba(0,0,0,.03)">
-        <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center">
-          <!-- New student -->
-          <div style="flex:1 1 260px;max-width:340px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px">
-            <div style="font-weight:700;color:#0f172a;margin-bottom:4px">New to Falowen?</div>
-            <div style="color:#475569;margin-bottom:10px">
-              Request access and we’ll contact you about payment and enrollment.
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
-                 target="_blank" rel="noopener"
-                 style="background:#2563eb;color:#fff;padding:8px 12px;border-radius:10px;text-decoration:none;font-weight:600">Request access</a>
-              <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener"
-                 style="background:#10b981;color:#fff;padding:8px 12px;border-radius:10px;text-decoration:none;font-weight:600">WhatsApp us</a>
-            </div>
-            <div style="font-size:.9rem;color:#64748b;margin-top:8px">No payments inside the app (Play Store policy).</div>
-          </div>
-
-          <!-- Approved student -->
-          <div style="flex:1 1 260px;max-width:340px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px">
-            <div style="font-weight:700;color:#0f172a;margin-bottom:4px">Approved student</div>
-            <div style="color:#475569;margin-bottom:10px">
-              If we’ve added your <b>email + code</b> to the roster, create your account.
-            </div>
-            <a href="#signup" style="background:#0ea5e9;color:#fff;padding:8px 12px;border-radius:10px;text-decoration:none;font-weight:600">
-              Sign up
-            </a>
-            <div style="font-size:.9rem;color:#64748b;margin-top:8px">Use your school email and your Falowen code.</div>
-          </div>
-
-          <!-- Returning student -->
-          <div style="flex:1 1 260px;max-width:340px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px">
-            <div style="font-weight:700;color:#0f172a;margin-bottom:4px">Returning student</div>
-            <div style="color:#475569;margin-bottom:10px">
-              Already created an account? Log in with your code or email.
-            </div>
-            <a href="#login" style="background:#334155;color:#fff;padding:8px 12px;border-radius:10px;text-decoration:none;font-weight:600">
-              Log in
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Tabs: Returning / Sign Up
+    # Tabs: Returning / Sign Up (with anchors)
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
     with tab1:
-        # Anchor so "Log in" jumps here
-        st.markdown('<span id="login"></span>', unsafe_allow_html=True)
-
+        st.markdown('<span id="login_form"></span>', unsafe_allow_html=True)  # anchor
         do_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-
         with st.form("login_form", clear_on_submit=False):
             login_id_input   = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).")
             login_pass_input = st.text_input("Password", type="password")
@@ -978,9 +966,7 @@ if not st.session_state.get("logged_in", False):
                             st.rerun()
 
     with tab2:
-        # Anchor so "Sign up" jumps here
-        st.markdown('<span id="signup"></span>', unsafe_allow_html=True)
-
+        st.markdown('<span id="signup"></span>', unsafe_allow_html=True)  # anchor
         with st.form("signup_form", clear_on_submit=False):
             new_name_input     = st.text_input("Full Name", key="ca_name")
             new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
@@ -1067,18 +1053,18 @@ if not st.session_state.get("logged_in", False):
 
     st.markdown("---")
 
-    # 3) Why learners choose Falowen (cards instead of KPI row)
+    # 3) Why learners choose Falowen (cards; removed bottom 'Create account' CTA)
     st.markdown("### Why learners choose Falowen")
 
     def _feature_card(emoji: str, title: str, desc: str) -> str:
-        return f"""
+        return """
         <div style="
           background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px;
           padding:14px; height:100%; box-shadow:0 1px 4px rgba(0,0,0,0.03);
         ">
-          <div style="font-size:28px; line-height:1;">{emoji}</div>
-          <div style="font-weight:700; margin-top:6px; color:#0f172a;">{title}</div>
-          <div style="color:#475569; font-size:0.95rem; margin-top:4px;">{desc}</div>
+          <div style="font-size:28px; line-height:1;">""" + emoji + """</div>
+          <div style="font-weight:700; margin-top:6px; color:#0f172a;">""" + title + """</div>
+          <div style="color:#475569; font-size:0.95rem; margin-top:4px;">""" + desc + """</div>
         </div>
         """
 
@@ -1092,23 +1078,9 @@ if not st.session_state.get("logged_in", False):
     with c4:
         st.markdown(_feature_card("🧑‍🏫", "Real tutor feedback", "Clear comments on your writing & speaking so you know exactly what to fix."), unsafe_allow_html=True)
 
-    # subtle CTA under cards (to Sign Up tab)
-    st.markdown("""
-    <div class="page-wrap" style="text-align:center; margin-top:14px;">
-      <span style="color:#334155;">Ready to learn?</span>
-      <span style="display:inline-block; margin-left:8px;">
-        <a href="#signup" style="
-          background:#2563eb; color:#fff; padding:8px 14px; border-radius:10px;
-          text-decoration:none; font-weight:600; outline:2px solid transparent;
-        " aria-label="Create your Falowen account">Create account</a>
-      </span>
-    </div>
-    """, unsafe_allow_html=True)
-
     st.markdown("---")
 
-    # Social row + footer
-    from datetime import datetime as _dt
+    # Social row + footer (includes 'Need help?' links)
     st.markdown("""
     <div class="page-wrap" style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
@@ -1117,79 +1089,17 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
+    _year = str(datetime.utcnow().year)
     st.markdown("""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {} Learn Language Education Academy • Accra, Ghana<br>
+      © """ + _year + """ Learn Language Education Academy • Accra, Ghana<br>
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
-    """.format(_dt.utcnow().year), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     # Stop after public homepage so the logged-in UI below doesn’t render
     st.stop()
-
-
-
-# --- Logged In UI ---
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
-
-if st.button("Log out"):
-    # 1) Kill the cookie immediately (server side; keeps flags consistent)
-    set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-
-    # Also delete directly from cookie_manager if supported
-    try:
-        cookie_manager.delete("student_code")
-        cookie_manager.save()
-    except Exception:
-        pass
-
-    _prefix = getattr(cookie_manager, "prefix", "") or ""
-    _cookie_name = f"{_prefix}student_code"
-
-    # 2) Clear localStorage + URL param + BOTH cookie scopes, then reload page
-    components.html(f"""
-    <script>
-      (function() {{
-        try {{
-          localStorage.removeItem('student_code');
-
-          const url = new URL(window.location);
-          if (url.searchParams.has('student_code')) {{
-            url.searchParams.delete('student_code');
-            window.history.replaceState({{}}, '', url);
-          }}
-
-          const host = window.location.hostname;
-          const parts = host.split('.');
-          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
-
-          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
-          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
-
-          window.location.replace(url.pathname + url.search);
-        }} catch (e) {{}}
-      }})();
-    </script>
-    """, height=0)
-
-    # 3) Clear Streamlit session state immediately (type-safe)
-    for k, v in {
-        "logged_in": False,
-        "student_row": None,
-        "student_code": "",
-        "student_name": "",
-        "cookie_synced": False,
-    }.items():
-        st.session_state[k] = v
-
-    try:
-        qp_clear()
-    except Exception:
-        pass
-
-    st.stop()
-
 
 
 
