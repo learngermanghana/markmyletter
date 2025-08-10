@@ -608,12 +608,12 @@ if not st.session_state.get("logged_in", False):
       </ul>
     </div>
 
-    <!-- ===== Compact stats strip (edit numbers to your real figures) ===== -->
+    <!-- ===== Compact stats strip ===== -->
     <style>
       .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
       .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
               box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-      .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; } /* high-contrast focus */
+      .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
       .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
       .stat .label { font-size:.92rem; opacity:.98; }
       @media (max-width:560px){ .stat { min-width:46%; } }
@@ -636,38 +636,33 @@ if not st.session_state.get("logged_in", False):
         <div class="label">Avg. feedback</div>
       </div>
     </div>
-    <!-- ===== End stats strip ===== -->
-
-    <p style="text-align:center; color:#334155; margin-top:8px;">
-      <b>Trusted by 300+ learners across A1–C1.</b>
-    </p>
     """, unsafe_allow_html=True)
 
-# --- Rotating multi-country reviews (fixed braces) ---
+    # --- Rotating multi-country reviews (safe: no f-string braces) ---
+    import json
+    import streamlit.components.v1 as components
 
+    REVIEWS = [
+      {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
+       "author": "Ama — Accra, Ghana", "level": "A2"},
+      {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
+       "author": "Tunde — Lagos, Nigeria", "level": "B1"},
+      {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
+       "author": "Nadia — Nairobi, Kenya", "level": "A1"},
+      {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
+       "author": "Lea — Berlin, Germany", "level": "B2"},
+      {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
+       "author": "James — London, UK", "level": "B1"},
+      {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
+       "author": "Maya — New York, USA", "level": "A1"},
+      {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
+       "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
+      {"quote": "I like the locked submissions and the clean Results tab.",
+       "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
+    ]
+    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
 
-REVIEWS = [
-  {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-   "author": "Ama — Accra, Ghana", "level": "A2"},
-  {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-   "author": "Tunde — Lagos, Nigeria", "level": "B1"},
-  {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-   "author": "Nadia — Nairobi, Kenya", "level": "A1"},
-  {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-   "author": "Lea — Berlin, Germany", "level": "B2"},
-  {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-   "author": "James — London, UK", "level": "B1"},
-  {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
-   "author": "Maya — New York, USA", "level": "A1"},
-  {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-   "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
-  {"quote": "I like the locked submissions and the clean Results tab.",
-   "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
-]
-
-reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-
-components.html(f"""
+    _reviews_html = """
 <div role="region" aria-label="Student reviews" style="max-width:820px;margin:10px auto 0;">
   <div id="rev-quote" style="
       background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
@@ -685,7 +680,7 @@ components.html(f"""
 </div>
 
 <script>
-  const data = {reviews_json};
+  const data = __DATA__;
   let i = 0;
 
   const quoteEl = document.getElementById('rev-quote');
@@ -693,9 +688,9 @@ components.html(f"""
   const prevBtn = document.getElementById('rev-prev');
   const nextBtn = document.getElementById('rev-next');
 
-  function renderDots(){{
+  function renderDots(){
     dotsEl.innerHTML = '';
-    data.forEach((_, idx) => {{
+    data.forEach((_, idx) => {
       const d = document.createElement('button');
       d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
       d.style.width = '10px';
@@ -704,30 +699,39 @@ components.html(f"""
       d.style.border = 'none';
       d.style.cursor = 'pointer';
       d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
-      d.addEventListener('click', () => {{ i = idx; render(); }});
+      d.addEventListener('click', () => { i = idx; render(); });
       dotsEl.appendChild(d);
-    }});
-  }}
+    });
+  }
 
-  function render(){{
+  function render(){
     const r = data[i];
     quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
     renderDots();
-  }}
+  }
 
-  function next(){{ i = (i + 1) % data.length; render(); }}
-  function prev(){{ i = (i - 1 + data.length) % data.length; render(); }}
+  function next(){ i = (i + 1) % data.length; render(); }
+  function prev(){ i = (i - 1 + data.length) % data.length; render(); }
 
   prevBtn.addEventListener('click', prev);
   nextBtn.addEventListener('click', next);
 
-  // Gentle auto-rotate if user hasn't requested reduced motion
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) {{ setInterval(next, 6000); }}
+  if (!reduced) { setInterval(next, 6000); }
 
   render();
 </script>
-""", height=200)
+"""
+    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=220)
+
+    # Trust line under carousel
+    st.markdown(
+        '<p style="text-align:center; color:#334155; margin-top:8px;"><b>Trusted by 300+ learners across A1–C1.</b></p>',
+        unsafe_allow_html=True
+    )
+
+    st.stop()
+
 
 
 
