@@ -970,17 +970,42 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # ================= Extra homepage sections =================
+       # ================= Extra homepage sections =================
     st.markdown("---")
+    st.markdown("### How Falowen works")
 
-    # 1) How Falowen works
+    # 👉 Your images
+    IMG_SIGNIN     = "https://i.imgur.com/pFQ5BIn.png"
+    IMG_COURSEBOOK = "https://i.imgur.com/REPLACE_WITH_COURSEBOOK.png"  # paste Course Book image link here
+    IMG_RESULTS    = "https://i.imgur.com/uiIPKUT.png"
+
     c1, c2, c3 = st.columns(3)
+
     with c1:
         st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
+        st.image(IMG_SIGNIN, caption="Login screen — mobile preview", use_container_width=True)
+        st.markdown(
+            f'<div style="text-align:center;"><a href="{IMG_SIGNIN}" target="_blank" rel="noopener">Open full image</a></div>',
+            unsafe_allow_html=True
+        )
+
     with c2:
         st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
+        st.image(IMG_COURSEBOOK, caption="Course Book — lessons & submissions", use_container_width=True)
+        st.markdown(
+            f'<div style="text-align:center;"><a href="{IMG_COURSEBOOK}" target="_blank" rel="noopener">Open full image</a></div>',
+            unsafe_allow_html=True
+        )
+
     with c3:
         st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
+        st.image(IMG_RESULTS, caption="Results & Resources — marks and feedback", use_container_width=True)
+        st.markdown(
+            f'<div style="text-align:center;"><a href="{IMG_RESULTS}" target="_blank" rel="noopener">Open full image</a></div>',
+            unsafe_allow_html=True
+        )
+#
+
 
     st.markdown("---")
 
