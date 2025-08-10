@@ -587,6 +587,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Helper: persist login to cookie + localStorage ---
+
+def save_cookie_after_login(student_code: str) -> None:
+    value = str(student_code or "").strip().lower()
+    # Try to write the secure cookie if cookie_manager + setter exist
+    try:
+        _cm  = globals().get("cookie_manager")
+        _set = globals().get("set_student_code_cookie")
+        if _cm and _set:
+            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
+    except Exception:
+        pass  # ignore cookie errors; localStorage still helps
+
+    # Mirror to localStorage so SSO works on next visit
+    components.html(
+        """
+        <script>
+          try {
+            localStorage.setItem('student_code', __VAL__);
+          } catch (e) {}
+        </script>
+        """.replace("__VAL__", json.dumps(value)),
+        height=0
+    )
+
+
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
 
@@ -649,46 +675,24 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Rotating multi-country reviews (with flags) ---
-    import json
+    # --- Rotating multi-country reviews (with flags, no USA) ---
     import streamlit.components.v1 as components
 
     REVIEWS = [
-        {
-            "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-            "author": "Ama — Accra, Ghana 🇬🇭",
-            "level": "A2",
-        },
-        {
-            "quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-            "author": "Tunde — Lagos, Nigeria 🇳🇬",
-            "level": "B1",
-        },
-        {
-            "quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-            "author": "Isata — Freetown, Sierra Leone 🇸🇱",
-            "level": "A1",
-        },
-        {
-            "quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-            "author": "Kossi — Lomé, Togo 🇹🇬",
-            "level": "B1",
-        },
-        {
-            "quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-            "author": "Lea — Berlin, Germany 🇩🇪",
-            "level": "B2",
-        },
-        {
-            "quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-            "author": "Sipho — Johannesburg, South Africa 🇿🇦",
-            "level": "A2",
-        },
-        {
-            "quote": "The speaking prompts kept me motivated, and the Results tab makes my progress clear.",
-            "author": "Nangula — Windhoek, Namibia 🇳🇦",
-            "level": "A1",
-        },
+        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
+         "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
+        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
+         "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
+        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
+         "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
+        {"quote": "I like the locked submissions and the clean Results tab.",
+         "author": "Kossi — Lomé, Togo 🇹🇬", "level": "B1"},
+        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
+         "author": "Lea — Berlin, Germany 🇩🇪", "level": "B2"},
+        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
+         "author": "Sipho — Johannesburg, South Africa 🇿🇦", "level": "A2"},
+        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
+         "author": "Nadia — Windhoek, Namibia 🇳🇦", "level": "B1"},
     ]
     _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
 
@@ -701,9 +705,11 @@ if not st.session_state.get("logged_in", False):
   </div>
 
   <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
+    <button id="rev-prev" aria-label="Previous review" style="
+      background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
     <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
+    <button id="rev-next" aria-label="Next review" style="
+      background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
   </div>
 </div>
 
@@ -751,25 +757,20 @@ if not st.session_state.get("logged_in", False):
 </script>
 """
     components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
-#
 
-
-    # --- Simple access explainer (no complex UI) -------------------------------
+    # Support / Help section
     st.markdown("""
-    <div class="page-wrap" style="margin-top:16px;">
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:14px;border-radius:12px;">
-        <div style="font-weight:700;color:#0f172a;margin-bottom:6px;">How to get access</div>
-        <ol style="margin:0 0 10px 22px;color:#334155;line-height:1.6;">
-          <li><b>New student:</b> <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" target="_blank" rel="noopener">Request access</a> or <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp us</a>. We’ll send payment steps and add your email + code.</li>
-          <li><b>Approved student:</b> After we add your details, open the <a href="#signup">Sign Up</a> tab and create your account.</li>
-          <li><b>Returning student:</b> Open the <a href="#login_form">Returning</a> tab and sign in with your Student Code or Email.</li>
-        </ol>
-        <div style="font-size:.9rem;color:#64748b;">Note: No payments inside the app (Play Store policy).</div>
+    <div class="page-wrap">
+      <div class="help-contact-box" aria-label="Help and contact options">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Google OAuth (Optional) ----------------------------------------------
+    # --- Google OAuth (Optional) ---
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
     GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
     REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
@@ -794,14 +795,14 @@ if not st.session_state.get("logged_in", False):
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
-            """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                    <a href=\"""" + auth_url + """\">
+            f"""<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+                    <a href="{auth_url}">
                         <button aria-label="Sign in with Google"
                                 style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
                             Sign in with Google
                         </button>
                     </a>
-               </div>""",
+                </div>""",
             unsafe_allow_html=True
         )
 
@@ -820,7 +821,13 @@ if not st.session_state.get("logged_in", False):
             return False
 
         token_url = "https://oauth2.googleapis.com/token"
-        data = {"code": code, "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET, "redirect_uri": REDIRECT_URI, "grant_type": "authorization_code"}
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code"
+        }
         try:
             resp = requests.post(token_url, data=data, timeout=10)
             if not resp.ok:
@@ -835,7 +842,11 @@ if not st.session_state.get("logged_in", False):
 
             st.session_state["_oauth_code_redeemed"] = code
 
-            userinfo = requests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {access_token}"}, timeout=10).json()
+            userinfo = requests.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10
+            ).json()
             email = (userinfo.get("email") or "").lower().strip()
             if not email:
                 st.error("Google login failed: no email returned.")
@@ -859,6 +870,7 @@ if not st.session_state.get("logged_in", False):
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
+            # Persist cookie + localStorage
             save_cookie_after_login(student_row["StudentCode"])
 
             qp_clear()
@@ -872,13 +884,13 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-    # Tabs: Returning / Sign Up (with anchors)
-    tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
+    # Tabs: Returning / Request Access
+    tab1, tab2 = st.tabs(["👋 Returning", "📝 Request Access"])
 
     with tab1:
-        st.markdown('<span id="login_form"></span>', unsafe_allow_html=True)
         do_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+
         with st.form("login_form", clear_on_submit=False):
             login_id_input   = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).")
             login_pass_input = st.text_input("Password", type="password")
@@ -903,7 +915,7 @@ if not st.session_state.get("logged_in", False):
                     doc_ref = db.collection("students").document(student_row["StudentCode"])
                     doc     = doc_ref.get()
                     if not doc.exists:
-                        st.error("Account not found. Please create one below.")
+                        st.error("Account not found. Please request access first (see tab above).")
                     else:
                         data      = doc.to_dict() or {}
                         stored_pw = data.get("password", "")
@@ -938,42 +950,24 @@ if not st.session_state.get("logged_in", False):
                             st.rerun()
 
     with tab2:
-        st.markdown('<span id="signup"></span>', unsafe_allow_html=True)
-        with st.form("signup_form", clear_on_submit=False):
-            new_name_input     = st.text_input("Full Name", key="ca_name")
-            new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
-            new_code_input     = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code")
-            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
-            signup_btn         = st.form_submit_button("Create Account")
+        st.markdown("""
+        <div class="page-wrap" style="text-align:center; margin-top:12px;">
+          <p>New student? Request access and we’ll contact you with payment instructions.</p>
+          <p>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
+               target="_blank" rel="noopener"
+               style="background:#2563eb;color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;">
+              Request access (Google Form)
+            </a>
+          </p>
+          <p>
+            Or message us directly:
+            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
+          </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        if signup_btn:
-            new_name     = (new_name_input or "").strip()
-            new_email    = (new_email_input or "").strip().lower()
-            new_code     = (new_code_input or "").strip().lower()
-            new_password = (new_password_input or "")
-
-            if not (new_name and new_email and new_code and new_password):
-                st.error("Please fill in all fields.")
-            elif len(new_password) < 8:
-                st.error("Password must be at least 8 characters.")
-            else:
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"]       = df["Email"].str.lower().str.strip()
-                valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
-                if valid.empty:
-                    st.error("Your code/email aren’t registered. Ask your teacher to add you first.")
-                else:
-                    doc_ref = db.collection("students").document(new_code)
-                    if doc_ref.get().exists:
-                        st.error("An account with this student code already exists. Please log in instead.")
-                    else:
-                        import bcrypt
-                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                        doc_ref.set({ "name": new_name, "email": new_email, "password": hashed_pw })
-                        st.success("Account created! Please log in above.")
-
-    # --- Autoplay Video Demo ---------------------------------------------------
+    # --- Autoplay Video Demo (accessible label) --------------------------------
     st.markdown("""
     <div class="page-wrap" style="display:flex; justify-content:center; margin: 24px auto;">
       <video width="420" autoplay muted loop controls
@@ -985,7 +979,7 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Quick Links
+    # Quick Links (high-contrast)
     st.markdown("""
     <div class="page-wrap">
       <div class="quick-links" aria-label="Useful links">
@@ -1002,125 +996,26 @@ if not st.session_state.get("logged_in", False):
     # ================= Extra homepage sections =================
     st.markdown("---")
 
-    # 1) How Falowen works + images (non-clickable, uniform height)
-    LOGIN_IMAGE_URL = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMAGE_URL = "https://i.imgur.com/pqXoqSC.png"  # TODO: replace with your Course Book image URL
-    RESULTS_IMAGE_URL = "https://i.imgur.com/uiIPKUT.png"
-
-    _how_html = """
-    <div class="how-wrap">
-      <div class="how-card">
-        <h3>1️⃣ Sign in</h3>
-        <p>Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        <img src="__LOGIN__" alt="Falowen login screen" class="how-img" draggable="false" />
-      </div>
-      <div class="how-card">
-        <h3>2️⃣ Learn &amp; submit</h3>
-        <p>Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        <img src="__COURSEBOOK__" alt="Falowen Course Book screen" class="how-img" draggable="false" />
-      </div>
-      <div class="how-card">
-        <h3>3️⃣ Get results</h3>
-        <p>You’ll get an <b>email when marked</b>. Check <b>Results &amp; Resources</b> for scores &amp; feedback.</p>
-        <img src="__RESULTS__" alt="Falowen results screen" class="how-img" draggable="false" />
-      </div>
-    </div>
-    """
-
-    st.markdown(
-        _how_html
-        .replace("__LOGIN__", LOGIN_IMAGE_URL)
-        .replace("__COURSEBOOK__", COURSEBOOK_IMAGE_URL)
-        .replace("__RESULTS__", RESULTS_IMAGE_URL),
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        """
-        <style>
-          .how-wrap {
-            max-width: 1100px;
-            margin: 0 auto 8px auto;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-          }
-          .how-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 12px;
-            box-shadow: 0 1px 6px rgba(0,0,0,0.04);
-          }
-          .how-card h3 {
-            margin: 0 0 6px 0;
-            color: #0f172a;
-            font-size: 1.05rem;
-          }
-          .how-card p {
-            margin: 0 0 10px 0;
-            color: #475569;
-            font-size: 0.96rem;
-          }
-          .how-img {
-            width: 100%;
-            height: 240px;       /* uniform height for all three */
-            object-fit: cover;   /* crop to fill without distortion */
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-            pointer-events: none; /* non-clickable */
-            user-select: none;    /* prevent selection */
-          }
-          @media (max-width: 900px) {
-            .how-wrap { grid-template-columns: 1fr; }
-            .how-img { height: 240px; } /* keep uniform on mobile */
-          }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-#
-
-
+    # 1) How Falowen works
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
+    with c2:
+        st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
+    with c3:
+        st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
 
     st.markdown("---")
 
     # 2) Mini FAQ
     with st.expander("How do I log in?"):
-        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, Sign Up first.")
+        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
     with st.expander("Where do I see my scores?"):
         st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
     with st.expander("How do assignments work?"):
         st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
     with st.expander("What if I open the wrong lesson?"):
         st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-    st.markdown("---")
-
-    # 3) Why learners choose Falowen (cards)
-    st.markdown("### Why learners choose Falowen")
-
-    def _feature_card(emoji: str, title: str, desc: str) -> str:
-        return """
-        <div style="
-          background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px;
-          padding:14px; height:100%; box-shadow:0 1px 4px rgba(0,0,0,0.03);
-        ">
-          <div style="font-size:28px; line-height:1;">""" + emoji + """</div>
-          <div style="font-weight:700; margin-top:6px; color:#0f172a;">""" + title + """</div>
-          <div style="color:#475569; font-size:0.95rem; margin-top:4px;">""" + desc + """</div>
-        </div>
-        """
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(_feature_card("📨", "Instant notifications", "You’ll get an email when your work is marked—then view scores in Results & Resources."), unsafe_allow_html=True)
-    with c2:
-        st.markdown(_feature_card("🔒", "Locked submissions", "Two-step confirm and lock after submit. Your original work is safely stored."), unsafe_allow_html=True)
-    with c3:
-        st.markdown(_feature_card("📱", "Works everywhere", "Optimized for phone, tablet, and desktop—pick up where you left off."), unsafe_allow_html=True)
-    with c4:
-        st.markdown(_feature_card("🧑‍🏫", "Real tutor feedback", "Clear comments on your writing & speaking so you know exactly what to fix."), unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1133,16 +1028,17 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    _year = str(datetime.utcnow().year)
     st.markdown("""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © """ + _year + """ Learn Language Education Academy • Accra, Ghana<br>
+      © {} Learn Language Education Academy • Accra, Ghana<br>
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
-    """, unsafe_allow_html=True)
+    """.format(datetime.utcnow().year), unsafe_allow_html=True)
 
+    # Stop after public homepage so the logged-in UI below doesn’t render
     st.stop()
+
 
 
 
