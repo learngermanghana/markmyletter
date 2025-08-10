@@ -3,6 +3,7 @@ import atexit
 import base64
 import bcrypt
 import difflib
+import hashlib
 import html as html_stdlib  # renamed stdlib html to avoid conflicts
 import io
 import json
@@ -32,6 +33,7 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 # --- Compatibility alias ---
 html = st_html  # ensures any html(...) calls use the Streamlit component
@@ -4466,101 +4468,226 @@ if tab == "Course Book":
 
         st.divider()
 
-        # ---------------- Firestore helpers (per-class announcements) ----------------
-        from datetime import datetime
-        from google.cloud import firestore
+        # ---------------- Announcements via CSV + Firestore replies ----------------
 
-        def post_announcement(_class: str, author_code: str, author_name: str, text: str, pinned: bool = False):
-            ref = db.collection("class_announcements").document(_class).collection("posts")
-            ref.add({
-                "author_code": author_code,
-                "author_name": author_name,
+        def _to_csv_export_url(url: str, default_gid: str = "0") -> str:
+            # Accept published CSV URL OR normal edit URL; convert edit URL to CSV export
+            if not url:
+                return ""
+            if "export?format=csv" in url:
+                return url
+            m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
+            if not m:
+                return url
+            sheet_id = m.group(1)
+            gid_match = re.search(r"[?&]gid=(\d+)", url)
+            gid = gid_match.group(1) if gid_match else default_gid
+            return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+
+        @st.cache_data(ttl=60)
+        def fetch_announcements_csv() -> pd.DataFrame:
+            # 1) Try secrets; 2) if missing and admin, allow manual input
+            csv_url = ""
+            try:
+                csv_url = st.secrets["announcements"]["csv_url"]
+            except Exception:
+                pass
+            if not csv_url and IS_ADMIN:
+                st.info("Admin: paste your Google Sheets URL (Published CSV or Edit URL):")
+                csv_url = st.text_input("Announcements CSV URL", key="ann_csv_url").strip()
+                if not csv_url:
+                    return pd.DataFrame()
+
+            csv_url = _to_csv_export_url(csv_url)
+            if not csv_url:
+                return pd.DataFrame()
+
+            try:
+                df = pd.read_csv(csv_url)
+            except Exception:
+                return pd.DataFrame()
+
+            # Normalize headers (case-insensitive)
+            df.columns = [str(c).strip() for c in df.columns]
+            lower_map = {c.lower(): c for c in df.columns}
+
+            def get_col(name):  # map logical -> actual
+                return lower_map.get(name.lower())
+
+            # Ensure required columns exist
+            needed = ["announcement", "class", "date", "pinned"]
+            for n in needed:
+                if get_col(n) is None:
+                    df[n] = ""
+
+            # Rename to canonical names
+            rename_map = {}
+            for logical, canonical in [("announcement","Announcement"),
+                                       ("class","Class"),
+                                       ("date","Date"),
+                                       ("pinned","Pinned")]:
+                src = get_col(logical)
+                if src:
+                    rename_map[src] = canonical
+            df = df.rename(columns=rename_map)
+
+            for c in ["Announcement", "Class", "Date", "Pinned"]:
+                if c not in df.columns:
+                    df[c] = ""
+
+            # Normalize pinned values: TRUE/FALSE, yes/no, 1/0
+            def norm_pinned(val) -> bool:
+                s = str(val).strip().lower()
+                return s in {"true", "yes", "1"}
+
+            df["Pinned"] = df["Pinned"].apply(norm_pinned)
+
+            # Parse date (best-effort)
+            def parse_dt(x):
+                for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M",
+                            "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
+                    try:
+                        return datetime.strptime(str(x), fmt)
+                    except Exception:
+                        continue
+                try:
+                    return pd.to_datetime(x, errors="coerce")
+                except Exception:
+                    return pd.NaT
+
+            df["__dt"] = df["Date"].apply(parse_dt)
+
+            # Stable ID per announcement (Class + Date + Announcement)
+            def make_id(row):
+                raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
+                return hashlib.sha1(raw).hexdigest()[:16]
+
+            df["__id"] = df.apply(make_id, axis=1)
+
+            # Sort newest first
+            df.sort_values("__dt", ascending=False, inplace=True, na_position="last")
+            return df
+
+        # --- Firestore helpers for replies (thread per announcement) ---
+        def _reply_coll(_class: str, ann_id: str):
+            return (db.collection("class_announcements")
+                     .document(_class)
+                     .collection("replies")
+                     .document(ann_id)
+                     .collection("posts"))
+
+        def post_reply(_class: str, ann_id: str, code: str, name: str, text: str):
+            _reply_coll(_class, ann_id).add({
+                "student_code": code,
+                "student_name": name,
                 "text": text.strip(),
-                "pinned": bool(pinned),
                 "timestamp": datetime.utcnow(),
             })
 
-        def _safe_ts(d):
-            ts = d.get("timestamp")
+        def get_replies(_class: str, ann_id: str):
+            # Try server-side ordering; fall back to local sort if index is needed
             try:
-                return ts.to_datetime() if hasattr(ts, "to_datetime") else ts
+                q = _reply_coll(_class, ann_id).order_by("timestamp", direction=firestore.Query.ASCENDING).stream()
+                return [p.to_dict() for p in q]
             except Exception:
-                return datetime.min
+                try:
+                    items = [p.to_dict() for p in _reply_coll(_class, ann_id).stream()]
+                    items.sort(key=lambda r: r.get("timestamp"))
+                    return items
+                except Exception:
+                    return []
 
-        def get_announcements(_class: str):
-            ref = db.collection("class_announcements").document(_class).collection("posts")
-            pinned_docs = ref.where("pinned", "==", True).stream()
-            latest_docs = ref.where("pinned", "==", False).stream()
-
-            pinned = [dict(doc.to_dict(), id=doc.id) for doc in pinned_docs]
-            latest = [dict(doc.to_dict(), id=doc.id) for doc in latest_docs]
-
-            # Sort locally to avoid Firestore composite index error
-            pinned.sort(key=_safe_ts, reverse=True)
-            latest.sort(key=_safe_ts, reverse=True)
-            latest = latest[:50]
-            return pinned, latest
-
-        def toggle_pin_announcement(_class: str, post_id: str, new_val: bool):
-            db.collection("class_announcements").document(_class).collection("posts").document(post_id).update(
-                {"pinned": bool(new_val)}
-            )
-
-        def delete_announcement(_class: str, post_id: str):
-            db.collection("class_announcements").document(_class).collection("posts").document(post_id).delete()
-
-        def _fmt_ts(ts) -> str:
+        def _fmt_dt_label(dtval) -> str:
             try:
-                dt = ts.to_datetime() if hasattr(ts, "to_datetime") else ts
-                return dt.strftime("%d %b %H:%M")
+                return dtval.strftime("%d %b %H:%M")
             except Exception:
                 return ""
 
-        # ---------------- Announcements UI ----------------
+        # ---------------- Announcements UI (CSV-backed with replies) ----------------
         st.markdown("### 📢 Announcements")
-        if IS_ADMIN:
-            with st.form("ann_form"):
-                ann_text = st.text_area("Write an announcement for the class…", height=120, max_chars=800)
-                pin_it   = st.checkbox("📌 Pin to top")
-                posted   = st.form_submit_button("Post Announcement")
-                if posted and ann_text.strip():
-                    post_announcement(class_name, student_code, student_name, ann_text, pin_it)
-                    st.success("Announcement posted!")
-                    st.rerun()
+        try:
+            df = fetch_announcements_csv()
+        except Exception:
+            df = pd.DataFrame()
 
-        pinned_anns, latest_anns = get_announcements(class_name)
+        if df.empty:
+            st.info("No announcements yet.")
+        else:
+            # Controls
+            c1, c2 = st.columns([2, 3])
+            with c1:
+                show_only_pinned = st.checkbox("Show only pinned", value=False)
+            with c2:
+                search_term = st.text_input("Search announcements…", "")
 
-        def render_ann(item: dict, is_pinned: bool = False):
-            ts_label = _fmt_ts(item.get("timestamp"))
-            st.markdown(
-                (
-                    f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
-                    f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
-                    f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                    f"<b>{item.get('author_name','Teacher')}</b> "
-                    f"<span style='color:#888;'>{ts_label} UTC</span><br>"
-                    f"{item.get('text','')}"
-                    f"</div>"
-                ),
-                unsafe_allow_html=True,
-            )
+            # Filter by class
+            view = df.copy()
+            view = view[view["Class"].astype(str).str.strip() == class_name]
 
-            if IS_ADMIN:
-                c1, c2 = st.columns([1, 1])
-                with c1:
-                    if st.button(("Unpin" if is_pinned else "Pin"), key=f"pin_{item['id']}"):
-                        toggle_pin_announcement(class_name, item["id"], (not is_pinned))
+            if show_only_pinned:
+                view = view[view["Pinned"] == True]
+
+            if search_term.strip():
+                q = search_term.lower()
+                view = view[view["Announcement"].astype(str).str.lower().str.contains(q)]
+
+            # Split pinned + latest
+            pinned_df = view[view["Pinned"] == True]
+            latest_df = view[view["Pinned"] == False]
+
+            def render_announcement(row, is_pinned=False):
+                ts_label = _fmt_dt_label(row.get("__dt"))
+                st.markdown(
+                    (
+                        f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
+                        f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
+                        f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                        f"<b>Teacher</b> "
+                        f"<span style='color:#888;'>{ts_label} GMT</span><br>"
+                        f"{row.get('Announcement','')}"
+                        f"</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+                # Replies (Firestore)
+                ann_id = row.get("__id")
+                replies = get_replies(class_name, ann_id)
+
+                if replies:
+                    for r in replies:
+                        when = ""
+                        ts = r.get("timestamp")
+                        try:
+                            when = ts.strftime("%d %b %H:%M") + " UTC"
+                        except Exception:
+                            when = ""
+                        st.markdown(
+                            f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
+                            f"<span style='color:#bbb;'>{when}</span><br>"
+                            f"{r.get('text','')}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                with st.expander("Reply"):
+                    reply_text = st.text_area(
+                        f"Reply to {ann_id}",
+                        key=f"reply_{ann_id}",
+                        height=90,
+                        placeholder="Write your reply…"
+                    )
+                    if st.button("Send Reply", key=f"reply_btn_{ann_id}") and reply_text.strip():
+                        post_reply(class_name, ann_id, student_code, student_name, reply_text)
+                        st.success("Reply sent!")
                         st.rerun()
-                with c2:
-                    if st.button("Delete", key=f"del_{item['id']}"):
-                        delete_announcement(class_name, item["id"])
-                        st.rerun()
 
-        for a in pinned_anns:
-            render_ann(a, is_pinned=True)
-        for a in latest_anns:
-            render_ann(a, is_pinned=False)
+            # Render lists
+            for _, row in pinned_df.iterrows():
+                render_announcement(row, is_pinned=True)
+            for _, row in latest_df.iterrows():
+                render_announcement(row, is_pinned=False)
 #
+
 
 
 
