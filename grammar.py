@@ -970,41 +970,88 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-       # ================= Extra homepage sections =================
+    # ================= Extra homepage sections =================
     st.markdown("---")
-    st.markdown("### How Falowen works")
 
-    # 👉 Your images
-    IMG_SIGNIN     = "https://i.imgur.com/pFQ5BIn.png"
-    IMG_COURSEBOOK = "https://i.imgur.com/pqXoqSC.png"  # paste Course Book image link here
-    IMG_RESULTS    = "https://i.imgur.com/uiIPKUT.png"
+    # 1) How Falowen works + images (non-clickable, uniform height)
+    LOGIN_IMAGE_URL = "https://i.imgur.com/pFQ5BIn.png"
+    COURSEBOOK_IMAGE_URL = "https://i.imgur.com/REPLACE_THIS.png"  # TODO: replace with your Course Book image URL
+    RESULTS_IMAGE_URL = "https://i.imgur.com/uiIPKUT.png"
 
-    c1, c2, c3 = st.columns(3)
+    _how_html = """
+    <div class="how-wrap">
+      <div class="how-card">
+        <h3>1️⃣ Sign in</h3>
+        <p>Use your <b>student code or email</b> and start your level (A1–C1).</p>
+        <img src="__LOGIN__" alt="Falowen login screen" class="how-img" draggable="false" />
+      </div>
+      <div class="how-card">
+        <h3>2️⃣ Learn &amp; submit</h3>
+        <p>Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
+        <img src="__COURSEBOOK__" alt="Falowen Course Book screen" class="how-img" draggable="false" />
+      </div>
+      <div class="how-card">
+        <h3>3️⃣ Get results</h3>
+        <p>You’ll get an <b>email when marked</b>. Check <b>Results &amp; Resources</b> for scores &amp; feedback.</p>
+        <img src="__RESULTS__" alt="Falowen results screen" class="how-img" draggable="false" />
+      </div>
+    </div>
+    """
 
-    with c1:
-        st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
-        st.image(IMG_SIGNIN, caption="Login screen — mobile preview", use_container_width=True)
-        st.markdown(
-            f'<div style="text-align:center;"><a href="{IMG_SIGNIN}" target="_blank" rel="noopener">Open full image</a></div>',
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        _how_html
+        .replace("__LOGIN__", LOGIN_IMAGE_URL)
+        .replace("__COURSEBOOK__", COURSEBOOK_IMAGE_URL)
+        .replace("__RESULTS__", RESULTS_IMAGE_URL),
+        unsafe_allow_html=True
+    )
 
-    with c2:
-        st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
-        st.image(IMG_COURSEBOOK, caption="Course Book — lessons & submissions", use_container_width=True)
-        st.markdown(
-            f'<div style="text-align:center;"><a href="{IMG_COURSEBOOK}" target="_blank" rel="noopener">Open full image</a></div>',
-            unsafe_allow_html=True
-        )
-
-    with c3:
-        st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
-        st.image(IMG_RESULTS, caption="Results & Resources — marks and feedback", use_container_width=True)
-        st.markdown(
-            f'<div style="text-align:center;"><a href="{IMG_RESULTS}" target="_blank" rel="noopener">Open full image</a></div>',
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        """
+        <style>
+          .how-wrap {
+            max-width: 1100px;
+            margin: 0 auto 8px auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+          }
+          .how-card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+          }
+          .how-card h3 {
+            margin: 0 0 6px 0;
+            color: #0f172a;
+            font-size: 1.05rem;
+          }
+          .how-card p {
+            margin: 0 0 10px 0;
+            color: #475569;
+            font-size: 0.96rem;
+          }
+          .how-img {
+            width: 100%;
+            height: 240px;       /* uniform height for all three */
+            object-fit: cover;   /* crop to fill without distortion */
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            pointer-events: none; /* non-clickable */
+            user-select: none;    /* prevent selection */
+          }
+          @media (max-width: 900px) {
+            .how-wrap { grid-template-columns: 1fr; }
+            .how-img { height: 240px; } /* keep uniform on mobile */
+          }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 #
+
 
 
     st.markdown("---")
