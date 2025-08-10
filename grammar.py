@@ -976,7 +976,7 @@ if not st.session_state.get("logged_in", False):
 
     # 👉 Your images
     IMG_SIGNIN     = "https://i.imgur.com/pFQ5BIn.png"
-    IMG_COURSEBOOK = "https://i.imgur.com/REPLACE_WITH_COURSEBOOK.png"  # paste Course Book image link here
+    IMG_COURSEBOOK = "https://i.imgur.com/pqXoqSC.png"  # paste Course Book image link here
     IMG_RESULTS    = "https://i.imgur.com/uiIPKUT.png"
 
     c1, c2, c3 = st.columns(3)
