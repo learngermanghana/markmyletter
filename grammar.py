@@ -649,19 +649,46 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Rotating multi-country reviews ---
+    # --- Rotating multi-country reviews (with flags) ---
     import json
     import streamlit.components.v1 as components
 
     REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Nadia — Nairobi, Kenya", "level": "A1"},
-        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.", "author": "Lea — Berlin, Germany", "level": "B2"},
-        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.", "author": "James — London, UK", "level": "B1"},
-        {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.", "author": "Maya — New York, USA", "level": "A1"},
-        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.", "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
-        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
+        {
+            "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
+            "author": "Ama — Accra, Ghana 🇬🇭",
+            "level": "A2",
+        },
+        {
+            "quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
+            "author": "Tunde — Lagos, Nigeria 🇳🇬",
+            "level": "B1",
+        },
+        {
+            "quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
+            "author": "Isata — Freetown, Sierra Leone 🇸🇱",
+            "level": "A1",
+        },
+        {
+            "quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
+            "author": "Kossi — Lomé, Togo 🇹🇬",
+            "level": "B1",
+        },
+        {
+            "quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
+            "author": "Lea — Berlin, Germany 🇩🇪",
+            "level": "B2",
+        },
+        {
+            "quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
+            "author": "Sipho — Johannesburg, South Africa 🇿🇦",
+            "level": "A2",
+        },
+        {
+            "quote": "The speaking prompts kept me motivated, and the Results tab makes my progress clear.",
+            "author": "Nangula — Windhoek, Namibia 🇳🇦",
+            "level": "A1",
+        },
     ]
     _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
 
@@ -724,6 +751,8 @@ if not st.session_state.get("logged_in", False):
 </script>
 """
     components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
+#
+
 
     # --- Simple access explainer (no complex UI) -------------------------------
     st.markdown("""
