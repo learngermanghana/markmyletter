@@ -672,7 +672,20 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
+    # Short explainer: which option to use
+    st.markdown("""
+    <div class="page-wrap" style="max-width:900px;margin-top:4px;">
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 14px;border-radius:10px;">
+        <b>Which option should I use?</b><br>
+        • <b>Returning student</b>: you already created a password — log in.<br>
+        • <b>Sign up (approved)</b>: you’ve paid and your email & code are on the roster, but no account yet — create one.<br>
+        • <b>Request access</b>: brand new learner — fill the form and we’ll contact you.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # --- Rotating multi-country reviews (with flags) ---
+    import json, streamlit.components.v1 as components
     REVIEWS = [
         {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
          "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
@@ -690,7 +703,6 @@ if not st.session_state.get("logged_in", False):
          "author": "Nadia — Windhoek, Namibia 🇳🇦", "level": "B1"},
     ]
     _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-
     _reviews_html = """
 <div class="page-wrap" role="region" aria-label="Student reviews" style="margin-top:10px;">
   <div id="rev-quote" style="
@@ -698,56 +710,42 @@ if not st.session_state.get("logged_in", False):
       color:#475569;min-height:82px;display:flex;align-items:center;justify-content:center;text-align:center;">
     Loading…
   </div>
-
   <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="
-      background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
+    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
     <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="
-      background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
+    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
   </div>
 </div>
-
 <script>
   const data = __DATA__;
   let i = 0;
-
   const quoteEl = document.getElementById('rev-quote');
   const dotsEl  = document.getElementById('rev-dots');
   const prevBtn = document.getElementById('rev-prev');
   const nextBtn = document.getElementById('rev-next');
-
   function renderDots(){
     dotsEl.innerHTML = '';
     data.forEach((_, idx) => {
       const d = document.createElement('button');
       d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
-      d.style.width = '10px';
-      d.style.height = '10px';
-      d.style.borderRadius = '999px';
-      d.style.border = 'none';
-      d.style.cursor = 'pointer';
+      d.style.width = '10px'; d.style.height = '10px'; d.style.borderRadius = '999px';
+      d.style.border = 'none'; d.style.cursor = 'pointer';
       d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
       d.addEventListener('click', () => { i = idx; render(); });
       dotsEl.appendChild(d);
     });
   }
-
   function render(){
     const r = data[i];
     quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
     renderDots();
   }
-
   function next(){ i = (i + 1) % data.length; render(); }
   function prev(){ i = (i - 1 + data.length) % data.length; render(); }
-
   prevBtn.addEventListener('click', prev);
   nextBtn.addEventListener('click', next);
-
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!reduced) { setInterval(next, 6000); }
-
   render();
 </script>
 """
@@ -771,8 +769,7 @@ if not st.session_state.get("logged_in", False):
     REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
 
     def _qp_first(val):
-        if isinstance(val, list):
-            return val[0]
+        if isinstance(val, list): return val[0]
         return val
 
     def do_google_oauth():
@@ -790,14 +787,14 @@ if not st.session_state.get("logged_in", False):
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
-            f"""<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                    <a href="{auth_url}">
+            """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+                    <a href="{url}">
                         <button aria-label="Sign in with Google"
                                 style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
                             Sign in with Google
                         </button>
                     </a>
-                </div>""",
+               </div>""".replace("{url}", auth_url),
             unsafe_allow_html=True
         )
 
@@ -805,11 +802,9 @@ if not st.session_state.get("logged_in", False):
         qp = qp_get()
         code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
         state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
-        if not code:
-            return False
+        if not code: return False
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again.")
-            return False
+            st.error("OAuth state mismatch. Please try again."); return False
         if st.session_state.get("_oauth_code_redeemed") == code:
             return False
 
@@ -824,13 +819,11 @@ if not st.session_state.get("logged_in", False):
         try:
             resp = requests.post(token_url, data=data, timeout=10)
             if not resp.ok:
-                st.error(f"Google login failed: {resp.status_code} {resp.text}")
-                return False
+                st.error(f"Google login failed: {resp.status_code} {resp.text}"); return False
             tokens = resp.json()
             access_token = tokens.get("access_token")
             if not access_token:
-                st.error("Google login failed: no access token.")
-                return False
+                st.error("Google login failed: no access token."); return False
             st.session_state["_oauth_code_redeemed"] = code
 
             userinfo = requests.get(
@@ -840,20 +833,17 @@ if not st.session_state.get("logged_in", False):
             ).json()
             email = (userinfo.get("email") or "").lower().strip()
             if not email:
-                st.error("Google login failed: no email returned.")
-                return False
+                st.error("Google login failed: no email returned."); return False
 
             df = load_student_data()
             df["Email"] = df["Email"].str.lower().str.strip()
             match = df[df["Email"] == email]
             if match.empty:
-                st.error("No student account found for that Google email.")
-                return False
+                st.error("No student account found for that Google email."); return False
 
             student_row = match.iloc[0]
             if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office.")
-                return False
+                st.error("Your contract has expired. Contact the office."); return False
 
             st.session_state.update({
                 "logged_in": True,
@@ -873,9 +863,10 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-    # Tabs: Returning / Request Access
-    tab1, tab2 = st.tabs(["👋 Returning", "📝 Request Access"])
+    # Tabs: Returning / Sign Up (Approved) / Request Access
+    tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
+    # --- Returning ---
     with tab1:
         do_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
@@ -887,7 +878,6 @@ if not st.session_state.get("logged_in", False):
         if login_btn:
             login_id   = (login_id_input or "").strip().lower()
             login_pass = (login_pass_input or "")
-
             df = load_student_data()
             df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
             df["Email"]       = df["Email"].str.lower().str.strip()
@@ -903,15 +893,13 @@ if not st.session_state.get("logged_in", False):
                     doc_ref = db.collection("students").document(student_row["StudentCode"])
                     doc     = doc_ref.get()
                     if not doc.exists:
-                        st.error("Account not found. Please request access first (see tab above).")
+                        st.error("Account not found. Please use 'Sign Up (Approved)' first.")
                     else:
                         data      = doc.to_dict() or {}
                         stored_pw = data.get("password", "")
-
                         import bcrypt
                         def _is_bcrypt_hash(s: str) -> bool:
                             return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
-
                         ok = False
                         try:
                             if _is_bcrypt_hash(stored_pw):
@@ -923,7 +911,6 @@ if not st.session_state.get("logged_in", False):
                                     doc_ref.update({"password": new_hash})
                         except Exception:
                             ok = False
-
                         if not ok:
                             st.error("Incorrect password.")
                         else:
@@ -937,7 +924,44 @@ if not st.session_state.get("logged_in", False):
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
+    # --- Sign Up (Approved students — already on roster, no account yet) ---
     with tab2:
+        with st.form("signup_form", clear_on_submit=False):
+            new_name_input     = st.text_input("Full Name", key="ca_name")
+            new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
+            new_code_input     = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code")
+            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
+            signup_btn         = st.form_submit_button("Create Account")
+
+        if signup_btn:
+            new_name     = (new_name_input or "").strip()
+            new_email    = (new_email_input or "").strip().lower()
+            new_code     = (new_code_input or "").strip().lower()
+            new_password = (new_password_input or "")
+
+            if not (new_name and new_email and new_code and new_password):
+                st.error("Please fill in all fields.")
+            elif len(new_password) < 8:
+                st.error("Password must be at least 8 characters.")
+            else:
+                df = load_student_data()
+                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+                df["Email"]       = df["Email"].str.lower().str.strip()
+                valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
+                if valid.empty:
+                    st.error("Your code/email aren’t registered. Use 'Request Access' first.")
+                else:
+                    doc_ref = db.collection("students").document(new_code)
+                    if doc_ref.get().exists:
+                        st.error("An account with this student code already exists. Please log in instead.")
+                    else:
+                        import bcrypt
+                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                        doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
+                        st.success("Account created! Please log in on the Returning tab.")
+
+    # --- Request Access (brand new learners) ---
+    with tab3:
         st.markdown("""
         <div class="page-wrap" style="text-align:center; margin-top:12px;">
           <p>New student? Request access and we’ll contact you with payment instructions.</p>
