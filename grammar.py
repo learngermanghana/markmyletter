@@ -4068,7 +4068,7 @@ if tab == "Course Book":
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
-        # === CLASSROOM SUBTAB ===
+    # === CLASSROOM SUBTAB ===
     elif cb_subtab == "🧑‍🏫 Classroom":
         # --- Header ---
         st.markdown(
@@ -4109,6 +4109,23 @@ if tab == "Course Book":
             if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
         except Exception:
             pass
+
+        # --- Slack helper (Render env: SLACK_WEBHOOK_URL) ---
+        def _slack_url():
+            try:
+                return (os.getenv("SLACK_WEBHOOK_URL") or
+                        (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
+            except Exception:
+                return ""
+
+        def notify_slack(text: str):
+            url = _slack_url()
+            if not url:
+                return
+            try:
+                requests.post(url, json={"text": text}, timeout=6)
+            except Exception:
+                pass  # never block UI
 
         # ---------------- Zoom Join Block ----------------
         with st.container():
@@ -4249,8 +4266,6 @@ if tab == "Course Book":
             df["__id"] = df.apply(make_id, axis=1)
             df.sort_values("__dt", ascending=False, inplace=True, na_position="last")
             return df
-#
-
 
         # --- Firestore helpers for replies (thread per announcement) ---
         def _reply_coll(_class: str, ann_id: str):
@@ -4267,9 +4282,16 @@ if tab == "Course Book":
                 "text": text.strip(),
                 "timestamp": datetime.utcnow(),
             })
+            # 🔔 Slack alert for announcement reply
+            prev = (text.strip()[:180] + "…") if len(text.strip()) > 180 else text.strip()
+            notify_slack(
+                f"📢 *Announcement reply* — {_class}\n"
+                f"*By:* {name} ({code})  •  *AnnID:* {ann_id}\n"
+                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                f"*Reply:* {prev}"
+            )
 
         def get_replies(_class: str, ann_id: str):
-            # Try server-side ordering; fall back to local sort if index is needed
             try:
                 q = _reply_coll(_class, ann_id).order_by("timestamp", direction=firestore.Query.ASCENDING).stream()
                 return [p.to_dict() for p in q]
@@ -4442,6 +4464,190 @@ if tab == "Course Book":
                 render_announcement(row, is_pinned=True)
             for _, row in latest_df.iterrows():
                 render_announcement(row, is_pinned=False)
+
+        # ---------------- Class Q&A — realtime (listener + fallback) ----------------
+        st.markdown("### 💬 Class Q&A (Live)")
+
+        # Where questions live (per-class)
+        q_base = db.collection("class_qna").document(class_name).collection("questions")
+
+        # --- State: one listener per session
+        if "qna_live_unsub" not in st.session_state:
+            st.session_state.qna_live_unsub = None
+        if "qna_questions" not in st.session_state:
+            st.session_state.qna_questions = []  # list of dicts
+        if "qna_last_error" not in st.session_state:
+            st.session_state.qna_last_error = ""
+
+        # --- Start Firestore listener (realtime)
+        def _start_qna_listener():
+            try:
+                query = q_base.order_by("timestamp", direction=firestore.Query.DESCENDING)
+
+                def _on_snapshot(col_snapshot, changes, read_time):
+                    items = []
+                    for doc in col_snapshot:
+                        d = doc.to_dict() or {}
+                        d["id"] = doc.id
+                        items.append(d)
+                    st.session_state.qna_questions = items
+                    try:
+                        st.rerun()
+                    except Exception:
+                        pass
+
+                st.session_state.qna_live_unsub = query.on_snapshot(_on_snapshot)
+            except Exception as e:
+                st.session_state.qna_last_error = str(e)
+
+        def _stop_qna_listener():
+            try:
+                if st.session_state.qna_live_unsub:
+                    st.session_state.qna_live_unsub()
+            except Exception:
+                pass
+            st.session_state.qna_live_unsub = None
+
+        if st.session_state.qna_live_unsub is None:
+            _start_qna_listener()
+
+        # --- Fallback: light polling every ~5s if listener failed
+        if st.session_state.qna_live_unsub is None:
+            try:
+                q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+                st.session_state.qna_questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+                ts_now = int(time.time())
+                if ts_now % 5 == 0:
+                    st.experimental_rerun()
+            except Exception as e:
+                st.session_state.qna_last_error = str(e)
+
+        # --- Ask a new question (anyone can ask)
+        with st.expander("➕ Ask a new question"):
+            topic = st.text_input("Topic (optional)", key="q_topic")
+            new_q = st.text_area("Your question", key="q_text", height=80)
+            if st.button("Post Question") and new_q.strip():
+                q_id = str(uuid.uuid4())[:8]
+                payload = {
+                    "question": new_q.strip(),
+                    "asked_by_name": student_name,
+                    "asked_by_code": student_code,
+                    "timestamp": datetime.utcnow(),
+                    "topic": (topic or "").strip(),
+                }
+                q_base.document(q_id).set(payload)
+                # 🔔 Slack alert for new question
+                preview = (payload["question"][:180] + "…") if len(payload["question"]) > 180 else payload["question"]
+                topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
+                notify_slack(
+                    f"❓ *New class question* — {class_name}{topic_tag}\n"
+                    f"*From:* {student_name} ({student_code})\n"
+                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                    f"*Q:* {preview}"
+                )
+                st.success("Question posted!")
+
+        # --- Search + filters
+        colsa, colsb = st.columns([2, 1])
+        with colsa:
+            q_search = st.text_input("Search questions (text or topic)…", key="q_search")
+        with colsb:
+            show_latest = st.toggle("Newest first", value=True)
+
+        # --- Render questions (anyone can reply)
+        questions = st.session_state.qna_questions or []
+        if not questions:
+            st.info("No questions yet.")
+        else:
+            if q_search.strip():
+                ql = q_search.lower()
+                questions = [
+                    q for q in questions
+                    if ql in str(q.get("question","")).lower() or ql in str(q.get("topic","")).lower()
+                ]
+            if not show_latest:
+                questions = list(reversed(questions))
+
+            for q in questions:
+                q_id = q.get("id", "")
+                ts = q.get("timestamp")
+                try:
+                    ts_label = ts.strftime("%d %b %H:%M")
+                except Exception:
+                    ts_label = ""
+
+                st.markdown(
+                    f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
+                    f"<b>{q.get('asked_by_name','')}</b>"
+                    f"<span style='color:#aaa;'> • {ts_label}</span>"
+                    f"{f\"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>\" if q.get('topic') else ''}"
+                    f"{q.get('question','')}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+                # Load replies live (ordered asc)
+                r_ref = q_base.document(q_id).collection("replies")
+                try:
+                    replies = list(r_ref.order_by("timestamp").stream())
+                except Exception:
+                    replies = []
+
+                if replies:
+                    for r in replies:
+                        r_data = r.to_dict() or {}
+                        r_ts = r_data.get("timestamp")
+                        try:
+                            r_label = r_ts.strftime("%d %b %H:%M")
+                        except Exception:
+                            r_label = ""
+                        st.markdown(
+                            f"<div style='margin-left:20px;color:#444;'>↳ <b>{r_data.get('replied_by_name','')}</b> "
+                            f"<span style='color:#bbb;'>{r_label}</span><br>"
+                            f"{r_data.get('reply_text','')}</div>",
+                            unsafe_allow_html=True
+                        )
+
+                # Reply form (anyone can answer)
+                reply_text = st.text_input(
+                    f"Reply to Q{q_id}",
+                    key=f"reply_{q_id}",
+                    placeholder="Write your reply…"
+                )
+                if st.button(f"Send Reply {q_id}", key=f"reply_btn_{q_id}") and reply_text.strip():
+                    reply_payload = {
+                        "reply_text": reply_text.strip(),
+                        "replied_by_name": student_name,
+                        "replied_by_code": student_code,
+                        "timestamp": datetime.utcnow(),
+                    }
+                    r_ref.document(str(uuid.uuid4())[:8]).set(reply_payload)
+                    # 🔔 Slack alert for Q&A reply
+                    prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
+                    notify_slack(
+                        f"💬 *New Q&A reply* — {class_name}\n"
+                        f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
+                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                        f"*Reply:* {prev}"
+                    )
+                    st.success("Reply sent!")
+
+        # --- Listener status / controls
+        cols = st.columns([1,1,3])
+        with cols[0]:
+            if st.session_state.qna_live_unsub:
+                if st.button("⏸ Stop live updates"):
+                    _stop_qna_listener()
+                    st.success("Live updates paused.")
+            else:
+                if st.button("▶️ Start live updates"):
+                    _start_qna_listener()
+                    st.success("Live updates on.")
+        with cols[1]:
+            if st.button("↻ Manual refresh"):
+                st.rerun()
+        if st.session_state.qna_last_error:
+            st.caption(f"Listener note: {st.session_state.qna_last_error}")
 #
 
 
