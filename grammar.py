@@ -4395,6 +4395,29 @@ if tab == "Course Book":
         # ---------------- Announcements UI (CSV-backed with replies) ----------------
         st.markdown("### 📢 Announcements")
 
+        # Helpers for links
+        URL_RE = re.compile(r"(https?://[^\s]+)")
+
+        def _short_label_from_url(u: str) -> str:
+            try:
+                p = urllib.parse.urlparse(u)
+                host = (p.netloc or "").replace("www.", "")
+                path = (p.path or "").strip("/")
+                label = host if not path else f"{host}/{path}"
+                return label[:60] + ("…" if len(label) > 60 else "")
+            except Exception:
+                return u[:60] + ("…" if len(u) > 60 else "")
+
+        def _guess_link_emoji_and_label(u: str):
+            lu = u.lower()
+            if "zoom.us" in lu: return "🎦", None
+            if "youtu" in lu:   return "▶️", None
+            if lu.endswith(".pdf"): return "📄", None
+            if "drive.google" in lu: return "🟢", None
+            if "deepl.com" in lu: return "🌐", None
+            if "google.com" in lu: return "🔗", None
+            return "🔗", None
+
         # Read the live CSV from your Google Sheet (export link)
         CSV_URL = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
 
@@ -4497,7 +4520,7 @@ if tab == "Course Book":
             with c2:
                 search_term = st.text_input("Search announcements…", "")
             with c3:
-                if st.button("↻ Refresh"):
+                if st.button("↻ Refresh", key="ann_refresh"):
                     st.rerun()
 
             # --- Robust class-based filter (vectorized) ---
@@ -4586,7 +4609,7 @@ if tab == "Course Book":
             for _, row in latest_df.iterrows():
                 render_announcement(row, is_pinned=False)
 
-        # ---------------- Class Q&A — post + reply (manual refresh + Slack alerts) ----------------
+        # ---------------- Class Q&A — post + reply (manual refresh + Slack alerts + edit/delete) ----------------
         st.markdown("### 💬 Class Q&A")
 
         # Where questions live (per-class)
@@ -4602,7 +4625,7 @@ if tab == "Course Book":
         with st.expander("➕ Ask a new question"):
             topic = st.text_input("Topic (optional)", key="q_topic")
             new_q = st.text_area("Your question", key="q_text", height=80)
-            if st.button("Post Question") and new_q.strip():
+            if st.button("Post Question", key="qna_post_question") and new_q.strip():
                 q_id = str(uuid4())[:8]
                 payload = {
                     "question": new_q.strip(),
@@ -4630,7 +4653,7 @@ if tab == "Course Book":
         with colsb:
             show_latest = st.toggle("Newest first", value=True)
         with colsc:
-            if st.button("↻ Refresh"):
+            if st.button("↻ Refresh", key="qna_refresh"):
                 st.rerun()
 
         # --- Load questions once (manual refresh only)
@@ -4653,7 +4676,7 @@ if tab == "Course Book":
         if not show_latest:
             questions = list(reversed(questions))
 
-        # --- Render questions (anyone can reply)
+        # --- Render questions (anyone can reply; authors can edit/delete; admins can delete)
         if not questions:
             st.info("No questions yet.")
         else:
@@ -4662,7 +4685,6 @@ if tab == "Course Book":
                 ts = q.get("timestamp")
                 ts_label = _fmt_ts(ts)
 
-                # Build the card safely (avoid nested f-strings)
                 topic_html = (
                     f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
                     if q.get("topic") else ""
@@ -4677,16 +4699,80 @@ if tab == "Course Book":
                 )
                 st.markdown(question_html, unsafe_allow_html=True)
 
+                # --- Edit/Delete controls for the question (author or admin)
+                can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
+                if can_modify_q:
+                    qc1, qc2, qc3 = st.columns([1,1,3])
+                    with qc1:
+                        if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
+                            st.session_state[f"q_editing_{q_id}"] = True
+                            st.session_state[f"q_edit_text_{q_id}"] = q.get("question","")
+                            st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic","")
+                    with qc2:
+                        if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
+                            # delete replies first
+                            try:
+                                r_ref = q_base.document(q_id).collection("replies")
+                                for rdoc in r_ref.stream():
+                                    rdoc.reference.delete()
+                            except Exception:
+                                pass
+                            # delete question
+                            q_base.document(q_id).delete()
+                            notify_slack(
+                                f"🗑️ *Q&A question deleted* — {class_name}\n"
+                                f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                            )
+                            st.success("Question deleted.")
+                            st.rerun()
+
+                    # Edit form
+                    if st.session_state.get(f"q_editing_{q_id}", False):
+                        with st.form(f"q_edit_form_{q_id}"):
+                            new_topic = st.text_input(
+                                "Edit topic (optional)",
+                                value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
+                                key=f"q_edit_topic_input_{q_id}"
+                            )
+                            new_text = st.text_area(
+                                "Edit question",
+                                value=st.session_state.get(f"q_edit_text_{q_id}", ""),
+                                key=f"q_edit_text_input_{q_id}",
+                                height=100
+                            )
+                            save_edit = st.form_submit_button("💾 Save")
+                            cancel_edit = st.form_submit_button("❌ Cancel")
+                        if save_edit and new_text.strip():
+                            q_base.document(q_id).update({
+                                "question": new_text.strip(),
+                                "topic": (new_topic or "").strip(),
+                                "edited_at": datetime.utcnow(),
+                            })
+                            notify_slack(
+                                f"✏️ *Q&A question edited* — {class_name}\n"
+                                f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
+                            )
+                            st.session_state[f"q_editing_{q_id}"] = False
+                            st.success("Question updated.")
+                            st.rerun()
+                        if cancel_edit:
+                            st.session_state[f"q_editing_{q_id}"] = False
+                            st.rerun()
+
                 # Load replies (ordered asc; fallback to local sort)
                 r_ref = q_base.document(q_id).collection("replies")
                 try:
-                    replies = list(r_ref.order_by("timestamp").stream())
+                    replies_docs = list(r_ref.order_by("timestamp").stream())
                 except Exception:
-                    replies = list(r_ref.stream())
-                    replies.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
+                    replies_docs = list(r_ref.stream())
+                    replies_docs.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
 
-                if replies:
-                    for r in replies:
+                if replies_docs:
+                    for r in replies_docs:
+                        rid = r.id
                         r_data = r.to_dict() or {}
                         r_label = _fmt_ts(r_data.get("timestamp"))
                         st.markdown(
@@ -4695,6 +4781,53 @@ if tab == "Course Book":
                             f"{r_data.get('reply_text','')}</div>",
                             unsafe_allow_html=True
                         )
+
+                        # Edit/Delete for replies (author or admin)
+                        can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
+                        if can_modify_r:
+                            rc1, rc2, rc3 = st.columns([1,1,3])
+                            with rc1:
+                                if st.button("✏️ Edit", key=f"r_edit_btn_{q_id}_{rid}"):
+                                    st.session_state[f"r_editing_{q_id}_{rid}"] = True
+                                    st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text","")
+                            with rc2:
+                                if st.button("🗑️ Delete", key=f"r_del_btn_{q_id}_{rid}"):
+                                    r.reference.delete()
+                                    notify_slack(
+                                        f"🗑️ *Q&A reply deleted* — {class_name}\n"
+                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                    )
+                                    st.success("Reply deleted.")
+                                    st.rerun()
+
+                            if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
+                                with st.form(f"r_edit_form_{q_id}_{rid}"):
+                                    new_rtext = st.text_area(
+                                        "Edit reply",
+                                        value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
+                                        key=f"r_edit_text_input_{q_id}_{rid}",
+                                        height=80
+                                    )
+                                    rsave = st.form_submit_button("💾 Save")
+                                    rcancel = st.form_submit_button("❌ Cancel")
+                                if rsave and new_rtext.strip():
+                                    r.reference.update({
+                                        "reply_text": new_rtext.strip(),
+                                        "edited_at": datetime.utcnow(),
+                                    })
+                                    notify_slack(
+                                        f"✏️ *Q&A reply edited* — {class_name}\n"
+                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                        f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
+                                    )
+                                    st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                    st.success("Reply updated.")
+                                    st.rerun()
+                                if rcancel:
+                                    st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                    st.rerun()
 
                 # Reply form (anyone can answer)
                 reply_text = st.text_input(
@@ -4709,6 +4842,7 @@ if tab == "Course Book":
                         "replied_by_code": student_code,
                         "timestamp": datetime.utcnow(),
                     }
+                    r_ref = q_base.document(q_id).collection("replies")
                     r_ref.document(str(uuid4())[:8]).set(reply_payload)
                     # 🔔 Slack alert for Q&A reply
                     prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
@@ -4719,7 +4853,7 @@ if tab == "Course Book":
                         f"*Reply:* {prev}"
                     )
                     st.success("Reply sent!")
-
+#
 
 
 
