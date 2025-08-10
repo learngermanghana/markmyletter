@@ -3568,7 +3568,7 @@ if tab == "Course Book":
 
         st.divider()
 
-        # === SUBMIT ASSIGNMENT SECTION (Simple: submit + receipt + lock) ===
+             # === SUBMIT ASSIGNMENT SECTION (Submit + receipt + lock + Slack + 2-step confirm) ===
         st.markdown("### ✅ Submit Your Assignment")
 
         # --- Save Draft to Firestore ---
@@ -3607,10 +3607,27 @@ if tab == "Course Book":
         with st.expander("📌 How to Submit", expanded=False):
             st.markdown("""
                 1) Type your answer above.  
-                2) Click **Submit to Tutor** to get a **receipt ID**.  
-                3) Your box will lock.  
-                _You can still read your submission; edits are disabled._
+                2) Tick the **two confirmations** below.  
+                3) Click **Confirm & Submit** to get a **receipt ID**.  
+                4) Your box will lock (read-only).  
             """)
+
+        # --- Slack notify helper ---
+        import requests
+        def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
+                                    level: str, day: int, chapter: str, receipt: str, preview: str):
+            text = (
+                f"*New submission* • {student_name} ({student_code})\n"
+                f"*Level:* {level}  •  *Day:* {day}\n"
+                f"*Chapter:* {chapter}\n"
+                f"*Receipt:* `{receipt}`\n"
+                f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
+            )
+            try:
+                requests.post(webhook_url, json={"text": text}, timeout=6)
+            except Exception:
+                # Don't block the student if Slack fails
+                st.info("Submission saved. Slack notification could not be sent.")
 
         # --- Firestore: create submission, return receipt ID ---
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
@@ -3619,7 +3636,6 @@ if tab == "Course Book":
                 return False, None, None
 
             posts_ref = db.collection("submissions").document(level).collection("posts")
-
             now = datetime.utcnow()
             payload = {
                 "student_code": code,
@@ -3634,29 +3650,83 @@ if tab == "Course Book":
                 "updated_at": now,
                 "version": 1,
             }
-
-            # new submission per chapter
             _, ref = posts_ref.add(payload)
             doc_id = ref.id
-            # Short, human-friendly receipt (first 8 chars)
-            receipt = f"{doc_id[:8].upper()}-{day}"
+            receipt = f"{doc_id[:8].upper()}-{day}"   # short, human-friendly
             return True, doc_id, receipt
 
-        # --- Submit + lock ---
-        if st.button("✅ Submit to Tutor", type="primary", disabled=locked):
-            ok, doc_id, receipt = submit_answer(
-                code=code,
-                name=name,
-                level=student_level,
-                day=info["day"],
-                chapter=chapter_name,
-                lesson_key=lesson_key,
-                answer=st.session_state.get(lesson_key, "")
+        # --- Two-step confirm + Submit / Save to Notes / Ask a Question ---
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### 🧾 Finalize")
+            confirm_final = st.checkbox(
+                "I confirm this is my final answer.",
+                key=f"confirm_final_{lesson_key}",
+                disabled=locked
             )
-            if ok:
-                st.session_state[locked_key] = True
-                st.success(f"Submitted! Receipt: `{receipt}`")
-                st.caption("Keep this receipt. Your tutor has been notified.")
+            confirm_lock = st.checkbox(
+                "I understand it will be locked.",
+                key=f"confirm_lock_{lesson_key}",
+                disabled=locked
+            )
+            can_submit = (confirm_final and confirm_lock and (not locked))
+
+            if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
+                ok, doc_id, receipt = submit_answer(
+                    code=code,
+                    name=name,
+                    level=student_level,
+                    day=info["day"],
+                    chapter=chapter_name,
+                    lesson_key=lesson_key,
+                    answer=st.session_state.get(lesson_key, "")
+                )
+                if ok:
+                    st.session_state[locked_key] = True
+                    st.success(f"Submitted! Receipt: `{receipt}`")
+                    st.caption("Keep this receipt. Your tutor has been notified.")
+
+                    # Slack notify (if secret present)
+                    webhook = st.secrets.get("SLACK_WEBHOOK_URL")
+                    if webhook:
+                        notify_slack_submission(
+                            webhook_url=webhook,
+                            student_name=name or "Student",
+                            student_code=code,
+                            level=student_level,
+                            day=info["day"],
+                            chapter=chapter_name,
+                            receipt=receipt,
+                            preview=st.session_state.get(lesson_key, "")
+                        )
+
+        with col2:
+            st.markdown("#### 📝 Notes")
+            if st.button("Save Answer to Notes", disabled=locked):
+                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+                st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
+                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
+                st.session_state["edit_note_idx"] = None
+                st.session_state["switch_to_notes"] = True
+                st.rerun()
+
+        with col3:
+            st.markdown("#### ❓ Ask the Teacher")
+            q_for_teacher = st.text_area(
+                "Question (visible to classmates)",
+                key=f"ask_teacher_{lesson_key}",
+                height=110,
+                placeholder="Ask anything about this lesson…"
+            )
+            if st.button("Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
+                post_message(
+                    student_level,
+                    code,
+                    name or "Student",
+                    f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
+                )
+                st.success("✅ Question posted to the community board!")
 
         st.divider()
 
@@ -3685,8 +3755,7 @@ if tab == "Course Book":
             receipt_show = f"{latest_id[:8].upper()}-{latest.get('day', info['day'])}"
             st.markdown(f"**Receipt:** `{receipt_show}`  ·  **Status:** `{latest.get('status','submitted')}`")
         else:
-            st.info("No submission yet. Type your answer and click **Submit to Tutor**.")
-
+            st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
 
     # === LEARNING NOTES SUBTAB ===
