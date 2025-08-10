@@ -4472,7 +4472,6 @@ if tab == "Course Book":
         # ---------------- Announcements via CSV + Firestore replies ----------------
 
         def _to_csv_export_url(url: str, default_gid: str = "0") -> str:
-            # Accept published CSV URL OR normal edit URL; convert edit URL to CSV export
             if not url:
                 return ""
             if "export?format=csv" in url:
@@ -4487,7 +4486,6 @@ if tab == "Course Book":
 
         @st.cache_data(ttl=60)
         def fetch_announcements_csv() -> pd.DataFrame:
-            # 1) Try secrets; 2) if missing and admin, allow manual input
             csv_url = ""
             try:
                 csv_url = st.secrets["announcements"]["csv_url"]
@@ -4508,25 +4506,21 @@ if tab == "Course Book":
             except Exception:
                 return pd.DataFrame()
 
-            # Normalize headers (case-insensitive)
             df.columns = [str(c).strip() for c in df.columns]
             lower_map = {c.lower(): c for c in df.columns}
 
-            def get_col(name):  # map logical -> actual
+            def get_col(name):
                 return lower_map.get(name.lower())
 
-            # Ensure required columns exist
-            needed = ["announcement", "class", "date", "pinned"]
-            for n in needed:
+            for n in ["announcement", "class", "date", "pinned"]:
                 if get_col(n) is None:
                     df[n] = ""
 
-            # Rename to canonical names
             rename_map = {}
-            for logical, canonical in [("announcement","Announcement"),
-                                       ("class","Class"),
-                                       ("date","Date"),
-                                       ("pinned","Pinned")]:
+            for logical, canonical in [("announcement", "Announcement"),
+                                       ("class", "Class"),
+                                       ("date", "Date"),
+                                       ("pinned", "Pinned")]:
                 src = get_col(logical)
                 if src:
                     rename_map[src] = canonical
@@ -4536,14 +4530,12 @@ if tab == "Course Book":
                 if c not in df.columns:
                     df[c] = ""
 
-            # Normalize pinned values: TRUE/FALSE, yes/no, 1/0
             def norm_pinned(val) -> bool:
                 s = str(val).strip().lower()
                 return s in {"true", "yes", "1"}
 
             df["Pinned"] = df["Pinned"].apply(norm_pinned)
 
-            # Parse date (best-effort)
             def parse_dt(x):
                 for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M",
                             "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
@@ -4558,16 +4550,15 @@ if tab == "Course Book":
 
             df["__dt"] = df["Date"].apply(parse_dt)
 
-            # Stable ID per announcement (Class + Date + Announcement)
             def make_id(row):
                 raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
                 return hashlib.sha1(raw).hexdigest()[:16]
 
             df["__id"] = df.apply(make_id, axis=1)
-
-            # Sort newest first
             df.sort_values("__dt", ascending=False, inplace=True, na_position="last")
             return df
+#
+
 
         # --- Firestore helpers for replies (thread per announcement) ---
         def _reply_coll(_class: str, ann_id: str):
