@@ -3436,7 +3436,8 @@ if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
         "Name": "Test Student",
         "Level": "A1",
-        "StudentCode": "demo001"
+        "StudentCode": "demo001",
+        "ClassName": "A1 Berlin Klasse",
     }
 
 student_row = st.session_state.get("student_row", {})
