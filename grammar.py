@@ -7101,7 +7101,7 @@ if tab == "Vocab Trainer":
                 random.shuffle(st.session_state.sb_pool)
             if st.session_state.sb_pool:
                 st.session_state.sb_current = st.session_state.sb_pool.pop()
-                # Expect keys: tokens (list), target_de (string), hint_en (string)
+                # Expect keys: tokens (list), target_de (string), hint_en (string), prompt_en (string)
                 words = st.session_state.sb_current.get("tokens", [])[:]
                 random.shuffle(words)
                 st.session_state.sb_shuffled = words
@@ -7131,6 +7131,32 @@ if tab == "Vocab Trainer":
             st.metric("Progress (this session)", f"{st.session_state.sb_total}/{target}")
 
         st.divider()
+
+        # --- English prompt panel (what to translate) ---
+        cur = st.session_state.sb_current or {}
+        prompt_en   = cur.get("prompt_en", "")
+        hint_en     = cur.get("hint_en", "")
+        grammar_tag = cur.get("grammar_tag", "")
+
+        if prompt_en:
+            st.markdown(
+                f"""
+                <div style="box-sizing:border-box; padding:12px 14px; margin:6px 0 14px 0;
+                            background:#f0f9ff; border:1px solid #bae6fd; border-left:6px solid #0ea5e9;
+                            border-radius:10px;">
+                  <div style="font-size:1.05rem;">
+                    🇬🇧 <b>Translate into German:</b> <span style="color:#0b4a6f">{prompt_en}</span>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            # Optional helper
+            with st.expander("💡 Need a nudge? (Hint)"):
+                if hint_en:
+                    st.markdown(f"**Hint:** {hint_en}")
+                if grammar_tag:
+                    st.caption(f"Grammar: {grammar_tag}")
 
         # ---- Buttons for word choices ----
         st.markdown("#### 🧩 Click the words in order")
@@ -8420,6 +8446,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
