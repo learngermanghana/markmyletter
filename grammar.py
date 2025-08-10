@@ -4391,11 +4391,19 @@ if tab == "Course Book":
                 return tail
             except Exception:
                 return url
-
-        # ---------------- Announcements UI (CSV-backed with replies) ----------------
+        # ---------------- Announcements UI (CSV-backed with replies + edit/delete + Slack) ----------------
         st.markdown("### 📢 Announcements")
 
-        # Helpers for links
+        # ---- Slack helper (uses your global notify_slack if present) ----
+        def _notify_slack_safe(text: str):
+            fn = globals().get("notify_slack")
+            if callable(fn):
+                try:
+                    fn(text)
+                except Exception:
+                    pass
+
+        # ---- Helpers for links ----
         URL_RE = re.compile(r"(https?://[^\s]+)")
 
         def _short_label_from_url(u: str) -> str:
@@ -4510,6 +4518,38 @@ if tab == "Course Book":
         def _norm_str(s: str) -> str:
             return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
+        # Local Firestore helpers for replies (with IDs so we can edit/delete)
+        def _ann_reply_coll(ann_id: str):
+            return (db.collection("class_announcements")
+                     .document(class_name)
+                     .collection("replies")
+                     .document(ann_id)
+                     .collection("posts"))
+
+        def _load_replies_with_ids(ann_id: str):
+            try:
+                docs = list(_ann_reply_coll(ann_id).order_by("timestamp").stream())
+            except Exception:
+                docs = list(_ann_reply_coll(ann_id).stream())
+                docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
+            out = []
+            for d in docs:
+                x = d.to_dict() or {}
+                x["__id"] = d.id
+                out.append(x)
+            return out
+
+        def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
+            _ann_reply_coll(ann_id).document(reply_id).update({
+                "text": new_text.strip(),
+                "edited_at": datetime.utcnow(),
+                "edited_by": student_name,
+                "edited_by_code": student_code,
+            })
+
+        def _delete_reply(ann_id: str, reply_id: str):
+            _ann_reply_coll(ann_id).document(reply_id).delete()
+
         if df.empty:
             st.info("No announcements yet.")
         else:
@@ -4548,18 +4588,16 @@ if tab == "Course Book":
 
             def render_announcement(row, is_pinned=False):
                 ts_label = _fmt_dt_label(row.get("__dt"))
-                st.markdown(
-                    (
-                        f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
-                        f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
-                        f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                        f"<b>Teacher</b> "
-                        f"<span style='color:#888;'>{ts_label} GMT</span><br>"
-                        f"{row.get('Announcement','')}"
-                        f"</div>"
-                    ),
-                    unsafe_allow_html=True,
+                html_card = (
+                    f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
+                    f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
+                    f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                    f"<b>Teacher</b> "
+                    f"<span style='color:#888;'>{ts_label} GMT</span><br>"
+                    f"{row.get('Announcement','')}"
+                    f"</div>"
                 )
+                st.markdown(html_card, unsafe_allow_html=True)
 
                 # 🔗 Render links (from Link/Links column + auto-detected)
                 links = row.get("Links") or []
@@ -4572,9 +4610,9 @@ if tab == "Course Book":
                         label = label or _short_label_from_url(u)
                         st.markdown(f"- {emoji} [{label}]({u})")
 
-                # Replies (Firestore)
+                # --- Replies (list + edit/delete) ---
                 ann_id = row.get("__id")
-                replies = get_replies(class_name, ann_id)
+                replies = _load_replies_with_ids(ann_id)
 
                 if replies:
                     for r in replies:
@@ -4584,13 +4622,70 @@ if tab == "Course Book":
                             when = ts.strftime("%d %b %H:%M") + " UTC"
                         except Exception:
                             when = ""
+                        edited_badge = ""
+                        if r.get("edited_at"):
+                            try:
+                                edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
+                            except Exception:
+                                edited_badge = " <span style='color:#aaa;'>(edited)</span>"
+
                         st.markdown(
                             f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
-                            f"<span style='color:#bbb;'>{when}</span><br>"
+                            f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
                             f"{r.get('text','')}</div>",
                             unsafe_allow_html=True,
                         )
 
+                        # Edit / Delete controls (student can edit own; admins can edit all)
+                        can_edit = IS_ADMIN or (r.get("student_code") == student_code)
+                        if can_edit:
+                            c_ed, c_del = st.columns([1, 1])
+                            with c_ed:
+                                if st.button("✏️ Edit", key=f"edit_reply_btn_{ann_id}_{r['__id']}"):
+                                    st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
+                                    st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text","")
+                                    st.rerun()
+                            with c_del:
+                                if st.button("🗑️ Delete", key=f"del_reply_btn_{ann_id}_{r['__id']}"):
+                                    _delete_reply(ann_id, r["__id"])
+                                    _notify_slack_safe(
+                                        f"🗑️ *Reply deleted* — {class_name}\n"
+                                        f"*By:* {student_name} ({student_code})\n"
+                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                    )
+                                    st.success("Reply deleted.")
+                                    st.rerun()
+
+                            # Inline editor
+                            if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
+                                new_txt = st.text_area(
+                                    "Edit reply",
+                                    key=f"editbox_{ann_id}_{r['__id']}",
+                                    value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text","")),
+                                    height=100,
+                                )
+                                ec1, ec2 = st.columns([1,1])
+                                with ec1:
+                                    if st.button("💾 Save", key=f"save_reply_btn_{ann_id}_{r['__id']}"):
+                                        if new_txt.strip():
+                                            _update_reply_text(ann_id, r["__id"], new_txt)
+                                            _notify_slack_safe(
+                                                f"✏️ *Reply edited* — {class_name}\n"
+                                                f"*By:* {student_name} ({student_code})\n"
+                                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                                f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
+                                            )
+                                            st.success("Reply updated.")
+                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
+                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
+                                        st.rerun()
+                                with ec2:
+                                    if st.button("❌ Cancel", key=f"cancel_reply_btn_{ann_id}_{r['__id']}"):
+                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
+                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
+                                        st.rerun()
+
+                # --- Add a new reply
                 with st.expander("Reply"):
                     reply_text = st.text_area(
                         f"Reply to {ann_id}",
@@ -4599,7 +4694,20 @@ if tab == "Course Book":
                         placeholder="Write your reply…"
                     )
                     if st.button("Send Reply", key=f"reply_btn_{ann_id}") and reply_text.strip():
-                        post_reply(class_name, ann_id, student_code, student_name, reply_text)
+                        # create
+                        payload = {
+                            "student_code": student_code,
+                            "student_name": student_name,
+                            "text": reply_text.strip(),
+                            "timestamp": datetime.utcnow(),
+                        }
+                        _ann_reply_coll(ann_id).add(payload)
+                        _notify_slack_safe(
+                            f"💬 *New announcement reply* — {class_name}\n"
+                            f"*By:* {student_name} ({student_code})\n"
+                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
+                        )
                         st.success("Reply sent!")
                         st.rerun()
 
@@ -4608,6 +4716,7 @@ if tab == "Course Book":
                 render_announcement(row, is_pinned=True)
             for _, row in latest_df.iterrows():
                 render_announcement(row, is_pinned=False)
+#
 
         # ---------------- Class Q&A — post + reply (manual refresh + Slack alerts + edit/delete) ----------------
         st.markdown("### 💬 Class Q&A")
