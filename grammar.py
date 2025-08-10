@@ -3760,9 +3760,24 @@ if tab == "Course Book":
 
             # --- Notification tools (no PIN; temporary while testing) ---
             with st.expander("🔔 Notification tools (temporary)", expanded=False):
-                webhook = st.secrets.get("SLACK_WEBHOOK_URL")
+                import os
+                webhook = (
+                    st.secrets.get("SLACK_WEBHOOK_URL")
+                    or os.getenv("SLACK_WEBHOOK_URL")
+                    or st.session_state.get("SLACK_WEBHOOK_URL_OVERRIDE")
+                )
+
                 if not webhook:
-                    st.warning("No SLACK_WEBHOOK_URL in secrets for this app.")
+                    st.warning("No SLACK_WEBHOOK_URL found in secrets or environment.")
+                    tmp = st.text_input(
+                        "Paste a Slack webhook URL (temporary, not saved)",
+                        type="password",
+                        key=f"tmp_webhook_{lesson_key}"
+                    )
+                    if st.button("Use this webhook for this session", key=f"use_webhook_{lesson_key}") and (tmp or "").strip():
+                        st.session_state["SLACK_WEBHOOK_URL_OVERRIDE"] = tmp.strip()
+                        st.success("Webhook set for this session.")
+                        st.rerun()
                 else:
                     colA, colB = st.columns(2)
 
@@ -3796,6 +3811,8 @@ if tab == "Course Book":
                             st.success("Resent latest submission to Slack.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+#
+
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
