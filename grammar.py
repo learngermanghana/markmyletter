@@ -3600,7 +3600,7 @@ if tab == "Course Book":
 
     cb_subtab = st.radio(
         "Select section:",
-        ["📘 Course Book", "📒 Learning Notes", "🧑‍🏫 Classroom"],
+        ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes" ],
         horizontal=True,
         key="coursebook_subtab"
     )
