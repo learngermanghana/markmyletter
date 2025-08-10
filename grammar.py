@@ -4180,6 +4180,9 @@ if tab == "Course Book":
 
         # ---------------- Announcements via CSV + Firestore replies ----------------
 
+        # URL extraction (for auto-detecting links in Announcement text)
+        URL_RE = re.compile(r"(https?://[^\s]+)")
+
         def _to_csv_export_url(url: str, default_gid: str = "0") -> str:
             if not url:
                 return ""
@@ -4221,10 +4224,12 @@ if tab == "Course Book":
             def get_col(name):
                 return lower_map.get(name.lower())
 
+            # Ensure canonical columns exist
             for n in ["announcement", "class", "date", "pinned"]:
                 if get_col(n) is None:
                     df[n] = ""
 
+            # Rename to canonical casing
             rename_map = {}
             for logical, canonical in [("announcement", "Announcement"),
                                        ("class", "Class"),
@@ -4239,12 +4244,25 @@ if tab == "Course Book":
                 if c not in df.columns:
                     df[c] = ""
 
+            # --- Optional Link/Links support ---
+            link_key = lower_map.get("link") or lower_map.get("links")
+            df["Links"] = [[] for _ in range(len(df))]
+            if link_key:
+                def _split_links(val):
+                    s = str(val or "").strip()
+                    if not s:
+                        return []
+                    parts = [p for chunk in s.split(",") for p in chunk.split()]
+                    return [p.strip() for p in parts if p.strip().lower().startswith(("http://","https://"))]
+                df["Links"] = df[link_key].apply(_split_links)
+
+            # Normalize pinned values: TRUE/FALSE, yes/no, 1/0 -> bool
             def norm_pinned(val) -> bool:
                 s = str(val).strip().lower()
                 return s in {"true", "yes", "1"}
-
             df["Pinned"] = df["Pinned"].apply(norm_pinned)
 
+            # Parse dates
             def parse_dt(x):
                 for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M",
                             "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
@@ -4256,14 +4274,31 @@ if tab == "Course Book":
                     return pd.to_datetime(x, errors="coerce")
                 except Exception:
                     return pd.NaT
-
             df["__dt"] = df["Date"].apply(parse_dt)
 
-            def make_id(row):
-                raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
-                return hashlib.sha1(raw).hexdigest()[:16]
+            # Append auto-detected links from Announcement text
+            def _append_detected_links(row):
+                txt = str(row.get("Announcement","") or "")
+                found = URL_RE.findall(txt)
+                existing = list(row.get("Links", []) or [])
+                merged, seen = [], set()
+                for url in existing + found:
+                    if url not in seen:
+                        merged.append(url); seen.add(url)
+                return merged
+            df["Links"] = df.apply(_append_detected_links, axis=1)
 
+            # Stable ID per row (needs hashlib; import locally to avoid global import change)
+            def make_id(row):
+                try:
+                    import hashlib
+                    raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
+                    return hashlib.sha1(raw).hexdigest()[:16]
+                except Exception:
+                    # fallback: short uuid
+                    return str(uuid4()).replace("-", "")[:16]
             df["__id"] = df.apply(make_id, axis=1)
+
             df.sort_values("__dt", ascending=False, inplace=True, na_position="last")
             return df
 
@@ -4309,6 +4344,54 @@ if tab == "Course Book":
             except Exception:
                 return ""
 
+        # --- Link pretty-print helpers ---
+        def _guess_link_emoji_and_label(url: str) -> tuple[str, str]:
+            # Basic classifier by extension/domain; returns (emoji, label)
+            u = url.lower()
+            label = None
+            if "youtube.com" in u or "youtu.be" in u:
+                return "🎥", "YouTube"
+            if "zoom.us" in u:
+                return "🎦", "Zoom"
+            if "docs.google.com" in u:
+                if "/document/" in u:
+                    return "📝", "Google Doc"
+                if "/spreadsheets/" in u:
+                    return "📊", "Google Sheet"
+                if "/presentation/" in u or "/presentations/" in u:
+                    return "🖼️", "Google Slides"
+                if "/forms/" in u:
+                    return "🧾", "Google Form"
+                return "📄", "Google Drive"
+            if u.endswith(".pdf"):
+                return "📄", "PDF"
+            if any(u.endswith(ext) for ext in (".ppt", ".pptx", ".key")):
+                return "🖼️", "Slides"
+            if any(u.endswith(ext) for ext in (".doc", ".docx")):
+                return "📝", "Document"
+            if any(u.endswith(ext) for ext in (".xls", ".xlsx", ".csv")):
+                return "📊", "Spreadsheet"
+            if any(u.endswith(ext) for ext in (".mp4", ".mov", ".m4v", ".webm")):
+                return "🎬", "Video"
+            if any(u.endswith(ext) for ext in (".mp3", ".wav", ".aac", ".m4a", ".ogg")):
+                return "🎧", "Audio"
+            # Default generic
+            return "🔗", None
+
+        def _short_label_from_url(url: str) -> str:
+            # Try to build a human label from URL path
+            try:
+                from urllib.parse import urlparse, parse_qs, unquote
+                p = urlparse(url)
+                # Prefer path tail
+                tail = unquote(p.path.rstrip("/").split("/")[-1])
+                if not tail or "." not in tail:
+                    # fallback to domain
+                    return p.netloc
+                return tail
+            except Exception:
+                return url
+
         # ---------------- Announcements UI (CSV-backed with replies) ----------------
         st.markdown("### 📢 Announcements")
 
@@ -4342,6 +4425,18 @@ if tab == "Course Book":
             if c not in df.columns:
                 df[c] = ""
 
+        # Optional Link/Links column
+        link_key = lower_map.get("link") or lower_map.get("links")
+        df["Links"] = [[] for _ in range(len(df))]
+        if link_key:
+            def _split_links(val):
+                s = str(val or "").strip()
+                if not s:
+                    return []
+                parts = [p for chunk in s.split(",") for p in chunk.split()]
+                return [p.strip() for p in parts if p.strip().lower().startswith(("http://","https://"))]
+            df["Links"] = df[link_key].apply(_split_links)
+
         # Normalize pinned values: TRUE/FALSE, yes/no, 1/0 → bool
         def _norm_pinned(v) -> bool:
             s = str(v).strip().lower()
@@ -4359,15 +4454,30 @@ if tab == "Course Book":
                 return pd.to_datetime(x, errors="coerce")
             except Exception:
                 return pd.NaT
-
         df["__dt"] = df["Date"].apply(_parse_dt)
 
+        # Append auto-detected links from text
+        def _append_detected_links(row):
+            txt = str(row.get("Announcement","") or "")
+            found = URL_RE.findall(txt)
+            existing = list(row.get("Links", []) or [])
+            merged, seen = [], set()
+            for url in existing + found:
+                if url not in seen:
+                    merged.append(url); seen.add(url)
+            return merged
+        df["Links"] = df.apply(_append_detected_links, axis=1)
+
+        # Stable ID
         def _ann_id(row):
-            raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
-            return hashlib.sha1(raw).hexdigest()[:16]
+            try:
+                import hashlib
+                raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
+                return hashlib.sha1(raw).hexdigest()[:16]
+            except Exception:
+                return str(uuid4()).replace("-", "")[:16]
         df["__id"] = df.apply(_ann_id, axis=1)
 
-        # Small helpers
         def _fmt_dt_label(dtval) -> str:
             try:
                 return dtval.strftime("%d %b %H:%M")
@@ -4427,6 +4537,17 @@ if tab == "Course Book":
                     ),
                     unsafe_allow_html=True,
                 )
+
+                # 🔗 Render links (from Link/Links column + auto-detected)
+                links = row.get("Links") or []
+                if isinstance(links, str):
+                    links = [links] if links.strip() else []
+                if links:
+                    st.markdown("**🔗 Links:**")
+                    for u in links:
+                        emoji, label = _guess_link_emoji_and_label(u)
+                        label = label or _short_label_from_url(u)
+                        st.markdown(f"- {emoji} [{label}]({u})")
 
                 # Replies (Firestore)
                 ann_id = row.get("__id")
@@ -4506,7 +4627,7 @@ if tab == "Course Book":
                     st.session_state.qna_live_unsub()
             except Exception:
                 pass
-            st.session_state.qna_live_unsub = None
+        st.session_state.qna_live_unsub = st.session_state.qna_live_unsub or None
 
         if st.session_state.qna_live_unsub is None:
             _start_qna_listener()
@@ -4527,7 +4648,7 @@ if tab == "Course Book":
             topic = st.text_input("Topic (optional)", key="q_topic")
             new_q = st.text_area("Your question", key="q_text", height=80)
             if st.button("Post Question") and new_q.strip():
-                q_id = str(uuid.uuid4())[:8]
+                q_id = str(uuid4())[:8]
                 payload = {
                     "question": new_q.strip(),
                     "asked_by_name": student_name,
@@ -4559,12 +4680,14 @@ if tab == "Course Book":
         if not questions:
             st.info("No questions yet.")
         else:
+            # filter
             if q_search.strip():
                 ql = q_search.lower()
                 questions = [
                     q for q in questions
                     if ql in str(q.get("question","")).lower() or ql in str(q.get("topic","")).lower()
                 ]
+            # order
             if not show_latest:
                 questions = list(reversed(questions))
 
@@ -4576,15 +4699,20 @@ if tab == "Course Book":
                 except Exception:
                     ts_label = ""
 
-                st.markdown(
+                # Build the question card HTML safely (no nested f-strings)
+                topic_html = (
+                    f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
+                    if q.get("topic") else ""
+                )
+                question_html = (
                     f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
                     f"<b>{q.get('asked_by_name','')}</b>"
                     f"<span style='color:#aaa;'> • {ts_label}</span>"
-                    f"{f\"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>\" if q.get('topic') else ''}"
+                    f"{topic_html}"
                     f"{q.get('question','')}"
-                    f"</div>",
-                    unsafe_allow_html=True,
+                    f"</div>"
                 )
+                st.markdown(question_html, unsafe_allow_html=True)
 
                 # Load replies live (ordered asc)
                 r_ref = q_base.document(q_id).collection("replies")
@@ -4621,7 +4749,7 @@ if tab == "Course Book":
                         "replied_by_code": student_code,
                         "timestamp": datetime.utcnow(),
                     }
-                    r_ref.document(str(uuid.uuid4())[:8]).set(reply_payload)
+                    r_ref.document(str(uuid4())[:8]).set(reply_payload)
                     # 🔔 Slack alert for Q&A reply
                     prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
                     notify_slack(
@@ -4637,7 +4765,11 @@ if tab == "Course Book":
         with cols[0]:
             if st.session_state.qna_live_unsub:
                 if st.button("⏸ Stop live updates"):
-                    _stop_qna_listener()
+                    try:
+                        st.session_state.qna_live_unsub()
+                    except Exception:
+                        pass
+                    st.session_state.qna_live_unsub = None
                     st.success("Live updates paused.")
             else:
                 if st.button("▶️ Start live updates"):
@@ -4649,6 +4781,7 @@ if tab == "Course Book":
         if st.session_state.qna_last_error:
             st.caption(f"Listener note: {st.session_state.qna_last_error}")
 #
+
 
 
     # === LEARNING NOTES SUBTAB ===
