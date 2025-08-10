@@ -4106,7 +4106,25 @@ if tab == "My Course":
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 #
 
-    elif cb_subtab == "🧑‍🏫 Classroom":
+    if cb_subtab == "🧑‍🏫 Classroom":
+        # --- Classroom banner (top of subtab) ---
+        st.markdown(
+            '''
+            <div style="
+                padding: 16px;
+                background: #0ea5e9;
+                color: #ffffff;
+                border-radius: 8px;
+                text-align: center;
+                margin-bottom: 16px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">
+                <span style="font-size:1.8rem; font-weight:600;">🧑‍🏫 Classroom</span>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        st.divider()
 
         # ---------- DB (Firestore) bootstrap ----------
         def _get_db():
@@ -4127,11 +4145,16 @@ if tab == "My Course":
             try:
                 from google.cloud import firestore as gcf
                 return gcf.Client()
-            except Exception as e:
-                st.error("Firestore client isn't configured. Provide Firebase Admin creds or GOOGLE_APPLICATION_CREDENTIALS.", icon="🛑")
+            except Exception:
+                st.error(
+                    "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
+                    icon="🛑",
+                )
                 raise
 
         db = _get_db()
+
+#
 
         # ---------- context ----------
         student_row   = st.session_state.get("student_row", {}) or {}
