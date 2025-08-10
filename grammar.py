@@ -4098,13 +4098,30 @@ if tab == "Course Book":
 
     elif cb_subtab == "🧑‍🏫 Classroom":
 
+        # ---------- DB (Firestore) bootstrap ----------
+        def _get_db():
+            # Use existing global if present
+            _existing = globals().get("db")
+            if _existing is not None:
+                return _existing
+            # Try Firebase Admin SDK first (firestore.client())
+            try:
+                import firebase_admin
+                from firebase_admin import firestore as fbfs
+                if not firebase_admin._apps:
+                    firebase_admin.initialize_app()
+                return fbfs.client()
+            except Exception:
+                pass
+            # Fallback to Google Cloud Firestore (firestore.Client())
+            try:
+                from google.cloud import firestore as gcf
+                return gcf.Client()
+            except Exception as e:
+                st.error("Firestore client isn't configured. Provide Firebase Admin creds or GOOGLE_APPLICATION_CREDENTIALS.", icon="🛑")
+                raise
 
-        # local imports used in this block
-        import os, re, urllib.parse, hashlib, requests
-        from uuid import uuid4
-        from datetime import datetime
-        import pandas as pd
-        from google.cloud import firestore
+        db = _get_db()
 
         # ---------- context ----------
         student_row   = st.session_state.get("student_row", {}) or {}
