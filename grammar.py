@@ -4204,10 +4204,13 @@ if tab == "Course Book":
             st.warning("Couldn’t load the class roster right now.")
 
         st.divider()
-
     # ---------------- Announcements via CSV + Firestore replies (one-click updates) ----------------
     st.markdown("### 📢 Announcements")
 
+    # local imports (safe to repeat)
+    import re, urllib.parse, hashlib, os, requests
+    from uuid import uuid4
+    import pandas as pd
 
     URL_RE = re.compile(r"(https?://[^\s]+)")
 
