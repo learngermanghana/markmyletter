@@ -4586,62 +4586,17 @@ if tab == "Course Book":
             for _, row in latest_df.iterrows():
                 render_announcement(row, is_pinned=False)
 
-        # ---------------- Class Q&A — realtime (listener + fallback) ----------------
-        st.markdown("### 💬 Class Q&A (Live)")
+        # ---------------- Class Q&A — post + reply (manual refresh + Slack alerts) ----------------
+        st.markdown("### 💬 Class Q&A")
 
         # Where questions live (per-class)
         q_base = db.collection("class_qna").document(class_name).collection("questions")
 
-        # --- State: one listener per session
-        if "qna_live_unsub" not in st.session_state:
-            st.session_state.qna_live_unsub = None
-        if "qna_questions" not in st.session_state:
-            st.session_state.qna_questions = []  # list of dicts
-        if "qna_last_error" not in st.session_state:
-            st.session_state.qna_last_error = ""
-
-        # --- Start Firestore listener (realtime)
-        def _start_qna_listener():
+        def _fmt_ts(ts):
             try:
-                query = q_base.order_by("timestamp", direction=firestore.Query.DESCENDING)
-
-                def _on_snapshot(col_snapshot, changes, read_time):
-                    items = []
-                    for doc in col_snapshot:
-                        d = doc.to_dict() or {}
-                        d["id"] = doc.id
-                        items.append(d)
-                    st.session_state.qna_questions = items
-                    try:
-                        st.rerun()
-                    except Exception:
-                        pass
-
-                st.session_state.qna_live_unsub = query.on_snapshot(_on_snapshot)
-            except Exception as e:
-                st.session_state.qna_last_error = str(e)
-
-        def _stop_qna_listener():
-            try:
-                if st.session_state.qna_live_unsub:
-                    st.session_state.qna_live_unsub()
+                return ts.strftime("%d %b %H:%M")
             except Exception:
-                pass
-        st.session_state.qna_live_unsub = st.session_state.qna_live_unsub or None
-
-        if st.session_state.qna_live_unsub is None:
-            _start_qna_listener()
-
-        # --- Fallback: light polling every ~5s if listener failed
-        if st.session_state.qna_live_unsub is None:
-            try:
-                q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
-                st.session_state.qna_questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
-                ts_now = int(time.time())
-                if ts_now % 5 == 0:
-                    st.experimental_rerun()
-            except Exception as e:
-                st.session_state.qna_last_error = str(e)
+                return ""
 
         # --- Ask a new question (anyone can ask)
         with st.expander("➕ Ask a new question"):
@@ -4668,38 +4623,46 @@ if tab == "Course Book":
                 )
                 st.success("Question posted!")
 
-        # --- Search + filters
-        colsa, colsb = st.columns([2, 1])
+        # --- Controls
+        colsa, colsb, colsc = st.columns([2, 1, 1])
         with colsa:
             q_search = st.text_input("Search questions (text or topic)…", key="q_search")
         with colsb:
             show_latest = st.toggle("Newest first", value=True)
+        with colsc:
+            if st.button("↻ Refresh"):
+                st.rerun()
+
+        # --- Load questions once (manual refresh only)
+        try:
+            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+            questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+        except Exception:
+            # fallback without ordering
+            q_docs = list(q_base.stream())
+            questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+            questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
+
+        # --- Filter & order
+        if q_search.strip():
+            ql = q_search.lower()
+            questions = [
+                q for q in questions
+                if ql in str(q.get("question", "")).lower() or ql in str(q.get("topic", "")).lower()
+            ]
+        if not show_latest:
+            questions = list(reversed(questions))
 
         # --- Render questions (anyone can reply)
-        questions = st.session_state.qna_questions or []
         if not questions:
             st.info("No questions yet.")
         else:
-            # filter
-            if q_search.strip():
-                ql = q_search.lower()
-                questions = [
-                    q for q in questions
-                    if ql in str(q.get("question","")).lower() or ql in str(q.get("topic","")).lower()
-                ]
-            # order
-            if not show_latest:
-                questions = list(reversed(questions))
-
             for q in questions:
                 q_id = q.get("id", "")
                 ts = q.get("timestamp")
-                try:
-                    ts_label = ts.strftime("%d %b %H:%M")
-                except Exception:
-                    ts_label = ""
+                ts_label = _fmt_ts(ts)
 
-                # Build the question card HTML safely (no nested f-strings)
+                # Build the card safely (avoid nested f-strings)
                 topic_html = (
                     f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
                     if q.get("topic") else ""
@@ -4714,21 +4677,18 @@ if tab == "Course Book":
                 )
                 st.markdown(question_html, unsafe_allow_html=True)
 
-                # Load replies live (ordered asc)
+                # Load replies (ordered asc; fallback to local sort)
                 r_ref = q_base.document(q_id).collection("replies")
                 try:
                     replies = list(r_ref.order_by("timestamp").stream())
                 except Exception:
-                    replies = []
+                    replies = list(r_ref.stream())
+                    replies.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
 
                 if replies:
                     for r in replies:
                         r_data = r.to_dict() or {}
-                        r_ts = r_data.get("timestamp")
-                        try:
-                            r_label = r_ts.strftime("%d %b %H:%M")
-                        except Exception:
-                            r_label = ""
+                        r_label = _fmt_ts(r_data.get("timestamp"))
                         st.markdown(
                             f"<div style='margin-left:20px;color:#444;'>↳ <b>{r_data.get('replied_by_name','')}</b> "
                             f"<span style='color:#bbb;'>{r_label}</span><br>"
@@ -4760,27 +4720,6 @@ if tab == "Course Book":
                     )
                     st.success("Reply sent!")
 
-        # --- Listener status / controls
-        cols = st.columns([1,1,3])
-        with cols[0]:
-            if st.session_state.qna_live_unsub:
-                if st.button("⏸ Stop live updates"):
-                    try:
-                        st.session_state.qna_live_unsub()
-                    except Exception:
-                        pass
-                    st.session_state.qna_live_unsub = None
-                    st.success("Live updates paused.")
-            else:
-                if st.button("▶️ Start live updates"):
-                    _start_qna_listener()
-                    st.success("Live updates on.")
-        with cols[1]:
-            if st.button("↻ Manual refresh"):
-                st.rerun()
-        if st.session_state.qna_last_error:
-            st.caption(f"Listener note: {st.session_state.qna_last_error}")
-#
 
 
 
