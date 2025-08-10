@@ -3574,11 +3574,11 @@ def save_notes_to_db(student_code, notes):
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
     if st.session_state.get("switch_to_notes"):
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         del st.session_state["switch_to_notes"]
         st.rerun()
     if "coursebook_subtab" not in st.session_state:
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
 
     st.markdown(
         '''
