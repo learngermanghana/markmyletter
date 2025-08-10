@@ -4660,7 +4660,7 @@ if tab == "Course Book":
             except Exception:
                 return ""
 
-        def _norm(s: str) -> str:
+        def _norm_str(s: str) -> str:
             return re.sub(r"\s+", " ", str(s or "")).strip().lower()
 
         if df.empty:
@@ -4674,11 +4674,18 @@ if tab == "Course Book":
                 search_term = st.text_input("Search announcements…", "")
             with c3:
                 if st.button("↻ Refresh"):
-                    # Quick refresh: just rerun (CSV is live)
                     st.rerun()
 
-            # Filter by exact class (robust to stray spaces/casing)
-            view = df[_norm(df["Class"]) == _norm(class_name)].copy()
+            # --- Robust class-based filter (vectorized) ---
+            df["__class_norm"] = (
+                df["Class"]
+                .astype(str)
+                .str.replace(r"\s+", " ", regex=True)
+                .str.strip()
+                .str.lower()
+            )
+            class_norm = _norm_str(class_name)
+            view = df[df["__class_norm"] == class_norm].copy()
 
             if show_only_pinned:
                 view = view[view["Pinned"] == True]
@@ -4744,6 +4751,7 @@ if tab == "Course Book":
             for _, row in latest_df.iterrows():
                 render_announcement(row, is_pinned=False)
 #
+
 
 
 
