@@ -3589,13 +3589,28 @@ if tab == "Course Book":
 
         # Render env (Slack) — set on Render dashboard: SLACK_WEBHOOK_URL=...
         import os, requests
+        from datetime import datetime
+
         def get_slack_webhook() -> str:
             return (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
 
-        # Save Draft to Firestore
+        # --- Draft persistence (save + load from Firestore) ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
-            doc_ref.set({lesson_key: text}, merge=True)
+            doc_ref.set(
+                {lesson_key: text, f"{lesson_key}__updated_at": datetime.utcnow()},
+                merge=True
+            )
+
+        def load_draft_from_db(code, lesson_key) -> str:
+            try:
+                doc = db.collection('draft_answers').document(code).get()
+                if doc.exists:
+                    data = doc.to_dict() or {}
+                    return data.get(lesson_key, "")
+            except Exception:
+                pass
+            return ""
 
         code = student_row.get('StudentCode', 'demo001')
         lesson_key = f"draft_{info['chapter']}"     # unique per chapter
@@ -3605,6 +3620,14 @@ if tab == "Course Book":
         # Persisted lock per lesson
         locked_key = f"{lesson_key}_locked"
         locked = st.session_state.get(locked_key, False)
+
+        # One-time hydration from Firestore so text survives refresh/restart
+        if not st.session_state.get(f"{lesson_key}__hydrated", False):
+            existing = load_draft_from_db(code, lesson_key)
+            if existing and not st.session_state.get(lesson_key):
+                st.session_state[lesson_key] = existing
+                st.info("💾 Loaded your saved draft.")
+            st.session_state[f"{lesson_key}__hydrated"] = True
 
         # Answer Box (autosaves on change ONLY)
         st.subheader("✍️ Your Answer (Autosaves)")
@@ -3787,6 +3810,7 @@ if tab == "Course Book":
             st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
