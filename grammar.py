@@ -3756,7 +3756,7 @@ if tab == "Course Book":
 
         with col2:
             st.markdown("#### 📝 Notes")
-            if st.button("Save Answer to Notes", disabled=locked):
+            if st.button("Save Answer to Notes for Revision", disabled=locked):
                 st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
                 st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
                 st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
@@ -3770,7 +3770,7 @@ if tab == "Course Book":
                 "Question (visible to classmates)",
                 key=f"ask_teacher_{lesson_key}",
                 height=110,
-                placeholder="Ask anything about this lesson…"
+                placeholder="Did you struggle with anything. Ask anything about this lesson…"
             )
             if st.button("Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
                 post_message(
