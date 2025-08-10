@@ -938,14 +938,58 @@ with st.expander("What if I open the wrong lesson?"):
 
 st.markdown("---")
 
-# 3) KPI stats row
-m1, m2, m3, m4 = st.columns(4)
-with m1: st.metric("Happy learners", "300+")
-with m2: st.metric("Levels", "A1–C1")
-with m3: st.metric("Exercises", "4,000+")
-with m4: st.metric("Avg rating", "4.8 ★")
+# 3) Why learners choose Falowen (replaces KPI row)
+st.markdown("### Why learners choose Falowen")
+
+def _feature_card(emoji: str, title: str, desc: str) -> str:
+    return f"""
+    <div style="
+      background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px;
+      padding:14px; height:100%; box-shadow:0 1px 4px rgba(0,0,0,0.03);
+    ">
+      <div style="font-size:28px; line-height:1;">{emoji}</div>
+      <div style="font-weight:700; margin-top:6px; color:#0f172a;">{title}</div>
+      <div style="color:#475569; font-size:0.95rem; margin-top:4px;">{desc}</div>
+    </div>
+    """
+
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    st.markdown(_feature_card(
+        "📨", "Instant notifications",
+        "You’ll get an email when your work is marked—then view scores in Results & Resources."
+    ), unsafe_allow_html=True)
+with c2:
+    st.markdown(_feature_card(
+        "🔒", "Locked submissions",
+        "Two-step confirm and lock after submit. Your original work is safely stored."
+    ), unsafe_allow_html=True)
+with c3:
+    st.markdown(_feature_card(
+        "📱", "Works everywhere",
+        "Optimized for phone, tablet, and desktop—pick up where you left off."
+    ), unsafe_allow_html=True)
+with c4:
+    st.markdown(_feature_card(
+        "🧑‍🏫", "Real tutor feedback",
+        "Clear comments on your writing & speaking so you know exactly what to fix."
+    ), unsafe_allow_html=True)
+
+# subtle CTA under cards
+st.markdown("""
+<div style="text-align:center; margin-top:14px;">
+  <span style="color:#334155;">Ready to learn?</span>
+  <span style="display:inline-block; margin-left:8px;">
+    <a href="#login_form" style="
+      background:#2563eb; color:#fff; padding:8px 14px; border-radius:10px;
+      text-decoration:none; font-weight:600; outline:2px solid transparent;
+    " aria-label="Create your Falowen account">Create account</a>
+  </span>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
+
 
 # Social row
 st.markdown("""
