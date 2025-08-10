@@ -3740,26 +3740,64 @@ if tab == "Course Book":
                                 .order_by("updated_at", direction=firestore.Query.DESCENDING)\
                                 .limit(1).stream()
                 for d in docs:
-                    return d.to_dict()
+                    return d.id, d.to_dict()
             except Exception:
                 # fallback without ordering if index missing
                 docs = posts_ref.where("student_code","==",code)\
                                 .where("lesson_key","==",lesson_key)\
                                 .stream()
-                items = [d.to_dict() for d in docs]
-                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
-                return items[0] if items else None
-            return None
+                items = [(d.id, d.to_dict()) for d in docs]
+                items.sort(key=lambda x: x[1].get("updated_at"), reverse=True)
+                return items[0] if items else (None, None)
+            return None, None
 
-        latest = fetch_latest(student_level, code, lesson_key)
+        latest_id, latest = fetch_latest(student_level, code, lesson_key)
         if latest:
             ts = latest.get('updated_at')
             when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
             st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-            st.caption("You’ll receive an **email notification** when marked. Scores & feedback live in **Results & Resources**.")
+            st.caption("You’ll receive an **email** when your work is marked. Check **Results & Resources** for scores and feedback.")
+
+            # --- Tutor-only notification tools (Slack) ---
+            is_tutor = st.session_state.get("role") in {"tutor","admin"}
+            if is_tutor:
+                with st.expander("🔔 Tutor: Notification tools", expanded=False):
+                    webhook = st.secrets.get("SLACK_WEBHOOK_URL")
+                    if not webhook:
+                        st.warning("No SLACK_WEBHOOK_URL in secrets for this app.")
+                    else:
+                        colA, colB = st.columns(2)
+
+                        with colA:
+                            if st.button("Send Test Slack Ping", key=f"test_slack_{lesson_key}"):
+                                notify_slack_submission(
+                                    webhook_url=webhook,
+                                    student_name="Test Student",
+                                    student_code="demo001",
+                                    level=student_level,
+                                    day=info["day"],
+                                    chapter=chapter_name,
+                                    receipt="TEST-000",
+                                    preview="This is a manual test notification."
+                                )
+                                st.success("Test ping sent to Slack.")
+
+                        with colB:
+                            if st.button("Resend Tutor Notification", key=f"resend_slack_{lesson_key}"):
+                                short_ref = f"{(latest_id or '')[:8].upper()}-{latest.get('day', info['day'])}"
+                                notify_slack_submission(
+                                    webhook_url=webhook,
+                                    student_name=name or latest.get("student_name") or "Student",
+                                    student_code=code,
+                                    level=student_level,
+                                    day=latest.get("day", info["day"]),
+                                    chapter=latest.get("chapter", chapter_name),
+                                    receipt=short_ref,
+                                    preview=latest.get("answer","")
+                                )
+                                st.success("Resent latest submission to Slack.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-
 
 
     # === LEARNING NOTES SUBTAB ===
