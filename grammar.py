@@ -3498,21 +3498,33 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
     )
 
-# --- Slack (global helper) ---
-def notify_slack(text: str):
+SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
+
+def _slack_url() -> str:
+    # 1) Render env var  2) optional fallback to st.secrets.slack.webhook_url
     url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
     if not url:
         try:
             url = (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "").strip()
         except Exception:
             url = ""
-    if not url:
-        return
-    try:
-        requests.post(url, json={"text": text}, timeout=6)
-    except Exception:
-        pass
+    return url
 
+def notify_slack(text: str):
+    """
+    Returns (ok: bool, info: str). Uses one webhook for all events.
+    Set SLACK_DEBUG=1 in Render to see failure details in-app (admins only).
+    """
+    url = _slack_url()
+    if not url:
+        return False, "missing_webhook"
+    try:
+        resp = requests.post(url, json={"text": text}, timeout=6)
+        ok = 200 <= resp.status_code < 300
+        return ok, f"status={resp.status_code}"
+    except Exception as e:
+        return False, str(e)
+        
 def highlight_terms(text, terms):
     if not text: return ""
     for term in terms:
@@ -4193,316 +4205,94 @@ if tab == "Course Book":
 
         st.divider()
 
-        # ---------------- Announcements via CSV + Firestore replies ----------------
+    # ---------------- Announcements via CSV + Firestore replies (one-click updates) ----------------
+    st.markdown("### 📢 Announcements")
 
-        # URL extraction (for auto-detecting links in Announcement text)
-        URL_RE = re.compile(r"(https?://[^\s]+)")
 
-        def _to_csv_export_url(url: str, default_gid: str = "0") -> str:
-            if not url:
-                return ""
-            if "export?format=csv" in url:
-                return url
-            m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
-            if not m:
-                return url
-            sheet_id = m.group(1)
-            gid_match = re.search(r"[?&]gid=(\d+)", url)
-            gid = gid_match.group(1) if gid_match else default_gid
-            return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+    URL_RE = re.compile(r"(https?://[^\s]+)")
 
-        @st.cache_data(ttl=60)
-        def fetch_announcements_csv() -> pd.DataFrame:
-            csv_url = ""
-            try:
-                csv_url = st.secrets["announcements"]["csv_url"]
-            except Exception:
-                pass
-            if not csv_url and IS_ADMIN:
-                st.info("Admin: paste your Google Sheets URL (Published CSV or Edit URL):")
-                csv_url = st.text_input("Announcements CSV URL", key="ann_csv_url").strip()
-                if not csv_url:
-                    return pd.DataFrame()
+    def _to_csv_export_url(url: str, default_gid: str = "0") -> str:
+        if not url:
+            return ""
+        if "export?format=csv" in url:
+            return url
+        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
+        if not m:
+            return url
+        sheet_id = m.group(1)
+        gid_match = re.search(r"[?&]gid=(\d+)", url)
+        gid = gid_match.group(1) if gid_match else default_gid
+        return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
 
-            csv_url = _to_csv_export_url(csv_url)
+    @st.cache_data(ttl=60)
+    def fetch_announcements_csv() -> pd.DataFrame:
+        csv_url = ""
+        try:
+            csv_url = st.secrets["announcements"]["csv_url"]
+        except Exception:
+            pass
+        if not csv_url and IS_ADMIN:
+            st.info("Admin: paste your Google Sheets URL (Published CSV or Edit URL):")
+            csv_url = st.text_input("Announcements CSV URL", key="ann_csv_url").strip()
             if not csv_url:
                 return pd.DataFrame()
 
-            try:
-                df = pd.read_csv(csv_url)
-            except Exception:
-                return pd.DataFrame()
-
-            df.columns = [str(c).strip() for c in df.columns]
-            lower_map = {c.lower(): c for c in df.columns}
-
-            def get_col(name):
-                return lower_map.get(name.lower())
-
-            # Ensure canonical columns exist
-            for n in ["announcement", "class", "date", "pinned"]:
-                if get_col(n) is None:
-                    df[n] = ""
-
-            # Rename to canonical casing
-            rename_map = {}
-            for logical, canonical in [("announcement", "Announcement"),
-                                       ("class", "Class"),
-                                       ("date", "Date"),
-                                       ("pinned", "Pinned")]:
-                src = get_col(logical)
-                if src:
-                    rename_map[src] = canonical
-            df = df.rename(columns=rename_map)
-
-            for c in ["Announcement", "Class", "Date", "Pinned"]:
-                if c not in df.columns:
-                    df[c] = ""
-
-            # --- Optional Link/Links support ---
-            link_key = lower_map.get("link") or lower_map.get("links")
-            df["Links"] = [[] for _ in range(len(df))]
-            if link_key:
-                def _split_links(val):
-                    s = str(val or "").strip()
-                    if not s:
-                        return []
-                    parts = [p for chunk in s.split(",") for p in chunk.split()]
-                    return [p.strip() for p in parts if p.strip().lower().startswith(("http://","https://"))]
-                df["Links"] = df[link_key].apply(_split_links)
-
-            # Normalize pinned values: TRUE/FALSE, yes/no, 1/0 -> bool
-            def norm_pinned(val) -> bool:
-                s = str(val).strip().lower()
-                return s in {"true", "yes", "1"}
-            df["Pinned"] = df["Pinned"].apply(norm_pinned)
-
-            # Parse dates
-            def parse_dt(x):
-                for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M",
-                            "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
-                    try:
-                        return datetime.strptime(str(x), fmt)
-                    except Exception:
-                        continue
-                try:
-                    return pd.to_datetime(x, errors="coerce")
-                except Exception:
-                    return pd.NaT
-            df["__dt"] = df["Date"].apply(parse_dt)
-
-            # Append auto-detected links from Announcement text
-            def _append_detected_links(row):
-                txt = str(row.get("Announcement","") or "")
-                found = URL_RE.findall(txt)
-                existing = list(row.get("Links", []) or [])
-                merged, seen = [], set()
-                for url in existing + found:
-                    if url not in seen:
-                        merged.append(url); seen.add(url)
-                return merged
-            df["Links"] = df.apply(_append_detected_links, axis=1)
-
-            # Stable ID per row (needs hashlib; import locally to avoid global import change)
-            def make_id(row):
-                try:
-                    import hashlib
-                    raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
-                    return hashlib.sha1(raw).hexdigest()[:16]
-                except Exception:
-                    # fallback: short uuid
-                    return str(uuid4()).replace("-", "")[:16]
-            df["__id"] = df.apply(make_id, axis=1)
-
-            df.sort_values("__dt", ascending=False, inplace=True, na_position="last")
-            return df
-
-        # --- Firestore helpers for replies (thread per announcement) ---
-        def _reply_coll(_class: str, ann_id: str):
-            return (db.collection("class_announcements")
-                     .document(_class)
-                     .collection("replies")
-                     .document(ann_id)
-                     .collection("posts"))
-
-        def post_reply(_class: str, ann_id: str, code: str, name: str, text: str):
-            _reply_coll(_class, ann_id).add({
-                "student_code": code,
-                "student_name": name,
-                "text": text.strip(),
-                "timestamp": datetime.utcnow(),
-            })
-            # 🔔 Slack alert for announcement reply
-            prev = (text.strip()[:180] + "…") if len(text.strip()) > 180 else text.strip()
-            notify_slack(
-                f"📢 *Announcement reply* — {_class}\n"
-                f"*By:* {name} ({code})  •  *AnnID:* {ann_id}\n"
-                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                f"*Reply:* {prev}"
-            )
-
-        def get_replies(_class: str, ann_id: str):
-            try:
-                q = _reply_coll(_class, ann_id).order_by("timestamp", direction=firestore.Query.ASCENDING).stream()
-                return [p.to_dict() for p in q]
-            except Exception:
-                try:
-                    items = [p.to_dict() for p in _reply_coll(_class, ann_id).stream()]
-                    items.sort(key=lambda r: r.get("timestamp"))
-                    return items
-                except Exception:
-                    return []
-
-        def _fmt_dt_label(dtval) -> str:
-            try:
-                return dtval.strftime("%d %b %H:%M")
-            except Exception:
-                return ""
-
-        # --- Link pretty-print helpers ---
-        def _guess_link_emoji_and_label(url: str) -> tuple[str, str]:
-            # Basic classifier by extension/domain; returns (emoji, label)
-            u = url.lower()
-            label = None
-            if "youtube.com" in u or "youtu.be" in u:
-                return "🎥", "YouTube"
-            if "zoom.us" in u:
-                return "🎦", "Zoom"
-            if "docs.google.com" in u:
-                if "/document/" in u:
-                    return "📝", "Google Doc"
-                if "/spreadsheets/" in u:
-                    return "📊", "Google Sheet"
-                if "/presentation/" in u or "/presentations/" in u:
-                    return "🖼️", "Google Slides"
-                if "/forms/" in u:
-                    return "🧾", "Google Form"
-                return "📄", "Google Drive"
-            if u.endswith(".pdf"):
-                return "📄", "PDF"
-            if any(u.endswith(ext) for ext in (".ppt", ".pptx", ".key")):
-                return "🖼️", "Slides"
-            if any(u.endswith(ext) for ext in (".doc", ".docx")):
-                return "📝", "Document"
-            if any(u.endswith(ext) for ext in (".xls", ".xlsx", ".csv")):
-                return "📊", "Spreadsheet"
-            if any(u.endswith(ext) for ext in (".mp4", ".mov", ".m4v", ".webm")):
-                return "🎬", "Video"
-            if any(u.endswith(ext) for ext in (".mp3", ".wav", ".aac", ".m4a", ".ogg")):
-                return "🎧", "Audio"
-            # Default generic
-            return "🔗", None
-
-        def _short_label_from_url(url: str) -> str:
-            # Try to build a human label from URL path
-            try:
-                from urllib.parse import urlparse, parse_qs, unquote
-                p = urlparse(url)
-                # Prefer path tail
-                tail = unquote(p.path.rstrip("/").split("/")[-1])
-                if not tail or "." not in tail:
-                    # fallback to domain
-                    return p.netloc
-                return tail
-            except Exception:
-                return url
-        # ---------------- Announcements UI (CSV-backed with replies + edit/delete + Slack) ----------------
-        st.markdown("### 📢 Announcements")
-
-        # ---- Slack helper (uses your global notify_slack if present) ----
-        def _notify_slack_safe(text: str):
-            fn = globals().get("notify_slack")
-            if callable(fn):
-                try:
-                    fn(text)
-                except Exception:
-                    pass
-
-        # ---- Helpers for links ----
-        URL_RE = re.compile(r"(https?://[^\s]+)")
-
-        def _short_label_from_url(u: str) -> str:
-            try:
-                p = urllib.parse.urlparse(u)
-                host = (p.netloc or "").replace("www.", "")
-                path = (p.path or "").strip("/")
-                label = host if not path else f"{host}/{path}"
-                return label[:60] + ("…" if len(label) > 60 else "")
-            except Exception:
-                return u[:60] + ("…" if len(u) > 60 else "")
-
-        def _guess_link_emoji_and_label(u: str):
-            lu = u.lower()
-            if "zoom.us" in lu: return "🎦", None
-            if "youtu" in lu:   return "▶️", None
-            if lu.endswith(".pdf"): return "📄", None
-            if "drive.google" in lu: return "🟢", None
-            if "deepl.com" in lu: return "🌐", None
-            if "google.com" in lu: return "🔗", None
-            return "🔗", None
-
-        # Read the live CSV from your Google Sheet (export link)
-        CSV_URL = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
+        csv_url = _to_csv_export_url(csv_url)
+        if not csv_url:
+            return pd.DataFrame()
 
         try:
-            df = pd.read_csv(CSV_URL)
+            df = pd.read_csv(csv_url)
         except Exception:
-            df = pd.DataFrame()
+            return pd.DataFrame()
 
-        # Normalize headers (case-insensitive) and ensure required columns
         df.columns = [str(c).strip() for c in df.columns]
         lower_map = {c.lower(): c for c in df.columns}
+        def get_col(name): return lower_map.get(name.lower())
 
-        def _col(name: str):
-            return lower_map.get(name.lower())
-
-        for logical in ("announcement", "class", "date", "pinned"):
-            if _col(logical) is None:
-                df[logical] = ""
+        # ensure canonical cols
+        for n in ["announcement", "class", "date", "pinned"]:
+            if get_col(n) is None:
+                df[n] = ""
 
         rename_map = {}
-        if _col("announcement"): rename_map[_col("announcement")] = "Announcement"
-        if _col("class"):        rename_map[_col("class")]        = "Class"
-        if _col("date"):         rename_map[_col("date")]         = "Date"
-        if _col("pinned"):       rename_map[_col("pinned")]       = "Pinned"
+        for logical, canonical in [
+            ("announcement", "Announcement"),
+            ("class", "Class"),
+            ("date", "Date"),
+            ("pinned", "Pinned"),
+        ]:
+            src = get_col(logical)
+            if src:
+                rename_map[src] = canonical
         df = df.rename(columns=rename_map)
-
-        for c in ("Announcement", "Class", "Date", "Pinned"):
+        for c in ["Announcement", "Class", "Date", "Pinned"]:
             if c not in df.columns:
                 df[c] = ""
 
-        # Optional Link/Links column
+        # optional Link/Links
         link_key = lower_map.get("link") or lower_map.get("links")
         df["Links"] = [[] for _ in range(len(df))]
         if link_key:
             def _split_links(val):
                 s = str(val or "").strip()
-                if not s:
-                    return []
+                if not s: return []
                 parts = [p for chunk in s.split(",") for p in chunk.split()]
                 return [p.strip() for p in parts if p.strip().lower().startswith(("http://","https://"))]
             df["Links"] = df[link_key].apply(_split_links)
 
-        # Normalize pinned values: TRUE/FALSE, yes/no, 1/0 → bool
-        def _norm_pinned(v) -> bool:
-            s = str(v).strip().lower()
-            return s in {"true", "yes", "1"}
-        df["Pinned"] = df["Pinned"].apply(_norm_pinned)
+        def norm_pinned(v)->bool:
+            return str(v).strip().lower() in {"true","yes","1"}
+        df["Pinned"] = df["Pinned"].apply(norm_pinned)
 
-        # Parse dates and build stable IDs
-        def _parse_dt(x):
-            for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
-                try:
-                    return datetime.strptime(str(x), fmt)
-                except Exception:
-                    continue
-            try:
-                return pd.to_datetime(x, errors="coerce")
-            except Exception:
-                return pd.NaT
-        df["__dt"] = df["Date"].apply(_parse_dt)
+        def parse_dt(x):
+            for fmt in ("%Y-%m-%d %H:%M","%Y/%m/%d %H:%M","%d/%m/%Y %H:%M","%Y-%m-%d","%d/%m/%Y"):
+                try: return datetime.strptime(str(x), fmt)
+                except Exception: continue
+            try: return pd.to_datetime(x, errors="coerce")
+            except Exception: return pd.NaT
+        df["__dt"] = df["Date"].apply(parse_dt)
 
-        # Append auto-detected links from text
         def _append_detected_links(row):
             txt = str(row.get("Announcement","") or "")
             found = URL_RE.findall(txt)
@@ -4514,469 +4304,467 @@ if tab == "Course Book":
             return merged
         df["Links"] = df.apply(_append_detected_links, axis=1)
 
-        # Stable ID
-        def _ann_id(row):
+        def make_id(row):
             try:
-                import hashlib
                 raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
                 return hashlib.sha1(raw).hexdigest()[:16]
             except Exception:
-                return str(uuid4()).replace("-", "")[:16]
-        df["__id"] = df.apply(_ann_id, axis=1)
+                return str(uuid4()).replace("-","")[:16]
+        df["__id"] = df.apply(make_id, axis=1)
 
-        def _fmt_dt_label(dtval) -> str:
-            try:
-                return dtval.strftime("%d %b %H:%M")
-            except Exception:
-                return ""
+        df.sort_values("__dt", ascending=False, inplace=True, na_position="last")
+        return df
 
-        def _norm_str(s: str) -> str:
-            return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+    def _fmt_dt_label(dtval)->str:
+        try: return dtval.strftime("%d %b %H:%M")
+        except Exception: return ""
 
-        # Local Firestore helpers for replies (with IDs so we can edit/delete)
-        def _ann_reply_coll(ann_id: str):
-            return (db.collection("class_announcements")
-                     .document(class_name)
-                     .collection("replies")
-                     .document(ann_id)
-                     .collection("posts"))
+    def _short_label_from_url(u: str) -> str:
+        try:
+            p = urllib.parse.urlparse(u)
+            host = (p.netloc or "").replace("www.", "")
+            path = (p.path or "").strip("/")
+            label = host if not path else f"{host}/{path}"
+            return label[:60] + ("…" if len(label) > 60 else "")
+        except Exception:
+            return u[:60] + ("…" if len(u) > 60 else "")
 
-        def _load_replies_with_ids(ann_id: str):
-            try:
-                docs = list(_ann_reply_coll(ann_id).order_by("timestamp").stream())
-            except Exception:
-                docs = list(_ann_reply_coll(ann_id).stream())
-                docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
-            out = []
-            for d in docs:
-                x = d.to_dict() or {}
-                x["__id"] = d.id
-                out.append(x)
-            return out
+    def _guess_link_emoji_and_label(url: str):
+        u = url.lower()
+        if "youtube.com" in u or "youtu.be" in u: return "🎥", "YouTube"
+        if "zoom.us" in u:                         return "🎦", "Zoom"
+        if "docs.google.com" in u:
+            if "/document/" in u:     return "📝", "Google Doc"
+            if "/spreadsheets/" in u: return "📊", "Google Sheet"
+            if "/presentation" in u:  return "🖼️", "Google Slides"
+            if "/forms/" in u:        return "🧾", "Google Form"
+            return "📄", "Google Drive"
+        if u.endswith(".pdf"): return "📄", "PDF"
+        return "🔗", None
 
-        def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
-            _ann_reply_coll(ann_id).document(reply_id).update({
-                "text": new_text.strip(),
-                "edited_at": datetime.utcnow(),
-                "edited_by": student_name,
-                "edited_by_code": student_code,
-            })
+    # replies (announcement) helpers
+    def _ann_reply_coll(ann_id: str):
+        return (db.collection("class_announcements")
+                 .document(class_name)
+                 .collection("replies")
+                 .document(ann_id)
+                 .collection("posts"))
 
-        def _delete_reply(ann_id: str, reply_id: str):
-            _ann_reply_coll(ann_id).document(reply_id).delete()
+    def _load_replies_with_ids(ann_id: str):
+        try:
+            docs = list(_ann_reply_coll(ann_id).order_by("timestamp").stream())
+        except Exception:
+            docs = list(_ann_reply_coll(ann_id).stream())
+            docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
+        out = []
+        for d in docs:
+            x = d.to_dict() or {}
+            x["__id"] = d.id
+            out.append(x)
+        return out
 
-        if df.empty:
-            st.info("No announcements yet.")
-        else:
-            # Controls
-            c1, c2, c3 = st.columns([1, 2, 1])
-            with c1:
-                show_only_pinned = st.checkbox("Show only pinned", value=False)
-            with c2:
-                search_term = st.text_input("Search announcements…", "")
-            with c3:
-                if st.button("↻ Refresh", key="ann_refresh"):
-                    st.rerun()
+    def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
+        _ann_reply_coll(ann_id).document(reply_id).update({
+            "text": new_text.strip(),
+            "edited_at": datetime.utcnow(),
+            "edited_by": student_name,
+            "edited_by_code": student_code,
+        })
 
-            # --- Robust class-based filter (vectorized) ---
-            df["__class_norm"] = (
-                df["Class"]
-                .astype(str)
-                .str.replace(r"\s+", " ", regex=True)
-                .str.strip()
-                .str.lower()
-            )
-            class_norm = _norm_str(class_name)
-            view = df[df["__class_norm"] == class_norm].copy()
+    def _delete_reply(ann_id: str, reply_id: str):
+        _ann_reply_coll(ann_id).document(reply_id).delete()
 
-            if show_only_pinned:
-                view = view[view["Pinned"] == True]
+    # ---- UI ----
+    df = fetch_announcements_csv()
+    if df.empty:
+        st.info("No announcements yet.")
+    else:
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c1:
+            show_only_pinned = st.checkbox("Show only pinned", value=False, key="ann_only_pinned")
+        with c2:
+            search_term = st.text_input("Search announcements…", "", key="ann_search")
+        with c3:
+            if st.button("↻ Refresh", key="ann_refresh"):
+                fetch_announcements_csv.clear()
+                st.rerun()
 
-            if search_term.strip():
-                q = search_term.lower()
-                view = view[view["Announcement"].astype(str).str.lower().str.contains(q)]
+        df["__class_norm"] = (
+            df["Class"].astype(str).str.replace(r"\s+"," ", regex=True).str.strip().str.lower()
+        )
+        class_norm = re.sub(r"\s+"," ", str(class_name or "")).strip().lower()
+        view = df[df["__class_norm"] == class_norm].copy()
+        if show_only_pinned:
+            view = view[view["Pinned"] == True]
+        if search_term.strip():
+            q = search_term.lower()
+            view = view[view["Announcement"].astype(str).str.lower().str.contains(q)]
 
-            # Order newest first, then split pinned/non-pinned
-            view.sort_values("__dt", ascending=False, inplace=True, na_position="last")
-            pinned_df = view[view["Pinned"] == True]
-            latest_df = view[view["Pinned"] == False]
+        view.sort_values("__dt", ascending=False, inplace=True, na_position="last")
+        pinned_df = view[view["Pinned"] == True]
+        latest_df = view[view["Pinned"] == False]
 
-            def render_announcement(row, is_pinned=False):
-                ts_label = _fmt_dt_label(row.get("__dt"))
-                html_card = (
+        def render_announcement(row, is_pinned=False):
+            ts_label = _fmt_dt_label(row.get("__dt"))
+            st.markdown(
+                (
                     f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
                     f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
                     f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                    f"<b>Teacher</b> "
-                    f"<span style='color:#888;'>{ts_label} GMT</span><br>"
+                    f"<b>Teacher</b> <span style='color:#888;'>{ts_label} GMT</span><br>"
                     f"{row.get('Announcement','')}"
                     f"</div>"
-                )
-                st.markdown(html_card, unsafe_allow_html=True)
+                ),
+                unsafe_allow_html=True,
+            )
 
-                # 🔗 Render links (from Link/Links column + auto-detected)
-                links = row.get("Links") or []
-                if isinstance(links, str):
-                    links = [links] if links.strip() else []
-                if links:
-                    st.markdown("**🔗 Links:**")
-                    for u in links:
-                        emoji, label = _guess_link_emoji_and_label(u)
-                        label = label or _short_label_from_url(u)
-                        st.markdown(f"- {emoji} [{label}]({u})")
+            # links
+            links = row.get("Links") or []
+            if isinstance(links, str):
+                links = [links] if links.strip() else []
+            if links:
+                st.markdown("**🔗 Links:**")
+                for u in links:
+                    emoji, label = _guess_link_emoji_and_label(u)
+                    label = label or _short_label_from_url(u)
+                    st.markdown(f"- {emoji} [{label}]({u})")
 
-                # --- Replies (list + edit/delete) ---
-                ann_id = row.get("__id")
-                replies = _load_replies_with_ids(ann_id)
-
-                if replies:
-                    for r in replies:
-                        when = ""
-                        ts = r.get("timestamp")
+            # replies
+            ann_id = row.get("__id")
+            replies = _load_replies_with_ids(ann_id)
+            if replies:
+                for r in replies:
+                    when = ""
+                    ts = r.get("timestamp")
+                    try: when = ts.strftime("%d %b %H:%M") + " UTC"
+                    except Exception: when = ""
+                    edited_badge = ""
+                    if r.get("edited_at"):
                         try:
-                            when = ts.strftime("%d %b %H:%M") + " UTC"
+                            edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
                         except Exception:
-                            when = ""
-                        edited_badge = ""
-                        if r.get("edited_at"):
-                            try:
-                                edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
-                            except Exception:
-                                edited_badge = " <span style='color:#aaa;'>(edited)</span>"
+                            edited_badge = " <span style='color:#aaa;'>(edited)</span>"
 
-                        st.markdown(
-                            f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
-                            f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
-                            f"{r.get('text','')}</div>",
-                            unsafe_allow_html=True,
-                        )
-
-                        # Edit / Delete controls (student can edit own; admins can edit all)
-                        can_edit = IS_ADMIN or (r.get("student_code") == student_code)
-                        if can_edit:
-                            c_ed, c_del = st.columns([1, 1])
-                            with c_ed:
-                                if st.button("✏️ Edit", key=f"edit_reply_btn_{ann_id}_{r['__id']}"):
-                                    st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
-                                    st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text","")
-                                    st.rerun()
-                            with c_del:
-                                if st.button("🗑️ Delete", key=f"del_reply_btn_{ann_id}_{r['__id']}"):
-                                    _delete_reply(ann_id, r["__id"])
-                                    _notify_slack_safe(
-                                        f"🗑️ *Reply deleted* — {class_name}\n"
-                                        f"*By:* {student_name} ({student_code})\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
-                                    )
-                                    st.success("Reply deleted.")
-                                    st.rerun()
-
-                            # Inline editor
-                            if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
-                                new_txt = st.text_area(
-                                    "Edit reply",
-                                    key=f"editbox_{ann_id}_{r['__id']}",
-                                    value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text","")),
-                                    height=100,
-                                )
-                                ec1, ec2 = st.columns([1,1])
-                                with ec1:
-                                    if st.button("💾 Save", key=f"save_reply_btn_{ann_id}_{r['__id']}"):
-                                        if new_txt.strip():
-                                            _update_reply_text(ann_id, r["__id"], new_txt)
-                                            _notify_slack_safe(
-                                                f"✏️ *Reply edited* — {class_name}\n"
-                                                f"*By:* {student_name} ({student_code})\n"
-                                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                                                f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
-                                            )
-                                            st.success("Reply updated.")
-                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
-                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                        st.rerun()
-                                with ec2:
-                                    if st.button("❌ Cancel", key=f"cancel_reply_btn_{ann_id}_{r['__id']}"):
-                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
-                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                        st.rerun()
-
-                # --- Add a new reply
-                with st.expander("Reply"):
-                    reply_text = st.text_area(
-                        f"Reply to {ann_id}",
-                        key=f"reply_{ann_id}",
-                        height=90,
-                        placeholder="Write your reply…"
+                    st.markdown(
+                        f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
+                        f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
+                        f"{r.get('text','')}</div>",
+                        unsafe_allow_html=True,
                     )
-                    if st.button("Send Reply", key=f"reply_btn_{ann_id}") and reply_text.strip():
-                        # create
-                        payload = {
-                            "student_code": student_code,
-                            "student_name": student_name,
-                            "text": reply_text.strip(),
-                            "timestamp": datetime.utcnow(),
-                        }
-                        _ann_reply_coll(ann_id).add(payload)
-                        _notify_slack_safe(
-                            f"💬 *New announcement reply* — {class_name}\n"
-                            f"*By:* {student_name} ({student_code})\n"
-                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                            f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
-                        )
-                        st.success("Reply sent!")
-                        st.rerun()
 
-            # Render lists
-            for _, row in pinned_df.iterrows():
-                render_announcement(row, is_pinned=True)
-            for _, row in latest_df.iterrows():
-                render_announcement(row, is_pinned=False)
-#
+                    # edit/delete own (or admin)
+                    can_edit = IS_ADMIN or (r.get("student_code") == student_code)
+                    if can_edit:
+                        e1, e2 = st.columns([1,1])
+                        with e1:
+                            if st.button("✏️ Edit", key=f"ann_edit_{ann_id}_{r['__id']}"):
+                                st.session_state[f"ann_editing_{ann_id}_{r['__id']}"] = True
+                                st.session_state[f"ann_edit_text_{ann_id}_{r['__id']}"] = r.get("text","")
+                                st.rerun()
+                        with e2:
+                            if st.button("🗑️ Delete", key=f"ann_del_{ann_id}_{r['__id']}"):
+                                _delete_reply(ann_id, r["__id"])
+                                # Slack (fire-and-forget)
+                                notify_slack(
+                                    f"🗑️ *Announcement reply deleted* — {class_name}\n"
+                                    f"*By:* {student_name} ({student_code})\n"
+                                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                )
+                                st.success("Reply deleted.")
+                                st.rerun()
 
-        # ---------------- Class Q&A — post + reply (manual refresh + Slack alerts + edit/delete) ----------------
-        st.markdown("### 💬 Class Q&A")
-
-        # Where questions live (per-class)
-        q_base = db.collection("class_qna").document(class_name).collection("questions")
-
-        def _fmt_ts(ts):
-            try:
-                return ts.strftime("%d %b %H:%M")
-            except Exception:
-                return ""
-
-        # --- Ask a new question (anyone can ask)
-        with st.expander("➕ Ask a new question"):
-            topic = st.text_input("Topic (optional)", key="q_topic")
-            new_q = st.text_area("Your question", key="q_text", height=80)
-            if st.button("Post Question", key="qna_post_question") and new_q.strip():
-                q_id = str(uuid4())[:8]
-                payload = {
-                    "question": new_q.strip(),
-                    "asked_by_name": student_name,
-                    "asked_by_code": student_code,
-                    "timestamp": datetime.utcnow(),
-                    "topic": (topic or "").strip(),
-                }
-                q_base.document(q_id).set(payload)
-                # 🔔 Slack alert for new question
-                preview = (payload["question"][:180] + "…") if len(payload["question"]) > 180 else payload["question"]
-                topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
-                notify_slack(
-                    f"❓ *New class question* — {class_name}{topic_tag}\n"
-                    f"*From:* {student_name} ({student_code})\n"
-                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                    f"*Q:* {preview}"
-                )
-                st.success("Question posted!")
-
-        # --- Controls
-        colsa, colsb, colsc = st.columns([2, 1, 1])
-        with colsa:
-            q_search = st.text_input("Search questions (text or topic)…", key="q_search")
-        with colsb:
-            show_latest = st.toggle("Newest first", value=True)
-        with colsc:
-            if st.button("↻ Refresh", key="qna_refresh"):
-                st.rerun()
-
-        # --- Load questions once (manual refresh only)
-        try:
-            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
-            questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
-        except Exception:
-            # fallback without ordering
-            q_docs = list(q_base.stream())
-            questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
-            questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
-
-        # --- Filter & order
-        if q_search.strip():
-            ql = q_search.lower()
-            questions = [
-                q for q in questions
-                if ql in str(q.get("question", "")).lower() or ql in str(q.get("topic", "")).lower()
-            ]
-        if not show_latest:
-            questions = list(reversed(questions))
-
-        # --- Render questions (anyone can reply; authors can edit/delete; admins can delete)
-        if not questions:
-            st.info("No questions yet.")
-        else:
-            for q in questions:
-                q_id = q.get("id", "")
-                ts = q.get("timestamp")
-                ts_label = _fmt_ts(ts)
-
-                topic_html = (
-                    f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
-                    if q.get("topic") else ""
-                )
-                question_html = (
-                    f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
-                    f"<b>{q.get('asked_by_name','')}</b>"
-                    f"<span style='color:#aaa;'> • {ts_label}</span>"
-                    f"{topic_html}"
-                    f"{q.get('question','')}"
-                    f"</div>"
-                )
-                st.markdown(question_html, unsafe_allow_html=True)
-
-                # --- Edit/Delete controls for the question (author or admin)
-                can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
-                if can_modify_q:
-                    qc1, qc2, qc3 = st.columns([1,1,3])
-                    with qc1:
-                        if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
-                            st.session_state[f"q_editing_{q_id}"] = True
-                            st.session_state[f"q_edit_text_{q_id}"] = q.get("question","")
-                            st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic","")
-                    with qc2:
-                        if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
-                            # delete replies first
-                            try:
-                                r_ref = q_base.document(q_id).collection("replies")
-                                for rdoc in r_ref.stream():
-                                    rdoc.reference.delete()
-                            except Exception:
-                                pass
-                            # delete question
-                            q_base.document(q_id).delete()
-                            notify_slack(
-                                f"🗑️ *Q&A question deleted* — {class_name}\n"
-                                f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                        if st.session_state.get(f"ann_editing_{ann_id}_{r['__id']}", False):
+                            new_txt = st.text_area(
+                                "Edit reply",
+                                key=f"ann_editbox_{ann_id}_{r['__id']}",
+                                value=st.session_state.get(f"ann_edit_text_{ann_id}_{r['__id']}", r.get("text","")),
+                                height=100,
                             )
-                            st.success("Question deleted.")
-                            st.rerun()
-
-                    # Edit form
-                    if st.session_state.get(f"q_editing_{q_id}", False):
-                        with st.form(f"q_edit_form_{q_id}"):
-                            new_topic = st.text_input(
-                                "Edit topic (optional)",
-                                value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
-                                key=f"q_edit_topic_input_{q_id}"
-                            )
-                            new_text = st.text_area(
-                                "Edit question",
-                                value=st.session_state.get(f"q_edit_text_{q_id}", ""),
-                                key=f"q_edit_text_input_{q_id}",
-                                height=100
-                            )
-                            save_edit = st.form_submit_button("💾 Save")
-                            cancel_edit = st.form_submit_button("❌ Cancel")
-                        if save_edit and new_text.strip():
-                            q_base.document(q_id).update({
-                                "question": new_text.strip(),
-                                "topic": (new_topic or "").strip(),
-                                "edited_at": datetime.utcnow(),
-                            })
-                            notify_slack(
-                                f"✏️ *Q&A question edited* — {class_name}\n"
-                                f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                                f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
-                            )
-                            st.session_state[f"q_editing_{q_id}"] = False
-                            st.success("Question updated.")
-                            st.rerun()
-                        if cancel_edit:
-                            st.session_state[f"q_editing_{q_id}"] = False
-                            st.rerun()
-
-                # Load replies (ordered asc; fallback to local sort)
-                r_ref = q_base.document(q_id).collection("replies")
-                try:
-                    replies_docs = list(r_ref.order_by("timestamp").stream())
-                except Exception:
-                    replies_docs = list(r_ref.stream())
-                    replies_docs.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
-
-                if replies_docs:
-                    for r in replies_docs:
-                        rid = r.id
-                        r_data = r.to_dict() or {}
-                        r_label = _fmt_ts(r_data.get("timestamp"))
-                        st.markdown(
-                            f"<div style='margin-left:20px;color:#444;'>↳ <b>{r_data.get('replied_by_name','')}</b> "
-                            f"<span style='color:#bbb;'>{r_label}</span><br>"
-                            f"{r_data.get('reply_text','')}</div>",
-                            unsafe_allow_html=True
-                        )
-
-                        # Edit/Delete for replies (author or admin)
-                        can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
-                        if can_modify_r:
-                            rc1, rc2, rc3 = st.columns([1,1,3])
-                            with rc1:
-                                if st.button("✏️ Edit", key=f"r_edit_btn_{q_id}_{rid}"):
-                                    st.session_state[f"r_editing_{q_id}_{rid}"] = True
-                                    st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text","")
-                            with rc2:
-                                if st.button("🗑️ Delete", key=f"r_del_btn_{q_id}_{rid}"):
-                                    r.reference.delete()
-                                    notify_slack(
-                                        f"🗑️ *Q&A reply deleted* — {class_name}\n"
-                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
-                                    )
-                                    st.success("Reply deleted.")
+                            ec1, ec2 = st.columns([1,1])
+                            with ec1:
+                                if st.button("💾 Save", key=f"ann_save_{ann_id}_{r['__id']}"):
+                                    if new_txt.strip():
+                                        _update_reply_text(ann_id, r["__id"], new_txt)
+                                        notify_slack(
+                                            f"✏️ *Announcement reply edited* — {class_name}\n"
+                                            f"*By:* {student_name} ({student_code})\n"
+                                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                            f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
+                                        )
+                                        st.success("Reply updated.")
+                                    st.session_state.pop(f"ann_editing_{ann_id}_{r['__id']}", None)
+                                    st.session_state.pop(f"ann_edit_text_{ann_id}_{r['__id']}", None)
+                                    st.rerun()
+                            with ec2:
+                                if st.button("❌ Cancel", key=f"ann_cancel_{ann_id}_{r['__id']}"):
+                                    st.session_state.pop(f"ann_editing_{ann_id}_{r['__id']}", None)
+                                    st.session_state.pop(f"ann_edit_text_{ann_id}_{r['__id']}", None)
                                     st.rerun()
 
-                            if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
-                                with st.form(f"r_edit_form_{q_id}_{rid}"):
-                                    new_rtext = st.text_area(
-                                        "Edit reply",
-                                        value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
-                                        key=f"r_edit_text_input_{q_id}_{rid}",
-                                        height=80
-                                    )
-                                    rsave = st.form_submit_button("💾 Save")
-                                    rcancel = st.form_submit_button("❌ Cancel")
-                                if rsave and new_rtext.strip():
-                                    r.reference.update({
-                                        "reply_text": new_rtext.strip(),
-                                        "edited_at": datetime.utcnow(),
-                                    })
-                                    notify_slack(
-                                        f"✏️ *Q&A reply edited* — {class_name}\n"
-                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                                        f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
-                                    )
-                                    st.session_state[f"r_editing_{q_id}_{rid}"] = False
-                                    st.success("Reply updated.")
-                                    st.rerun()
-                                if rcancel:
-                                    st.session_state[f"r_editing_{q_id}_{rid}"] = False
-                                    st.rerun()
-
-                # Reply form (anyone can answer)
-                reply_text = st.text_input(
-                    f"Reply to Q{q_id}",
-                    key=f"reply_{q_id}",
+            # add reply
+            with st.expander("Reply", expanded=False):
+                reply_text = st.text_area(
+                    f"Reply to {ann_id}",
+                    key=f"ann_replybox_{ann_id}",
+                    height=90,
                     placeholder="Write your reply…"
                 )
-                if st.button(f"Send Reply {q_id}", key=f"reply_btn_{q_id}") and reply_text.strip():
-                    reply_payload = {
-                        "reply_text": reply_text.strip(),
-                        "replied_by_name": student_name,
-                        "replied_by_code": student_code,
+                if st.button("Send Reply", key=f"ann_send_{ann_id}") and reply_text.strip():
+                    payload = {
+                        "student_code": student_code,
+                        "student_name": student_name,
+                        "text": reply_text.strip(),
                         "timestamp": datetime.utcnow(),
                     }
-                    r_ref = q_base.document(q_id).collection("replies")
-                    r_ref.document(str(uuid4())[:8]).set(reply_payload)
-                    # 🔔 Slack alert for Q&A reply
-                    prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
+                    _ann_reply_coll(ann_id).add(payload)
                     notify_slack(
-                        f"💬 *New Q&A reply* — {class_name}\n"
-                        f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
+                        f"💬 *New announcement reply* — {class_name}\n"
+                        f"*By:* {student_name} ({student_code})\n"
                         f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                        f"*Reply:* {prev}"
+                        f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
                     )
+                    st.session_state[f"ann_replybox_{ann_id}"] = ""  # clear
                     st.success("Reply sent!")
+                    st.rerun()
+
+        # render lists
+        for _, row in pinned_df.iterrows():
+            render_announcement(row, is_pinned=True)
+        for _, row in latest_df.iterrows():
+            render_announcement(row, is_pinned=False)
+
+    # ---------------- Class Q&A — post + reply (one-click updates + Slack + edit/delete) ----------------
+    st.markdown("### 💬 Class Q&A")
+
+    q_base = db.collection("class_qna").document(class_name).collection("questions")
+
+    def _fmt_ts(ts):
+        try: return ts.strftime("%d %b %H:%M")
+        except Exception: return ""
+
+    # Post question
+    with st.expander("➕ Ask a new question"):
+        topic = st.text_input("Topic (optional)", key="q_topic")
+        new_q = st.text_area("Your question", key="q_text", height=80)
+        if st.button("Post Question", key="q_post_btn") and new_q.strip():
+            q_id = str(uuid4())[:8]
+            payload = {
+                "question": new_q.strip(),
+                "asked_by_name": student_name,
+                "asked_by_code": student_code,
+                "timestamp": datetime.utcnow(),
+                "topic": (topic or "").strip(),
+            }
+            q_base.document(q_id).set(payload)
+            # Slack
+            preview = (payload["question"][:180] + "…") if len(payload["question"]) > 180 else payload["question"]
+            topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
+            notify_slack(
+                f"❓ *New class question* — {class_name}{topic_tag}\n"
+                f"*From:* {student_name} ({student_code})\n"
+                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                f"*Q:* {preview}"
+            )
+            st.session_state["q_topic"] = ""
+            st.session_state["q_text"] = ""
+            st.success("Question posted!")
+            st.rerun()
+
+    # Controls
+    colsa, colsb, colsc = st.columns([2, 1, 1])
+    with colsa:
+        q_search = st.text_input("Search questions (text or topic)…", key="q_search")
+    with colsb:
+        show_latest = st.toggle("Newest first", value=True, key="q_latest_toggle")
+    with colsc:
+        if st.button("↻ Refresh", key="q_refresh"):
+            st.rerun()
+
+    # Load fresh every run (so new posts/replies show immediately)
+    try:
+        q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+        questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+    except Exception:
+        q_docs = list(q_base.stream())
+        questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+        questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
+
+    if q_search.strip():
+        ql = q_search.lower()
+        questions = [
+            q for q in questions
+            if ql in str(q.get("question","")).lower() or ql in str(q.get("topic","")).lower()
+        ]
+    if not show_latest:
+        questions = list(reversed(questions))
+
+    if not questions:
+        st.info("No questions yet.")
+    else:
+        for q in questions:
+            q_id = q.get("id","")
+            ts_label = _fmt_ts(q.get("timestamp"))
+            topic_html = f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else ""
+            st.markdown(
+                f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
+                f"<b>{q.get('asked_by_name','')}</b>"
+                f"<span style='color:#aaa;'> • {ts_label}</span>"
+                f"{topic_html}"
+                f"{q.get('question','')}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+            # edit/delete question
+            can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
+            if can_modify_q:
+                qc1, qc2, _ = st.columns([1,1,3])
+                with qc1:
+                    if st.button("✏️ Edit", key=f"q_edit_{q_id}"):
+                        st.session_state[f"q_editing_{q_id}"] = True
+                        st.session_state[f"q_edit_text_{q_id}"] = q.get("question","")
+                        st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic","")
+                with qc2:
+                    if st.button("🗑️ Delete", key=f"q_del_{q_id}"):
+                        try:
+                            r_ref = q_base.document(q_id).collection("replies")
+                            for rdoc in r_ref.stream():
+                                rdoc.reference.delete()
+                        except Exception:
+                            pass
+                        q_base.document(q_id).delete()
+                        notify_slack(
+                            f"🗑️ *Q&A question deleted* — {class_name}\n"
+                            f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                        )
+                        st.success("Question deleted.")
+                        st.rerun()
+
+                if st.session_state.get(f"q_editing_{q_id}", False):
+                    with st.form(f"q_edit_form_{q_id}"):
+                        new_topic = st.text_input(
+                            "Edit topic (optional)",
+                            value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
+                            key=f"q_edit_topic_input_{q_id}"
+                        )
+                        new_text = st.text_area(
+                            "Edit question",
+                            value=st.session_state.get(f"q_edit_text_{q_id}", ""),
+                            key=f"q_edit_text_input_{q_id}",
+                            height=100
+                        )
+                        save_edit = st.form_submit_button("💾 Save")
+                        cancel_edit = st.form_submit_button("❌ Cancel")
+                    if save_edit and new_text.strip():
+                        q_base.document(q_id).update({
+                            "question": new_text.strip(),
+                            "topic": (new_topic or "").strip(),
+                            "edited_at": datetime.utcnow(),
+                        })
+                        notify_slack(
+                            f"✏️ *Q&A question edited* — {class_name}\n"
+                            f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
+                        )
+                        st.session_state[f"q_editing_{q_id}"] = False
+                        st.success("Question updated.")
+                        st.rerun()
+                    if cancel_edit:
+                        st.session_state[f"q_editing_{q_id}"] = False
+                        st.rerun()
+
+            # replies (ordered asc)
+            r_ref = q_base.document(q_id).collection("replies")
+            try:
+                replies_docs = list(r_ref.order_by("timestamp").stream())
+            except Exception:
+                replies_docs = list(r_ref.stream())
+                replies_docs.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
+
+            if replies_docs:
+                for r in replies_docs:
+                    rid = r.id
+                    r_data = r.to_dict() or {}
+                    r_label = _fmt_ts(r_data.get("timestamp"))
+                    st.markdown(
+                        f"<div style='margin-left:20px;color:#444;'>↳ <b>{r_data.get('replied_by_name','')}</b> "
+                        f"<span style='color:#bbb;'>{r_label}</span><br>"
+                        f"{r_data.get('reply_text','')}</div>",
+                        unsafe_allow_html=True
+                    )
+
+                    can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
+                    if can_modify_r:
+                        rc1, rc2, _ = st.columns([1,1,3])
+                        with rc1:
+                            if st.button("✏️ Edit", key=f"r_edit_{q_id}_{rid}"):
+                                st.session_state[f"r_editing_{q_id}_{rid}"] = True
+                                st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text","")
+                        with rc2:
+                            if st.button("🗑️ Delete", key=f"r_del_{q_id}_{rid}"):
+                                r.reference.delete()
+                                notify_slack(
+                                    f"🗑️ *Q&A reply deleted* — {class_name}\n"
+                                    f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                )
+                                st.success("Reply deleted.")
+                                st.rerun()
+
+                        if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
+                            with st.form(f"r_edit_form_{q_id}_{rid}"):
+                                new_rtext = st.text_area(
+                                    "Edit reply",
+                                    value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
+                                    key=f"r_edit_text_input_{q_id}_{rid}",
+                                    height=80
+                                )
+                                rsave = st.form_submit_button("💾 Save")
+                                rcancel = st.form_submit_button("❌ Cancel")
+                            if rsave and new_rtext.strip():
+                                r.reference.update({
+                                    "reply_text": new_rtext.strip(),
+                                    "edited_at": datetime.utcnow(),
+                                })
+                                notify_slack(
+                                    f"✏️ *Q&A reply edited* — {class_name}\n"
+                                    f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                    f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
+                                )
+                                st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                st.success("Reply updated.")
+                                st.rerun()
+                            if rcancel:
+                                st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                st.rerun()
+
+            # quick reply form (one-click → shows)
+            reply_text = st.text_input(
+                f"Reply to Q{q_id}",
+                key=f"q_replybox_{q_id}",
+                placeholder="Write your reply…"
+            )
+            if st.button(f"Send Reply {q_id}", key=f"q_send_{q_id}") and reply_text.strip():
+                reply_payload = {
+                    "reply_text": reply_text.strip(),
+                    "replied_by_name": student_name,
+                    "replied_by_code": student_code,
+                    "timestamp": datetime.utcnow(),
+                }
+                r_ref = q_base.document(q_id).collection("replies")
+                r_ref.document(str(uuid4())[:8]).set(reply_payload)
+                notify_slack(
+                    f"💬 *New Q&A reply* — {class_name}\n"
+                    f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
+                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                    f"*Reply:* {(reply_payload['reply_text'][:180] + '…') if len(reply_payload['reply_text']) > 180 else reply_payload['reply_text']}"
+                )
+                st.session_state[f"q_replybox_{q_id}"] = ""  # clear
+                st.success("Reply sent!")
+                st.rerun()
 #
 
 
