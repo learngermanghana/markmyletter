@@ -3498,6 +3498,21 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
     )
 
+# --- Slack (global helper) ---
+def notify_slack(text: str):
+    url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+    if not url:
+        try:
+            url = (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "").strip()
+        except Exception:
+            url = ""
+    if not url:
+        return
+    try:
+        requests.post(url, json={"text": text}, timeout=6)
+    except Exception:
+        pass
+
 def highlight_terms(text, terms):
     if not text: return ""
     for term in terms:
