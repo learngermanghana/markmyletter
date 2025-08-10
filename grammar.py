@@ -3597,7 +3597,7 @@ if tab == "Course Book":
 
     cb_subtab = st.radio(
         "Select section:",
-        ["📘 Course Book", "📒 Learning Notes", "🗣️ Community"],
+        ["📘 Course Book", "📒 Learning Notes", "🧑‍🏫 Classroom"],
         horizontal=True,
         key="coursebook_subtab"
     )
@@ -4373,12 +4373,11 @@ if tab == "Course Book":
                         st.caption("")
 
 
-    # === COMMUNITY SUBTAB ===
-    elif cb_subtab == "🗣️ Community":
+    elif cb_subtab == "🧑‍🏫 Classroom":
         st.markdown("""
             <div style="padding: 16px; background: #3b82f6; color: #fff; border-radius: 8px;
             text-align: center; margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;">
-            🗣️ Class Discussion Board
+            🧑‍🏫 Classroom (Announcements & Q&A)
             </div>
         """, unsafe_allow_html=True)
 
@@ -4387,90 +4386,90 @@ if tab == "Course Book":
         student_code = student_row.get("StudentCode", "demo001")
         student_name = student_row.get("Name", "Student")
 
-        def post_message(level, code, name, text, reply_to=None):
-            posts_ref = db.collection("class_board").document(level).collection("posts")
-            posts_ref.add({
-                "student_code": code,
-                "student_name": name,
-                "text": text.strip(),
-                "timestamp": datetime.utcnow(),
-                "reply_to": reply_to,
-            })
+        import os
+        from datetime import datetime
 
-        def get_all_posts(level):
-            posts_ref = db.collection("class_board").document(level).collection("posts")
-            posts = posts_ref.order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
-            return [dict(post.to_dict(), id=post.id) for post in posts]
+        # --- Roles (teacher/admins) ---
+        ADMINS = set()
+        try:
+            ADMINS = set(st.secrets["roles"]["admins"])
+        except Exception:
+            pass
+        IS_ADMIN = (student_code in ADMINS)
 
-        # --- Motivation Banner ---
-        st.markdown("""
-            <div style="padding: 12px; background: #facc15; color: #000; border-radius: 6px;
-            font-size: 1rem; margin-bottom: 16px; text-align: center; font-weight: 500;">
-            💡 <b>Your classmates are waiting to hear from you!</b> Share a tip, question, or idea to help everyone learn faster.
-            </div>
-        """, unsafe_allow_html=True)
+        # --- Zoom info ---
+        ZOOM = {"link": "", "meeting_id": "", "passcode": ""}
+        try:
+            ZOOM["link"] = st.secrets["zoom"]["link"]
+            ZOOM["meeting_id"] = st.secrets["zoom"]["meeting_id"]
+            ZOOM["passcode"] = st.secrets["zoom"]["passcode"]
+        except Exception:
+            pass
 
-        # --- Quick Templates ---
-        st.markdown("#### 📌 Quick Post Templates")
-        colt1, colt2, colt3 = st.columns(3)
+        # ---------------- Zoom Join Block ----------------
+        with st.container():
+            st.markdown("""
+                <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 500;">
+                📣 <b>Zoom Classroom</b><br>
+                Join our live class using the details below.
+                </div>
+            """, unsafe_allow_html=True)
 
-        TEMPLATES = {
-            "❓ Question": "I’m confused about [topic]. Here’s where I got stuck: …\nWhat’s a simple way to remember it?",
-            "💡 Tip": "A quick tip that helped me today: …\nTry this when you do [chapter/skill].",
-            "🤝 Study Buddy": "Anyone free to practice speaking for 15 minutes this week? I’m available on [days/times].",
-        }
-
-        with colt1:
-            if st.button("❓ Question"):
-                st.session_state["post_template"] = TEMPLATES["❓ Question"]
-        with colt2:
-            if st.button("💡 Tip"):
-                st.session_state["post_template"] = TEMPLATES["💡 Tip"]
-        with colt3:
-            if st.button("🤝 Study Buddy"):
-                st.session_state["post_template"] = TEMPLATES["🤝 Study Buddy"]
-
-        # --- New post form ---
-        with st.form("post_form"):
-            new_msg = st.text_area(
-                "💬 Post a question, tip, or message to your classmates:",
-                value=st.session_state.get("post_template", ""),
-                max_chars=400
-            )
-            if st.form_submit_button("Post") and new_msg.strip():
-                post_message(student_level, student_code, student_name, new_msg)
-                st.success("Your message was posted!")
-                # Clear the template after posting
-                st.session_state["post_template"] = ""
-                st.rerun()
+            z1, z2 = st.columns([3, 2])
+            with z1:
+                if ZOOM["link"]:
+                    st.link_button("➡️ Join Zoom Meeting", ZOOM["link"])
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+            with z2:
+                if st.button("🔔 Subscribe to class updates"):
+                    subscribe_member(student_level, student_code, student_name)
+                    st.success("Subscribed! You'll receive updates for this class level.")
 
         st.divider()
 
-        all_posts = get_all_posts(student_level)
-
-        # --- Show posts and replies ---
-        for post in [p for p in all_posts if not p.get("reply_to")]:
-            st.markdown(
-                f"**{post['student_name']}** <span style='color:#888;'>{post['timestamp'].strftime('%d %b %H:%M')}</span>",
-                unsafe_allow_html=True
-            )
-            st.write(post["text"])
-            with st.expander("Reply"):
-                reply = st.text_input(f"Reply to {post['id']}", key=f"reply_{post['id']}")
-                if st.button("Send Reply", key=f"reply_btn_{post['id']}") and reply.strip():
-                    post_message(student_level, student_code, student_name, reply.strip(), reply_to=post["id"])
-                    st.success("Reply sent!")
+        # ---------------- Announcements ----------------
+        st.markdown("### 📢 Announcements")
+        if IS_ADMIN:
+            with st.form("ann_form"):
+                ann_text = st.text_area("Write an announcement for the class…", height=120, max_chars=800)
+                pin_it = st.checkbox("📌 Pin to top")
+                if st.form_submit_button("Post Announcement") and ann_text.strip():
+                    post_announcement(student_level, student_code, student_name, ann_text, pin_it)
+                    st.success("Announcement posted!")
                     st.rerun()
 
-            # --- Show replies ---
-            for reply_post in [r for r in all_posts if r.get("reply_to") == post["id"]]:
-                st.markdown(
-                    f"<div style='margin-left:30px; color:#444;'>↳ <b>{reply_post['student_name']}</b> "
-                    f"<span style='color:#bbb;'>{reply_post['timestamp'].strftime('%d %b %H:%M')}</span><br>"
-                    f"{reply_post['text']}</div>",
-                    unsafe_allow_html=True
-                )
-            st.markdown("---")
+        pinned_anns, latest_anns = get_announcements(student_level)
+
+        def render_ann(item, is_pinned=False):
+            st.markdown(
+                f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
+                f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
+                f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                f"<b>{item.get('author_name','Teacher')}</b> "
+                f"<span style='color:#888;'>{item.get('timestamp').strftime('%d %b %H:%M')} UTC</span><br>"
+                f"{item.get('text','')}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+            if IS_ADMIN:
+                c1, c2 = st.columns([1, 1])
+                with c1:
+                    if st.button(("Unpin" if is_pinned else "Pin"), key=f"pin_{item['id']}"):
+                        toggle_pin_announcement(student_level, item["id"], (not is_pinned))
+                        st.rerun()
+                with c2:
+                    if st.button("Delete", key=f"del_{item['id']}"):
+                        delete_announcement(student_level, item["id"])
+                        st.rerun()
+
+        for a in pinned_anns:
+            render_ann(a, is_pinned=True)
+        for a in latest_anns:
+            render_ann(a, is_pinned=False)
+
 
 
 #Myresults
