@@ -4472,31 +4472,33 @@ if tab == "Course Book":
 
         def post_announcement(_class: str, author_code: str, author_name: str, text: str, pinned: bool = False):
             ref = db.collection("class_announcements").document(_class).collection("posts")
-            ref.add(
-                {
-                    "author_code": author_code,
-                    "author_name": author_name,
-                    "text": text.strip(),
-                    "pinned": bool(pinned),
-                    "timestamp": datetime.utcnow(),
-                }
-            )
+            ref.add({
+                "author_code": author_code,
+                "author_name": author_name,
+                "text": text.strip(),
+                "pinned": bool(pinned),
+                "timestamp": datetime.utcnow(),
+            })
+
+        def _safe_ts(d):
+            ts = d.get("timestamp")
+            try:
+                return ts.to_datetime() if hasattr(ts, "to_datetime") else ts
+            except Exception:
+                return datetime.min
 
         def get_announcements(_class: str):
             ref = db.collection("class_announcements").document(_class).collection("posts")
-            pinned = [
-                dict(d.to_dict(), id=d.id)
-                for d in ref.where("pinned", "==", True)
-                            .order_by("timestamp", direction=firestore.Query.DESCENDING)
-                            .stream()
-            ]
-            latest = [
-                dict(d.to_dict(), id=d.id)
-                for d in ref.where("pinned", "==", False)
-                            .order_by("timestamp", direction=firestore.Query.DESCENDING)
-                            .limit(50)
-                            .stream()
-            ]
+            pinned_docs = ref.where("pinned", "==", True).stream()
+            latest_docs = ref.where("pinned", "==", False).stream()
+
+            pinned = [dict(doc.to_dict(), id=doc.id) for doc in pinned_docs]
+            latest = [dict(doc.to_dict(), id=doc.id) for doc in latest_docs]
+
+            # Sort locally to avoid Firestore composite index error
+            pinned.sort(key=_safe_ts, reverse=True)
+            latest.sort(key=_safe_ts, reverse=True)
+            latest = latest[:50]
             return pinned, latest
 
         def toggle_pin_announcement(_class: str, post_id: str, new_val: bool):
@@ -4559,6 +4561,7 @@ if tab == "Course Book":
         for a in latest_anns:
             render_ann(a, is_pinned=False)
 #
+
 
 
 
