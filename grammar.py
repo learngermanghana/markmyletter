@@ -3631,7 +3631,7 @@ if tab == "Course Book":
 
         # --- Slack notify helper (uses hardcoded fallback so it works even without secrets) ---
         import os, requests
-        HARDCODED_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"  # ← replace with your webhook if you want it hardcoded
+        HARDCODED_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"  # ← replace with your webhook if you want it hardcoded
 
         def get_slack_webhook():
             # Prefer hardcoded (if provided); else Secrets; else env; else session override
@@ -3785,44 +3785,6 @@ if tab == "Course Book":
             st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
             st.caption("You’ll receive an **email** when your work is marked. Check **Results & Resources** for scores & feedback.")
 
-            # (Optional) Notification tools while you test – uses same webhook getter
-            with st.expander("🔔 Notification tools (temporary)", expanded=False):
-                webhook = get_slack_webhook()
-                if not webhook:
-                    st.warning("No Slack webhook found. Set HARDCODED_SLACK_WEBHOOK_URL or Secrets/Env.")
-                else:
-                    colA, colB = st.columns(2)
-                    with colA:
-                        if st.button("Send Test Slack Ping", key=f"test_slack_{lesson_key}"):
-                            notify_slack_submission(
-                                webhook_url=webhook,
-                                student_name="Test Student",
-                                student_code="demo001",
-                                level=student_level,
-                                day=info["day"],
-                                chapter=chapter_name,
-                                receipt="TEST-000",
-                                preview="This is a manual test notification."
-                            )
-                            st.success("Test ping sent to Slack.")
-                    with colB:
-                        if st.button("Resend Tutor Notification", key=f"resend_slack_{lesson_key}"):
-                            # Rebuild a short ref from the latest Firestore doc if needed
-                            st.info("Use the button above after a fresh submit for the most accurate preview.")
-                            notify_slack_submission(
-                                webhook_url=webhook,
-                                student_name=name or latest.get("student_name") or "Student",
-                                student_code=code,
-                                level=student_level,
-                                day=latest.get("day", info["day"]),
-                                chapter=latest.get("chapter", chapter_name),
-                                receipt="LATEST",
-                                preview=latest.get("answer","")
-                            )
-                            st.success("Resent latest submission to Slack.")
-        else:
-            st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-#
 
 
     # === LEARNING NOTES SUBTAB ===
