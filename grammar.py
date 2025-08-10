@@ -979,17 +979,57 @@ if not st.session_state.get("logged_in", False):
         </div>
         """, unsafe_allow_html=True)
 
-    # --- Autoplay Video Demo (accessible label) --------------------------------
+    # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
     st.markdown("""
-    <div class="page-wrap" style="display:flex; justify-content:center; margin: 24px auto;">
-      <video width="420" autoplay muted loop controls
-             aria-label="Falowen demo video showing the app features"
-             style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+    <style>
+      /* Hide fullscreen button on WebKit/Blink (Safari/Chrome/Edge) */
+      .no-fs::-webkit-media-controls-fullscreen-button { display: none !important; }
+      /* Keep controls tidy */
+      .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
+    </style>
+
+    <div class="page-wrap" style="display:flex; justify-content:center; margin:24px auto;">
+      <video id="falowen_demo" class="no-fs"
+        style="border-radius:12px; box-shadow:0 4px 12px #0002; width:min(92vw,420px); height:auto; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;"
+        aria-label="Falowen demo video showing the app features"
+        autoplay
+        muted
+        loop
+        controls
+        playsinline
+        webkit-playsinline
+        disablepictureinpicture
+        x-webkit-airplay="deny"
+        controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
+        preload="metadata"
+        oncontextmenu="return false;"
+      >
         <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-        <p>Falowen demo video (MP4). If you can't play the video, <a href="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4">download it here</a>.</p>
       </video>
     </div>
+
+    <script>
+    (function(){
+      const v = document.getElementById('falowen_demo');
+
+      // If any browser still manages to enter fullscreen, immediately exit.
+      function exitFS(){
+        try {
+          if (document.fullscreenElement) document.exitFullscreen();
+          if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+          if (document.msFullscreenElement && document.msExitFullscreen) document.msExitFullscreen();
+        } catch(e){}
+      }
+      ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange']
+        .forEach(evt => document.addEventListener(evt, exitFS, {passive:true}));
+
+      // Block programmatic requests, just in case.
+      if (v.requestFullscreen) v.requestFullscreen = () => Promise.reject();
+      if (v.webkitRequestFullscreen) v.webkitRequestFullscreen = () => {};
+    })();
+    </script>
     """, unsafe_allow_html=True)
+#
 
     # Quick Links (high-contrast)
     st.markdown("""
