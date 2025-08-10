@@ -975,7 +975,7 @@ if not st.session_state.get("logged_in", False):
 
     # 1) How Falowen works + images (non-clickable, uniform height)
     LOGIN_IMAGE_URL = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMAGE_URL = "https://i.imgur.com/REPLACE_THIS.png"  # TODO: replace with your Course Book image URL
+    COURSEBOOK_IMAGE_URL = "https://i.imgur.com/pqXoqSC.png"  # TODO: replace with your Course Book image URL
     RESULTS_IMAGE_URL = "https://i.imgur.com/uiIPKUT.png"
 
     _how_html = """
