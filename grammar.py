@@ -589,81 +589,92 @@ st.markdown("""
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
-    st.markdown("""
-    <div class="hero" aria-label="Falowen app introduction">
-      <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-      <p style="text-align:center; font-size:1.1em; color:#555;">
-        Falowen is your all-in-one German learning platform, powered by
-        <b>Learn Language Education Academy</b>, with courses and vocabulary from
-        <b>A1 to C1</b> levels and live tutor support.
-      </p>
-      <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-        <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-        <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-        <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-        <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-        <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-        <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-        <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-      </ul>
-    </div>
 
-    <!-- ===== Compact stats strip ===== -->
+    # Wider but centered content so it doesn't feel isolated on desktop
+    st.markdown("""
     <style>
-      .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-      .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-              box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-      .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-      .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-      .stat .label { font-size:.92rem; opacity:.98; }
-      @media (max-width:560px){ .stat { min-width:46%; } }
+      .page-wrap { max-width: 1100px; margin: 0 auto; }
     </style>
-    <div class="stats-strip" role="list" aria-label="Falowen highlights">
-      <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-        <div class="num">300+</div>
-        <div class="label">Active learners</div>
+    """, unsafe_allow_html=True)
+
+    # Hero + features
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="hero" aria-label="Falowen app introduction">
+        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+        <p style="text-align:center; font-size:1.1em; color:#555;">
+          Falowen is your all-in-one German learning platform, powered by
+          <b>Learn Language Education Academy</b>, with courses and vocabulary from
+          <b>A1 to C1</b> levels and live tutor support.
+        </p>
+        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+        </ul>
       </div>
-      <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-        <div class="num">1,200+</div>
-        <div class="label">Assignments submitted</div>
-      </div>
-      <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-        <div class="num">A1–C1</div>
-        <div class="label">Full course coverage</div>
-      </div>
-      <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-        <div class="num">4.8/5</div>
-        <div class="label">Avg. feedback</div>
+
+      <!-- ===== Compact stats strip ===== -->
+      <style>
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
+        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+        .stat .label { font-size:.92rem; opacity:.98; }
+        @media (max-width:560px){ .stat { min-width:46%; } }
+      </style>
+      <div class="stats-strip" role="list" aria-label="Falowen highlights">
+        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
+          <div class="num">300+</div>
+          <div class="label">Active learners</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
+          <div class="num">1,200+</div>
+          <div class="label">Assignments submitted</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
+          <div class="num">A1–C1</div>
+          <div class="label">Full course coverage</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
+          <div class="num">4.8/5</div>
+          <div class="label">Avg. feedback</div>
+        </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Rotating multi-country reviews (safe: no f-string braces) ---
+    # --- Rotating multi-country reviews ---
     import json
     import streamlit.components.v1 as components
 
     REVIEWS = [
-      {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-       "author": "Ama — Accra, Ghana", "level": "A2"},
-      {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-       "author": "Tunde — Lagos, Nigeria", "level": "B1"},
-      {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-       "author": "Nadia — Nairobi, Kenya", "level": "A1"},
-      {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-       "author": "Lea — Berlin, Germany", "level": "B2"},
-      {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-       "author": "James — London, UK", "level": "B1"},
-      {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
-       "author": "Maya — New York, USA", "level": "A1"},
-      {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-       "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
-      {"quote": "I like the locked submissions and the clean Results tab.",
-       "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
+        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
+         "author": "Ama — Accra, Ghana", "level": "A2"},
+        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
+         "author": "Tunde — Lagos, Nigeria", "level": "B1"},
+        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
+         "author": "Nadia — Nairobi, Kenya", "level": "A1"},
+        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
+         "author": "Lea — Berlin, Germany", "level": "B2"},
+        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
+         "author": "James — London, UK", "level": "B1"},
+        {"quote": "The speaking prompts and emails kept me motivated. Passed my A1 quickly.",
+         "author": "Maya — New York, USA", "level": "A1"},
+        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
+         "author": "Sipho — Johannesburg, South Africa", "level": "A2"},
+        {"quote": "I like the locked submissions and the clean Results tab.",
+         "author": "Aïcha — Abidjan, Côte d’Ivoire", "level": "B1"},
     ]
     _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
 
     _reviews_html = """
-<div role="region" aria-label="Student reviews" style="max-width:820px;margin:10px auto 0;">
+<div class="page-wrap" role="region" aria-label="Student reviews" style="margin-top:10px;">
   <div id="rev-quote" style="
       background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
       color:#475569;min-height:82px;display:flex;align-items:center;justify-content:center;text-align:center;">
@@ -722,26 +733,17 @@ if not st.session_state.get("logged_in", False):
   render();
 </script>
 """
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=220)
-
-    # Trust line under carousel
-    st.markdown(
-        '<p style="text-align:center; color:#334155; margin-top:8px;"><b>Trusted by 300+ learners across A1–C1.</b></p>',
-        unsafe_allow_html=True
-    )
-
-    st.stop()
-
-
-
+    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
 
     # Support / Help section
     st.markdown("""
-    <div class="help-contact-box" aria-label="Help and contact options">
-      <b>❓ Need help or access?</b><br>
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-      &nbsp;|&nbsp;
-      <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+    <div class="page-wrap">
+      <div class="help-contact-box" aria-label="Help and contact options">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -770,7 +772,7 @@ if not st.session_state.get("logged_in", False):
         }
         auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
-            f"""<div style='text-align:center;margin:12px 0;'>
+            f"""<div class="page-wrap" style='text-align:center;margin:12px 0;'>
                     <a href="{auth_url}">
                         <button aria-label="Sign in with Google"
                                 style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
@@ -858,19 +860,14 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-    # --- 4) Two Tab Login/Signup System ---------------------------------------
+    # Tabs: Returning / Sign Up
     tab1, tab2 = st.tabs(["👋 Returning", "🆕 Sign Up"])
 
-    # --- Returning Student Tab (Google + manual login) ---
     with tab1:
         do_google_oauth()
-        st.markdown("<div style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-
+        st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         with st.form("login_form", clear_on_submit=False):
-            login_id_input   = st.text_input(
-                "Student Code or Email",
-                help="Use your school email or Falowen code (e.g., felixa2)."
-            )
+            login_id_input   = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).")
             login_pass_input = st.text_input("Password", type="password")
             login_btn        = st.form_submit_button("Log In")
 
@@ -927,20 +924,11 @@ if not st.session_state.get("logged_in", False):
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
-    # --- New Student Tab (signup) ---
     with tab2:
         with st.form("signup_form", clear_on_submit=False):
             new_name_input     = st.text_input("Full Name", key="ca_name")
-            new_email_input    = st.text_input(
-                "Email (must match teacher’s record)",
-                help="Use the school email your tutor added to the roster.",
-                key="ca_email"
-            )
-            new_code_input     = st.text_input(
-                "Student Code (from teacher)",
-                help="Example: felixa2",
-                key="ca_code"
-            )
+            new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
+            new_code_input     = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code")
             new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
             signup_btn         = st.form_submit_button("Create Account")
 
@@ -968,135 +956,121 @@ if not st.session_state.get("logged_in", False):
                     else:
                         import bcrypt
                         hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                        doc_ref.set({
-                            "name":     new_name,
-                            "email":    new_email,
-                            "password": hashed_pw
-                        })
+                        doc_ref.set({ "name": new_name, "email": new_email, "password": hashed_pw })
                         st.success("Account created! Please log in above.")
 
-# --- Autoplay Video Demo (accessible label) --------------------------------
-st.markdown("""
-<div style="display:flex; justify-content:center; margin: 24px 0;">
-  <video width="350" autoplay muted loop controls
-         aria-label="Falowen demo video showing the app features"
-         style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-    <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-    <p>Falowen demo video (MP4). If you can't play the video, <a href="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4">download it here</a>.</p>
-  </video>
-</div>
-""", unsafe_allow_html=True)
-
-# Quick Links (high-contrast)
-st.markdown("""
-<div class="quick-links" aria-label="Useful links">
-  <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-  <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-  <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-  <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-  <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-  <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-</div>
-""", unsafe_allow_html=True)
-
-# ================= Extra homepage sections =================
-st.markdown("---")
-
-# 1) How Falowen works
-c1, c2, c3 = st.columns(3)
-with c1:
-    st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
-with c2:
-    st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
-with c3:
-    st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
-
-st.markdown("---")
-
-# 2) Mini FAQ
-with st.expander("How do I log in?"):
-    st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, Sign Up first.")
-with st.expander("Where do I see my scores?"):
-    st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
-with st.expander("How do assignments work?"):
-    st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
-with st.expander("What if I open the wrong lesson?"):
-    st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
-
-st.markdown("---")
-
-# 3) Why learners choose Falowen (replaces KPI row)
-st.markdown("### Why learners choose Falowen")
-
-def _feature_card(emoji: str, title: str, desc: str) -> str:
-    return f"""
-    <div style="
-      background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px;
-      padding:14px; height:100%; box-shadow:0 1px 4px rgba(0,0,0,0.03);
-    ">
-      <div style="font-size:28px; line-height:1;">{emoji}</div>
-      <div style="font-weight:700; margin-top:6px; color:#0f172a;">{title}</div>
-      <div style="color:#475569; font-size:0.95rem; margin-top:4px;">{desc}</div>
+    # --- Autoplay Video Demo (accessible label) --------------------------------
+    st.markdown("""
+    <div class="page-wrap" style="display:flex; justify-content:center; margin: 24px auto;">
+      <video width="420" autoplay muted loop controls
+             aria-label="Falowen demo video showing the app features"
+             style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+        <p>Falowen demo video (MP4). If you can't play the video, <a href="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4">download it here</a>.</p>
+      </video>
     </div>
-    """
+    """, unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    st.markdown(_feature_card(
-        "📨", "Instant notifications",
-        "You’ll get an email when your work is marked—then view scores in Results & Resources."
-    ), unsafe_allow_html=True)
-with c2:
-    st.markdown(_feature_card(
-        "🔒", "Locked submissions",
-        "Two-step confirm and lock after submit. Your original work is safely stored."
-    ), unsafe_allow_html=True)
-with c3:
-    st.markdown(_feature_card(
-        "📱", "Works everywhere",
-        "Optimized for phone, tablet, and desktop—pick up where you left off."
-    ), unsafe_allow_html=True)
-with c4:
-    st.markdown(_feature_card(
-        "🧑‍🏫", "Real tutor feedback",
-        "Clear comments on your writing & speaking so you know exactly what to fix."
-    ), unsafe_allow_html=True)
+    # Quick Links (high-contrast)
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="quick-links" aria-label="Useful links">
+        <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
+        <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
+        <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
+        <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
+        <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
+        <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# subtle CTA under cards
-st.markdown("""
-<div style="text-align:center; margin-top:14px;">
-  <span style="color:#334155;">Ready to learn?</span>
-  <span style="display:inline-block; margin-left:8px;">
-    <a href="#login_form" style="
-      background:#2563eb; color:#fff; padding:8px 14px; border-radius:10px;
-      text-decoration:none; font-weight:600; outline:2px solid transparent;
-    " aria-label="Create your Falowen account">Create account</a>
-  </span>
-</div>
-""", unsafe_allow_html=True)
+    # ================= Extra homepage sections =================
+    st.markdown("---")
 
-st.markdown("---")
+    # 1) How Falowen works
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
+    with c2:
+        st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
+    with c3:
+        st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
 
+    st.markdown("---")
 
-# Social row
-st.markdown("""
-<div style="text-align:center; margin:24px 0;">
-  <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
-  &nbsp;|&nbsp;
-  <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-</div>
-""", unsafe_allow_html=True)
+    # 2) Mini FAQ
+    with st.expander("How do I log in?"):
+        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, Sign Up first.")
+    with st.expander("Where do I see my scores?"):
+        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
+    with st.expander("How do assignments work?"):
+        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
+    with st.expander("What if I open the wrong lesson?"):
+        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
 
-# Clean footer with year
-st.markdown("""
-<div style="text-align:center;color:#64748b; margin-bottom:16px;">
-  © {} Learn Language Education Academy • Accra, Ghana<br>
-  Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-  <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-</div>
-""".format(datetime.utcnow().year), unsafe_allow_html=True)
+    st.markdown("---")
 
-st.stop()
+    # 3) Why learners choose Falowen (cards instead of KPI row)
+    st.markdown("### Why learners choose Falowen")
+
+    def _feature_card(emoji: str, title: str, desc: str) -> str:
+        return f"""
+        <div style="
+          background:#f8fafc; border:1px solid #e5e7eb; border-radius:12px;
+          padding:14px; height:100%; box-shadow:0 1px 4px rgba(0,0,0,0.03);
+        ">
+          <div style="font-size:28px; line-height:1;">{emoji}</div>
+          <div style="font-weight:700; margin-top:6px; color:#0f172a;">{title}</div>
+          <div style="color:#475569; font-size:0.95rem; margin-top:4px;">{desc}</div>
+        </div>
+        """
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(_feature_card("📨", "Instant notifications", "You’ll get an email when your work is marked—then view scores in Results & Resources."), unsafe_allow_html=True)
+    with c2:
+        st.markdown(_feature_card("🔒", "Locked submissions", "Two-step confirm and lock after submit. Your original work is safely stored."), unsafe_allow_html=True)
+    with c3:
+        st.markdown(_feature_card("📱", "Works everywhere", "Optimized for phone, tablet, and desktop—pick up where you left off."), unsafe_allow_html=True)
+    with c4:
+        st.markdown(_feature_card("🧑‍🏫", "Real tutor feedback", "Clear comments on your writing & speaking so you know exactly what to fix."), unsafe_allow_html=True)
+
+    # subtle CTA under cards
+    st.markdown("""
+    <div class="page-wrap" style="text-align:center; margin-top:14px;">
+      <span style="color:#334155;">Ready to learn?</span>
+      <span style="display:inline-block; margin-left:8px;">
+        <a href="#login_form" style="
+          background:#2563eb; color:#fff; padding:8px 14px; border-radius:10px;
+          text-decoration:none; font-weight:600; outline:2px solid transparent;
+        " aria-label="Create your Falowen account">Create account</a>
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # Social row + footer
+    st.markdown("""
+    <div class="page-wrap" style="text-align:center; margin:24px 0;">
+      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
+      &nbsp;|&nbsp;
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
+      © {} Learn Language Education Academy • Accra, Ghana<br>
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+    """.format(datetime.utcnow().year), unsafe_allow_html=True)
+
+    # Stop after public homepage so the logged-in UI below doesn’t render
+    st.stop()
+
 
 
 # --- Logged In UI ---
