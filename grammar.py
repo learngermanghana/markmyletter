@@ -4038,32 +4038,29 @@ if tab == "Course Book":
                             preview=st.session_state.get(lesson_key, "")
                         )
 
+        # --- Column 2: Ask the Teacher (jump to Classroom Q&A; no Slack here) ---
         with col2:
-            st.markdown("#### 📝 Notes")
-            if st.button("Save Answer to Notes for Revision", disabled=locked):
-                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-                st.session_state["edit_note_tag"] = f"Chapter {info['chapter']}"
-                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
-                st.session_state["edit_note_idx"] = None
-                st.session_state["switch_to_notes"] = True
+            st.markdown("#### ❓ Ask the Teacher")
+            if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
+                # Switch to Classroom tab and auto-open the Q&A form there
+                st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+                st.session_state["__open_classroom_qna"] = True
+                # Pre-fill the topic so they just type the question there
+                st.session_state["q_topic"] = f"Chapter {info['chapter']} • Day {info['day']}: {info.get('topic','')}"
                 st.rerun()
 
+        # --- Column 3: Notes (unchanged flow) ---
         with col3:
-            st.markdown("#### ❓ Ask the Teacher")
-            q_for_teacher = st.text_area(
-                "Question (visible to classmates)",
-                key=f"ask_teacher_{lesson_key}",
-                height=110,
-                placeholder="Did you struggle with anything. Ask anything about this lesson…"
-            )
-            if st.button("Post Question", key=f"post_teacherq_{lesson_key}") and q_for_teacher.strip():
-                post_message(
-                    student_level,
-                    code,
-                    name or "Student",
-                    f"[QUESTION FOR TEACHER about Chapter {info['chapter']} – {info.get('topic', '')}]\n{q_for_teacher.strip()}"
-                )
-                st.success("✅ Question posted to the community board!")
+            st.markdown("#### 📝 Notes")
+            if st.button("Save Answer to Notes for Revision", key=f"save_notes_{lesson_key}", disabled=locked):
+                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
+                st.session_state["edit_note_tag"]  = f"Chapter {info['chapter']}"
+                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
+                st.session_state["edit_note_idx"]  = None
+                st.session_state["switch_to_notes"] = True
+                st.rerun()
+#
+
 
         st.divider()
 
@@ -4094,7 +4091,7 @@ if tab == "Course Book":
             st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-
+#
 
     elif cb_subtab == "🧑‍🏫 Classroom":
 
