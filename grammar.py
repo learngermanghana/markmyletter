@@ -3731,7 +3731,7 @@ if tab == "Course Book":
 
         st.divider()
 
-        # --- Submission status (latest only; no receipt shown) ---
+         # --- Submission status (latest only; no receipt shown) ---
         def fetch_latest(level, code, lesson_key):
             posts_ref = db.collection("submissions").document(level).collection("posts")
             try:
@@ -3758,10 +3758,28 @@ if tab == "Course Book":
             st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
             st.caption("You’ll receive an **email** when your work is marked. Check **Results & Resources** for scores and feedback.")
 
-            # --- Tutor-only notification tools (Slack) ---
-            is_tutor = st.session_state.get("role") in {"tutor","admin"}
-            if is_tutor:
-                with st.expander("🔔 Tutor: Notification tools", expanded=False):
+            # --- Staff PIN (lightweight admin unlock; no accounts needed) ---
+            if "is_admin" not in st.session_state:
+                st.session_state["is_admin"] = False
+
+            with st.expander("🔒 Staff access", expanded=False):
+                if not st.session_state["is_admin"]:
+                    pin_try = st.text_input("Enter Staff PIN", type="password", key=f"admin_pin_{lesson_key}")
+                    if st.button("Unlock Staff Tools", key=f"unlock_staff_{lesson_key}"):
+                        secret_pin = st.secrets.get("ADMIN_PIN")
+                        if pin_try and secret_pin and pin_try == secret_pin:
+                            st.session_state["is_admin"] = True
+                            st.success("Staff tools unlocked for this session.")
+                            st.rerun()
+                        else:
+                            st.error("Wrong PIN.")
+                else:
+                    st.info("Staff tools are unlocked. (Close to hide)")
+
+            # --- Staff-only notification tools (Slack) ---
+            is_admin = st.session_state.get("is_admin", False)
+            if is_admin:
+                with st.expander("🔔 Staff: Notification tools", expanded=False):
                     webhook = st.secrets.get("SLACK_WEBHOOK_URL")
                     if not webhook:
                         st.warning("No SLACK_WEBHOOK_URL in secrets for this app.")
@@ -3798,6 +3816,7 @@ if tab == "Course Book":
                                 st.success("Resent latest submission to Slack.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+#
 
 
     # === LEARNING NOTES SUBTAB ===
