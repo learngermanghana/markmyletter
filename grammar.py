@@ -588,30 +588,27 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Helper: persist login to cookie + localStorage ---
+import json
+import streamlit.components.v1 as components
+from datetime import datetime, timedelta
 
 def save_cookie_after_login(student_code: str) -> None:
     value = str(student_code or "").strip().lower()
-    # Try to write the secure cookie if cookie_manager + setter exist
     try:
         _cm  = globals().get("cookie_manager")
         _set = globals().get("set_student_code_cookie")
         if _cm and _set:
             _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
     except Exception:
-        pass  # ignore cookie errors; localStorage still helps
-
-    # Mirror to localStorage so SSO works on next visit
+        pass
     components.html(
         """
         <script>
-          try {
-            localStorage.setItem('student_code', __VAL__);
-          } catch (e) {}
+          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
         </script>
         """.replace("__VAL__", json.dumps(value)),
         height=0
     )
-
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
@@ -675,9 +672,7 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Rotating multi-country reviews (with flags, no USA) ---
-    import streamlit.components.v1 as components
-
+    # --- Rotating multi-country reviews (with flags) ---
     REVIEWS = [
         {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
          "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
@@ -812,11 +807,9 @@ if not st.session_state.get("logged_in", False):
         state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
         if not code:
             return False
-
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
             st.error("OAuth state mismatch. Please try again.")
             return False
-
         if st.session_state.get("_oauth_code_redeemed") == code:
             return False
 
@@ -833,13 +826,11 @@ if not st.session_state.get("logged_in", False):
             if not resp.ok:
                 st.error(f"Google login failed: {resp.status_code} {resp.text}")
                 return False
-
             tokens = resp.json()
             access_token = tokens.get("access_token")
             if not access_token:
                 st.error("Google login failed: no access token.")
                 return False
-
             st.session_state["_oauth_code_redeemed"] = code
 
             userinfo = requests.get(
@@ -870,9 +861,7 @@ if not st.session_state.get("logged_in", False):
                 "student_code": student_row["StudentCode"],
                 "student_name": student_row["Name"]
             })
-            # Persist cookie + localStorage
             save_cookie_after_login(student_row["StudentCode"])
-
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
             st.rerun()
@@ -890,7 +879,6 @@ if not st.session_state.get("logged_in", False):
     with tab1:
         do_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-
         with st.form("login_form", clear_on_submit=False):
             login_id_input   = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).")
             login_pass_input = st.text_input("Password", type="password")
@@ -996,14 +984,36 @@ if not st.session_state.get("logged_in", False):
     # ================= Extra homepage sections =================
     st.markdown("---")
 
-    # 1) How Falowen works
+    # 1) How Falowen works (with non-clickable uniform images)
+    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
+    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"  # TODO: replace with your course book image URL
+    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
+
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
+        st.markdown("""
+        <img src="{src}" alt="Login screenshot"
+             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
+        <div style="height:8px;"></div>
+        <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
+        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
+        """.format(src=LOGIN_IMG_URL), unsafe_allow_html=True)
     with c2:
-        st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
+        st.markdown("""
+        <img src="{src}" alt="Course Book screenshot"
+             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
+        <div style="height:8px;"></div>
+        <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
+        <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
+        """.format(src=COURSEBOOK_IMG_URL), unsafe_allow_html=True)
     with c3:
-        st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
+        st.markdown("""
+        <img src="{src}" alt="Results screenshot"
+             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
+        <div style="height:8px;"></div>
+        <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
+        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
+        """.format(src=RESULTS_IMG_URL), unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1028,19 +1038,77 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
+    st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {} Learn Language Education Academy • Accra, Ghana<br>
+      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
     </div>
-    """.format(datetime.utcnow().year), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     # Stop after public homepage so the logged-in UI below doesn’t render
     st.stop()
 
 
+# --- Logged In UI ---
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
+if st.button("Log out"):
+    # 1) Kill the cookie immediately (server side; keeps flags consistent)
+    set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+
+    # Also delete directly from cookie_manager if supported
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name = f"{_prefix}student_code"
+
+    # 2) Clear localStorage + URL param + BOTH cookie scopes, then reload page
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          localStorage.removeItem('student_code');
+
+          const url = new URL(window.location);
+          if (url.searchParams.has('student_code')) {{
+            url.searchParams.delete('student_code');
+            window.history.replaceState({{}}, '', url);
+          }}
+
+          const host = window.location.hostname;
+          const parts = host.split('.');
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
+
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
+
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately (type-safe)
+    for k, v in {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "cookie_synced": False,
+    }.items():
+        st.session_state[k] = v
+
+    try:
+        qp_clear()
+    except Exception:
+        pass
+
+    st.stop()
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
