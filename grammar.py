@@ -3600,12 +3600,28 @@ def save_notes_to_db(student_code, notes):
 
 if tab == "Course Book":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-    if st.session_state.get("switch_to_notes"):
+
+    # New jump flags set by buttons elsewhere
+    if st.session_state.get("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+        del st.session_state["__go_classroom"]
+        st.rerun()
+
+    if st.session_state.get("__go_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["__go_notes"]
+        st.rerun()
+
+    # Backward-compat: if older code still sets this, send to Notes
+    if st.session_state.get("switch_to_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
         st.rerun()
+
+    # First run default
     if "coursebook_subtab" not in st.session_state:
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
+
 
     st.markdown(
         '''
@@ -4038,26 +4054,20 @@ if tab == "Course Book":
                             preview=st.session_state.get(lesson_key, "")
                         )
 
-        # --- Column 2: Ask the Teacher (jump to Classroom Q&A; no Slack here) ---
+        # --- Column 2: Ask the Teacher (jump to Classroom Q&A) ---
         with col2:
             st.markdown("#### ❓ Ask the Teacher")
             if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                # Switch to Classroom tab and auto-open the Q&A form there
-                st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-                st.session_state["__open_classroom_qna"] = True
-                # Pre-fill the topic so they just type the question there
-                st.session_state["q_topic"] = f"Chapter {info['chapter']} • Day {info['day']}: {info.get('topic','')}"
+                # set a jump flag; DON'T touch the radio key directly here
+                st.session_state["__go_classroom"] = True
                 st.rerun()
 
-        # --- Column 3: Notes (unchanged flow) ---
+        # --- Column 3: Add Notes (just jump to Notes tab) ---
         with col3:
-            st.markdown("#### 📝 Notes")
-            if st.button("Save Answer to Notes for Revision", key=f"save_notes_{lesson_key}", disabled=locked):
-                st.session_state["edit_note_title"] = f"Day {info['day']}: {info['topic']}"
-                st.session_state["edit_note_tag"]  = f"Chapter {info['chapter']}"
-                st.session_state["edit_note_text"] = st.session_state.get(lesson_key, "")
-                st.session_state["edit_note_idx"]  = None
-                st.session_state["switch_to_notes"] = True
+            st.markdown("#### 📝 Add Notes")
+            if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
+                # set a jump flag; no prefills
+                st.session_state["__go_notes"] = True
                 st.rerun()
 #
 
