@@ -4099,6 +4099,13 @@ if tab == "Course Book":
     elif cb_subtab == "🧑‍🏫 Classroom":
 
 
+        # local imports used in this block
+        import os, re, urllib.parse, hashlib, requests
+        from uuid import uuid4
+        from datetime import datetime
+        import pandas as pd
+        from google.cloud import firestore
+
         # ---------- context ----------
         student_row   = st.session_state.get("student_row", {}) or {}
         student_code  = student_row.get("StudentCode", "demo001")
@@ -4480,6 +4487,10 @@ if tab == "Course Book":
                 # new reply (single click -> rerun)
                 with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
                     ta_key = f"ann_reply_box_{ann_id}"
+                    flag_key = f"__clear_{ta_key}"
+                    if st.session_state.get(flag_key):
+                        st.session_state.pop(flag_key, None)
+                        st.session_state[flag_key] = True
                     reply_text = st.text_area(
                         f"Reply to {ann_id}",
                         key=ta_key,
@@ -4500,7 +4511,7 @@ if tab == "Course Book":
                             f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
                         )
-                        st.session_state[ta_key] = ""  # clear box
+                        st.session_state[flag_key] = True
                         st.success("Reply sent!")
                         st.rerun()
 
@@ -4525,6 +4536,11 @@ if tab == "Course Book":
 
         # Post a new question (single click -> rerun)
         with st.expander("➕ Ask a new question", expanded=False):
+            # clear form values on next run if flagged
+            if st.session_state.get("__clear_q_form"):
+                st.session_state.pop("__clear_q_form", None)
+                st.session_state["q_topic"] = ""
+                st.session_state["q_text"] = ""
             topic = st.text_input("Topic (optional)", key="q_topic")
             new_q = st.text_area("Your question", key="q_text", height=80)
             if st.button("Post Question", key="qna_post_question") and new_q.strip():
@@ -4546,8 +4562,7 @@ if tab == "Course Book":
                     f"*Q:* {preview}"
                 )
                 # clear and rerun
-                st.session_state["q_topic"] = ""
-                st.session_state["q_text"] = ""
+                st.session_state["__clear_q_form"] = True
                 st.success("Question posted!")
                 st.rerun()
 
@@ -4734,6 +4749,10 @@ if tab == "Course Book":
 
                 # Reply form (anyone can answer) — single click -> rerun
                 input_key = f"q_reply_box_{q_id}"
+                clear_key = f"__clear_{input_key}"
+                if st.session_state.get(clear_key):
+                    st.session_state.pop(clear_key, None)
+                    st.session_state[clear_key] = True
                 reply_text = st.text_input(
                     f"Reply to Q{q_id}",
                     key=input_key,
@@ -4755,10 +4774,13 @@ if tab == "Course Book":
                         f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                         f"*Reply:* {prev}"
                     )
-                    st.session_state[input_key] = ""  # clear the input
+                    st.session_state[clear_key] = True
                     st.success("Reply sent!")
                     st.rerun()
 #
+
+
+
 
 
     # === LEARNING NOTES SUBTAB ===
