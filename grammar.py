@@ -521,7 +521,7 @@ if not st.session_state.get("logged_in", False):
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 if "logged_in" not in st.session_state:
