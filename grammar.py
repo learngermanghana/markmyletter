@@ -920,6 +920,66 @@ if not st.session_state.get("logged_in", False):
 
     st.stop()
 
+# --- Logged In UI ---
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
+if st.button("Log out"):
+    # 1) Kill the cookie immediately (server side; keeps flags consistent)
+    set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+
+    # Also delete directly from cookie_manager if supported
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name = f"{_prefix}student_code"
+
+    # 2) Clear localStorage + URL param + BOTH cookie scopes, then reload page
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          localStorage.removeItem('student_code');
+
+          const url = new URL(window.location);
+          if (url.searchParams.has('student_code')) {{
+            url.searchParams.delete('student_code');
+            window.history.replaceState({{}}, '', url);
+          }}
+
+          const host = window.location.hostname;
+          const parts = host.split('.');
+          const base = parts.length >= 2 ? parts.slice(-2).join('.') : host;
+
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=None; Secure";
+          document.cookie = "{_cookie_name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Domain=."+base+"; SameSite=None; Secure";
+
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately (type-safe)
+    for k, v in {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "cookie_synced": False,
+    }.items():
+        st.session_state[k] = v
+
+    try:
+        qp_clear()
+    except Exception:
+        pass
+
+    st.stop()
+
 
 
 
