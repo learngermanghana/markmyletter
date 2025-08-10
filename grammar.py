@@ -4373,23 +4373,27 @@ if tab == "Course Book":
                         st.caption("")
 
 
+    # === CLASSROOM SUBTAB ===
     elif cb_subtab == "🧑‍🏫 Classroom":
-        st.markdown("""
+        # --- Header ---
+        st.markdown(
+            """
             <div style="padding: 16px; background: #3b82f6; color: #fff; border-radius: 8px;
-            text-align: center; margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;">
-            🧑‍🏫 Classroom (Announcements & Q&A)
+                 text-align: center; margin-bottom: 16px; font-size: 1.5rem; font-weight: 700;">
+              🧑‍🏫 Classroom (Announcements & Q&A)
             </div>
-        """, unsafe_allow_html=True)
+            """,
+            unsafe_allow_html=True,
+        )
 
-        student_row = st.session_state.get("student_row", {})
-        student_level = student_row.get("Level", "A1").upper()
-        student_code = student_row.get("StudentCode", "demo001")
-        student_name = student_row.get("Name", "Student")
+        # --- Current student + class context ---
+        student_row   = st.session_state.get("student_row", {}) or {}
+        student_code  = student_row.get("StudentCode", "demo001")
+        student_name  = student_row.get("Name", "Student")
+        student_level = (student_row.get("Level") or "A1").upper()
+        class_name    = (student_row.get("ClassName") or "").strip() or f"{student_level} General"
 
-        import os
-        from datetime import datetime
-
-        # --- Roles (teacher/admins) ---
+        # --- Roles (teacher/admins) from secrets (optional) ---
         ADMINS = set()
         try:
             ADMINS = set(st.secrets["roles"]["admins"])
@@ -4397,78 +4401,165 @@ if tab == "Course Book":
             pass
         IS_ADMIN = (student_code in ADMINS)
 
-        # --- Zoom info ---
-        ZOOM = {"link": "", "meeting_id": "", "passcode": ""}
+        # --- Zoom info (use your constant link; allow secrets override if present) ---
+        ZOOM = {
+            "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+            "meeting_id": "688 690 0916",
+            "passcode": "german",
+        }
         try:
-            ZOOM["link"] = st.secrets["zoom"]["link"]
-            ZOOM["meeting_id"] = st.secrets["zoom"]["meeting_id"]
-            ZOOM["passcode"] = st.secrets["zoom"]["passcode"]
+            zs = st.secrets.get("zoom", {})
+            if zs.get("link"):       ZOOM["link"]       = zs["link"]
+            if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+            if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
         except Exception:
             pass
 
         # ---------------- Zoom Join Block ----------------
         with st.container():
-            st.markdown("""
+            st.markdown(
+                """
                 <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 500;">
-                📣 <b>Zoom Classroom</b><br>
-                Join our live class using the details below.
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 500;">
+                  📣 <b>Zoom Classroom</b><br>
+                  Join our live class using the details below.
                 </div>
-            """, unsafe_allow_html=True)
+                """,
+                unsafe_allow_html=True,
+            )
 
             z1, z2 = st.columns([3, 2])
             with z1:
-                if ZOOM["link"]:
+                # Use link button if available; otherwise a normal link
+                try:
                     st.link_button("➡️ Join Zoom Meeting", ZOOM["link"])
+                except Exception:
+                    st.markdown(f"[➡️ Join Zoom Meeting]({ZOOM['link']})")
                 st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
                 st.write(f"**Passcode:** `{ZOOM['passcode']}`")
             with z2:
-                if st.button("🔔 Subscribe to class updates"):
-                    subscribe_member(student_level, student_code, student_name)
-                    st.success("Subscribed! You'll receive updates for this class level.")
+                st.info(f"You’re viewing: **{class_name}**")
 
         st.divider()
 
-        # ---------------- Announcements ----------------
+        # ---------------- Class Members (roster) ----------------
+        st.markdown("### 👥 Class Members")
+        try:
+            df_students = load_student_data()  # your existing loader
+            if "ClassName" in df_students.columns:
+                df_students["ClassName"] = df_students["ClassName"].fillna("").str.strip()
+            else:
+                df_students["ClassName"] = ""
+
+            same_class = df_students[df_students["ClassName"] == class_name].copy()
+            cols_show = [c for c in ["Name", "Email", "StudentCode"] if c in same_class.columns]
+            if not same_class.empty and cols_show:
+                st.dataframe(
+                    same_class[cols_show].reset_index(drop=True),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            else:
+                st.write("No members found for this class yet.")
+        except Exception:
+            st.warning("Couldn’t load the class roster right now.")
+
+        st.divider()
+
+        # ---------------- Firestore helpers (per-class announcements) ----------------
+        from datetime import datetime
+        from google.cloud import firestore
+
+        def post_announcement(_class: str, author_code: str, author_name: str, text: str, pinned: bool = False):
+            ref = db.collection("class_announcements").document(_class).collection("posts")
+            ref.add(
+                {
+                    "author_code": author_code,
+                    "author_name": author_name,
+                    "text": text.strip(),
+                    "pinned": bool(pinned),
+                    "timestamp": datetime.utcnow(),
+                }
+            )
+
+        def get_announcements(_class: str):
+            ref = db.collection("class_announcements").document(_class).collection("posts")
+            pinned = [
+                dict(d.to_dict(), id=d.id)
+                for d in ref.where("pinned", "==", True)
+                            .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                            .stream()
+            ]
+            latest = [
+                dict(d.to_dict(), id=d.id)
+                for d in ref.where("pinned", "==", False)
+                            .order_by("timestamp", direction=firestore.Query.DESCENDING)
+                            .limit(50)
+                            .stream()
+            ]
+            return pinned, latest
+
+        def toggle_pin_announcement(_class: str, post_id: str, new_val: bool):
+            db.collection("class_announcements").document(_class).collection("posts").document(post_id).update(
+                {"pinned": bool(new_val)}
+            )
+
+        def delete_announcement(_class: str, post_id: str):
+            db.collection("class_announcements").document(_class).collection("posts").document(post_id).delete()
+
+        def _fmt_ts(ts) -> str:
+            try:
+                dt = ts.to_datetime() if hasattr(ts, "to_datetime") else ts
+                return dt.strftime("%d %b %H:%M")
+            except Exception:
+                return ""
+
+        # ---------------- Announcements UI ----------------
         st.markdown("### 📢 Announcements")
         if IS_ADMIN:
             with st.form("ann_form"):
                 ann_text = st.text_area("Write an announcement for the class…", height=120, max_chars=800)
-                pin_it = st.checkbox("📌 Pin to top")
-                if st.form_submit_button("Post Announcement") and ann_text.strip():
-                    post_announcement(student_level, student_code, student_name, ann_text, pin_it)
+                pin_it   = st.checkbox("📌 Pin to top")
+                posted   = st.form_submit_button("Post Announcement")
+                if posted and ann_text.strip():
+                    post_announcement(class_name, student_code, student_name, ann_text, pin_it)
                     st.success("Announcement posted!")
                     st.rerun()
 
-        pinned_anns, latest_anns = get_announcements(student_level)
+        pinned_anns, latest_anns = get_announcements(class_name)
 
-        def render_ann(item, is_pinned=False):
+        def render_ann(item: dict, is_pinned: bool = False):
+            ts_label = _fmt_ts(item.get("timestamp"))
             st.markdown(
-                f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
-                f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
-                f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
-                f"<b>{item.get('author_name','Teacher')}</b> "
-                f"<span style='color:#888;'>{item.get('timestamp').strftime('%d %b %H:%M')} UTC</span><br>"
-                f"{item.get('text','')}"
-                f"</div>",
-                unsafe_allow_html=True
+                (
+                    f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
+                    f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
+                    f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                    f"<b>{item.get('author_name','Teacher')}</b> "
+                    f"<span style='color:#888;'>{ts_label} UTC</span><br>"
+                    f"{item.get('text','')}"
+                    f"</div>"
+                ),
+                unsafe_allow_html=True,
             )
 
             if IS_ADMIN:
                 c1, c2 = st.columns([1, 1])
                 with c1:
                     if st.button(("Unpin" if is_pinned else "Pin"), key=f"pin_{item['id']}"):
-                        toggle_pin_announcement(student_level, item["id"], (not is_pinned))
+                        toggle_pin_announcement(class_name, item["id"], (not is_pinned))
                         st.rerun()
                 with c2:
                     if st.button("Delete", key=f"del_{item['id']}"):
-                        delete_announcement(student_level, item["id"])
+                        delete_announcement(class_name, item["id"])
                         st.rerun()
 
         for a in pinned_anns:
             render_ann(a, is_pinned=True)
         for a in latest_anns:
             render_ann(a, is_pinned=False)
+#
+
 
 
 
