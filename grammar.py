@@ -888,37 +888,85 @@ if not st.session_state.get("logged_in", False):
                         })
                         st.success("Account created! Please log in above.")
 
-    # --- Autoplay Video Demo (accessible label) --------------------------------
-    st.markdown("""
-    <div style="display:flex; justify-content:center; margin: 24px 0;">
-      <video width="350" autoplay muted loop controls
-             aria-label="Falowen demo video showing the app features"
-             style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-        <p>Falowen demo video (MP4). If you can't play the video, <a href="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4">download it here</a>.</p>
-      </video>
-    </div>
-    """, unsafe_allow_html=True)
+# --- Autoplay Video Demo (accessible label) --------------------------------
+st.markdown("""
+<div style="display:flex; justify-content:center; margin: 24px 0;">
+  <video width="350" autoplay muted loop controls
+         aria-label="Falowen demo video showing the app features"
+         style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+    <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+    <p>Falowen demo video (MP4). If you can't play the video, <a href="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4">download it here</a>.</p>
+  </video>
+</div>
+""", unsafe_allow_html=True)
 
-    # Quick Links and Footer (high-contrast)
-    st.markdown("""
-    <div class="quick-links" aria-label="Useful links">
-      <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
-      <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
-      <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
-      <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
-      <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
-      <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
-    </div>
+# Quick Links (high-contrast)
+st.markdown("""
+<div class="quick-links" aria-label="Useful links">
+  <a href="https://www.learngermanghana.com/tutors"           target="_blank" rel="noopener">👩‍🏫 Tutors</a>
+  <a href="https://www.learngermanghana.com/upcoming-classes" target="_blank" rel="noopener">🗓️ Upcoming Classes</a>
+  <a href="https://www.learngermanghana.com/accreditation"    target="_blank" rel="noopener">✅ Accreditation</a>
+  <a href="https://www.learngermanghana.com/privacy-policy"   target="_blank" rel="noopener">🔒 Privacy</a>
+  <a href="https://www.learngermanghana.com/terms-of-service" target="_blank" rel="noopener">📜 Terms</a>
+  <a href="https://www.learngermanghana.com/contact-us"       target="_blank" rel="noopener">✉️ Contact</a>
+</div>
+""", unsafe_allow_html=True)
 
-    <div style="text-align:center; margin:24px 0;">
-      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
-      &nbsp;|&nbsp;
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
+# ================= Extra homepage sections =================
+st.markdown("---")
 
-    st.stop()
+# 1) How Falowen works
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.markdown("### 1️⃣ Sign in\nUse your **student code or email** and start your level (A1–C1).")
+with c2:
+    st.markdown("### 2️⃣ Learn & submit\nWatch lessons, practice vocab, and **submit assignments** in the Course Book.")
+with c3:
+    st.markdown("### 3️⃣ Get results\nYou’ll get an **email when marked**. Check **Results & Resources** for scores & feedback.")
+
+st.markdown("---")
+
+# 2) Mini FAQ
+with st.expander("How do I log in?"):
+    st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, Sign Up first.")
+with st.expander("Where do I see my scores?"):
+    st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
+with st.expander("How do assignments work?"):
+    st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
+with st.expander("What if I open the wrong lesson?"):
+    st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
+
+st.markdown("---")
+
+# 3) KPI stats row
+m1, m2, m3, m4 = st.columns(4)
+with m1: st.metric("Happy learners", "300+")
+with m2: st.metric("Levels", "A1–C1")
+with m3: st.metric("Exercises", "4,000+")
+with m4: st.metric("Avg rating", "4.8 ★")
+
+st.markdown("---")
+
+# Social row
+st.markdown("""
+<div style="text-align:center; margin:24px 0;">
+  <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
+  &nbsp;|&nbsp;
+  <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
+</div>
+""", unsafe_allow_html=True)
+
+# Clean footer with year
+st.markdown("""
+<div style="text-align:center;color:#64748b; margin-bottom:16px;">
+  © {} Learn Language Education Academy • Accra, Ghana<br>
+  Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
+  <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
+</div>
+""".format(datetime.utcnow().year), unsafe_allow_html=True)
+
+st.stop()
+
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
