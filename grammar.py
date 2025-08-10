@@ -4095,13 +4095,9 @@ if tab == "Course Book":
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
-     elif cb_subtab == "🧑‍🏫 Classroom":
-        # ---------- local imports (safe to duplicate) ----------
-        import os, re, urllib.parse, hashlib, requests
-        from uuid import uuid4
-        from datetime import datetime
-        import pandas as pd
-        from google.cloud import firestore
+
+    elif cb_subtab == "🧑‍🏫 Classroom":
+
 
         # ---------- context ----------
         student_row   = st.session_state.get("student_row", {}) or {}
@@ -4117,13 +4113,13 @@ if tab == "Course Book":
             pass
         IS_ADMIN = (student_code in ADMINS)
 
-        # ---------- slack helper (use your global notify_slack if present; else env/secrets) ----------
+        # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
         def _notify_slack(text: str):
             try:
                 fn = globals().get("notify_slack")
                 if callable(fn):
                     try:
-                        fn(text)
+                        fn(text)  # returns (ok, info) or None
                         return
                     except Exception:
                         pass
@@ -4198,24 +4194,22 @@ if tab == "Course Book":
 
         st.divider()
 
-
         # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
         st.markdown("### 📢 Announcements")
 
-        import hashlib
-        import urllib.parse
-        from uuid import uuid4
+        # Prefer cached helper if exists; else fallback to direct CSV
+        try:
+            df = fetch_announcements_csv()
+        except Exception:
+            df = pd.DataFrame()
+        if df.empty:
+            CSV_URL = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
+            try:
+                df = pd.read_csv(CSV_URL)
+            except Exception:
+                df = pd.DataFrame()
 
-        # Safe Slack adapter: reuse your global notify_slack if present
-        def _notify_slack(text: str):
-            fn = globals().get("notify_slack")
-            if callable(fn):
-                try:
-                    fn(text)
-                except Exception:
-                    pass
-
-        # URL extraction (for auto-detecting links in Announcement text)
+        # Helpers (links, parsing, ids)
         URL_RE = re.compile(r"(https?://[^\s]+)")
 
         def _short_label_from_url(u: str) -> str:
@@ -4238,19 +4232,7 @@ if tab == "Course Book":
             if "google.com" in lu: return "🔗", None
             return "🔗", None
 
-        # Prefer your cached helper if it exists; otherwise fallback to direct CSV
-        try:
-            df = fetch_announcements_csv()
-        except Exception:
-            df = pd.DataFrame()
-        if df.empty:
-            CSV_URL = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
-            try:
-                df = pd.read_csv(CSV_URL)
-            except Exception:
-                df = pd.DataFrame()
-
-        # Normalize headers
+        # Normalize CSV into canonical columns
         if not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             lower_map = {c.lower(): c for c in df.columns}
@@ -4282,7 +4264,7 @@ if tab == "Course Book":
                     if not s:
                         return []
                     parts = [p for chunk in s.split(",") for p in chunk.split()]
-                    return [p.strip() for p in parts if p.strip().lower().startswith(("http://","https://"))]
+                    return [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
                 df["Links"] = df[link_key].apply(_split_links)
 
             # Normalize pinned
@@ -4306,7 +4288,7 @@ if tab == "Course Book":
 
             # Append auto-detected links
             def _append_detected_links(row):
-                txt = str(row.get("Announcement","") or "")
+                txt = str(row.get("Announcement", "") or "")
                 found = URL_RE.findall(txt)
                 existing = list(row.get("Links", []) or [])
                 merged, seen = [], set()
@@ -4325,7 +4307,7 @@ if tab == "Course Book":
                     return str(uuid4()).replace("-", "")[:16]
             df["__id"] = df.apply(_ann_id, axis=1)
 
-        # Replies collection helpers (IDs for edit/delete)
+        # Firestore reply helpers (with IDs for edit/delete)
         def _ann_reply_coll(ann_id: str):
             return (db.collection("class_announcements")
                      .document(class_name)
@@ -4369,12 +4351,12 @@ if tab == "Course Book":
             with c3:
                 if st.button("↻ Refresh", key="ann_refresh"):
                     try:
-                        st.cache_data.clear()  # clear cached CSV if using fetch_announcements_csv
+                        st.cache_data.clear()
                     except Exception:
                         pass
                     st.rerun()
 
-            # Class filter
+            # Filter for this class
             df["__class_norm"] = (
                 df["Class"].astype(str)
                 .str.replace(r"\s+", " ", regex=True)
@@ -4386,7 +4368,6 @@ if tab == "Course Book":
 
             if show_only_pinned:
                 view = view[view["Pinned"] == True]
-
             if search_term.strip():
                 q = search_term.lower()
                 view = view[view["Announcement"].astype(str).str.lower().str.contains(q)]
@@ -4396,22 +4377,22 @@ if tab == "Course Book":
             latest_df = view[view["Pinned"] == False]
 
             def render_announcement(row, is_pinned=False):
-                ts_label = ""
+                # teacher card
                 try:
                     ts_label = row.get("__dt").strftime("%d %b %H:%M")
                 except Exception:
-                    pass
-                html_card = (
+                    ts_label = ""
+                st.markdown(
                     f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
                     f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
                     f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
                     f"<b>Teacher</b> <span style='color:#888;'>{ts_label} GMT</span><br>"
                     f"{row.get('Announcement','')}"
-                    f"</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
                 )
-                st.markdown(html_card, unsafe_allow_html=True)
 
-                # Links
+                # links
                 links = row.get("Links") or []
                 if isinstance(links, str):
                     links = [links] if links.strip() else []
@@ -4422,17 +4403,17 @@ if tab == "Course Book":
                         label = label or _short_label_from_url(u)
                         st.markdown(f"- {emoji} [{label}]({u})")
 
-                # Replies (list with edit/delete)
+                # replies
                 ann_id = row.get("__id")
                 replies = _load_replies_with_ids(ann_id)
                 if replies:
                     for r in replies:
-                        when = ""
                         ts = r.get("timestamp")
+                        when = ""
                         try:
                             when = ts.strftime("%d %b %H:%M") + " UTC"
                         except Exception:
-                            when = ""
+                            pass
                         edited_badge = ""
                         if r.get("edited_at"):
                             try:
@@ -4447,13 +4428,14 @@ if tab == "Course Book":
                             unsafe_allow_html=True,
                         )
 
+                        # edit/delete (own or admin)
                         can_edit = IS_ADMIN or (r.get("student_code") == student_code)
                         if can_edit:
                             c_ed, c_del = st.columns([1, 1])
                             with c_ed:
                                 if st.button("✏️ Edit", key=f"ann_edit_reply_{ann_id}_{r['__id']}"):
                                     st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
-                                    st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text","")
+                                    st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text", "")
                                     st.rerun()
                             with c_del:
                                 if st.button("🗑️ Delete", key=f"ann_del_reply_{ann_id}_{r['__id']}"):
@@ -4466,14 +4448,15 @@ if tab == "Course Book":
                                     st.success("Reply deleted.")
                                     st.rerun()
 
+                            # inline editor
                             if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
                                 new_txt = st.text_area(
                                     "Edit reply",
                                     key=f"ann_editbox_{ann_id}_{r['__id']}",
-                                    value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text","")),
+                                    value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text", "")),
                                     height=100,
                                 )
-                                ec1, ec2 = st.columns([1,1])
+                                ec1, ec2 = st.columns([1, 1])
                                 with ec1:
                                     if st.button("💾 Save", key=f"ann_save_reply_{ann_id}_{r['__id']}"):
                                         if new_txt.strip():
@@ -4494,11 +4477,12 @@ if tab == "Course Book":
                                         st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
                                         st.rerun()
 
-                # New reply form (unique keys per announcement)
+                # new reply (single click -> rerun)
                 with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
+                    ta_key = f"ann_reply_box_{ann_id}"
                     reply_text = st.text_area(
                         f"Reply to {ann_id}",
-                        key=f"ann_reply_box_{ann_id}",
+                        key=ta_key,
                         height=90,
                         placeholder="Write your reply…"
                     )
@@ -4516,9 +4500,11 @@ if tab == "Course Book":
                             f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
                         )
+                        st.session_state[ta_key] = ""  # clear box
                         st.success("Reply sent!")
                         st.rerun()
 
+            # render all
             for _, row in pinned_df.iterrows():
                 render_announcement(row, is_pinned=True)
             for _, row in latest_df.iterrows():
@@ -4537,8 +4523,8 @@ if tab == "Course Book":
             except Exception:
                 return ""
 
-        # Post a new question
-        with st.expander("➕ Ask a new question", expanded=False, ):
+        # Post a new question (single click -> rerun)
+        with st.expander("➕ Ask a new question", expanded=False):
             topic = st.text_input("Topic (optional)", key="q_topic")
             new_q = st.text_area("Your question", key="q_text", height=80)
             if st.button("Post Question", key="qna_post_question") and new_q.strip():
@@ -4559,6 +4545,9 @@ if tab == "Course Book":
                     f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                     f"*Q:* {preview}"
                 )
+                # clear and rerun
+                st.session_state["q_topic"] = ""
+                st.session_state["q_text"] = ""
                 st.success("Question posted!")
                 st.rerun()
 
@@ -4572,7 +4561,7 @@ if tab == "Course Book":
             if st.button("↻ Refresh", key="qna_refresh"):
                 st.rerun()
 
-        # Load questions (fresh on each run)
+        # Load questions (fresh each run)
         try:
             q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
@@ -4604,25 +4593,25 @@ if tab == "Course Book":
                     f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
                     if q.get("topic") else ""
                 )
-                question_html = (
+                st.markdown(
                     f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
                     f"<b>{q.get('asked_by_name','')}</b>"
                     f"<span style='color:#aaa;'> • {ts_label}</span>"
                     f"{topic_html}"
                     f"{q.get('question','')}"
-                    f"</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
                 )
-                st.markdown(question_html, unsafe_allow_html=True)
 
                 # Edit/Delete controls for the question
                 can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
                 if can_modify_q:
-                    qc1, qc2, _ = st.columns([1,1,6])
+                    qc1, qc2, _ = st.columns([1, 1, 6])
                     with qc1:
                         if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
                             st.session_state[f"q_editing_{q_id}"] = True
-                            st.session_state[f"q_edit_text_{q_id}"] = q.get("question","")
-                            st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic","")
+                            st.session_state[f"q_edit_text_{q_id}"] = q.get("question", "")
+                            st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                     with qc2:
                         if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
                             # delete replies first
@@ -4699,11 +4688,11 @@ if tab == "Course Book":
                         # Edit/Delete for replies
                         can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
                         if can_modify_r:
-                            rc1, rc2, _ = st.columns([1,1,6])
+                            rc1, rc2, _ = st.columns([1, 1, 6])
                             with rc1:
                                 if st.button("✏️ Edit", key=f"r_edit_btn_{q_id}_{rid}"):
                                     st.session_state[f"r_editing_{q_id}_{rid}"] = True
-                                    st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text","")
+                                    st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text", "")
                             with rc2:
                                 if st.button("🗑️ Delete", key=f"r_del_btn_{q_id}_{rid}"):
                                     r.reference.delete()
@@ -4743,10 +4732,11 @@ if tab == "Course Book":
                                     st.session_state[f"r_editing_{q_id}_{rid}"] = False
                                     st.rerun()
 
-                # Reply form (anyone can answer) — unique keys
+                # Reply form (anyone can answer) — single click -> rerun
+                input_key = f"q_reply_box_{q_id}"
                 reply_text = st.text_input(
                     f"Reply to Q{q_id}",
-                    key=f"q_reply_box_{q_id}",
+                    key=input_key,
                     placeholder="Write your reply…"
                 )
                 if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and reply_text.strip():
@@ -4765,11 +4755,10 @@ if tab == "Course Book":
                         f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                         f"*Reply:* {prev}"
                     )
+                    st.session_state[input_key] = ""  # clear the input
                     st.success("Reply sent!")
                     st.rerun()
 #
-
-
 
 
     # === LEARNING NOTES SUBTAB ===
