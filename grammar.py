@@ -1523,7 +1523,7 @@ if st.session_state.get("logged_in"):
         "How do you want to practice?",
         [
             "Dashboard",
-            "Course Book",
+            "My Course",
             "My Results and Resources",
             "Exams Mode & Custom Chat",
             "Vocab Trainer",
@@ -3597,11 +3597,11 @@ def load_notes_from_db(student_code):
 def save_notes_to_db(student_code, notes):
     ref = db.collection("learning_notes").document(student_code)
     ref.set({"notes": notes}, merge=True)
+    
 
-if tab == "Course Book":
+if tab == "My Course":
     # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-
-    # New jump flags set by buttons elsewhere
+    # Jump flags set by buttons elsewhere
     if st.session_state.get("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         del st.session_state["__go_classroom"]
@@ -3612,7 +3612,7 @@ if tab == "Course Book":
         del st.session_state["__go_notes"]
         st.rerun()
 
-    # Backward-compat: if older code still sets this, send to Notes
+    # Backward-compat: older code may still set this
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
@@ -3622,7 +3622,7 @@ if tab == "Course Book":
     if "coursebook_subtab" not in st.session_state:
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
 
-
+    # Header (render once)
     st.markdown(
         '''
         <div style="
@@ -3634,19 +3634,22 @@ if tab == "Course Book":
             margin-bottom: 16px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         ">
-            <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
+            <span style="font-size:1.8rem; font-weight:600;">📈 My Course</span>
         </div>
         ''',
         unsafe_allow_html=True
     )
     st.divider()
 
+    # Subtabs (1: Classroom, 2: Course Book, 3: Learning Notes)
     cb_subtab = st.radio(
         "Select section:",
-        ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes" ],
+        ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes"],
         horizontal=True,
         key="coursebook_subtab"
     )
+
+
 
     # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
