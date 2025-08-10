@@ -3568,10 +3568,10 @@ if tab == "Course Book":
 
         st.divider()
 
-        # === SUBMIT ASSIGNMENT SECTION (context banner + submit + lock + Slack) ===
+        # === SUBMIT ASSIGNMENT (Render env secret + context banner + submit + lock; NO AUTO-REFRESH) ===
         st.markdown("### ✅ Submit Your Assignment")
 
-        # --- Clear context banner so students know the exact page they are on ---
+        # Clear context banner so students see exactly where they are
         st.markdown(
             f"""
             <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
@@ -3587,7 +3587,12 @@ if tab == "Course Book":
             unsafe_allow_html=True
         )
 
-        # --- Save Draft to Firestore ---
+        # Render env (Slack) — set on Render dashboard: SLACK_WEBHOOK_URL=...
+        import os, requests
+        def get_slack_webhook() -> str:
+            return (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+
+        # Save Draft to Firestore
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
             doc_ref.set({lesson_key: text}, merge=True)
@@ -3601,25 +3606,35 @@ if tab == "Course Book":
         locked_key = f"{lesson_key}_locked"
         locked = st.session_state.get(locked_key, False)
 
+        # Answer Box (autosaves on change ONLY)
+        st.subheader("✍️ Your Answer (Autosaves)")
         def autosave_draft():
             text = st.session_state.get(lesson_key, "")
             save_draft_to_db(code, lesson_key, text)
             st.session_state[f"{lesson_key}_saved"] = True
+            st.session_state[f"{lesson_key}_saved_at"] = datetime.utcnow()
 
-        # --- Answer Box ---
-        st.subheader("✍️ Your Answer (Autosaves)")
         st.text_area(
             "Type all your answers here",
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
-            on_change=autosave_draft,
+            on_change=autosave_draft,  # saves when the field loses focus or the widget updates
             disabled=locked,
+            help="Draft autosaves when you click outside the box or change focus."
         )
-        if st.session_state.get(f"{lesson_key}_saved", False):
-            st.success("✅ Draft autosaved!")
 
-        # --- Instructions (remind again) ---
+        cols_save = st.columns([1,2])
+        with cols_save[0]:
+            if st.button("💾 Save Draft now", disabled=locked):
+                autosave_draft()
+                st.success("Draft saved.")
+        with cols_save[1]:
+            ts = st.session_state.get(f"{lesson_key}_saved_at")
+            if ts:
+                st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+
+        # Instructions
         with st.expander("📌 How to Submit", expanded=False):
             st.markdown(f"""
                 1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
@@ -3629,21 +3644,11 @@ if tab == "Course Book":
                 _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
             """)
 
-        # --- Slack notify helper (uses hardcoded fallback so it works even without secrets) ---
-        import os, requests
-        HARDCODED_SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/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"  # ← replace with your webhook if you want it hardcoded
-
-        def get_slack_webhook():
-            # Prefer hardcoded (if provided); else Secrets; else env; else session override
-            return (
-                (HARDCODED_SLACK_WEBHOOK_URL or "").strip()
-                or (st.secrets.get("SLACK_WEBHOOK_URL") or "").strip()
-                or (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
-                or (st.session_state.get("SLACK_WEBHOOK_URL_OVERRIDE") or "").strip()
-            )
-
+        # Slack notify helper (uses Render env only)
         def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
                                     level: str, day: int, chapter: str, receipt: str, preview: str):
+            if not webhook_url:
+                return
             text = (
                 f"*New submission* • {student_name} ({student_code})\n"
                 f"*Level:* {level}  •  *Day:* {day}\n"
@@ -3654,15 +3659,13 @@ if tab == "Course Book":
             try:
                 requests.post(webhook_url, json={"text": text}, timeout=6)
             except Exception:
-                # Don't block the student if Slack fails
-                st.info("Submission saved. Slack notification could not be sent.")
+                pass  # don't block student
 
-        # --- Firestore: create submission, return internal short ref (not shown to student) ---
+        # Firestore: create submission, return short ref for Slack (hidden from student)
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
             if not answer or not answer.strip():
                 st.warning("Please type your answer before submitting.")
                 return False, None
-
             posts_ref = db.collection("submissions").document(level).collection("posts")
             now = datetime.utcnow()
             payload = {
@@ -3680,16 +3683,16 @@ if tab == "Course Book":
             }
             _, ref = posts_ref.add(payload)
             doc_id = ref.id
-            short_ref = f"{doc_id[:8].upper()}-{day}"   # for Slack only
+            short_ref = f"{doc_id[:8].upper()}-{day}"
             return True, short_ref
 
-        # --- Two-step confirm + Submit / Save to Notes / Ask a Question ---
+        # Two-step confirm + Submit / Save to Notes / Ask a Question
         col1, col2, col3 = st.columns(3)
 
         with col1:
             st.markdown("#### 🧾 Finalize")
             confirm_final = st.checkbox(
-                f"I checked I’m on Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
+                f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
                 key=f"confirm_final_{lesson_key}",
                 disabled=locked
             )
@@ -3715,7 +3718,6 @@ if tab == "Course Book":
                     st.success("Submitted! Your work has been sent to your tutor.")
                     st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
-                    # Slack notify (direct; uses hardcoded fallback if present)
                     webhook = get_slack_webhook()
                     if webhook:
                         notify_slack_submission(
@@ -3758,7 +3760,7 @@ if tab == "Course Book":
 
         st.divider()
 
-        # --- Submission status (latest only; no receipt shown) ---
+        # Submission status (latest only; no receipt shown)
         def fetch_latest(level, code, lesson_key):
             posts_ref = db.collection("submissions").document(level).collection("posts")
             try:
@@ -3769,7 +3771,6 @@ if tab == "Course Book":
                 for d in docs:
                     return d.to_dict()
             except Exception:
-                # fallback without ordering if index missing
                 docs = posts_ref.where("student_code","==",code)\
                                 .where("lesson_key","==",lesson_key)\
                                 .stream()
@@ -3783,9 +3784,9 @@ if tab == "Course Book":
             ts = latest.get('updated_at')
             when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
             st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-            st.caption("You’ll receive an **email** when your work is marked. Check **Results & Resources** for scores & feedback.")
-
-
+            st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
+        else:
+            st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
