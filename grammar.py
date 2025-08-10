@@ -3568,7 +3568,7 @@ if tab == "Course Book":
 
         st.divider()
 
-             # === SUBMIT ASSIGNMENT SECTION (Submit + receipt + lock + Slack + 2-step confirm) ===
+        # === SUBMIT ASSIGNMENT SECTION (Submit + lock + Slack + 2-step confirm; no receipt shown to student) ===
         st.markdown("### ✅ Submit Your Assignment")
 
         # --- Save Draft to Firestore ---
@@ -3608,8 +3608,9 @@ if tab == "Course Book":
             st.markdown("""
                 1) Type your answer above.  
                 2) Tick the **two confirmations** below.  
-                3) Click **Confirm & Submit** to get a **receipt ID**.  
+                3) Click **Confirm & Submit**.  
                 4) Your box will lock (read-only).  
+                _You’ll get an **email when it’s marked**. Check **Results & Resources** for scores & feedback._
             """)
 
         # --- Slack notify helper ---
@@ -3620,7 +3621,7 @@ if tab == "Course Book":
                 f"*New submission* • {student_name} ({student_code})\n"
                 f"*Level:* {level}  •  *Day:* {day}\n"
                 f"*Chapter:* {chapter}\n"
-                f"*Receipt:* `{receipt}`\n"
+                f"*Ref:* `{receipt}`\n"
                 f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
             )
             try:
@@ -3629,11 +3630,11 @@ if tab == "Course Book":
                 # Don't block the student if Slack fails
                 st.info("Submission saved. Slack notification could not be sent.")
 
-        # --- Firestore: create submission, return receipt ID ---
+        # --- Firestore: create submission, return internal ref for Slack ---
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
             if not answer or not answer.strip():
                 st.warning("Please type your answer before submitting.")
-                return False, None, None
+                return False, None
 
             posts_ref = db.collection("submissions").document(level).collection("posts")
             now = datetime.utcnow()
@@ -3652,8 +3653,8 @@ if tab == "Course Book":
             }
             _, ref = posts_ref.add(payload)
             doc_id = ref.id
-            receipt = f"{doc_id[:8].upper()}-{day}"   # short, human-friendly
-            return True, doc_id, receipt
+            short_ref = f"{doc_id[:8].upper()}-{day}"   # for Slack only (not shown to student)
+            return True, short_ref
 
         # --- Two-step confirm + Submit / Save to Notes / Ask a Question ---
         col1, col2, col3 = st.columns(3)
@@ -3673,7 +3674,7 @@ if tab == "Course Book":
             can_submit = (confirm_final and confirm_lock and (not locked))
 
             if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-                ok, doc_id, receipt = submit_answer(
+                ok, short_ref = submit_answer(
                     code=code,
                     name=name,
                     level=student_level,
@@ -3684,8 +3685,8 @@ if tab == "Course Book":
                 )
                 if ok:
                     st.session_state[locked_key] = True
-                    st.success(f"Submitted! Receipt: `{receipt}`")
-                    st.caption("Keep this receipt. Your tutor has been notified.")
+                    st.success("Submitted! Your work has been sent to your tutor.")
+                    st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
                     # Slack notify (if secret present)
                     webhook = st.secrets.get("SLACK_WEBHOOK_URL")
@@ -3697,7 +3698,7 @@ if tab == "Course Book":
                             level=student_level,
                             day=info["day"],
                             chapter=chapter_name,
-                            receipt=receipt,
+                            receipt=short_ref,
                             preview=st.session_state.get(lesson_key, "")
                         )
 
@@ -3730,7 +3731,7 @@ if tab == "Course Book":
 
         st.divider()
 
-        # --- Read-only receipt + status (latest only) ---
+        # --- Submission status (latest only; no receipt shown) ---
         def fetch_latest(level, code, lesson_key):
             posts_ref = db.collection("submissions").document(level).collection("posts")
             try:
@@ -3739,23 +3740,26 @@ if tab == "Course Book":
                                 .order_by("updated_at", direction=firestore.Query.DESCENDING)\
                                 .limit(1).stream()
                 for d in docs:
-                    return d.id, d.to_dict()
+                    return d.to_dict()
             except Exception:
                 # fallback without ordering if index missing
                 docs = posts_ref.where("student_code","==",code)\
                                 .where("lesson_key","==",lesson_key)\
                                 .stream()
-                items = [(d.id, d.to_dict()) for d in docs]
-                items.sort(key=lambda x: x[1].get("updated_at"), reverse=True)
-                return items[0] if items else (None, None)
-            return None, None
+                items = [d.to_dict() for d in docs]
+                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
+                return items[0] if items else None
+            return None
 
-        latest_id, latest = fetch_latest(student_level, code, lesson_key)
+        latest = fetch_latest(student_level, code, lesson_key)
         if latest:
-            receipt_show = f"{latest_id[:8].upper()}-{latest.get('day', info['day'])}"
-            st.markdown(f"**Receipt:** `{receipt_show}`  ·  **Status:** `{latest.get('status','submitted')}`")
+            ts = latest.get('updated_at')
+            when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
+            st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
+            st.caption("You’ll receive an **email notification** when marked. Scores & feedback live in **Results & Resources**.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+
 
 
     # === LEARNING NOTES SUBTAB ===
