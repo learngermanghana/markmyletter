@@ -9,6 +9,7 @@ import io
 import json
 import os
 import random
+import math
 import re
 import sqlite3
 import tempfile
@@ -3570,6 +3571,26 @@ def render_section(day_info, key, title, icon):
             for ex in (extras if isinstance(extras, list) else [extras]):
                 render_link("🔗 Extra", ex)
 
+
+def _safe_str(v, default: str = "") -> str:
+    try:
+        import pandas as pd
+        if pd.isna(v):
+            return default
+    except Exception:
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            return default
+    if isinstance(v, str):
+        s = v.strip()
+        return "" if s.lower() in ("nan", "none") else s
+    s = str(v).strip()
+    return "" if s.lower() in ("nan", "none") else s
+
+def _safe_upper(v, default: str = "") -> str:
+    s = _safe_str(v, default)
+    return s.upper() if s else default
+
+
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -3647,7 +3668,6 @@ if tab == "My Course":
         horizontal=True,
         key="coursebook_subtab"
     )
-
 
 
     # === COURSE BOOK SUBTAB ===
@@ -5264,14 +5284,6 @@ if tab == "My Course":
                                 st.rerun()
                     with cols[3]:
                         st.caption("")
-
-
-
-
-
-
-
-
 
 
 
@@ -9502,6 +9514,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
