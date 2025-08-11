@@ -11,12 +11,14 @@ import random
 import math
 import re
 import sqlite3
+import streamlit.components.v1 as components
 import tempfile
 import time
 import urllib.parse              # for urllib.parse.urlencode(...)
 import urllib.parse as _urllib   # for _urllib.quote(...)
 from datetime import date, datetime, timedelta, timezone  # includes timezone
 from uuid import uuid4
+from streamlit.components.v1 import html as st_html
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -9241,6 +9243,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
