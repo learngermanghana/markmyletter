@@ -41,9 +41,6 @@ from streamlit_quill import st_quill
 html = st_html  # ensures any html(...) calls use the Streamlit component
 
 
-
-
-
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
     html("""
@@ -387,6 +384,7 @@ def is_contract_expired(row):
     today = datetime.utcnow().date()
     return expiry_date.date() < today
 
+
 # ============================================================
 # 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
 # ============================================================
@@ -403,13 +401,17 @@ if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to Streamlit secrets or env.")
     st.stop()
 
+# First time: create and immediately rerun so the component mounts
 if "_cm" not in st.session_state:
     st.session_state["_cm"] = EncryptedCookieManager(prefix=CM_PREFIX, password=COOKIE_SECRET)
+    st.rerun()
+
 cookie_manager = st.session_state["_cm"]
 
+# Wait quietly until the component becomes ready (once)
 if not st.session_state.get("_cm_ready", False):
     if not cookie_manager.ready():
-        st.warning("Cookies not ready; please refresh.")
+        st.empty()   # no flashing warnings
         st.stop()
     st.session_state["_cm_ready"] = True
 
@@ -9563,6 +9565,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
