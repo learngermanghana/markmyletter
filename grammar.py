@@ -4275,116 +4275,89 @@ if tab == "My Course":
         tutors        = _meta.get("tutors", [])  # list of names or {name,email}
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
-        image_url     = (_meta.get("image_url") or "").strip()
 
-        # ===================== TUTORS • CALENDAR • CONTACT =====================
-        # Build lead / co-tutor
-        lead_tutor = tutors[0] if tutors else None
-        co_tutor   = tutors[1] if len(tutors) > 1 else None
+        # ===================== TUTORS • CALENDAR • CONTACT (no image) =====================
 
-        def _tutor_line(t):
-            if not t:
-                return ""
+
+        # Normalize tutors into dicts and pick lead / co-tutor
+        def _as_dict(t):
             if isinstance(t, dict):
-                name  = (t.get("name") or "").strip()
-                email = (t.get("email") or "").strip()
-            else:
-                name, email = str(t).strip(), ""
-            email_html = f" <span style='color:#64748b'>&lt;{email}&gt;</span>" if email else ""
-            return f"{name}{email_html}"
+                return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
+            return {"name": str(t or "").strip(), "email": ""}
 
-        # Private email mailto (prefill subject/body)
+        _tutors_raw = tutors or []
+        _tutors = []
+        for t in _tutors_raw:
+            d = _as_dict(t)
+            if d["name"]:
+                _tutors.append(d)
+
+        lead_tutor = _tutors[0] if _tutors else None
+        co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
+
+        def _tutor_line(d):
+            if not d: return ""
+            return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
+
+        # Private email (prefill subject/body)
         _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
         _body = (
-            f"Hello Tutor,%0D%0A%0D%0A"
-            f"This is a private message from {student_name} ({student_code}).%0D%0A"
-            f"Class: {class_name}%0D%0A%0D%0A"
-            f"Message:%0D%0A"
+            "Hello Tutor,\n\n"
+            f"This is a private message from {student_name} ({student_code}).\n"
+            f"Class: {class_name}\n\n"
+            "Message:\n"
         )
         _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
 
-        # Two-column layout
-        left, right = st.columns([7, 5], vertical_alignment="top")
+        t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
+        t_cotutor = _tutor_line(co_tutor)
 
-        with left:
-            t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
-            t_cotutor = _tutor_line(co_tutor)
+        st.markdown(
+            f"""
+            <div style="
+                padding: 14px;
+                background: #ecfeff;
+                border: 1px solid #bae6fd;
+                color: #0c4a6e;
+                border-radius: 10px;
+                margin-bottom: 14px;
+                box-shadow: 0 2px 6px rgba(0,0,0,.05);
+            ">
+              <div style="font-size:1.05rem; margin-bottom:8px;">
+                👩‍🏫 <b>Tutor:</b> {t_primary}
+              </div>
+              {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
+              <div style="font-size:1.05rem;">
+                📅 <b>Class Calendar:</b>
+                {"<a href='"+calendar_url+"' target='_blank'>Open calendar link</a>" if calendar_url else "<span style='color:#64748b'>No calendar link yet</span>"}
+              </div>
+              <div style="margin-top:10px; color:#0369a1;">
+                Tip: Click the calendar link and choose <b>Save/Accept</b> to add it to your Google Calendar.
+                This ensures you get reminders for every class session.
+              </div>
+              <div style="margin-top:14px;">
+                <a href="{_mailto}" target="_blank" style="
+                   display:inline-block;padding:8px 12px;border-radius:8px;
+                   background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
+                   ✉️ Private message your tutor
+                </a>
+                &nbsp;&nbsp;
+                <span style="color:#0c4a6e;">For <b>general questions</b>, please post in <b>Class Q&A</b> below.</span>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-            st.markdown(
-                f"""
-                <div style="
-                    padding: 14px;
-                    background: #ecfeff;
-                    border: 1px solid #bae6fd;
-                    color: #0c4a6e;
-                    border-radius: 10px;
-                    margin-bottom: 14px;
-                    box-shadow: 0 2px 6px rgba(0,0,0,.05);
-                ">
-                  <div style="font-size:1.05rem; margin-bottom:8px;">
-                    👩‍🏫 <b>Tutor:</b> {t_primary}
-                  </div>
-                  {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
-                  <div style="font-size:1.05rem;">
-                    📅 <b>Class Calendar:</b>
-                    {"<a href='"+calendar_url+"' target='_blank'>Open calendar link</a>" if calendar_url else "<span style='color:#64748b'>No calendar link yet</span>"}
-                  </div>
-                  <div style="margin-top:10px; color:#0369a1;">
-                    Tip: Click the calendar link and choose <b>Save/Accept</b> to add it to your Google Calendar.
-                    This ensures you get reminders for every class session.
-                  </div>
-                  <div style="margin-top:14px;">
-                    <a href="{_mailto}" target="_blank" style="
-                       display:inline-block;padding:8px 12px;border-radius:8px;
-                       background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
-                       ✉️ Private message your tutor
-                    </a>
-                    &nbsp;&nbsp;
-                    <span style="color:#0c4a6e;">For <b>general questions</b>, please post in <b>Class Q&A</b> below.</span>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            if calendar_url:
-                try:
-                    st.link_button("📅 Add Class Calendar (Google)", calendar_url, use_container_width=False)
-                except Exception:
-                    st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
-
-        with right:
-            st.markdown(
-                """
-                <div style="padding:12px;border:1px solid #e5e7eb;border-radius:12px;background:#fff;
-                            box-shadow:0 2px 8px rgba(0,0,0,.06); text-align:center;">
-                """,
-                unsafe_allow_html=True
-            )
-            # Only render valid http(s) image URLs; use_container_width replaces deprecated use_column_width
-            if image_url and image_url.startswith(("http://", "https://")):
-                try:
-                    st.image(image_url, caption="Falowen • Learn Language", use_container_width=True)
-                except Exception:
-                    st.caption(" ")
-
-            # Right-side tutor summary
-            if co_tutor:
-                st.markdown("<div style='font-weight:600;margin-top:8px;'>Your Teaching Team</div>", unsafe_allow_html=True)
-                if lead_tutor:
-                    st.markdown(f"• {_tutor_line(lead_tutor)}", unsafe_allow_html=True)
-                st.markdown(f"• {_tutor_line(co_tutor)}", unsafe_allow_html=True)
-            elif lead_tutor:
-                st.markdown("<div style='font-weight:600;margin-top:8px;'>Your Tutor</div>", unsafe_allow_html=True)
-                st.markdown(f"• {_tutor_line(lead_tutor)}", unsafe_allow_html=True)
-
-            st.markdown(
-                f"<div style='margin-top:8px;color:#475569;'>Email: <b>{contact_email}</b></div>",
-                unsafe_allow_html=True
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+        if calendar_url:
+            try:
+                st.link_button("📅 Add Class Calendar (Google)", calendar_url, use_container_width=False)
+            except Exception:
+                st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
 
         st.divider()
 #
+
 
 
 
