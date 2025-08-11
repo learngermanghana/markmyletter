@@ -165,22 +165,28 @@ def destroy_session(token: str):
         pass
 
 def persist_session_token(token: str):
-    # Write to localStorage (primary) and a best-effort host-only cookie
+    # Build the JS fragment safely outside the f-string
+    secure_snippet = "c += '; Secure';" if os.getenv("ENV", "prod") != "dev" else ""
+
     components.html(
         f"""
         <script>
           try {{
+            // Primary: localStorage (works on iOS)
             localStorage.setItem('{SESSION_KEY}', {json.dumps(token)});
           }} catch(e) {{}}
+
           try {{
+            // Best-effort cookie (host-only, SameSite=Lax)
             var c = "{SESSION_KEY}=" + encodeURIComponent({json.dumps(token)}) + "; Path=/; SameSite=Lax";
-            {"c += "; Secure";" if os.getenv("ENV","prod") != "dev" else ""}
+            {secure_snippet}
             document.cookie = c;
           }} catch(e) {{}}
         </script>
         """,
         height=0
     )
+
 
 
 # ==== OPENAI CLIENT SETUP ====
