@@ -1,7 +1,6 @@
 # ==== Standard Library ====
 import atexit
 import base64
-import bcrypt
 import difflib
 import hashlib
 import html as html_stdlib  # renamed stdlib html to avoid conflicts
@@ -10,16 +9,16 @@ import json
 import os
 import random
 import math
-import urllib.parse as _urllib
 import re
 import sqlite3
 import tempfile
 import time
-import urllib.parse
-from datetime import date, datetime, timedelta
+import urllib.parse as _urllib
+from datetime import date, datetime, timedelta, timezone  # ← added timezone
 from uuid import uuid4
 
 # ==== Third-Party Packages ====
+import bcrypt
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -35,6 +34,7 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 # --- Compatibility alias ---
