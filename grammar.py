@@ -439,56 +439,51 @@ def is_contract_expired(row):
 # ============================================================
 # 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
 # ============================================================
+
 ENV = os.getenv("ENV", "prod")
 CM_PREFIX = "falowen_"
 
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
-# --- Init cookie manager ONCE (avoid multiple .ready() calls) ---
-COOKIE_SECRET = (os.getenv("COOKIE_SECRET")
-                 or (st.secrets.get("COOKIE_SECRET") if hasattr(st, "secrets") else None))
+# --- Init cookie manager ONCE (non-blocking) ---
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or (st.secrets.get("COOKIE_SECRET") if hasattr(st, "secrets") else None)
 if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to Streamlit secrets or env.")
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets or env.")
     st.stop()
 
 if "_cm" not in st.session_state:
     st.session_state["_cm"] = EncryptedCookieManager(prefix=CM_PREFIX, password=COOKIE_SECRET)
 cookie_manager = st.session_state["_cm"]
 
-if not st.session_state.get("_cm_ready", False):
-    if not cookie_manager.ready():
-        st.warning("Cookies not ready; please refresh.")
-        st.stop()
-    st.session_state["_cm_ready"] = True
+# Don't block if not ready; just remember the state
+st.session_state["_cm_ready"] = bool(cookie_manager.ready())
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
     Safari-friendly cookie: host-only, SameSite=Lax, Secure on HTTPS.
-    Also mirrors to localStorage.
+    Also mirrors to localStorage. Only uses the server-side cookie writer
+    when the cookie manager is ready.
     """
     key = "student_code"
     norm = (value or "").strip().lower()
     use_secure = (ENV != "dev")  # True on Streamlit/Render
 
-    # 1) Library cookie (server-visible)
-    try:
-        cookie_manager.set(
-            key, norm,
-            expires=expires,
-            secure=use_secure,
-            samesite="Lax",
-            path="/",
-        )
-        cookie_manager.save()
-    except Exception:
+    # 1) Server-visible cookie (only if ready)
+    if st.session_state.get("_cm_ready", False):
         try:
-            cookie_manager[key] = norm
+            cookie_manager.set(
+                key, norm,
+                expires=expires,
+                secure=use_secure,
+                samesite="Lax",
+                path="/",
+            )
             cookie_manager.save()
         except Exception:
             pass
 
-    # 2) JS cookie (host-only, NO Domain=) + Max-Age (helps Safari)
+    # 2) JS cookie (host-only, NO Domain=) + localStorage (always)
     max_age = 60 * 60 * 24 * 180  # 180 days
     encoded_val = _urllib.quote(norm)
     exp_str = _expire_str(expires)
@@ -505,7 +500,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     </script>
     """, height=0)
 
-# 1) Push localStorage.student_code → URL query param (lets us log in even if cookies fail)
+# 1) Push localStorage.student_code → ?student_code= (works even if cookies fail first load)
 components.html("""
 <script>
   (function(){
@@ -525,54 +520,46 @@ components.html("""
 
 # 2) Query param helpers
 def qp_get():
-    try:
-        return st.query_params
-    except Exception:
-        return st.experimental_get_query_params()
+    try: return st.query_params
+    except Exception: return st.experimental_get_query_params()
 
 def qp_clear():
-    try:
-        st.query_params.clear()
+    try: st.query_params.clear()
     except Exception:
-        try:
-            st.experimental_set_query_params()
-        except Exception:
-            pass
+        try: st.experimental_set_query_params()
+        except Exception: pass
 
-# 3) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
+# 3) Handshake from ?student_code=
 params = qp_get()
 sc_param = params.get("student_code")
-if isinstance(sc_param, list):
-    sc_param = sc_param[0]
+if isinstance(sc_param, list): sc_param = sc_param[0]
 sc_param = (sc_param or "").strip().lower()
 
 if sc_param:
+    # First pass: set cookie (JS now; server cookie only if ready), then rerun once
     if not st.session_state.get("__cookie_attempt"):
-        # First attempt: set cookie then rerun
         st.session_state["__cookie_attempt"] = sc_param
         set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
-        st.rerun()
+        # No warning, no blocking — allow this run to finish; next run can see the cookie if ready.
     else:
-        # Second pass: did the cookie stick? Clear URL param if yes.
-        attempted = st.session_state.get("__cookie_attempt", "")
-        have = (cookie_manager.get("student_code") or "").strip().lower()
-        if have == attempted:
-            qp_clear()
-            st.session_state.pop("__cookie_attempt", None)
+        # Second pass: if server cookie is visible, clear the URL param; if not, keep param for now.
+        if st.session_state.get("_cm_ready", False):
+            have = (cookie_manager.get("student_code") or "").strip().lower()
+            if have == st.session_state["__cookie_attempt"]:
+                qp_clear()
+                st.session_state.pop("__cookie_attempt", None)
 else:
     st.session_state.pop("__cookie_attempt", None)
 
 # 4) Ensure session_state keys
-for key, default in [
-    ("logged_in", False),
-    ("student_row", None),
-    ("student_code", ""),
-    ("student_name", "")
-]:
+for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
     st.session_state.setdefault(key, default)
 
-# 5) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
-code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+# 5) Restore login: prefer cookie (if ready), else fall back to ?student_code=
+code_cookie = ""
+if st.session_state.get("_cm_ready", False):
+    code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+
 effective_code = code_cookie or sc_param
 
 if not st.session_state.get("logged_in", False) and effective_code:
@@ -595,22 +582,6 @@ if not st.session_state.get("logged_in", False) and effective_code:
             # Expired: clear cookie + localStorage to avoid loops
             set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
-
-# --- Helper: persist login to cookie + localStorage after a normal login success ---
-def save_cookie_after_login(student_code: str) -> None:
-    value = str(student_code or "").strip().lower()
-    try:
-        set_student_code_cookie(cookie_manager, value, expires=datetime.utcnow() + timedelta(days=180))
-    except Exception:
-        pass
-    components.html(
-        """
-        <script>
-          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
-        </script>
-        """.replace("__VAL__", json.dumps(value)),
-        height=0
-    )
 
 
 # --- 3) Public Homepage --------------------------------------------------------
@@ -9442,6 +9413,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
