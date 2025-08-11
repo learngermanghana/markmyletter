@@ -1369,17 +1369,6 @@ if st.session_state.get("logged_in"):
         rank_val = int(your_row.iloc[0]['Rank'])
         leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
 
-    # -------------------- DASHBOARD TIP (compute only) --------------------
-    DASHBOARD_REMINDERS = [
-        "🤔 **Have you tried the Course Book?** Explore every lesson, see your learning progress, and never miss a topic.",
-        "📊 **Have you checked My Results and Resources?** View your quiz results, download your work, and see where you shine.",
-        "📝 **Have you used Exams Mode & Custom Chat?** Practice your speaking and real exam questions or ask your own. Get instant writing feedback and AI help!",
-        "🗣️ **Have you done some Vocab Trainer this week?** Practicing new words daily is proven to boost your fluency.",
-        "✍️ **Have you used the Schreiben Trainer?** Try building your letters with the Ideas Generator—then self-check before your tutor does!",
-        "📒 **Have you added notes in My Learning Notes?** Organize, pin, and download your best ideas and study tips.",
-    ]
-    dashboard_tip = random.choice(DASHBOARD_REMINDERS)
-
     # ==================== COLLAPSIBLE NOTIFICATIONS ====================
 
     # Contract & renewal (collapsed)
@@ -1513,9 +1502,6 @@ if st.session_state.get("logged_in"):
             else:
                 st.info("Start submitting assignments to see your progress bar here!")
 
-    # Tip (collapsed)
-    with st.expander("💡 Dashboard Tip", expanded=False):
-        st.info(dashboard_tip)
 
     st.divider()
 
@@ -9509,6 +9495,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
