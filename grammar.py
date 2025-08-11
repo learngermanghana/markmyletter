@@ -36,37 +36,47 @@ st.set_page_config(page_title="Falowen • Teacher Portal", page_icon="🧑‍�
 
 # ============================ DB CLIENT (init early for login logging) ============================
 def _get_db():
+    import json, os
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore as fbfs
-        # Load service account from Streamlit Secrets
-        sa = st.secrets["gcp"]["service_account"]
+
+        # 1) Prefer [gcp.service_account]
+        sa = None
+        if hasattr(st, "secrets"):
+            if "gcp" in st.secrets and "service_account" in st.secrets["gcp"]:
+                sa = dict(st.secrets["gcp"]["service_account"])
+            elif "firebase" in st.secrets:
+                # Accept your current [firebase] format
+                sa = dict(st.secrets["firebase"])
+
+        # 2) Optional env JSON
+        if sa is None:
+            sa_json = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "")
+            if sa_json.strip():
+                sa = json.loads(sa_json)
+
+        if sa is None:
+            st.error("🛑 Missing service account. Add it to [gcp.service_account] or [firebase] in Streamlit secrets.")
+            return None
+
+        # Fix private key newlines if pasted with \n
+        if "private_key" in sa:
+            sa["private_key"] = sa["private_key"].replace("\\n", "\n")
+
         if not firebase_admin._apps:
             cred = credentials.Certificate(sa)
-            firebase_admin.initialize_app(cred, {
-                "projectId": sa.get("project_id")
-            })
+            firebase_admin.initialize_app(cred, {"projectId": sa.get("project_id")})
         return fbfs.client()
-    except KeyError:
-        st.error("Missing [gcp.service_account] in Streamlit secrets.", icon="🛑")
-        raise
+
     except Exception as e:
         st.error(f"Firestore init failed: {e}", icon="🛑")
-        raise
+        return None
 
 db = _get_db()
+if db is None:
+    st.stop()
 
-def _record_login_attempt(status: str, email: str = ""):
-    # status: "ok" or "bad"
-    try:
-        db.collection("teacher_login").add({
-            "at": datetime.utcnow(),
-            "status": status,
-            "email": (email or "").strip().lower(),
-            "client": "teacher.falowen.app",
-        })
-    except Exception:
-        pass
 
 # ============================ LOGIN FLOW ============================
 if "teacher_auth" not in st.session_state:
@@ -470,4 +480,5 @@ elif page == "Class Meta":
             st.success("Saved.")
         except Exception as e:
             st.error(f"Couldn’t save: {e}")
+
 
