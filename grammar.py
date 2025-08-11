@@ -53,35 +53,42 @@ def _get_db():
         import firebase_admin
         from firebase_admin import credentials, firestore as fbfs
 
+        # 1) Load service account from Streamlit Secrets
         sa = None
-        # Prefer Streamlit secrets
-        if hasattr(st, "secrets") and "firebase" in st.secrets:
-            sa = dict(st.secrets["firebase"])  # expect full service account fields
-        # Optional env JSON
-        if sa is None:
-            sa_json = os.getenv("GCP_SERVICE_ACCOUNT_JSON", "").strip()
-            if sa_json:
-                sa = json.loads(sa_json)
-        if sa is None:
-            st.error("🛑 Missing service account. Add it under [firebase] in Streamlit secrets or GCP_SERVICE_ACCOUNT_JSON env.")
+        if hasattr(st, "secrets"):
+            if "gcp" in st.secrets and "service_account" in st.secrets["gcp"]:
+                sa = dict(st.secrets["gcp"]["service_account"])
+            elif "firebase" in st.secrets:   # your current block name is [firebase]
+                sa = dict(st.secrets["firebase"])
+
+        if not sa:
+            st.error("🛑 Missing service account. Add it under [gcp.service_account] or [firebase] in Streamlit secrets.", icon="🛑")
             return None
 
-        # Fix private key newlines if pasted as \n
+        # 2) Fix private key newlines if pasted with \n
         if "private_key" in sa:
             sa["private_key"] = sa["private_key"].replace("\\n", "\n")
 
+        project_id = sa.get("project_id") or sa.get("projectId")
+        if not project_id:
+            st.error("🛑 Service account JSON is missing project_id.", icon="🛑")
+            return None
+
+        # 3) Initialize Firebase Admin with explicit projectId
         if not firebase_admin._apps:
             cred = credentials.Certificate(sa)
-            firebase_admin.initialize_app(cred, {"projectId": sa.get("project_id")})
+            firebase_admin.initialize_app(cred, {"projectId": project_id})
+
         return fbfs.client()
+
     except Exception as e:
         st.error(f"Firestore init failed: {e}", icon="🛑")
         return None
 
-
 db = _get_db()
 if db is None:
     st.stop()
+
 
 # ============================ SIMPLE HELPERS ============================
 
@@ -560,3 +567,4 @@ elif page == "Class Meta":
             st.success("Saved.")
         except Exception as e:
             st.error(f"Couldn’t save: {e}")
+
