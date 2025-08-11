@@ -14,7 +14,7 @@ import sqlite3
 import tempfile
 import time
 import urllib.parse as _urllib
-from datetime import date, datetime, timedelta, timezone  # ← added timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 # ==== Third-Party Packages ====
@@ -35,7 +35,7 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# --- 1) Page config & session init ---------------------------------------------
+# ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
@@ -46,7 +46,25 @@ st.set_page_config(
 # --- Compatibility alias ---
 html = st_html  # ensures any html(...) calls use the Streamlit component
 
+# --- State bootstrap (idempotent; prevents double-click on first render) -------
+def _bootstrap_state():
+    defaults = {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "__ls_token": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 
+_bootstrap_state()
 
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
@@ -110,6 +128,7 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
 # ==== FIREBASE ADMIN INIT & SESSION STORE ====
 try:
     if not firebase_admin._apps:
@@ -122,20 +141,15 @@ except Exception as e:
     st.stop()
 
 # ---- Firestore sessions (server-side auth state) ----
-# NOTE: For auto-cleanup, set a Firestore TTL policy on the `expires_at` field
-# for the `sessions` collection in the Firebase Console.
+# Enable a TTL policy on `expires_at` in Firebase Console for auto-cleanup.
 SESSIONS_COL = "sessions"
-SESSION_TTL_MIN = 60 * 24 * 14        # 14 days
-SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7  # 7 days
+SESSION_TTL_MIN = 60 * 24 * 14         # 14 days
+SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7 # 7 days
 
 def _rand_token(nbytes: int = 48) -> str:
-    # urlsafe, no padding
     return base64.urlsafe_b64encode(os.urandom(nbytes)).rstrip(b"=").decode("ascii")
 
 def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str:
-    """
-    Create a server-side session doc with expiry. Returns the token (doc id).
-    """
     now = time.time()
     token = _rand_token()
     db.collection(SESSIONS_COL).document(token).set({
@@ -148,9 +162,6 @@ def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str
     return token
 
 def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
-    """
-    Fetch & validate the session; returns dict if valid, else None.
-    """
     if not token:
         return None
     try:
@@ -160,7 +171,6 @@ def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
         data = snap.to_dict() or {}
         if float(data.get("expires_at", 0)) < time.time():
             return None
-        # Optional pinning to user-agent hash (skip if not used)
         if data.get("ua_hash") and ua_hash and data["ua_hash"] != ua_hash:
             return None
         return data
@@ -168,9 +178,6 @@ def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
         return None
 
 def refresh_or_rotate_session_token(token: str) -> str:
-    """
-    Extend TTL on activity; rotate if older than ROTATE_AFTER. Returns current (or new) token.
-    """
     try:
         ref = db.collection(SESSIONS_COL).document(token)
         snap = ref.get()
@@ -189,7 +196,6 @@ def refresh_or_rotate_session_token(token: str) -> str:
                 "issued_at": now,
                 "expires_at": now + (SESSION_TTL_MIN * 60),
             })
-            # delete old token (best-effort)
             try:
                 ref.delete()
             except Exception:
@@ -205,7 +211,6 @@ def destroy_session_token(token: str) -> None:
     except Exception:
         pass
 
-
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -213,7 +218,6 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-
 
 # ==== DB CONNECTION & INITIALIZATION ====
 def get_connection():
@@ -332,7 +336,8 @@ def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+# Prefer secrets for keys; fallback to existing value
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": [
@@ -340,7 +345,7 @@ YOUTUBE_PLAYLIST_IDS = {
     ],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
         "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
     ],
     "B1": [
@@ -348,16 +353,12 @@ YOUTUBE_PLAYLIST_IDS = {
         "PLB92CD6B288E5DB61",
     ],
     "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
     ],
 }
 
-
-# ================================================
-# YOUTUBE PLAYLIST FETCH (cache 12h)
-# ================================================
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
@@ -480,8 +481,7 @@ def is_contract_expired(row):
 
 
 # ============================================================
-# 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
-# + UA/LS bridge & token-first restore
+# 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
 # ============================================================
 
 def _expire_str(dt: datetime) -> str:
@@ -562,6 +562,15 @@ def qp_get():
     except Exception:
         return st.experimental_get_query_params()
 
+def qp_clear():
+    try:
+        st.query_params.clear()
+    except Exception:
+        try:
+            st.experimental_set_query_params()
+        except Exception:
+            pass
+
 def qp_clear_keys(*keys):
     try:
         qp = st.query_params
@@ -603,6 +612,9 @@ def _ingest_ua_ls_from_query():
     return changed
 _ingest_ua_ls_from_query()
 
+# Defensive scrub in case a shared link includes bridge params
+qp_clear_keys("t", "ua", "ls")
+
 # 0d) Init cookie manager once
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
@@ -616,7 +628,8 @@ if not cookie_manager.ready():
 # 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
-if isinstance(sc_param, list): sc_param = sc_param[0]
+if isinstance(sc_param, list):
+    sc_param = sc_param[0]
 sc_param = (sc_param or "").strip().lower()
 
 if sc_param:
@@ -635,22 +648,7 @@ if sc_param:
 else:
     st.session_state.pop("__cookie_attempt", None)
 
-# 0f) Ensure session_state keys
-for key, default in [
-    ("logged_in", False),
-    ("student_row", None),
-    ("student_code", ""),
-    ("student_name", ""),
-    ("session_token", ""),
-    ("__last_refresh", 0.0),
-]:
-    st.session_state.setdefault(key, default)
-
-# 0g) Restore login (PREFER SERVER TOKEN), else fallback to student_code
-# Requires the session helpers from your Firebase init block:
-#   validate_session_token(), refresh_or_rotate_session_token()
-
-# Read token candidates: URL ?t= (first hop), localStorage (ingested as __ls_token), cookie mirror (optional)
+# 0f) Restore login (PREFER SERVER TOKEN), else fallback to student_code
 def _get_token_candidates():
     qp = qp_get()
     t = qp.get("t")
@@ -730,71 +728,6 @@ if (not restored) and (not st.session_state.get("logged_in", False)):
                 components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
 
-
-
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-# --- 2) Global CSS (higher contrast + focus states) ----------------------------
-st.markdown("""
-<style>
-  .hero {
-    background: #fff;
-    border-radius: 12px;
-    padding: 24px;
-    margin: 24px auto;
-    max-width: 800px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-  }
-  .help-contact-box {
-    background: #fff;
-    border-radius: 14px;
-    padding: 20px;
-    margin: 16px auto;
-    max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-    border:1px solid #ebebf2; text-align:center;
-  }
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  /* Higher-contrast chips for WCAG */
-  .quick-links a {
-    background: #e2e8f0;   /* light gray for contrast */
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight:600;
-    text-decoration:none;
-    color:#0f172a;          /* very dark text */
-    border:1px solid #cbd5e1;
-  }
-  .quick-links a:hover { background:#cbd5e1; }
-
-  /* Buttons: strong contrast */
-  .stButton > button {
-    background:#2563eb;     /* blue */
-    color:#ffffff;
-    font-weight:700;
-    border-radius:8px;
-    border:2px solid #1d4ed8;
-  }
-  .stButton > button:hover { background:#1d4ed8; }
-
-  /* Clear keyboard focus for accessibility */
-  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
-  [role="button"]:focus-visible {
-    outline:3px solid #f59e0b;  /* amber focus ring */
-    outline-offset:2px;
-    box-shadow:none !important;
-  }
-
-  /* Legible inputs */
-  input, textarea { color:#0f172a !important; }
-
-  @media (max-width:600px){
-    .hero, .help-contact-box { padding:16px 4vw; }
-  }
-</style>
-""", unsafe_allow_html=True)
-
 # --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
 def save_cookie_after_login(student_code: str) -> None:
     value = str(student_code or "").strip().lower()
@@ -830,6 +763,65 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     </script>
     """, height=0)
 
+
+# --- 2) Global CSS (higher contrast + focus states) ----------------------------
+st.markdown("""
+<style>
+  .hero {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px auto;
+    max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .help-contact-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin: 16px auto;
+    max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    border:1px solid #ebebf2; text-align:center;
+  }
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  /* Higher-contrast chips for WCAG */
+  .quick-links a {
+    background: #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight:600;
+    text-decoration:none;
+    color:#0f172a;
+    border:1px solid #cbd5e1;
+  }
+  .quick-links a:hover { background:#cbd5e1; }
+
+  .stButton > button {
+    background:#2563eb;
+    color:#ffffff;
+    font-weight:700;
+    border-radius:8px;
+    border:2px solid #1d4ed8;
+  }
+  .stButton > button:hover { background:#1d4ed8; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
+  [role="button"]:focus-visible {
+    outline:3px solid #f59e0b;
+    outline-offset:2px;
+    box-shadow:none !important;
+  }
+
+  input, textarea { color:#0f172a !important; }
+
+  @media (max-width:600px){
+    .hero, .help-contact-box { padding:16px 4vw; }
+  }
+</style>
+""", unsafe_allow_html=True)
+
+
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
 
@@ -860,7 +852,7 @@ if not st.session_state.get("logged_in", False):
           <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
         </ul>
       </div>
-      ...
+    </div>
     """, unsafe_allow_html=True)
 
     # Support / Help section
@@ -1097,9 +1089,7 @@ if not st.session_state.get("logged_in", False):
       /* Keep controls tidy */
       .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
     </style>
-    ...
     """, unsafe_allow_html=True)
-
 
     # Quick Links (high-contrast)
     st.markdown("""
@@ -1120,34 +1110,34 @@ if not st.session_state.get("logged_in", False):
 
     # 1) How Falowen works (with non-clickable uniform images)
     LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"  # TODO: replace with your course book image URL
+    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
     RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("""
-        <img src="{src}" alt="Login screenshot"
+        st.markdown(f"""
+        <img src="{LOGIN_IMG_URL}" alt="Login screenshot"
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
         <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        """.format(src=LOGIN_IMG_URL), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     with c2:
-        st.markdown("""
-        <img src="{src}" alt="Course Book screenshot"
+        st.markdown(f"""
+        <img src="{COURSEBOOK_IMG_URL}" alt="Course Book screenshot"
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
         <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        """.format(src=COURSEBOOK_IMG_URL), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     with c3:
-        st.markdown("""
-        <img src="{src}" alt="Results screenshot"
+        st.markdown(f"""
+        <img src="{RESULTS_IMG_URL}" alt="Results screenshot"
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
-        """.format(src=RESULTS_IMG_URL), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1283,91 +1273,181 @@ if st.button("Log out"):
     st.stop()
 
 
-# ==== GOOGLE SHEET LOADING FUNCTIONS ====
-@st.cache_data
-def load_assignment_scores():
+
+# ==== GOOGLE SHEET LOADING FUNCTIONS =========================================
+_SHEETS_TIMEOUT = 10
+
+def _fetch_csv(url: str, *, timeout: int = _SHEETS_TIMEOUT) -> pd.DataFrame:
+    try:
+        resp = requests.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return pd.read_csv(io.StringIO(resp.text), dtype=str)
+    except Exception:
+        return pd.DataFrame()
+
+def _norm_cols(df: pd.DataFrame, *, lower=True, strip=True) -> pd.DataFrame:
+    if df.empty:
+        return df
+    cols = df.columns
+    if strip: cols = cols.str.strip()
+    if lower: cols = cols.str.lower()
+    df.columns = cols
+    return df
+
+@st.cache_data(ttl=600)  # refresh every 10 minutes
+def load_assignment_scores() -> pd.DataFrame:
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url, dtype=str)
-    df.columns = df.columns.str.strip().str.lower()
-    for col in df.columns:
-        df[col] = df[col].astype(str).str.strip()
+    df = _fetch_csv(url)
+    df = _norm_cols(df)
+    if df.empty:
+        return df
+
+    # Trim every cell
+    for c in df.columns:
+        df[c] = df[c].astype(str).str.strip()
+
+    # Ensure expected columns exist (create if missing to avoid KeyErrors)
+    for need in ["studentcode", "name", "level", "assignment", "score", "date"]:
+        if need not in df.columns:
+            df[need] = ""
+
+    # Normalize common fields
+    df["studentcode"] = df["studentcode"].str.lower().str.strip()
+    df["level"] = df["level"].str.upper().str.strip()
+
+    # Parse dates robustly -> date
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    # Numeric score
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+
     return df
 
-@st.cache_data
-def load_full_vocab_sheet():
+@st.cache_data(ttl=86400)  # 24h cache; vocab changes rarely
+def load_full_vocab_sheet() -> pd.DataFrame:
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    try:
-        df = pd.read_csv(csv_url, dtype=str)
-    except Exception:
-        st.error("Could not load vocab sheet.")
-        return pd.DataFrame()
-    df.columns = df.columns.str.strip()
-    if "Level" not in df.columns:
-        return pd.DataFrame()
-    df = df[df["Level"].notna()]
-    df["Level"] = df["Level"].str.upper().str.strip()
-    return df
+    df = _fetch_csv(csv_url)
+    if df.empty:
+        return df
 
-def get_vocab_of_the_day(df, level):
-    level = level.upper().strip()
+    # Preserve original case for content columns; just strip
+    df.columns = df.columns.str.strip()
+    # Tolerate casing variations on Level/German/English/Example
+    # Build a lowercase name map
+    lower_map = {c.lower(): c for c in df.columns}
+    lvl = lower_map.get("level")
+    if not lvl:
+        return pd.DataFrame()
+
+    df = df[df[lvl].notna()].copy()
+    df[lvl] = df[lvl].astype(str).str.upper().str.strip()
+
+    # Normalize a view with consistent keys
+    def col(name: str) -> str:
+        return lower_map.get(name.lower(), name)
+
+    out = pd.DataFrame({
+        "Level":   df[lvl],
+        "German":  df[col("German")] if col("German") in df.columns else "",
+        "English": df[col("English")] if col("English") in df.columns else "",
+        "Example": df[col("Example")] if col("Example") in df.columns else "",
+    })
+    # Defensive string trim
+    for c in out.columns:
+        out[c] = out[c].astype(str).str.strip()
+    return out
+
+def get_vocab_of_the_day(df: pd.DataFrame, level: str) -> Optional[dict]:
+    if df is None or df.empty:
+        return None
+    level = (level or "").upper().strip()
     subset = df[df["Level"] == level]
     if subset.empty:
         return None
-    from datetime import date as _date
-    today_ordinal = _date.today().toordinal()
+    # Stable daily pick per level
+    today_ordinal = date.today().toordinal()
     idx = today_ordinal % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
     return {
-        "german": row.get("German", ""),
-        "english": row.get("English", ""),
-        "example": row.get("Example", "") if "Example" in row else ""
+        "german":  row.get("German", "") or "",
+        "english": row.get("English", "") or "",
+        "example": row.get("Example", "") or "",
     }
 
-def parse_contract_end(date_str):
-    if not date_str or str(date_str).lower() in ("nan", "none", ""):
+def parse_contract_end(date_str: Any) -> Optional[datetime]:
+    s = ("" if pd.isna(date_str) else str(date_str)).strip()
+    if not s or s.lower() in ("nan", "none", "null"):
         return None
+    # Try strict known formats, then fall back to pandas
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
         try:
-            return datetime.strptime(date_str, fmt)
+            return datetime.strptime(s, fmt)
         except ValueError:
             continue
-    return None
+    try:
+        dt = pd.to_datetime(s, errors="coerce")
+        if pd.isna(dt):
+            return None
+        return dt.to_pydatetime()
+    except Exception:
+        return None
 
-@st.cache_data
-def load_reviews():
+@st.cache_data(ttl=3600)  # 1h
+def load_reviews() -> pd.DataFrame:
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = pd.read_csv(url)
-    df.columns = df.columns.str.strip().str.lower()
-    return df
+    df = _fetch_csv(url)
+    df = _norm_cols(df)
+    if df.empty:
+        return df
+    # Heuristic mapping for expected fields
+    # Accept variants like 'review', 'text', 'name', 'rating'
+    name_col = next((c for c in df.columns if c in ("student_name","name","author")), None)
+    text_col = next((c for c in df.columns if c in ("review_text","review","text","quote")), None)
+    rate_col = next((c for c in df.columns if c in ("rating","stars")), None)
 
+    out = pd.DataFrame()
+    if text_col: out["review_text"] = df[text_col].astype(str).str.strip()
+    else:        out["review_text"] = ""
+
+    if name_col: out["student_name"] = df[name_col].astype(str).str.strip()
+    else:        out["student_name"] = ""
+
+    if rate_col:
+        out["rating"] = pd.to_numeric(df[rate_col], errors="coerce").fillna(5).clip(1,5).astype(int)
+    else:
+        out["rating"] = 5
+    return out
+
+
+# ==== DASHBOARD TOP (only when logged in) =====================================
 if st.session_state.get("logged_in"):
-    student_code = st.session_state["student_code"].strip().lower()
-    student_name = st.session_state["student_name"]
+    student_code = (st.session_state.get("student_code") or "").strip().lower()
+    student_name = st.session_state.get("student_name") or ""
 
     # Load student info
     df_students = load_student_data()
-    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+    # be tolerant to casing already normalized by loader
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code] if not df_students.empty else pd.DataFrame()
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
     # Greeting helper
-    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
+    first_name = (student_row.get("Name") or student_name or "Student").split()[0].title()
 
     # -------------------- CONTRACT (compute only) --------------------
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
-    today_dt = datetime.today()
+    today_dt = datetime.utcnow()  # UTC to avoid skew
     contract_end = parse_contract_end(contract_end_str)
 
     contract_title_extra = "• no date"
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
-
     urgent_contract = False
+
     if contract_end:
-        days_left = (contract_end - today_dt).days
+        days_left = (contract_end.date() - today_dt.date()).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
         if 0 < days_left <= 30:
             contract_notice_level = "warning"
@@ -1392,33 +1472,32 @@ if st.session_state.get("logged_in"):
 
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(
-        df_assign["date"], format="%Y-%m-%d", errors="coerce"
-    ).dt.date
-    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
+    if df_assign.empty:
+        mask_student = pd.Series(dtype=bool)
+        dates = []
+        assignment_count = 0
+        streak = 0
+    else:
+        mask_student = df_assign["studentcode"] == student_code
+        dates = sorted(df_assign.loc[mask_student, "date"].dropna().unique(), reverse=True)
+        streak = 1 if dates else 0
+        for i in range(1, len(dates)):
+            if (dates[i - 1] - dates[i]).days == 1:
+                streak += 1
+            else:
+                break
 
-    from datetime import timedelta, date
-    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
-    streak = 1 if dates else 0
-    for i in range(1, len(dates)):
-        if (dates[i - 1] - dates[i]).days == 1:
-            streak += 1
-        else:
-            break
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
 
-    today = date.today()
-    monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
     WEEKLY_GOAL = 3
-    goal_left = max(0, WEEKLY_GOAL - assignment_count)
+    goal_left = max(0, WEEKLY_GOAL - int(assignment_count))
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
-
-    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
-
+    urgent_assignments = goal_left > 0 and (date.today().weekday() >= 5)  # urgent if weekend
 
     # -------------------- BELL STATIC LOGIC --------------------
     bell_color = "#333"  # Static, non-urgent color
-
     st.markdown(f"""
         <div style="display:flex;align-items:center;gap:10px;
                     font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
@@ -1429,7 +1508,7 @@ if st.session_state.get("logged_in"):
         </div>
     """, unsafe_allow_html=True)
 
-    # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
+    # -------------------- SINGLE BADGE ROW --------------------
     st.markdown("""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
@@ -1446,23 +1525,23 @@ if st.session_state.get("logged_in"):
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
 
     # -------------------- LEADERBOARD (compute only) --------------------
-    import random
     MIN_ASSIGNMENTS = 3
+    user_level = (student_row.get('Level') or '').upper().strip()
+    df_level = pd.DataFrame()
 
-    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
-    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
-    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
+    if not df_assign.empty and user_level:
+        df_level = (
+            df_assign[df_assign['level'] == user_level]
+            .groupby(['studentcode', 'name'], as_index=False)
+            .agg(total_score=('score', 'sum'),
+                 completed=('assignment', 'nunique'))
+        )
+        df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
+        df_level = df_level.sort_values(['total_score', 'completed'],
+                                        ascending=[False, False]).reset_index(drop=True)
+        df_level['Rank'] = df_level.index + 1
 
-    df_level = (
-        df_assign[df_assign['level'] == user_level]
-        .groupby(['studentcode', 'name'], as_index=False)
-        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
-    )
-    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
-    df_level = df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
-    df_level['Rank'] = df_level.index + 1
-
-    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
+    your_row = df_level[df_level['studentcode'].str.lower() == student_code] if not df_level.empty else pd.DataFrame()
     total_students = len(df_level)
 
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
@@ -1497,7 +1576,8 @@ if st.session_state.get("logged_in"):
         if assignment_count >= WEEKLY_GOAL:
             st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
         else:
-            st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
+            left = int(goal_left)
+            st.info(f"Submit {left} more assignment{'s' if left != 1 else ''} by Sunday to hit your goal.")
 
     # Vocab of the Day (collapsed)
     with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=False):
@@ -1521,20 +1601,19 @@ if st.session_state.get("logged_in"):
             percent_rank = (rank / total_students) * 100 if total_students else 0
             progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
-            # Rotate messages (kept from your logic)
             STUDY_TIPS = [
                 "Study a little every day. Small steps lead to big progress!",
                 "Teach someone else what you learned to remember it better!",
                 "If you make a mistake, that’s good! Mistakes are proof you are learning.",
                 "Don’t just read—say your answers aloud for better memory.",
-                "Review your old assignments to see how far you’ve come!"
+                "Review your old assignments to see how far you’ve come!",
             ]
             INSPIRATIONAL_QUOTES = [
                 "“The secret of getting ahead is getting started.” – Mark Twain",
                 "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
                 "“It always seems impossible until it’s done.” – Nelson Mandela",
                 "“The expert in anything was once a beginner.” – Helen Hayes",
-                "“Learning never exhausts the mind.” – Leonardo da Vinci"
+                "“Learning never exhausts the mind.” – Leonardo da Vinci",
             ]
             rotate = random.randint(0, 3)
             if rotate == 0:
@@ -1585,27 +1664,29 @@ if st.session_state.get("logged_in"):
             )
         else:
             st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
-            completed = df_assign[
-                (df_assign['studentcode'].str.lower() == student_code.lower()) &
-                (df_assign['level'] == user_level)
-            ]['assignment'].nunique()
-            total_possible = totals.get(user_level, 0)
-            progress_pct = (completed / total_possible) * 100 if total_possible else 0
-            if completed > 0:
-                st.markdown(
-                    f"""
-                    <div style='margin-top:8px;'>
-                        <b>Your Progress:</b> {completed} / {total_possible} assignments
-                        <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
-                            <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
+            if not df_assign.empty and user_level:
+                completed = (
+                    df_assign[
+                        (df_assign['studentcode'] == student_code) &
+                        (df_assign['level'] == user_level)
+                    ]['assignment']
+                    .nunique()
                 )
-            else:
-                st.info("Start submitting assignments to see your progress bar here!")
-
+                progress_pct = (completed / total_possible) * 100 if total_possible else 0
+                if completed > 0:
+                    st.markdown(
+                        f"""
+                        <div style='margin-top:8px;'>
+                            <b>Your Progress:</b> {completed} / {total_possible} assignments
+                            <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                                <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.info("Start submitting assignments to see your progress bar here!")
 
     st.divider()
 
@@ -1623,31 +1704,26 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-
-if tab == "Dashboard":
+# ==== DASHBOARD BODY ==========================================================
+if st.session_state.get("logged_in") and tab == "Dashboard":
     # --- Helper to avoid AttributeError on any row type ---
     def safe_get(row, key, default=""):
-        # mapping-style
         try:
-            return row.get(key, default)
+            return row.get(key, default)   # mapping-style
         except Exception:
             pass
-        # attribute-style
         try:
-            return getattr(row, key, default)
+            return getattr(row, key, default)  # attribute-style
         except Exception:
             pass
-        # index/key access
         try:
-            return row[key]
+            return row[key]  # index-style
         except Exception:
             return default
 
-    # --- Ensure student_row is something we can call safe_get() on ---
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
-    # (no need to convert to dict—safe_get covers all cases)
 
     # --- Student Info & Balance | Compact Card, Info-Bar Style ---
     name = safe_get(student_row, "Name")
@@ -1685,14 +1761,13 @@ if tab == "Dashboard":
     """
     st.markdown(info_html, unsafe_allow_html=True)
     try:
-        bal = float(safe_get(student_row, "Balance", 0))
+        bal = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
         if bal > 0:
             st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
     except Exception:
         pass
 
-
-    # ==== CLASS SCHEDULES DICTIONARY ====
+    # ==== CLASS SCHEDULES (unchanged data, safe rendering) ====
     GROUP_SCHEDULES = {
         "A1 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -1746,9 +1821,6 @@ if tab == "Dashboard":
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
-    from datetime import datetime, timedelta
-
-    # use safe_get instead of direct .get()
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -1941,25 +2013,23 @@ if tab == "Dashboard":
         st.warning("No exam date configured for your level.")
 
     # --- Reviews Section ---
-    import datetime
-
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()   # <-- assumes this returns a DataFrame with 'review_text', 'student_name', 'rating' columns
-
+    reviews = load_reviews()   # expects 'review_text', 'student_name', 'rating'
     if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
     else:
         rev_list = reviews.to_dict("records")
-        # Pick one review per day using today's date
-        today_idx = datetime.date.today().toordinal() % len(rev_list)
+        today_idx = date.today().toordinal() % len(rev_list)
         r = rev_list[today_idx]
-        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        try:
+            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        except Exception:
+            stars = "★" * 5
         st.markdown(
             f"> {r.get('review_text','')}\n"
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-
 
 def get_a1_schedule():
     return [
@@ -3522,7 +3592,7 @@ def get_c1_schedule():
     ]
 
 
-# --- FORCE A MOCK LOGIN FOR TESTING ---
+# --- DEV MOCK LOGIN (kept lightweight; remove in prod) ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
         "Name": "Test Student",
@@ -3531,189 +3601,215 @@ if "student_row" not in st.session_state:
         "ClassName": "A1 Berlin Klasse",
     }
 
-student_row = st.session_state.get("student_row", {})
-student_level = student_row.get("Level", "A1").upper()
+student_row = st.session_state.get("student_row", {}) or {}
+student_level = str(student_row.get("Level", "A1")).upper().strip()
 
-# --- Cache level schedules with TTL for periodic refresh ---
+# --- Level schedules (resilient) ---
 @st.cache_data(ttl=86400)
 def load_level_schedules():
+    def _safe(fn):
+        try:
+            return fn()
+        except Exception:
+            return []
     return {
-        "A1": get_a1_schedule(),
-        "A2": get_a2_schedule(),
-        "B1": get_b1_schedule(),
-        "B2": get_b2_schedule(),
-        "C1": get_c1_schedule(),
+        "A1": _safe(get_a1_schedule),
+        "A2": _safe(get_a2_schedule),
+        "B1": _safe(get_b1_schedule),
+        "B2": _safe(get_b2_schedule),
+        "C1": _safe(get_c1_schedule),
     }
 
-# --- Helpers ---
-def render_assignment_reminder():
-    st.markdown(
-        '''
-        <div style="
-            box-sizing: border-box;
-            width: 100%;
-            max-width: 600px;
-            padding: 16px;
-            background: #ffc107;
-            color: #000;
-            border-left: 6px solid #e0a800;
-            margin: 16px auto;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            line-height: 1.4;
-            text-align: center;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-        ">
-            ⬆️ <strong>Your Assignment:</strong><br>
-            Complete the exercises in your <em>workbook</em> for this chapter.
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
+# --- Helpers (only define if not already provided upstream) ---
+if "render_assignment_reminder" not in globals():
+    def render_assignment_reminder():
+        st.markdown(
+            '''
+            <div style="
+                box-sizing: border-box;
+                width: 100%;
+                max-width: 600px;
+                padding: 16px;
+                background: #ffc107;
+                color: #000;
+                border-left: 6px solid #e0a800;
+                margin: 16px auto;
+                border-radius: 8px;
+                font-size: 1.1rem;
+                line-height: 1.4;
+                text-align: center;
+                overflow-wrap: break-word;
+                word-wrap: break-word;
+            ">
+                ⬆️ <strong>Your Assignment:</strong><br>
+                Complete the exercises in your <em>workbook</em> for this chapter.
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
 
-def render_link(label, url):
-    st.markdown(f"- [{label}]({url})")
-
-@st.cache_data(ttl=86400)
-def build_wa_message(name, code, level, day, chapter, answer):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return (
-        f"Learn Language Education Academy – Assignment Submission\n"
-        f"Name: {name}\n"
-        f"Code: {code}\n"
-        f"Level: {level}\n"
-        f"Day: {day}\n"
-        f"Chapter: {chapter}\n"
-        f"Date: {timestamp}\n"
-        f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
-    )
-
-SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
-
-def _slack_url() -> str:
-    # 1) Render env var  2) optional fallback to st.secrets.slack.webhook_url
-    url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
-    if not url:
+if "render_link" not in globals():
+    def render_link(label, url):
+        from urllib.parse import urlparse
         try:
-            url = (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "").strip()
+            p = urlparse(str(url))
+            if p.scheme in ("http", "https") and p.netloc:
+                st.markdown(f"- [{label}]({url})")
+            else:
+                st.caption(f"({label} link unavailable)")
         except Exception:
-            url = ""
-    return url
+            st.caption(f"({label} link unavailable)")
 
-def notify_slack(text: str):
-    """
-    Returns (ok: bool, info: str). Uses one webhook for all events.
-    Set SLACK_DEBUG=1 in Render to see failure details in-app (admins only).
-    """
-    url = _slack_url()
-    if not url:
-        return False, "missing_webhook"
-    try:
-        resp = requests.post(url, json={"text": text}, timeout=6)
-        ok = 200 <= resp.status_code < 300
-        return ok, f"status={resp.status_code}"
-    except Exception as e:
-        return False, str(e)
-        
-def highlight_terms(text, terms):
-    if not text: return ""
-    for term in terms:
-        if not term.strip():
-            continue
-        pattern = re.compile(re.escape(term), re.IGNORECASE)
-        text = pattern.sub(f"<span style='background:yellow;border-radius:0.23em;'>{term}</span>", text)
-    return text
+if "build_wa_message" not in globals():
+    @st.cache_data(ttl=86400)
+    def build_wa_message(name, code, level, day, chapter, answer):
+        from datetime import datetime as _dt
+        timestamp = _dt.now().strftime("%Y-%m-%d %H:%M")
+        body = (answer or "").strip() or "[See attached file/photo]"
+        return (
+            "Learn Language Education Academy – Assignment Submission\n"
+            f"Name: {name}\nCode: {code}\nLevel: {level}\nDay: {day}\n"
+            f"Chapter: {chapter}\nDate: {timestamp}\nAnswer: {body}"
+        )
 
-def filter_matches(lesson, terms):
-    searchable = (
-        str(lesson.get('topic', '')).lower() +
-        str(lesson.get('chapter', '')).lower() +
-        str(lesson.get('goal', '')).lower() +
-        str(lesson.get('instruction', '')).lower() +
-        str(lesson.get('grammar_topic', '')).lower() +
-        str(lesson.get('day', '')).lower()
-    )
-    return any(term in searchable for term in terms)
-    
-def render_section(day_info, key, title, icon):
-    content = day_info.get(key)
-    if not content:
-        return
-    items = content if isinstance(content, list) else [content]
-    st.markdown(f"#### {icon} {title}")
-    for idx, part in enumerate(items):
-        if len(items) > 1:
-            st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
-        if part.get('video'):
-            st.video(part['video'])
-        if part.get('grammarbook_link'):
-            render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
-            st.markdown(
-                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                unsafe_allow_html=True
-            )
-        if part.get('workbook_link'):
-            render_link("📒 Workbook (Assignment)", part['workbook_link'])
-            render_assignment_reminder()
-        extras = part.get('extra_resources')
-        if extras:
-            for ex in (extras if isinstance(extras, list) else [extras]):
-                render_link("🔗 Extra", ex)
+if "SLACK_DEBUG" not in globals():
+    import os as _os
+    SLACK_DEBUG = (_os.getenv("SLACK_DEBUG", "0") == "1")
 
+if "_slack_url" not in globals():
+    def _slack_url() -> str:
+        import os as _os
+        url = (_os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+        if not url:
+            try:
+                url = (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "").strip()
+            except Exception:
+                url = ""
+        return url
 
-def post_message(level, code, name, text, reply_to=None):
-    posts_ref = db.collection("class_board").document(level).collection("posts")
-    posts_ref.add({
-        "student_code": code,
-        "student_name": name,
-        "text": text.strip(),
-        "timestamp": datetime.utcnow(),
-        "reply_to": reply_to,
-    })
+if "notify_slack" not in globals():
+    def notify_slack(text: str):
+        import requests as _req
+        url = _slack_url()
+        if not url:
+            return False, "missing_webhook"
+        try:
+            resp = _req.post(url, json={"text": text}, timeout=6)
+            ok = 200 <= resp.status_code < 300
+            return ok, f"status={resp.status_code}"
+        except Exception as e:
+            return False, str(e)
 
-RESOURCE_LABELS = {
-    'video': '🎥 Video',
-    'grammarbook_link': '📘 Grammar',
-    'workbook_link': '📒 Workbook',
-    'extra_resources': '🔗 Extra'
-}
+if "highlight_terms" not in globals():
+    import html as _html, re as _re
+    def highlight_terms(text, terms):
+        if not text: return ""
+        esc = _html.escape(str(text))
+        terms = [t for t in (terms or []) if t.strip()]
+        if not terms:
+            return esc
+        pat = _re.compile("(" + "|".join(map(_re.escape, terms)) + ")", _re.IGNORECASE)
+        return pat.sub(lambda m: f"<span style='background:yellow;border-radius:.23em;'>{m.group(0)}</span>", esc)
 
-# ---- Firestore Helpers ----
-def load_notes_from_db(student_code):
-    ref = db.collection("learning_notes").document(student_code)
-    doc = ref.get()
-    return doc.to_dict().get("notes", []) if doc.exists else []
+if "filter_matches" not in globals():
+    def filter_matches(lesson, terms):
+        searchable = (
+            str(lesson.get('topic', '')).lower() +
+            str(lesson.get('chapter', '')).lower() +
+            str(lesson.get('goal', '')).lower() +
+            str(lesson.get('instruction', '')).lower() +
+            str(lesson.get('grammar_topic', '')).lower() +
+            str(lesson.get('day', '')).lower()
+        )
+        return any(term in searchable for term in (terms or []))
 
-def save_notes_to_db(student_code, notes):
-    ref = db.collection("learning_notes").document(student_code)
-    ref.set({"notes": notes}, merge=True)
-    
+if "render_section" not in globals():
+    def render_section(day_info, key, title, icon):
+        content = day_info.get(key)
+        if not content:
+            return
+        items = content if isinstance(content, list) else [content]
+        st.markdown(f"#### {icon} {title}")
+        for idx, part in enumerate(items):
+            if len(items) > 1:
+                st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
+            src = part.get('video') or part.get('youtube_link')
+            if src:
+                st.video(src)
+                st.markdown(f"[▶️ Watch on YouTube]({src})")
+            if part.get('grammarbook_link'):
+                render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
+                st.caption("📘 contains notes; 📒 is your workbook assignment.")
+            if part.get('workbook_link'):
+                render_link("📒 Workbook (Assignment)", part['workbook_link'])
+                render_assignment_reminder()
+            extras = part.get('extra_resources')
+            if extras:
+                for ex in (extras if isinstance(extras, list) else [extras]):
+                    render_link("🔗 Extra", ex)
 
+if "post_message" not in globals():
+    def post_message(level, code, name, text, reply_to=None):
+        # assumes global `db` exists; fallback if missing
+        if "db" not in globals() or db is None:
+            try:
+                import firebase_admin
+                from firebase_admin import firestore as _fb
+                if not firebase_admin._apps:
+                    firebase_admin.initialize_app()
+                _db = _fb.client()
+            except Exception:
+                from google.cloud import firestore as _gcf
+                _db = _gcf.Client()
+            globals()["db"] = _db
+        posts_ref = db.collection("class_board").document(level).collection("posts")
+        posts_ref.add({
+            "student_code": code,
+            "student_name": name,
+            "text": str(text).strip(),
+            "timestamp": datetime.utcnow(),
+            "reply_to": reply_to,
+        })
+
+if "RESOURCE_LABELS" not in globals():
+    RESOURCE_LABELS = {
+        'video': '🎥 Video',
+        'grammarbook_link': '📘 Grammar',
+        'workbook_link': '📒 Workbook',
+        'extra_resources': '🔗 Extra'
+    }
+
+# Firestore Notes helpers (respect existing db)
+if "load_notes_from_db" not in globals():
+    def load_notes_from_db(student_code):
+        ref = db.collection("learning_notes").document(student_code)
+        doc = ref.get()
+        return (doc.to_dict() or {}).get("notes", []) if getattr(doc, "exists", False) else []
+
+if "save_notes_to_db" not in globals():
+    def save_notes_to_db(student_code, notes):
+        ref = db.collection("learning_notes").document(student_code)
+        ref.set({"notes": notes}, merge=True)
+
+# ============================== MY COURSE ==============================
 if tab == "My Course":
-    # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
-    # Jump flags set by buttons elsewhere
-    if st.session_state.get("__go_classroom"):
+    # read-once flags to avoid rerun loops
+    def _consume_flag(key: str) -> bool:
+        if st.session_state.get(key):
+            st.session_state.pop(key, None)
+            return True
+        return False
+
+    if _consume_flag("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-        del st.session_state["__go_classroom"]
         st.rerun()
-
-    if st.session_state.get("__go_notes"):
+    if _consume_flag("__go_notes") or _consume_flag("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-        del st.session_state["__go_notes"]
         st.rerun()
 
-    # Backward-compat: older code may still set this
-    if st.session_state.get("switch_to_notes"):
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
-        del st.session_state["switch_to_notes"]
-        st.rerun()
-
-    # First run default
     if "coursebook_subtab" not in st.session_state:
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
 
-    # Header (render once)
     st.markdown(
         '''
         <div style="
@@ -3732,7 +3828,6 @@ if tab == "My Course":
     )
     st.divider()
 
-    # Subtabs (1: Classroom, 2: Course Book, 3: Learning Notes)
     cb_subtab = st.radio(
         "Select section:",
         ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes"],
@@ -3740,8 +3835,7 @@ if tab == "My Course":
         key="coursebook_subtab"
     )
 
-
-    # === COURSE BOOK SUBTAB ===
+    # -------------------------- COURSE BOOK --------------------------
     if cb_subtab == "📘 Course Book":
         st.markdown(
             '''
@@ -3777,37 +3871,17 @@ if tab == "My Course":
             for _, d in matches:
                 title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
                 grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
-                labels.append(
-                    f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
-                )
+                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
 
-            # Bold header for lessons dropdown
-            st.markdown(
-                "<span style='font-weight:700; font-size:1rem;'>Lessons:</span>",
-                unsafe_allow_html=True
-            )
-            sel = st.selectbox(
-                "",  # label hidden
-                list(range(len(matches))),
-                format_func=lambda i: labels[i],
-                key="course_search_sel"
-            )
+            st.markdown("<span style='font-weight:700; font-size:1rem;'>Lessons:</span>", unsafe_allow_html=True)
+            sel = st.selectbox("", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
             idx = matches[sel][0]
         else:
-            # Bold header for lesson/day dropdown
-            st.markdown(
-                "<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>",
-                unsafe_allow_html=True
-            )
-            idx = st.selectbox(
-                "",  # label hidden
-                range(len(schedule)),
-                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
-            )
+            st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
+            idx = st.selectbox("", range(len(schedule)), format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}")
 
         st.divider()
 
-        # Progress Bar
         total = len(schedule)
         done = idx + 1
         pct = int(done / total * 100) if total else 0
@@ -3815,27 +3889,21 @@ if tab == "My Course":
         st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
         st.divider()
 
-        # ===== COURSE BOOK INFO =====
         with st.expander("📚 Course Book & Study Recommendations", expanded=False):
-
-            # Recommended time
             LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
             rec_time = LEVEL_TIME.get(student_level, 20)
             st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-            # Suggested end dates
-            start_str = student_row.get("ContractStart", "")
+            start_str = str(student_row.get("ContractStart", "") or "")
             start_date = None
             for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
                 try:
                     start_date = datetime.strptime(start_str, fmt).date()
                     break
-                except:
+                except Exception:
                     continue
 
-            if start_date:
-                total = total  # assuming this variable is already defined earlier in your code
-                # calculate weeks for different paces
+            if start_date and total:
                 weeks_three = (total + 2) // 3
                 weeks_two   = (total + 1) // 2
                 weeks_one   = total
@@ -3844,74 +3912,33 @@ if tab == "My Course":
                 end_two   = start_date + timedelta(weeks=weeks_two)
                 end_one   = start_date + timedelta(weeks=weeks_one)
 
-                # spacer layout
-                spacer, content = st.columns([3, 7])
+                _, content = st.columns([3, 7])
                 with content:
                     st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
                     st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
                     st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
             else:
-                spacer, content = st.columns([3, 7])
+                _, content = st.columns([3, 7])
                 with content:
-                    st.warning("❓ Start date missing or invalid. Please update your contract start date.")
-#
+                    st.warning("❓ Start date missing/invalid or no lessons available.")
+
         info = schedule[idx]
-        # ---- Fix for highlight and header ----
+
+        # Header + highlights
         lesson_title = f"Day {info['day']}: {info['topic']}"
-        highlighted_title = highlight_terms(lesson_title, search_terms)
-        st.markdown(
-            f"### {highlighted_title} (Chapter {info['chapter']})",
-            unsafe_allow_html=True
-        )
+        st.markdown(f"### {highlight_terms(lesson_title, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
         st.divider()
 
         if info.get("grammar_topic"):
-            st.markdown(
-                f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
         if info.get("goal"):
             st.markdown(f"**🎯 Goal:**  {info['goal']}")
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
-        def render_section(day_info, key, title, icon):
-            content = day_info.get(key)
-            if not content:
-                return
-            items = content if isinstance(content, list) else [content]
-            st.markdown(f"#### {icon} {title}")
-            for idx, part in enumerate(items):
-                if len(items) > 1:
-                    st.markdown(
-                        f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}"
-                    )
-                # --- Embed video and show link if available ---
-                if part.get('video'):
-                    st.video(part['video'])
-                    st.markdown(f"[▶️ Watch on YouTube]({part['video']})")
-                # --- Also support explicit youtube_link (if different from 'video') ---
-                elif part.get('youtube_link'):
-                    st.markdown(f"[▶️ Watch on YouTube]({part['youtube_link']})")
-                if part.get('grammarbook_link'):
-                    st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
-                    st.markdown(
-                        '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                        unsafe_allow_html=True
-                    )
-                if part.get('workbook_link'):
-                    st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
-                    render_assignment_reminder()
-                extras = part.get('extra_resources')
-                if extras:
-                    for ex in (extras if isinstance(extras, list) else [extras]):
-                        st.markdown(f"- [🔗 Extra]({ex})")
-
         render_section(info, "lesen_hören", "Lesen & Hören", "📚")
         render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
-        # ---- Show resource links for upper levels if needed ----
         if student_level in ["A2", "B1", "B2", "C1"]:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
@@ -3921,12 +3948,8 @@ if tab == "My Course":
                         st.markdown(f"[▶️ Watch on YouTube]({val})")
                     else:
                         st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
-            st.markdown(
-                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                unsafe_allow_html=True
-            )
+            st.caption("📘 contains notes; 📒 is your workbook assignment.")
 
-        # --- Translation Tools ---
         with st.expander("🌐 Translation Tools", expanded=False):
             st.markdown("---")
             st.markdown(
@@ -3939,14 +3962,13 @@ if tab == "My Course":
 
         st.divider()
 
-        # --- Video of the Day ---
+        # Video of the Day
         with st.expander("🎬 Video of the Day for Your Level", expanded=False):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
             if playlist_id:
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
-                    today_idx = date.today().toordinal()
-                    pick = today_idx % len(video_list)
+                    pick = date.today().toordinal() % len(video_list)
                     video = video_list[pick]
                     st.markdown(f"**{video['title']}**")
                     st.video(video['url'])
@@ -3957,10 +3979,8 @@ if tab == "My Course":
 
         st.divider()
 
-        # === SUBMIT ASSIGNMENT (Render env secret + context banner + submit + lock; NO AUTO-REFRESH) ===
+        # ---------------------- SUBMIT ASSIGNMENT ----------------------
         st.markdown("### ✅ Submit Your Assignment")
-
-        # Clear context banner so students see exactly where they are
         st.markdown(
             f"""
             <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
@@ -3976,41 +3996,53 @@ if tab == "My Course":
             unsafe_allow_html=True
         )
 
-        # Render env (Slack) — set on Render dashboard: SLACK_WEBHOOK_URL=...
-        import os, requests
-        from datetime import datetime
-
-        def get_slack_webhook() -> str:
-            return (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
-
-        # --- Draft persistence (save + load from Firestore) ---
+        # Draft persistence
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
-            doc_ref.set(
-                {lesson_key: text, f"{lesson_key}__updated_at": datetime.utcnow()},
-                merge=True
-            )
+            doc_ref.set({lesson_key: text, f"{lesson_key}__updated_at": datetime.utcnow()}, merge=True)
 
         def load_draft_from_db(code, lesson_key) -> str:
             try:
                 doc = db.collection('draft_answers').document(code).get()
-                if doc.exists:
+                if getattr(doc, "exists", False):
                     data = doc.to_dict() or {}
                     return data.get(lesson_key, "")
             except Exception:
                 pass
             return ""
 
+        # Latest submission (to lock UI)
+        def fetch_latest(level, code, lesson_key):
+            posts_ref = db.collection("submissions").document(level).collection("posts")
+            try:
+                from google.cloud import firestore as _gcf
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .order_by("updated_at", direction=_gcf.Query.DESCENDING)\
+                                .limit(1).stream()
+                for d in docs:
+                    return d.to_dict()
+            except Exception:
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .stream()
+                items = [d.to_dict() for d in docs]
+                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
+                return items[0] if items else None
+            return None
+
         code = student_row.get('StudentCode', 'demo001')
-        lesson_key = f"draft_{info['chapter']}"     # unique per chapter
+        lesson_key = f"draft_{info['chapter']}"
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
 
-        # Persisted lock per lesson
+        latest = fetch_latest(student_level, code, lesson_key)
         locked_key = f"{lesson_key}_locked"
-        locked = st.session_state.get(locked_key, False)
+        locked = bool(st.session_state.get(locked_key))
+        if latest and latest.get("status") in {"submitted", "received", "graded"}:
+            locked = True
+            st.session_state[locked_key] = True
 
-        # One-time hydration from Firestore so text survives refresh/restart
         if not st.session_state.get(f"{lesson_key}__hydrated", False):
             existing = load_draft_from_db(code, lesson_key)
             if existing and not st.session_state.get(lesson_key):
@@ -4018,11 +4050,10 @@ if tab == "My Course":
                 st.info("💾 Loaded your saved draft.")
             st.session_state[f"{lesson_key}__hydrated"] = True
 
-        # Answer Box (autosaves on change ONLY)
         st.subheader("✍️ Your Answer (Autosaves)")
         def autosave_draft():
-            text = st.session_state.get(lesson_key, "")
-            save_draft_to_db(code, lesson_key, text)
+            text_val = st.session_state.get(lesson_key, "")
+            save_draft_to_db(code, lesson_key, text_val)
             st.session_state[f"{lesson_key}_saved"] = True
             st.session_state[f"{lesson_key}_saved_at"] = datetime.utcnow()
 
@@ -4031,36 +4062,37 @@ if tab == "My Course":
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
-            on_change=autosave_draft,  # saves when the field loses focus or the widget updates
+            on_change=autosave_draft,
             disabled=locked,
-            help="Draft autosaves when you click outside the box or change focus."
+            help="Draft autosaves when you click outside the box or the field updates."
         )
 
-        cols_save = st.columns([1,2])
-        with cols_save[0]:
+        csave1, csave2 = st.columns([1,2])
+        with csave1:
             if st.button("💾 Save Draft now", disabled=locked):
                 autosave_draft()
                 st.success("Draft saved.")
-        with cols_save[1]:
+        with csave2:
             ts = st.session_state.get(f"{lesson_key}_saved_at")
             if ts:
                 st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
 
-        # Instructions
         with st.expander("📌 How to Submit", expanded=False):
-            st.markdown(f"""
+            st.markdown(
+                f"""
                 1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
                 2) Tick the two confirmations below.  
                 3) Click **Confirm & Submit**.  
                 4) Your box will lock (read-only).  
                 _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-            """)
+                """
+            )
 
-        # Slack notify helper (uses Render env only)
-        def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
-                                    level: str, day: int, chapter: str, receipt: str, preview: str):
+        def _notify_submission(webhook_url: str, *, student_name: str, student_code: str,
+                               level: str, day: int, chapter: str, receipt: str, preview: str):
             if not webhook_url:
                 return
+            import requests as _req
             text = (
                 f"*New submission* • {student_name} ({student_code})\n"
                 f"*Level:* {level}  •  *Day:* {day}\n"
@@ -4069,13 +4101,12 @@ if tab == "My Course":
                 f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
             )
             try:
-                requests.post(webhook_url, json={"text": text}, timeout=6)
+                _req.post(webhook_url, json={"text": text}, timeout=6)
             except Exception:
-                pass  # don't block student
+                pass
 
-        # Firestore: create submission, return short ref for Slack (hidden from student)
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
-            if not answer or not answer.strip():
+            if not (answer or "").strip():
                 st.warning("Please type your answer before submitting.")
                 return False, None
             posts_ref = db.collection("submissions").document(level).collection("posts")
@@ -4095,10 +4126,8 @@ if tab == "My Course":
             }
             _, ref = posts_ref.add(payload)
             doc_id = ref.id
-            short_ref = f"{doc_id[:8].upper()}-{day}"
-            return True, short_ref
+            return True, f"{doc_id[:8].upper()}-{day}"
 
-        # Two-step confirm + Submit / Save to Notes / Ask a Question
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -4130,9 +4159,10 @@ if tab == "My Course":
                     st.success("Submitted! Your work has been sent to your tutor.")
                     st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
-                    webhook = get_slack_webhook()
+                    from os import getenv as _getenv
+                    webhook = (_getenv("SLACK_WEBHOOK_URL") or "").strip()
                     if webhook:
-                        notify_slack_submission(
+                        _notify_submission(
                             webhook_url=webhook,
                             student_name=name or "Student",
                             student_code=code,
@@ -4143,46 +4173,22 @@ if tab == "My Course":
                             preview=st.session_state.get(lesson_key, "")
                         )
 
-        # --- Column 2: Ask the Teacher (jump to Classroom Q&A) ---
         with col2:
             st.markdown("#### ❓ Ask the Teacher")
             if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                # set a jump flag; DON'T touch the radio key directly here
                 st.session_state["__go_classroom"] = True
                 st.rerun()
 
-        # --- Column 3: Add Notes (just jump to Notes tab) ---
         with col3:
             st.markdown("#### 📝 Add Notes")
             if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                # set a jump flag; no prefills
                 st.session_state["__go_notes"] = True
                 st.rerun()
-#
-
 
         st.divider()
 
-        # Submission status (latest only; no receipt shown)
-        def fetch_latest(level, code, lesson_key):
-            posts_ref = db.collection("submissions").document(level).collection("posts")
-            try:
-                docs = posts_ref.where("student_code","==",code)\
-                                .where("lesson_key","==",lesson_key)\
-                                .order_by("updated_at", direction=firestore.Query.DESCENDING)\
-                                .limit(1).stream()
-                for d in docs:
-                    return d.to_dict()
-            except Exception:
-                docs = posts_ref.where("student_code","==",code)\
-                                .where("lesson_key","==",lesson_key)\
-                                .stream()
-                items = [d.to_dict() for d in docs]
-                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
-                return items[0] if items else None
-            return None
-
-        latest = fetch_latest(student_level, code, lesson_key)
+        # Status
+        latest = latest or fetch_latest(student_level, code, lesson_key)
         if latest:
             ts = latest.get('updated_at')
             when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
@@ -4190,10 +4196,9 @@ if tab == "My Course":
             st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-#
 
+    # ---------------------------- CLASSROOM ----------------------------
     if cb_subtab == "🧑‍🏫 Classroom":
-        # --- Classroom banner (top of subtab) ---
         st.markdown(
             '''
             <div style="
@@ -4212,41 +4217,26 @@ if tab == "My Course":
         )
         st.divider()
 
-        # ---------- DB (Firestore) bootstrap ----------
-        def _get_db():
-            # Use existing global if present
-            _existing = globals().get("db")
-            if _existing is not None:
-                return _existing
-            # Try Firebase Admin SDK first (firestore.client())
+        # Ensure `db` exists (don’t duplicate if already set above)
+        if "db" not in globals() or db is None:
             try:
                 import firebase_admin
-                from firebase_admin import firestore as fbfs
+                from firebase_admin import firestore as _fbfs
                 if not firebase_admin._apps:
                     firebase_admin.initialize_app()
-                return fbfs.client()
+                db = _fbfs.client()
             except Exception:
-                pass
-            # Fallback to Google Cloud Firestore (firestore.Client())
-            try:
-                from google.cloud import firestore as gcf
-                return gcf.Client()
-            except Exception:
-                st.error(
-                    "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
-                    icon="🛑",
-                )
-                raise
+                from google.cloud import firestore as _gcf
+                db = _gcf.Client()
 
-        db = _get_db()
-
+        import math as _math, re as _re
 
         def _safe_str(v, default: str = "") -> str:
             if v is None:
                 return default
             if isinstance(v, float):
                 try:
-                    if math.isnan(v):
+                    if _math.isnan(v):
                         return default
                 except Exception:
                     pass
@@ -4270,27 +4260,24 @@ if tab == "My Course":
             pass
         IS_ADMIN = (student_code in ADMINS)
 
-        # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
         def _notify_slack(text: str):
             try:
                 fn = globals().get("notify_slack")
                 if callable(fn):
-                    try:
-                        fn(text)  # returns (ok, info) or None
-                        return
-                    except Exception:
-                        pass
-                url = (os.getenv("SLACK_WEBHOOK_URL") or
-                       (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
-                if url:
-                    try:
-                        requests.post(url, json={"text": text}, timeout=6)
-                    except Exception:
-                        pass
+                    fn(text)
+                    return
             except Exception:
                 pass
+            from os import getenv as _getenv
+            import requests as _req
+            url = (_getenv("SLACK_WEBHOOK_URL") or (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
+            if url:
+                try:
+                    _req.post(url, json={"text": text}, timeout=6)
+                except Exception:
+                    pass
 
-        # ===================== ZOOM HEADER =====================
+        # ---- Zoom header ----
         with st.container():
             st.markdown(
                 """
@@ -4328,12 +4315,9 @@ if tab == "My Course":
 
         st.divider()
 
-        # ===================== CLASS META (safe resolver) =====================
-
         def _norm_class_local(s: str) -> str:
-            return re.sub(r"\s+", " ", (s or "").strip().lower())
+            return _re.sub(r"\s+", " ", (s or "").strip().lower())
 
-        # Fallbacks you can edit; Firestore values (if any) will override these.
         CLASS_FALLBACKS_LOCAL = {
             _norm_class_local("A2 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
@@ -4363,7 +4347,6 @@ if tab == "My Course":
             },
         }
 
-        # Merge Firestore -> fallbacks
         _meta = {}
         try:
             doc = db.collection("classes").document(class_name).get()
@@ -4374,34 +4357,24 @@ if tab == "My Course":
         _fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
         _meta = {**_fb, **_meta}
 
-        tutors        = _meta.get("tutors", [])  # list of names or {name,email}
+        tutors        = _meta.get("tutors", [])
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
 
-        # ===================== TUTORS • CALENDAR • CONTACT (no image) =====================
-
-
-        # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
             if isinstance(t, dict):
                 return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
             return {"name": str(t or "").strip(), "email": ""}
 
-        _tutors_raw = tutors or []
-        _tutors = []
-        for t in _tutors_raw:
-            d = _as_dict(t)
-            if d["name"]:
-                _tutors.append(d)
-
+        _tutors = [d for d in map(_as_dict, tutors or []) if d["name"]]
         lead_tutor = _tutors[0] if _tutors else None
-        co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
+        co_tutor   = _tutors[1] if len(_tutors) > 1 else None
 
         def _tutor_line(d):
             if not d: return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
-        # Private email (prefill subject/body)
+        from urllib.parse import urlencode as _urlencode
         _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
         _body = (
             "Hello Tutor,\n\n"
@@ -4409,7 +4382,7 @@ if tab == "My Course":
             f"Class: {class_name}\n\n"
             "Message:\n"
         )
-        _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
+        _mailto = f"mailto:{contact_email}?{_urlencode({'subject': _subj, 'body': _body})}"
 
         t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
         t_cotutor = _tutor_line(co_tutor)
@@ -4458,12 +4431,8 @@ if tab == "My Course":
                 st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
 
         st.divider()
-#
 
-
-
-
-        # ===================== CLASS ROSTER =====================
+        # --------------------------- CLASS ROSTER ---------------------------
         st.markdown("### 👥 Class Members")
         try:
             df_students = load_student_data()
@@ -4486,10 +4455,9 @@ if tab == "My Course":
 
         st.divider()
 
-        # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
+        # --------------------------- ANNOUNCEMENTS ---------------------------
         st.markdown("### 📢 Announcements")
 
-        # Prefer cached helper if exists; else fallback to direct CSV
         try:
             df = fetch_announcements_csv()
         except Exception:
@@ -4501,12 +4469,15 @@ if tab == "My Course":
             except Exception:
                 df = pd.DataFrame()
 
-        # Helpers (links, parsing, ids)
-        URL_RE = re.compile(r"(https?://[^\s]+)")
+        import re as _re2, hashlib as _hashlib
+        from uuid import uuid4 as _uuid4
+        from urllib.parse import urlparse as _urlparse
+
+        URL_RE = _re2.compile(r"(https?://[^\s]+)")
 
         def _short_label_from_url(u: str) -> str:
             try:
-                p = urllib.parse.urlparse(u)
+                p = _urlparse(u)
                 host = (p.netloc or "").replace("www.", "")
                 path = (p.path or "").strip("/")
                 label = host if not path else f"{host}/{path}"
@@ -4515,7 +4486,7 @@ if tab == "My Course":
                 return u[:60] + ("…" if len(u) > 60 else "")
 
         def _guess_link_emoji_and_label(u: str):
-            lu = u.lower()
+            lu = (u or "").lower()
             if "zoom.us" in lu: return "🎦", None
             if "youtu" in lu:   return "▶️", None
             if lu.endswith(".pdf"): return "📄", None
@@ -4524,13 +4495,10 @@ if tab == "My Course":
             if "google.com" in lu: return "🔗", None
             return "🔗", None
 
-        # Normalize CSV into canonical columns
         if not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             lower_map = {c.lower(): c for c in df.columns}
-
-            def _col(name: str):
-                return lower_map.get(name.lower())
+            def _col(name: str): return lower_map.get(name.lower())
 
             for logical in ("announcement", "class", "date", "pinned"):
                 if _col(logical) is None:
@@ -4547,7 +4515,6 @@ if tab == "My Course":
                 if c not in df.columns:
                     df[c] = ""
 
-            # Optional Link/Links column
             link_key = lower_map.get("link") or lower_map.get("links")
             df["Links"] = [[] for _ in range(len(df))]
             if link_key:
@@ -4559,13 +4526,11 @@ if tab == "My Course":
                     return [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
                 df["Links"] = df[link_key].apply(_split_links)
 
-            # Normalize pinned
             def _norm_pinned(v) -> bool:
                 s = str(v).strip().lower()
                 return s in {"true", "yes", "1"}
             df["Pinned"] = df["Pinned"].apply(_norm_pinned)
 
-            # Parse dates
             def _parse_dt(x):
                 for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
                     try:
@@ -4578,7 +4543,6 @@ if tab == "My Course":
                     return pd.NaT
             df["__dt"] = df["Date"].apply(_parse_dt)
 
-            # Append auto-detected links
             def _append_detected_links(row):
                 txt = str(row.get("Announcement", "") or "")
                 found = URL_RE.findall(txt)
@@ -4590,16 +4554,14 @@ if tab == "My Course":
                 return merged
             df["Links"] = df.apply(_append_detected_links, axis=1)
 
-            # Stable ID
             def _ann_id(row):
                 try:
                     raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
-                    return hashlib.sha1(raw).hexdigest()[:16]
+                    return _hashlib.sha1(raw).hexdigest()[:16]
                 except Exception:
-                    return str(uuid4()).replace("-", "")[:16]
+                    return str(_uuid4()).replace("-", "")[:16]
             df["__id"] = df.apply(_ann_id, axis=1)
 
-        # Firestore reply helpers (with IDs for edit/delete)
         def _ann_reply_coll(ann_id: str):
             return (db.collection("class_announcements")
                      .document(class_name)
@@ -4631,7 +4593,6 @@ if tab == "My Course":
         def _delete_reply(ann_id: str, reply_id: str):
             _ann_reply_coll(ann_id).document(reply_id).delete()
 
-        # Controls + render
         if df.empty:
             st.info("No announcements yet.")
         else:
@@ -4648,14 +4609,13 @@ if tab == "My Course":
                         pass
                     st.rerun()
 
-            # Filter for this class
             df["__class_norm"] = (
                 df["Class"].astype(str)
                 .str.replace(r"\s+", " ", regex=True)
                 .str.strip()
                 .str.lower()
             )
-            class_norm = re.sub(r"\s+", " ", class_name.strip().lower())
+            class_norm = _re.sub(r"\s+", " ", class_name.strip().lower())
             view = df[df["__class_norm"] == class_norm].copy()
 
             if show_only_pinned:
@@ -4669,7 +4629,6 @@ if tab == "My Course":
             latest_df = view[view["Pinned"] == False]
 
             def render_announcement(row, is_pinned=False):
-                # teacher card
                 try:
                     ts_label = row.get("__dt").strftime("%d %b %H:%M")
                 except Exception:
@@ -4684,7 +4643,6 @@ if tab == "My Course":
                     unsafe_allow_html=True,
                 )
 
-                # links
                 links = row.get("Links") or []
                 if isinstance(links, str):
                     links = [links] if links.strip() else []
@@ -4695,7 +4653,6 @@ if tab == "My Course":
                         label = label or _short_label_from_url(u)
                         st.markdown(f"- {emoji} [{label}]({u})")
 
-                # replies
                 ann_id = row.get("__id")
                 replies = _load_replies_with_ids(ann_id)
                 if replies:
@@ -4720,7 +4677,6 @@ if tab == "My Course":
                             unsafe_allow_html=True,
                         )
 
-                        # edit/delete (own or admin)
                         can_edit = IS_ADMIN or (r.get("student_code") == student_code)
                         if can_edit:
                             c_ed, c_del = st.columns([1, 1])
@@ -4740,7 +4696,6 @@ if tab == "My Course":
                                     st.success("Reply deleted.")
                                     st.rerun()
 
-                            # inline editor
                             if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
                                 new_txt = st.text_area(
                                     "Edit reply",
@@ -4769,7 +4724,6 @@ if tab == "My Course":
                                         st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
                                         st.rerun()
 
-                # new reply (single click -> rerun)
                 with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
                     ta_key = f"ann_reply_box_{ann_id}"
                     flag_key = f"__clear_{ta_key}"
@@ -4800,7 +4754,6 @@ if tab == "My Course":
                         st.success("Reply sent!")
                         st.rerun()
 
-            # render all
             for _, row in pinned_df.iterrows():
                 render_announcement(row, is_pinned=True)
             for _, row in latest_df.iterrows():
@@ -4808,7 +4761,7 @@ if tab == "My Course":
 
         st.divider()
 
-        # ===================== CLASS Q&A (POST / REPLY + EDIT/DELETE) =====================
+        # ------------------------------ CLASS Q&A ------------------------------
         st.markdown("### 💬 Class Q&A")
 
         q_base = db.collection("class_qna").document(class_name).collection("questions")
@@ -4819,9 +4772,9 @@ if tab == "My Course":
             except Exception:
                 return ""
 
-        # Post a new question (single click -> rerun)
+        from uuid import uuid4 as _uuid_short
+
         with st.expander("➕ Ask a new question", expanded=False):
-            # clear form values on next run if flagged
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
@@ -4829,7 +4782,7 @@ if tab == "My Course":
             topic = st.text_input("Topic (optional)", key="q_topic")
             new_q = st.text_area("Your question", key="q_text", height=80)
             if st.button("Post Question", key="qna_post_question") and new_q.strip():
-                q_id = str(uuid4())[:8]
+                q_id = str(_uuid_short())[:8]
                 payload = {
                     "question": new_q.strip(),
                     "asked_by_name": student_name,
@@ -4846,12 +4799,10 @@ if tab == "My Course":
                     f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                     f"*Q:* {preview}"
                 )
-                # clear and rerun
                 st.session_state["__clear_q_form"] = True
                 st.success("Question posted!")
                 st.rerun()
 
-        # Controls
         colsa, colsb, colsc = st.columns([2, 1, 1])
         with colsa:
             q_search = st.text_input("Search questions (text or topic)…", key="q_search")
@@ -4861,26 +4812,21 @@ if tab == "My Course":
             if st.button("↻ Refresh", key="qna_refresh"):
                 st.rerun()
 
-        # Load questions (fresh each run)
         try:
-            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+            from google.cloud import firestore as _gcf
+            q_docs = list(q_base.order_by("timestamp", direction=_gcf.Query.DESCENDING).stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
         except Exception:
             q_docs = list(q_base.stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
             questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
 
-        # Filter & order
         if q_search.strip():
             ql = q_search.lower()
-            questions = [
-                q for q in questions
-                if ql in str(q.get("question", "")).lower() or ql in str(q.get("topic", "")).lower()
-            ]
+            questions = [q for q in questions if ql in str(q.get("question","")).lower() or ql in str(q.get("topic","")).lower()]
         if not show_latest:
             questions = list(reversed(questions))
 
-        # Render questions
         if not questions:
             st.info("No questions yet.")
         else:
@@ -4889,21 +4835,14 @@ if tab == "My Course":
                 ts = q.get("timestamp")
                 ts_label = _fmt_ts(ts)
 
-                topic_html = (
-                    f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
-                    if q.get("topic") else ""
-                )
+                topic_html = f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else ""
                 st.markdown(
                     f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
-                    f"<b>{q.get('asked_by_name','')}</b>"
-                    f"<span style='color:#aaa;'> • {ts_label}</span>"
-                    f"{topic_html}"
-                    f"{q.get('question','')}"
-                    f"</div>",
+                    f"<b>{q.get('asked_by_name','')}</b><span style='color:#aaa;'> • {ts_label}</span>"
+                    f"{topic_html}{q.get('question','')}</div>",
                     unsafe_allow_html=True
                 )
 
-                # Edit/Delete controls for the question
                 can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
                 if can_modify_q:
                     qc1, qc2, _ = st.columns([1, 1, 6])
@@ -4914,7 +4853,6 @@ if tab == "My Course":
                             st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                     with qc2:
                         if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
-                            # delete replies first
                             try:
                                 r_ref = q_base.document(q_id).collection("replies")
                                 for rdoc in r_ref.stream():
@@ -4930,20 +4868,10 @@ if tab == "My Course":
                             st.success("Question deleted.")
                             st.rerun()
 
-                    # Inline edit form
                     if st.session_state.get(f"q_editing_{q_id}", False):
                         with st.form(f"q_edit_form_{q_id}"):
-                            new_topic = st.text_input(
-                                "Edit topic (optional)",
-                                value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
-                                key=f"q_edit_topic_input_{q_id}"
-                            )
-                            new_text = st.text_area(
-                                "Edit question",
-                                value=st.session_state.get(f"q_edit_text_{q_id}", ""),
-                                key=f"q_edit_text_input_{q_id}",
-                                height=100
-                            )
+                            new_topic = st.text_input("Edit topic (optional)", value=st.session_state.get(f"q_edit_topic_{q_id}", ""), key=f"q_edit_topic_input_{q_id}")
+                            new_text = st.text_area("Edit question", value=st.session_state.get(f"q_edit_text_{q_id}", ""), key=f"q_edit_text_input_{q_id}", height=100)
                             save_edit = st.form_submit_button("💾 Save")
                             cancel_edit = st.form_submit_button("❌ Cancel")
                         if save_edit and new_text.strip():
@@ -4965,7 +4893,7 @@ if tab == "My Course":
                             st.session_state[f"q_editing_{q_id}"] = False
                             st.rerun()
 
-                # Load replies
+                # Replies
                 r_ref = q_base.document(q_id).collection("replies")
                 try:
                     replies_docs = list(r_ref.order_by("timestamp").stream())
@@ -4985,7 +4913,6 @@ if tab == "My Course":
                             unsafe_allow_html=True
                         )
 
-                        # Edit/Delete for replies
                         can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
                         if can_modify_r:
                             rc1, rc2, _ = st.columns([1, 1, 6])
@@ -5006,12 +4933,7 @@ if tab == "My Course":
 
                             if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
                                 with st.form(f"r_edit_form_{q_id}_{rid}"):
-                                    new_rtext = st.text_area(
-                                        "Edit reply",
-                                        value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
-                                        key=f"r_edit_text_input_{q_id}_{rid}",
-                                        height=80
-                                    )
+                                    new_rtext = st.text_area("Edit reply", value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""), key=f"r_edit_text_input_{q_id}_{rid}", height=80)
                                     rsave = st.form_submit_button("💾 Save")
                                     rcancel = st.form_submit_button("❌ Cancel")
                                 if rsave and new_rtext.strip():
@@ -5032,17 +4954,13 @@ if tab == "My Course":
                                     st.session_state[f"r_editing_{q_id}_{rid}"] = False
                                     st.rerun()
 
-                # Reply form (anyone can answer) — single click -> rerun
+                # Quick reply
                 input_key = f"q_reply_box_{q_id}"
                 clear_key = f"__clear_{input_key}"
                 if st.session_state.get(clear_key):
                     st.session_state.pop(clear_key, None)
                     st.session_state[clear_key] = True
-                reply_text = st.text_input(
-                    f"Reply to Q{q_id}",
-                    key=input_key,
-                    placeholder="Write your reply…"
-                )
+                reply_text = st.text_input(f"Reply to Q{q_id}", key=input_key, placeholder="Write your reply…")
                 if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and reply_text.strip():
                     reply_payload = {
                         "reply_text": reply_text.strip(),
@@ -5051,7 +4969,7 @@ if tab == "My Course":
                         "timestamp": datetime.utcnow(),
                     }
                     r_ref = q_base.document(q_id).collection("replies")
-                    r_ref.document(str(uuid4())[:8]).set(reply_payload)
+                    r_ref.document(str(_uuid_short())[:8]).set(reply_payload)
                     prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
                     _notify_slack(
                         f"💬 *New Q&A reply* — {class_name}\n"
@@ -5062,13 +4980,8 @@ if tab == "My Course":
                     st.session_state[clear_key] = True
                     st.success("Reply sent!")
                     st.rerun()
-#
 
-
-
-
-
-    # === LEARNING NOTES SUBTAB ===
+    # --------------------------- LEARNING NOTES ---------------------------
     elif cb_subtab == "📒 Learning Notes":
         st.markdown("""
             <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -5084,12 +4997,12 @@ if tab == "My Course":
             st.session_state[key_notes] = load_notes_from_db(student_code)
         notes = st.session_state[key_notes]
 
-        if st.session_state.get("switch_to_edit_note"):
+        if _consume_flag("switch_to_edit_note"):
             st.session_state["course_notes_radio"] = "➕ Add/Edit Note"
-            del st.session_state["switch_to_edit_note"]
-        elif st.session_state.get("switch_to_library"):
+            st.rerun()
+        if _consume_flag("switch_to_library"):
             st.session_state["course_notes_radio"] = "📚 My Notes Library"
-            del st.session_state["switch_to_library"]
+            st.rerun()
 
         notes_subtab = st.radio(
             "Notebook",
@@ -5099,7 +5012,6 @@ if tab == "My Course":
         )
 
         if notes_subtab == "➕ Add/Edit Note":
-            # >>>> New helper message for pre-filled note context <<<<
             editing = st.session_state.get("edit_note_idx", None) is not None
             if editing:
                 idx = st.session_state["edit_note_idx"]
@@ -5137,7 +5049,7 @@ if tab == "My Course":
                 if editing:
                     notes[idx] = note
                     for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                        if k in st.session_state: del st.session_state[k]
+                        st.session_state.pop(k, None)
                     st.success("Note updated!")
                 else:
                     notes.insert(0, note)
@@ -5149,7 +5061,7 @@ if tab == "My Course":
 
             if cancel_btn:
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                    if k in st.session_state: del st.session_state[k]
+                    st.session_state.pop(k, None)
                 st.session_state["switch_to_library"] = True
                 st.rerun()
 
@@ -5161,31 +5073,25 @@ if tab == "My Course":
             else:
                 search_term = st.text_input("🔎 Search your notes…", "")
                 if search_term.strip():
-                    filtered = []
-                    st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
-                    for n in notes:
-                        if (search_term.lower() in n.get("title","").lower() or 
-                            search_term.lower() in n.get("tag","").lower() or 
-                            search_term.lower() in n.get("text","").lower()):
-                            filtered.append(n)
+                    filtered = [n for n in notes if any(
+                        search_term.lower() in (n.get(k,"").lower()) for k in ("title","tag","text")
+                    )]
                     notes_to_show = filtered
                     if not filtered:
                         st.warning("No matching notes found!")
                 else:
                     notes_to_show = notes
 
-                # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
+                # TXT (all)
                 all_notes = []
                 for n in notes_to_show:
                     note_text = f"Title: {n.get('title','')}\n"
-                    if n.get('tag'):
-                        note_text += f"Tag: {n['tag']}\n"
+                    if n.get('tag'): note_text += f"Tag: {n['tag']}\n"
                     note_text += n.get('text','') + "\n"
                     note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
                     note_text += "-"*32 + "\n"
                     all_notes.append(note_text)
                 txt_data = "\n".join(all_notes)
-
                 st.download_button(
                     label="⬇️ Download All Notes (TXT)",
                     data=txt_data.encode("utf-8"),
@@ -5193,14 +5099,18 @@ if tab == "My Course":
                     mime="text/plain"
                 )
 
-                # --- PDF Download (all notes, Unicode/emoji ready!) ---
-                class PDF(FPDF):
+                # PDF (all)
+                from fpdf import FPDF as _FPDF
+                class PDF(_FPDF):
                     def header(self):
                         self.set_font('DejaVu', '', 16)
                         self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                         self.ln(5)
                 pdf = PDF()
-                pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
+                try:
+                    pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
+                except Exception:
+                    pass
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 pdf.set_font("DejaVu", '', 13)
@@ -5210,26 +5120,23 @@ if tab == "My Course":
                     pdf.cell(0, 8, f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}", ln=1)
                 pdf.ln(5)
                 for n in notes_to_show:
-                    pdf.set_font("DejaVu", '', 13)
-                    pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
+                    pdf.set_font("DejaVu", '', 13); pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
                     pdf.set_font("DejaVu", '', 11)
-                    if n.get("tag"):
-                        pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
+                    if n.get("tag"): pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
                     pdf.set_font("DejaVu", '', 12)
-                    for line in n.get('text','').split("\n"):
+                    for line in (n.get('text','') or '').split("\n"):
                         pdf.multi_cell(0, 7, line)
                     pdf.ln(1)
                     pdf.set_font("DejaVu", '', 11)
                     pdf.cell(0, 8, f"Date: {n.get('updated', n.get('created',''))}", ln=1)
-                    pdf.ln(5)
-                    pdf.set_font("DejaVu", '', 10)
-                    pdf.cell(0, 4, '-' * 55, ln=1)
-                    pdf.ln(8)
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    pdf.ln(5); pdf.set_font("DejaVu", '', 10)
+                    pdf.cell(0, 4, '-' * 55, ln=1); pdf.ln(8)
+                import tempfile as _tmp, os as _os2
+                with _tmp.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                     pdf.output(tmp_pdf.name)
                     tmp_pdf.seek(0)
                     pdf_bytes = tmp_pdf.read()
-                os.remove(tmp_pdf.name)
+                _os2.remove(tmp_pdf.name)
                 st.download_button(
                     label="⬇️ Download All Notes (PDF)",
                     data=pdf_bytes,
@@ -5237,9 +5144,10 @@ if tab == "My Course":
                     mime="application/pdf"
                 )
 
-                # --- DOCX Download (all notes) ---
+                # DOCX (all)
+                from docx import Document as _Document
                 def export_notes_to_docx(notes, student_code="student"):
-                    doc = Document()
+                    doc = _Document()
                     doc.add_heading("My Learning Notes", 0)
                     doc.add_heading("Table of Contents", level=1)
                     for idx, note in enumerate(notes):
@@ -5247,15 +5155,13 @@ if tab == "My Course":
                     doc.add_page_break()
                     for note in notes:
                         doc.add_heading(note.get('title','(No Title)'), level=1)
-                        if note.get("tag"):
-                            doc.add_paragraph(f"Tag: {note.get('tag','')}")
+                        if note.get("tag"): doc.add_paragraph(f"Tag: {note.get('tag','')}")
                         doc.add_paragraph(note.get('text', ''))
-                        doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
-                        doc.add_paragraph('-' * 40)
-                        doc.add_paragraph("")
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
-                        doc.save(f.name)
-                        return f.name
+                        doc.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
+                        doc.add_paragraph('-' * 40); doc.add_paragraph("")
+                    import tempfile as _tmp2
+                    with _tmp2.NamedTemporaryFile(delete=False, suffix=".docx") as f:
+                        doc.save(f.name); return f.name
                 docx_path = export_notes_to_docx(notes_to_show, student_code)
                 with open(docx_path, "rb") as f:
                     st.download_button(
@@ -5264,7 +5170,8 @@ if tab == "My Course":
                         file_name=f"{student_code}_notes.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
-                os.remove(docx_path)
+                import os as _os3
+                _os3.remove(docx_path)
 
                 st.markdown("---")
                 pinned_notes = [n for n in notes_to_show if n.get("pinned")]
@@ -5278,17 +5185,14 @@ if tab == "My Course":
                     if note.get("tag"):
                         st.caption(f"🏷️ Tag: {note['tag']}")
                     st.markdown(
-                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
+                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note.get('text','')}</div>",
                         unsafe_allow_html=True)
                     st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
 
-                    # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
-                    download_cols = st.columns([1,1,1])
-                    with download_cols[0]:
-                        # TXT per note
+                    dl_cols = st.columns([1,1,1])
+                    with dl_cols[0]:
                         txt_note = f"Title: {note.get('title','')}\n"
-                        if note.get('tag'):
-                            txt_note += f"Tag: {note['tag']}\n"
+                        if note.get('tag'): txt_note += f"Tag: {note['tag']}\n"
                         txt_note += note.get('text', '') + "\n"
                         txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
                         st.download_button(
@@ -5298,23 +5202,23 @@ if tab == "My Course":
                             mime="text/plain",
                             key=f"download_txt_{i}"
                         )
-                    with download_cols[1]:
-                        # PDF per note (Unicode/emoji ready!)
-                        class SingleNotePDF(FPDF):
+                    with dl_cols[1]:
+                        from fpdf import FPDF as _FPDF2
+                        class SingleNotePDF(_FPDF2):
                             def header(self):
                                 self.set_font('DejaVu', '', 13)
-                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
-                                self.ln(2)
+                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C'); self.ln(2)
                         pdf_note = SingleNotePDF()
-                        pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
+                        try:
+                            pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
+                        except Exception:
+                            pass
                         pdf_note.add_page()
                         pdf_note.set_font("DejaVu", '', 12)
-                        if note.get("tag"):
-                            pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
-                        for line in note.get('text','').split("\n"):
+                        if note.get("tag"): pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+                        for line in (note.get('text','') or '').split("\n"):
                             pdf_note.multi_cell(0, 7, line)
-                        pdf_note.ln(1)
-                        pdf_note.set_font("DejaVu", '', 11)
+                        pdf_note.ln(1); pdf_note.set_font("DejaVu", '', 11)
                         pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
                         pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
                         st.download_button(
@@ -5324,15 +5228,15 @@ if tab == "My Course":
                             mime="application/pdf",
                             key=f"download_pdf_{i}"
                         )
-                    with download_cols[2]:
-                        # DOCX per note
-                        doc_single = Document()
+                    with dl_cols[2]:
+                        from docx import Document as _DocSingle
+                        import io as _io
+                        doc_single = _DocSingle()
                         doc_single.add_heading(note.get('title','(No Title)'), level=1)
-                        if note.get("tag"):
-                            doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                        if note.get("tag"): doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
                         doc_single.add_paragraph(note.get('text', ''))
                         doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
-                        single_docx_io = io.BytesIO()
+                        single_docx_io = _io.BytesIO()
                         doc_single.save(single_docx_io)
                         st.download_button(
                             label="⬇️ DOCX",
@@ -5346,8 +5250,8 @@ if tab == "My Course":
                     with cols[0]:
                         if st.button("✏️ Edit", key=f"edit_{i}"):
                             st.session_state["edit_note_idx"] = i
-                            st.session_state["edit_note_title"] = note["title"]
-                            st.session_state["edit_note_text"] = note["text"]
+                            st.session_state["edit_note_title"] = note.get("title","")
+                            st.session_state["edit_note_text"] = note.get("text","")
                             st.session_state["edit_note_tag"] = note.get("tag", "")
                             st.session_state["switch_to_edit_note"] = True
                             st.rerun()
@@ -5375,37 +5279,116 @@ if tab == "My Course":
                         st.caption("")
 
 
+# =========================== MY RESULTS & RESOURCES ===========================
+# Safe utilities (define only if missing to avoid duplicates)
+if "html_stdlib" not in globals():
+    import html as html_stdlib
+if "urllib" not in globals():
+    import urllib
+if "linkify_html" not in globals():
+    def linkify_html(text):
+        """Escape HTML and convert URLs in plain text to anchor tags."""
+        s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
+        s = html_stdlib.escape(s)
+        s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+        return s
+if "_clean_link" not in globals():
+    def _clean_link(val) -> str:
+        """Return a clean string or '' if empty/NaN/common placeholders."""
+        if val is None: return ""
+        if isinstance(val, float) and pd.isna(val): return ""
+        s = str(val).strip()
+        return "" if s.lower() in {"", "nan", "none", "null", "0"} else s
+if "_is_http_url" not in globals():
+    def _is_http_url(s: str) -> bool:
+        try:
+            u = urllib.parse.urlparse(str(s))
+            return u.scheme in ("http", "https") and bool(u.netloc)
+        except Exception:
+            return False
 
-#Myresults
-def linkify_html(text):
-    """Escape HTML and convert URLs in plain text to anchor tags."""
-    s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
-    s = html_stdlib.escape(s)  # <-- use stdlib html, not the component
-    s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
-    return s
+# Reuse the app’s schedules provider if available (no duplicate calls)
+def _get_level_schedules():
+    if "load_level_schedules" in globals() and callable(load_level_schedules):
+        return load_level_schedules()
+    # Fallback (won’t run if you’ve got load_level_schedules)
+    def _safe(fn):
+        try: return fn()
+        except Exception: return []
+    return {
+        "A1": _safe(get_a1_schedule),
+        "A2": _safe(get_a2_schedule),
+        "B1": _safe(get_b1_schedule),
+        "B2": _safe(get_b2_schedule),
+        "C1": _safe(get_c1_schedule),
+    }
 
+# Plain/emoji score label once; reuse everywhere
+if "score_label_fmt" not in globals():
+    def score_label_fmt(score, *, plain=False):
+        try:
+            s = float(score)
+        except Exception:
+            return "" if not plain else "Needs Improvement"
+        if s >= 90: return "Excellent 🌟" if not plain else "Excellent"
+        if s >= 75: return "Good 👍"      if not plain else "Good"
+        if s >= 60: return "Sufficient ✔️" if not plain else "Sufficient"
+        return "Needs Improvement ❗" if not plain else "Needs Improvement"
 
-def _clean_link(val) -> str:
-    """Return a clean string or '' if empty/NaN/common placeholders."""
-    if val is None:
-        return ""
-    if isinstance(val, float) and pd.isna(val):
-        return ""
-    s = str(val).strip()
-    if s.lower() in {"", "nan", "none", "null", "0"}:
-        return ""
-    return s
+# PDF text sanitizer defined up-front (header needs it)
+if "clean_for_pdf" not in globals():
+    import unicodedata as _ud
+    def clean_for_pdf(text):
+        if not isinstance(text, str):
+            text = str(text)
+        text = _ud.normalize('NFKD', text)
+        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+        return text.replace('\n', ' ').replace('\r', ' ')
 
-def _is_http_url(s: str) -> bool:
+# Prefer secrets/env for sheet; fallback to constant
+def _results_csv_url():
     try:
-        u = urllib.parse.urlparse(s)
-        return u.scheme in ("http", "https") and bool(u.netloc)
+        u = (st.secrets.get("results", {}).get("csv_url", "") if hasattr(st, "secrets") else "").strip()
+        if u: return u
     except Exception:
-        return False
+        pass
+    return "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
+# Cached fetch of scores (robust columns)
+@st.cache_data(ttl=600)
+def fetch_scores(csv_url: str):
+    resp = requests.get(csv_url, timeout=8)
+    resp.raise_for_status()
+    df = pd.read_csv(io.StringIO(resp.text), engine='python')
+    # normalize columns
+    df.columns = [str(c).strip().lower().replace("studentcode", "student_code") for c in df.columns]
+    # a few friendly aliases
+    aliases = {
+        "assignment/chapter": "assignment",
+        "chapter": "assignment",
+        "score (%)": "score",
+    }
+    for src, dst in aliases.items():
+        if src in df.columns and dst not in df.columns:
+            df = df.rename(columns={src: dst})
+    required = ["student_code", "name", "assignment", "score", "date", "level"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        # Return empty with diagnostic columns so UI can error cleanly
+        return pd.DataFrame(columns=required)
+    df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
+    return df
+
+# Tiny helpers for current user
+def _get_current_student():
+    row = st.session_state.get("student_row", {}) or {}
+    code = (row.get("StudentCode") or st.session_state.get("student_code", "") or "").strip()
+    name = (row.get("Name") or st.session_state.get("student_name", "") or "").strip()
+    level = (row.get("Level") or "").strip().upper()
+    return code, name, level
 
 if tab == "My Results and Resources":
-    # 📊 Compact Results & Resources header
+    # Header
     st.markdown(
         '''
         <div style="
@@ -5423,155 +5406,106 @@ if tab == "My Results and Resources":
         unsafe_allow_html=True
     )
     st.divider()
-    
-    # ============ LEVEL SCHEDULES (assume these functions are defined above) ============
-    LEVEL_SCHEDULES = {
-        "A1": get_a1_schedule(),
-        "A2": get_a2_schedule(),
-        "B1": get_b1_schedule(),
-        "B2": get_b2_schedule(),
-        "C1": get_c1_schedule(),
-    }
 
-    # --- LIVE GOOGLE SHEETS CSV LINK ---
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+    # Live CSV URL (secrets/env-aware)
+    GOOGLE_SHEET_CSV = _results_csv_url()
 
-    def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
-        b64 = base64.b64encode(pdf_bytes).decode()
+    # Utility: manual download link for PDF
+    def _pdf_dl_link(pdf_bytes, filename="results.pdf"):
+        import base64 as _b64
+        b64 = _b64.b64encode(pdf_bytes).decode()
         return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
 
-    @st.cache_data
-    def fetch_scores():
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
-        df = df.dropna(subset=required_cols)
-        return df
-
-    # --- Session Vars ---
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
-    st.header("📈 My Results and Resources Hub")
-    st.markdown("View and download your assignment history. All results are private and only visible to you.")
-
-    # ========== REFRESH BUTTON ==========
+    # Refresh
     if st.button("🔄 Refresh for your latest results"):
         st.cache_data.clear()
         st.success("Cache cleared! Reloading…")
         st.rerun()
 
-    # ========== FETCH AND FILTER DATA ==========
-    df_scores = fetch_scores()
+    # Load data
+    df_scores = fetch_scores(GOOGLE_SHEET_CSV)
     required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
         st.write("Columns found:", df_scores.columns.tolist())
         st.stop()
 
-    code = (student_code or "").lower().strip()
-    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code]
+    # Current student
+    student_code, student_name, _ = _get_current_student()
+    code_key = (student_code or "").lower().strip()
+
+    st.header("📈 My Results and Resources Hub")
+    st.markdown("View and download your assignment history. All results are private and only visible to you.")
+
+    # Filter to user
+    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
-    # --- Choose level
-    df_user = df_user.copy()  # avoid SettingWithCopy
-    df_user['level'] = df_user['level'].astype(str).str.upper().str.strip()
-    levels = sorted(df_user['level'].unique())
+    # Level selector
+    df_user = df_user.copy()
+    df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
+    levels = sorted(df_user["level"].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level].copy()
 
-    # ========== METRICS ==========
+    # Metrics
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total = totals.get(level, 0)
-    completed = df_lvl['assignment'].nunique()
-    df_lvl['score'] = pd.to_numeric(df_lvl['score'], errors='coerce')
-    avg_score = df_lvl['score'].mean() or 0
-    best_score = df_lvl['score'].max() or 0
+    total = int(totals.get(level, 0))
+    completed = int(df_lvl["assignment"].nunique())
+    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
+    avg_score = float(df_lvl["score"].mean() or 0)
+    best_score = float(df_lvl["score"].max() or 0)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Assignments", total)
+    c2.metric("Completed", completed)
+    c3.metric("Average Score", f"{avg_score:.1f}")
+    c4.metric("Best Score", f"{best_score:.0f}")
 
-    # ========== DETAILED RESULTS ==========
+    # Detailed results
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
-    def score_label(score):
-        try:
-            s = float(score)
-        except Exception:
-            return ""
-        if s >= 90:
-            return "Excellent 🌟"
-        elif s >= 75:
-            return "Good 👍"
-        elif s >= 60:
-            return "Sufficient ✔️"
-        else:
-            return "Needs Improvement ❗"
+    # Default display (available to PDF section below)
+    df_display = (
+        df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
+              .reset_index(drop=True)
+    )
+    # Ensure optional cols exist
+    if "comments" not in df_display.columns: df_display["comments"] = ""
+    if "link" not in df_display.columns: df_display["link"] = ""
 
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        if 'comments' in df_lvl.columns:
-            # Build the display columns dynamically (include 'link' if present)
-            base_cols = ['assignment', 'score', 'date', 'comments']
-            if 'link' in df_lvl.columns:
-                base_cols.append('link')
+        base_cols = ["assignment", "score", "date", "comments", "link"]
+        for _, row in df_display[base_cols].iterrows():
+            perf = score_label_fmt(row["score"])
+            comment_html = linkify_html(row["comments"])
+            ref_link = _clean_link(row.get("link"))
+            show_ref = bool(ref_link) and _is_http_url(ref_link) and pd.notna(pd.to_numeric(row["score"], errors="coerce"))
 
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                      [base_cols]
-                      .reset_index(drop=True)
-            )
-
-            for _, row in df_display.iterrows():
-                perf = score_label(row['score'])
-                comment_html = linkify_html(row['comments'])
-
-                # only show a real link
-                raw_link = row['link'] if ('link' in df_display.columns) else None
-                ref_link = _clean_link(raw_link)
-                has_valid_link = bool(ref_link) and _is_http_url(ref_link)
-
-                st.markdown(
-                    f"""
-                    <div style="margin-bottom: 18px;">
-                        <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                        Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                        <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                            <b>Feedback:</b> {comment_html}
-                        </div>
+            st.markdown(
+                f"""
+                <div style="margin-bottom: 18px;">
+                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                        <b>Feedback:</b> {comment_html}
                     </div>
-                    """,
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            if show_ref:
+                st.markdown(
+                    f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
                     unsafe_allow_html=True
                 )
+            st.divider()
 
-                # Show Lesen/Hören reference only if there is a valid numeric score AND a valid URL
-                if has_valid_link:
-                    has_score_num = pd.to_numeric(row['score'], errors='coerce')
-                    if not pd.isna(has_score_num):
-                        st.markdown(
-                            f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
-                            unsafe_allow_html=True
-                        )
-
-                st.divider()
-        else:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                      [['assignment', 'score', 'date']]
-                      .reset_index(drop=True)
-            )
-            st.table(df_display)
-
-            
-    st.markdown("---") 
-
-    # ========== BADGES & TROPHIES ==========
+    # Badges
+    st.markdown("---")
     st.markdown("### 🏅 Badges & Trophies")
     with st.expander("What badges can you earn?", expanded=False):
         st.markdown(
@@ -5603,42 +5537,33 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-    # ========== SKIPPED ASSIGNMENTS LOGIC ==========
-    def extract_all_chapter_nums(chapter_str):
+    # Skipped assignments (use shared schedule cache)
+    schedules_map = _get_level_schedules()
+    schedule = schedules_map.get(level, [])
+    def _extract_all_nums(chapter_str):
         parts = re.split(r'[_\s,;]+', str(chapter_str))
         nums = []
         for part in parts:
-            match = re.search(r'\d+(?:\.\d+)?', part)
-            if match:
-                nums.append(float(match.group()))
+            m = re.search(r'\d+(?:\.\d+)?', part)
+            if m: nums.append(float(m.group()))
         return nums
 
-    # Build a set of all chapter numbers completed by student
     completed_nums = set()
     for _, row in df_lvl.iterrows():
-        nums = extract_all_chapter_nums(row['assignment'])
-        completed_nums.update(nums)
+        for num in _extract_all_nums(row["assignment"]):
+            completed_nums.add(num)
+    last_num = max(completed_nums) if completed_nums else 0.0
 
-    last_num = max(completed_nums) if completed_nums else 0
-
-    schedule = LEVEL_SCHEDULES.get(level, [])
     skipped_assignments = []
     for lesson in schedule:
         chapter_field = lesson.get("chapter", "")
-        lesson_nums = extract_all_chapter_nums(chapter_field)
+        lesson_nums = _extract_all_nums(chapter_field)
         day = lesson.get("day", "")
         has_assignment = lesson.get("assignment", False)
         for chap_num in lesson_nums:
-            if (
-                has_assignment
-                and chap_num < last_num
-                and chap_num not in completed_nums
-            ):
-                skipped_assignments.append(
-                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
-                )
-                break  # Only need to flag once per lesson
-
+            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
+                skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
+                break
     if skipped_assignments:
         st.markdown(
             f"""
@@ -5646,7 +5571,7 @@ if tab == "My Results and Resources":
                 background-color: #fff3cd;
                 border-left: 6px solid #ffecb5;
                 color: #7a6001;
-                padding: 16px 18px 16px 16px;
+                padding: 16px 18px;
                 border-radius: 8px;
                 margin: 12px 0;
                 font-size: 1.05em;">
@@ -5658,64 +5583,52 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def is_recommendable_assignment(lesson):
+    # Next assignment recommendation (skip Schreiben & Sprechen-only)
+    def _is_recommendable(lesson):
         topic = str(lesson.get("topic", "")).lower()
-        # Skip if both "schreiben" and "sprechen" in topic
-        if "schreiben" in topic and "sprechen" in topic:
-            return False
-        return True
-
-    def extract_chapter_num(chapter):
+        return not ("schreiben" in topic and "sprechen" in topic)
+    def _extract_max_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        if not nums:
-            return None
-        return max(float(n) for n in nums)
+        return max([float(n) for n in nums], default=None)
 
     completed_chapters = []
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
+    for a in df_lvl["assignment"]:
+        n = _extract_max_num(a)
+        if n is not None: completed_chapters.append(n)
+    last_num = max(completed_chapters) if completed_chapters else 0.0
 
     next_assignment = None
     for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if not is_recommendable_assignment(lesson):
-            continue  # Skip Schreiben & Sprechen lessons
+        chap_num = _extract_max_num(lesson.get("chapter", ""))
+        if not _is_recommendable(lesson):
+            continue
         if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
+            f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
         st.info("🎉 Great Job!")
 
-    # ========== DOWNLOAD PDF SUMMARY ==========
-    # Constants for layout
-    COL_ASSN_W = 45
-    COL_SCORE_W = 18
-    COL_DATE_W = 30
-    PAGE_WIDTH = 210  # A4 width in mm
-    MARGIN = 10       # default margin
+    # ======================= PDF SUMMARY DOWNLOAD =======================
+    COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+    PAGE_WIDTH, MARGIN = 210, 10
     FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
     LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
-    @st.cache_data
+    @st.cache_data(ttl=3600)
     def fetch_logo():
-        import requests, tempfile
         try:
-            resp = requests.get(LOGO_URL, timeout=6)
-            resp.raise_for_status()
+            r = requests.get(LOGO_URL, timeout=6)
+            r.raise_for_status()
+            import tempfile
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            tmp.write(resp.content)
-            tmp.flush()
+            tmp.write(r.content); tmp.flush()
             return tmp.name
         except Exception:
             return None
@@ -5735,7 +5648,6 @@ if tab == "My Results and Resources":
             self.set_font("Arial", 'B', 16)
             self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
             self.ln(3)
-
         def footer(self):
             self.set_y(-15)
             self.set_font("Arial", 'I', 9)
@@ -5746,37 +5658,18 @@ if tab == "My Results and Resources":
             self.alias_nb_pages()
 
     if st.button("⬇️ Download PDF Summary"):
-        import unicodedata
-        def clean_for_pdf(text):
-            if not isinstance(text, str):
-                text = str(text)
-            text = unicodedata.normalize('NFKD', text)
-            text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-            text = text.replace('\n', ' ').replace('\r', ' ')
-            return text
-
-        def score_label(score):
-            try:
-                s = float(score)
-            except:
-                return "Needs Improvement"
-            if s >= 90:
-                return "Excellent"
-            elif s >= 75:
-                return "Good"
-            elif s >= 60:
-                return "Sufficient"
-            else:
-                return "Needs Improvement"
-
-        # Create PDF and add first page
         pdf = PDFReport()
         pdf.add_page()
 
         # Student Info
         pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
+        # Find a name to show (prefer df_user)
+        try:
+            shown_name = df_user.name.iloc[0]
+        except Exception:
+            shown_name = student_name or "Student"
+        pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
         pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
         pdf.ln(5)
 
@@ -5784,43 +5677,43 @@ if tab == "My Results and Resources":
         pdf.set_font("Arial", 'B', 13)
         pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
         pdf.ln(6)
 
-        # Table Header
+        # Table
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(235, 235, 245)
         pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
         pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
         pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
         pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
+
         pdf.set_font("Arial", '', 10)
         pdf.set_fill_color(249, 249, 249)
         row_fill = False
 
-        # Table Rows with wrapped feedback
         for _, row in df_display.iterrows():
             assn = clean_for_pdf(str(row['assignment'])[:24])
             score_txt = clean_for_pdf(str(row['score']))
             date_txt = clean_for_pdf(str(row['date']))
-            label = clean_for_pdf(score_label(row['score']))
+            label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
             pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
             pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
             pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
             pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
             row_fill = not row_fill
 
-        # Output Download
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
         st.download_button(
             label="Download PDF",
             data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
+            file_name=f"{code_key}_results_{level}.pdf",
             mime="application/pdf"
         )
-        st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.markdown(_pdf_dl_link(pdf_bytes, f"{code_key}_results_{level}.pdf"), unsafe_allow_html=True)
         st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
+    # ======================= USEFUL RESOURCES =======================
     st.markdown("---")
     st.subheader("📚 Useful Resources")
     st.markdown(
@@ -5841,6 +5734,7 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
+
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
