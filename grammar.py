@@ -262,7 +262,10 @@ YOUTUBE_PLAYLIST_IDS = {
 }
 
 
-@st.cache_data(ttl=43200)  # cache for 12 hours
+# ================================================
+# YOUTUBE PLAYLIST FETCH (cache 12h)
+# ================================================
+@st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
     params = {
@@ -271,12 +274,11 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
         "maxResults": 50,
         "key": api_key,
     }
-    videos = []
-    next_page = ""
+    videos, next_page = [], ""
     while True:
         if next_page:
             params["pageToken"] = next_page
-        response = requests.get(base_url, params=params)
+        response = requests.get(base_url, params=params, timeout=12)
         data = response.json()
         for item in data.get("items", []):
             vid = item["snippet"]["resourceId"]["videoId"]
@@ -288,7 +290,25 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-# ==== STUDENT SHEET LOADING & SESSION SETUP ====
+
+# ================================================
+# FORCE WWW CANONICAL HOST (place very near top)
+# ================================================
+components.html("""
+<script>
+  (function(){
+    var h = window.location.hostname;
+    if (h === "falowen.app") {
+      window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
+    }
+  })();
+</script>
+""", height=0)
+
+
+# ================================================
+# STUDENT SHEET LOADING & SESSION SETUP
+# ================================================
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data(ttl=300)  # refresh every 5 minutes
@@ -340,8 +360,6 @@ def load_student_data():
     return df
 
 
-
-
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "") or "").strip()
     if not expiry_str or expiry_str.lower() == "nan":
@@ -362,15 +380,13 @@ def is_contract_expired(row):
         expiry_date = parsed.to_pydatetime()
 
     # Use UTC date to avoid local skew/DST issues
-    today = datetime.now(timezone.utc).date()
+    today = datetime.utcnow().date()
     return expiry_date.date() < today
 
 
-
-# ————————————————————————————————————————————————————————
-# 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
-# ————————————————————————————————————————————————————————
-
+# ============================================================
+# 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
+# ============================================================
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
@@ -400,7 +416,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
         except Exception:
             pass
 
-    # 2) JS cookie (host-only, no Domain=) + Max-Age (helps Safari)
+    # 2) JS cookie (host-only, NO Domain=) + Max-Age (helps Safari)
     max_age = 60 * 60 * 24 * 180  # 180 days
     encoded_val = _urllib.quote(norm)
     exp_str = _expire_str(expires)
@@ -435,7 +451,7 @@ components.html("""
 </script>
 """, height=0)
 
-# 2) Query params helpers
+# 2) Query param helpers
 def qp_get():
     try:
         return st.query_params
@@ -451,7 +467,7 @@ def qp_clear():
         except Exception:
             pass
 
-# 3) Init cookie manager once (needed below for both set/get)
+# 3) Init cookie manager once
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
@@ -461,7 +477,7 @@ if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# 4) Handshake: set cookie from ?student_code=, but ONLY clear the param after we confirm cookie exists
+# 4) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
 if isinstance(sc_param, list):
@@ -475,7 +491,7 @@ if sc_param:
         set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
         st.rerun()
     else:
-        # Second pass: did the cookie stick? If yes, clear the URL param; if no, leave it as fallback.
+        # Second pass: did the cookie stick? Clear URL param if yes.
         attempted = st.session_state.get("__cookie_attempt", "")
         have = (cookie_manager.get("student_code") or "").strip().lower()
         if have == attempted:
@@ -514,10 +530,11 @@ if not st.session_state.get("logged_in", False) and effective_code:
                 "student_name": student_row["Name"]
             })
         else:
-            # Expired: clear cookie + localStorage to avoid loops, but keep rendering public page
+            # Expired: clear cookie + localStorage to avoid loops
             set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
+# --- TEMP DEBUG (remove later) ---
 st.caption("Cookie debug (temporary)")
 st.write("cookie_manager.get('student_code'):", cookie_manager.get("student_code"))
 components.html("""
