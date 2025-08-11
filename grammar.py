@@ -3784,10 +3784,6 @@ if tab == "My Course":
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        # --- YouTube main link (clickable) ---
-        if info.get("youtube_link"):
-            st.markdown(f"[▶️ YouTube Link]({info['youtube_link']})")
-
         # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
         def render_section(day_info, key, title, icon):
             content = day_info.get(key)
