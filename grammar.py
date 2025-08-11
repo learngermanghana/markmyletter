@@ -3,7 +3,7 @@ import atexit
 import base64
 import difflib
 import hashlib
-import html as html_stdlib  # renamed stdlib html to avoid conflicts
+import html as html_stdlib  # avoid conflicts with components.html
 import io
 import json
 import os
@@ -13,8 +13,9 @@ import re
 import sqlite3
 import tempfile
 import time
-import urllib.parse as _urllib
-from datetime import date, datetime, timedelta, timezone  # ← added timezone
+import urllib.parse              # for urllib.parse.urlencode(...)
+import urllib.parse as _urllib   # for _urllib.quote(...)
+from datetime import date, datetime, timedelta, timezone  # includes timezone
 from uuid import uuid4
 
 # ==== Third-Party Packages ====
@@ -24,16 +25,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # use components.html(...)
 from bs4 import BeautifulSoup
 from docx import Document
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
+# If you prefer calling st_html(...), keep this; otherwise you can remove it and use components.html(...)
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 # --- SEO: head tags (only on public/landing) ---
@@ -9238,6 +9241,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
