@@ -58,6 +58,40 @@ try:
 except Exception:
     pass
 
+# --- Quick create: add a class from the UI (shows in sidebar) ---
+with st.sidebar.expander("➕ Create class", expanded=False):
+    with st.form("create_class_form", clear_on_submit=True):
+        cname     = st.text_input("Class name", placeholder="A1 Koln Klasse")
+        t1_name   = st.text_input("Tutor name", value="Your Name")
+        t1_email  = st.text_input("Tutor email", value="learngermanghana@gmail.com")
+        cal_url   = st.text_input("Calendar URL", placeholder="https://calendar.app/...")
+        qod_url   = st.text_input("Question of the Day URL", placeholder="https://drive.google.com/...")
+        gram_url  = st.text_input("Grammar Notes URL", placeholder="https://drive.google.com/...")
+        drive_url = st.text_input("Class Drive URL", placeholder="https://drive.google.com/...")
+        create_btn = st.form_submit_button("Create")
+
+    if create_btn:
+        if not cname.strip():
+            st.warning("Please enter a class name.")
+        else:
+            payload = {
+                "name": cname.strip(),
+                "tutors": [{"name": t1_name.strip(), "email": t1_email.strip()}] if t1_name.strip() else [],
+                "calendar_url": cal_url.strip(),
+                "resources": {
+                    "qod_url": qod_url.strip(),
+                    "grammar_url": gram_url.strip(),
+                    "drive_url": drive_url.strip(),
+                },
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "updated_by": "teacher_portal",
+            }
+            db.collection("classes").document(cname.strip()).set(payload, merge=True)
+            st.sidebar.success(f"Created: {cname.strip()}")
+            st.rerun()
+
+
 # ============================ SMALL HELPERS ============================
 def _safe_str(v, default=""):
     try:
@@ -385,3 +419,4 @@ elif page == "Class Meta":
             st.success("Saved.")
         except Exception as e:
             st.error(f"Couldn’t save: {e}")
+
