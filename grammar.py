@@ -1118,32 +1118,6 @@ if not st.session_state.get("logged_in", False):
 
 
 
-# --- Logged In UI ---
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
-
-if st.button("Log out", key="btn_logout"):
-    # Best effort server-side clear (won't hurt; client-side pre-handler will finish the job)
-    try:
-        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-    except Exception:
-        pass
-    try:
-        cookie_manager.delete("student_code")
-        cookie_manager.save()
-    except Exception:
-        pass
-
-    # Send user to ?logout=1 so the EARLY pre-handler runs BEFORE any SSO restore
-    try:
-        # Newer Streamlit
-        st.query_params["logout"] = "1"
-    except Exception:
-        # Fallback for older versions
-        st.experimental_set_query_params(logout="1")
-
-    # Optional: show a quick message while the page reloads
-    st.info("Signing you out…")
-    st.stop()
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -9468,6 +9442,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
