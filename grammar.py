@@ -1358,22 +1358,44 @@ def load_full_vocab_sheet() -> pd.DataFrame:
         out[c] = out[c].astype(str).str.strip()
     return out
 
-def get_vocab_of_the_day(df: pd.DataFrame, level: str) -> Optional[dict]:
-    if df is None or df.empty:
+def get_vocab_of_the_day(df: pd.DataFrame, level: str) -> dict | None:
+    # Guard: empty DF or missing args
+    if df is None or df.empty or not level:
         return None
-    level = (level or "").upper().strip()
-    subset = df[df["Level"] == level]
+
+    # Build a case-insensitive column lookup
+    colmap = {c.strip().lower(): c for c in df.columns}
+
+    # Required column: Level
+    lvl_col = colmap.get("level")
+    if not lvl_col:
+        return None
+
+    # Normalize and filter by level
+    level_norm = (level or "").strip().upper()
+    subset = df[df[lvl_col].astype(str).str.strip().str.upper() == level_norm]
     if subset.empty:
         return None
-    # Stable daily pick per level
-    today_ordinal = date.today().toordinal()
-    idx = today_ordinal % len(subset)
+
+    # Stable daily pick per level (no external/global import)
+    from datetime import date as _date
+    idx = _date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
+
+    # Optional columns (case-insensitive)
+    ger_col = colmap.get("german")
+    eng_col = colmap.get("english")
+    ex_col  = colmap.get("example")
+
+    def _val(col_name):
+        return "" if not col_name else (str(row.get(col_name, "") or "").strip())
+
     return {
-        "german":  row.get("German", "") or "",
-        "english": row.get("English", "") or "",
-        "example": row.get("Example", "") or "",
+        "german":  _val(ger_col),
+        "english": _val(eng_col),
+        "example": _val(ex_col),
     }
+
 
 def parse_contract_end(date_str: Any) -> Optional[datetime]:
     s = ("" if pd.isna(date_str) else str(date_str)).strip()
