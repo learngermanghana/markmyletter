@@ -112,82 +112,6 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# ==== SERVER-SIDE SESSIONS (Firestore) ====
-SESSION_TTL_DAYS = 30
-SESSION_KEY = "falowen_sess"   # key in localStorage and cookie
-
-def _session_doc_id(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-def create_session(student_code: str, email: str, name: str) -> str:
-    import secrets
-    token = secrets.token_urlsafe(32)
-    doc_id = _session_doc_id(token)
-    db.collection("sessions").document(doc_id).set({
-        "student_code": student_code,
-        "email": email,
-        "name": name,
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS),
-    })
-    return token
-
-def get_session(token: str):
-    if not token: 
-        return None
-    doc = db.collection("sessions").document(_session_doc_id(token)).get()
-    if not doc.exists:
-        return None
-    data = doc.to_dict() or {}
-    # expire?
-    exp = data.get("expires_at")
-    if exp and exp < datetime.utcnow():
-        try:
-            db.collection("sessions").document(_session_doc_id(token)).delete()
-        except Exception:
-            pass
-        return None
-    return data
-
-def refresh_session(token: str):
-    try:
-        db.collection("sessions").document(_session_doc_id(token)).update({
-            "expires_at": datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS),
-            "last_seen": datetime.utcnow(),
-        })
-    except Exception:
-        pass
-
-def destroy_session(token: str):
-    try:
-        db.collection("sessions").document(_session_doc_id(token)).delete()
-    except Exception:
-        pass
-
-def persist_session_token(token: str):
-    # Build the JS fragment safely outside the f-string
-    secure_snippet = "c += '; Secure';" if os.getenv("ENV", "prod") != "dev" else ""
-
-    components.html(
-        f"""
-        <script>
-          try {{
-            // Primary: localStorage (works on iOS)
-            localStorage.setItem('{SESSION_KEY}', {json.dumps(token)});
-          }} catch(e) {{}}
-
-          try {{
-            // Best-effort cookie (host-only, SameSite=Lax)
-            var c = "{SESSION_KEY}=" + encodeURIComponent({json.dumps(token)}) + "; Path=/; SameSite=Lax";
-            {secure_snippet}
-            document.cookie = c;
-          }} catch(e) {{}}
-        </script>
-        """,
-        height=0
-    )
-
-
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -366,59 +290,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-# --- Early logout pre-handler (must be BEFORE any SSO/cookie restore) ---
-def _early_qp():
-    try:
-        return st.query_params
-    except Exception:
-        try:
-            return st.experimental_get_query_params()
-        except Exception:
-            return {}
-
-_early_params = _early_qp()
-_early_logout = _early_params.get("logout")
-if isinstance(_early_logout, list):
-    _early_logout = _early_logout[0]
-if (_early_logout or "").strip() == "1":
-    # Nuke cookies + localStorage on the client before anything else runs.
-    components.html("""
-    <script>
-      (function(){
-        try {
-          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
-          const isSecure = (location.protocol === "https:");
-          // Cookies we use
-          const names = ["falowen_student_code", "falowen_EncryptedCookieManager.key_params"];
-          // Host-only delete
-          names.forEach(n => {
-            document.cookie = n + "=; Expires=" + past + "; Path=/; SameSite=Lax" + (isSecure ? "; Secure" : "");
-          });
-          // Base-domain delete just in case an old Domain cookie exists
-          const host = window.location.hostname;
-          const parts = host.split('.');
-          if (parts.length >= 2) {
-            const base = "." + parts.slice(-2).join('.');
-            names.forEach(n => {
-              document.cookie = n + "=; Expires=" + past + "; Path=/; Domain=" + base + "; SameSite=Lax" + (isSecure ? "; Secure" : "");
-            });
-          }
-          try { localStorage.removeItem("student_code"); } catch(e) {}
-
-          // Remove the logout param and reload clean
-          const url = new URL(window.location);
-          url.searchParams.delete("logout");
-          window.location.replace(url.pathname + url.search);
-        } catch (e) {}
-      })();
-    </script>
-    """, height=0)
-    # Also drop any server state immediately
-    for k in list(st.session_state.keys()):
-        if k not in ("_oauth_state",):  # keep anything you explicitly want
-            st.session_state.pop(k, None)
-    st.stop()
-
 
 # ================================================
 # FORCE WWW CANONICAL HOST (place very near top)
@@ -516,50 +387,36 @@ def is_contract_expired(row):
 # 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
 # ============================================================
 
-ENV = os.getenv("ENV", "prod")
-CM_PREFIX = "falowen_"
-
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
-# --- Init cookie manager ONCE (non-blocking) ---
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or (st.secrets.get("COOKIE_SECRET") if hasattr(st, "secrets") else None)
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets or env.")
-    st.stop()
-
-if "_cm" not in st.session_state:
-    st.session_state["_cm"] = EncryptedCookieManager(prefix=CM_PREFIX, password=COOKIE_SECRET)
-cookie_manager = st.session_state["_cm"]
-
-# Don't block if not ready; just remember the state
-st.session_state["_cm_ready"] = bool(cookie_manager.ready())
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
     Safari-friendly cookie: host-only, SameSite=Lax, Secure on HTTPS.
-    Also mirrors to localStorage. Only uses the server-side cookie writer
-    when the cookie manager is ready.
+    Also mirrors to localStorage.
     """
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (ENV != "dev")  # True on Streamlit/Render
+    use_secure = (os.getenv("ENV", "prod") != "dev")  # True on Streamlit/Render
 
-    # 1) Server-visible cookie (only if ready)
-    if st.session_state.get("_cm_ready", False):
+    # 1) Library cookie (server-visible)
+    try:
+        cookie_manager.set(
+            key, norm,
+            expires=expires,
+            secure=use_secure,
+            samesite="Lax",
+            path="/",
+        )
+        cookie_manager.save()
+    except Exception:
         try:
-            cookie_manager.set(
-                key, norm,
-                expires=expires,
-                secure=use_secure,
-                samesite="Lax",
-                path="/",
-            )
+            cookie_manager[key] = norm
             cookie_manager.save()
         except Exception:
             pass
 
-    # 2) JS cookie (host-only, NO Domain=) + localStorage (always)
+    # 2) JS cookie (host-only, NO Domain=) + Max-Age (helps Safari)
     max_age = 60 * 60 * 24 * 180  # 180 days
     encoded_val = _urllib.quote(norm)
     exp_str = _expire_str(expires)
@@ -567,8 +424,8 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     <script>
       (function(){{
         try {{
-          var c = "{CM_PREFIX}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
-          {"c += '; Secure';" if (ENV != "dev") else ""}
+          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
+          {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
           document.cookie = c;  // host-only (no Domain)
           try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
         }} catch(e) {{}}
@@ -576,7 +433,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     </script>
     """, height=0)
 
-# 1) Push localStorage.student_code → ?student_code= (works even if cookies fail first load)
+# 1) Push localStorage.student_code → URL query param (lets us log in even if cookies fail)
 components.html("""
 <script>
   (function(){
@@ -596,46 +453,64 @@ components.html("""
 
 # 2) Query param helpers
 def qp_get():
-    try: return st.query_params
-    except Exception: return st.experimental_get_query_params()
+    try:
+        return st.query_params
+    except Exception:
+        return st.experimental_get_query_params()
 
 def qp_clear():
-    try: st.query_params.clear()
+    try:
+        st.query_params.clear()
     except Exception:
-        try: st.experimental_set_query_params()
-        except Exception: pass
+        try:
+            st.experimental_set_query_params()
+        except Exception:
+            pass
 
-# 3) Handshake from ?student_code=
+# 3) Init cookie manager once
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
+    st.stop()
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+if not cookie_manager.ready():
+    st.warning("Cookies not ready; please refresh.")
+    st.stop()
+
+# 4) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
-if isinstance(sc_param, list): sc_param = sc_param[0]
+if isinstance(sc_param, list):
+    sc_param = sc_param[0]
 sc_param = (sc_param or "").strip().lower()
 
 if sc_param:
-    # First pass: set cookie (JS now; server cookie only if ready), then rerun once
     if not st.session_state.get("__cookie_attempt"):
+        # First attempt: set cookie then rerun
         st.session_state["__cookie_attempt"] = sc_param
         set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
-        # No warning, no blocking — allow this run to finish; next run can see the cookie if ready.
+        st.rerun()
     else:
-        # Second pass: if server cookie is visible, clear the URL param; if not, keep param for now.
-        if st.session_state.get("_cm_ready", False):
-            have = (cookie_manager.get("student_code") or "").strip().lower()
-            if have == st.session_state["__cookie_attempt"]:
-                qp_clear()
-                st.session_state.pop("__cookie_attempt", None)
+        # Second pass: did the cookie stick? Clear URL param if yes.
+        attempted = st.session_state.get("__cookie_attempt", "")
+        have = (cookie_manager.get("student_code") or "").strip().lower()
+        if have == attempted:
+            qp_clear()
+            st.session_state.pop("__cookie_attempt", None)
 else:
     st.session_state.pop("__cookie_attempt", None)
 
-# 4) Ensure session_state keys
-for key, default in [("logged_in", False), ("student_row", None), ("student_code", ""), ("student_name", "")]:
+# 5) Ensure session_state keys
+for key, default in [
+    ("logged_in", False),
+    ("student_row", None),
+    ("student_code", ""),
+    ("student_name", "")
+]:
     st.session_state.setdefault(key, default)
 
-# 5) Restore login: prefer cookie (if ready), else fall back to ?student_code=
-code_cookie = ""
-if st.session_state.get("_cm_ready", False):
-    code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-
+# 6) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
+code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 effective_code = code_cookie or sc_param
 
 if not st.session_state.get("logged_in", False) and effective_code:
@@ -659,29 +534,96 @@ if not st.session_state.get("logged_in", False) and effective_code:
             set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
-# --- Helper: persist login to cookie + localStorage (must be defined early) ---
-def save_cookie_after_login(student_code: str) -> None:
-    val = (student_code or "").strip().lower()
-    # Prefer the already-initialized manager; fall back to global
-    cm = st.session_state.get("_cm") if "_cm" in st.session_state else globals().get("cookie_manager")
 
+# --- 1) Page config & session init ---------------------------------------------
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# --- 2) Global CSS (higher contrast + focus states) ----------------------------
+st.markdown("""
+<style>
+  .hero {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin: 24px auto;
+    max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .help-contact-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin: 16px auto;
+    max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+    border:1px solid #ebebf2; text-align:center;
+  }
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  /* Higher-contrast chips for WCAG */
+  .quick-links a {
+    background: #e2e8f0;   /* light gray for contrast */
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight:600;
+    text-decoration:none;
+    color:#0f172a;          /* very dark text */
+    border:1px solid #cbd5e1;
+  }
+  .quick-links a:hover { background:#cbd5e1; }
+
+  /* Buttons: strong contrast */
+  .stButton > button {
+    background:#2563eb;     /* blue */
+    color:#ffffff;
+    font-weight:700;
+    border-radius:8px;
+    border:2px solid #1d4ed8;
+  }
+  .stButton > button:hover { background:#1d4ed8; }
+
+  /* Clear keyboard focus for accessibility */
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
+  [role="button"]:focus-visible {
+    outline:3px solid #f59e0b;  /* amber focus ring */
+    outline-offset:2px;
+    box-shadow:none !important;
+  }
+
+  /* Legible inputs */
+  input, textarea { color:#0f172a !important; }
+
+  @media (max-width:600px){
+    .hero, .help-contact-box { padding:16px 4vw; }
+  }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Helper: persist login to cookie + localStorage ---
+
+def save_cookie_after_login(student_code: str) -> None:
+    value = str(student_code or "").strip().lower()
     try:
-        if cm:
-            set_student_code_cookie(cm, val, expires=datetime.utcnow() + timedelta(days=180))
+        _cm  = globals().get("cookie_manager")
+        _set = globals().get("set_student_code_cookie")
+        if _cm and _set:
+            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
     except Exception:
         pass
-
-    # Always mirror to localStorage so iOS users stay logged in even if the server cookie lags
     components.html(
-        f"""
+        """
         <script>
-          try {{ localStorage.setItem('student_code', {json.dumps(val)}); }} catch (e) {{}}
+          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
         </script>
-        """,
+        """.replace("__VAL__", json.dumps(value)),
         height=0
     )
-
-
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
@@ -1188,6 +1130,81 @@ if not st.session_state.get("logged_in", False):
 
 
 
+# --- Logged In UI ---
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
+if st.button("Log out"):
+    # 1) Expire the host-only cookie immediately (server + JS)
+    try:
+        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+    except Exception:
+        pass
+
+    # Also try library delete (if supported)
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name = f"{_prefix}student_code"
+    _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
+
+    # 2) Clear localStorage + URL param + cookies (host-only + legacy domain) and reload
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          // localStorage
+          try {{ localStorage.removeItem('student_code'); }} catch (e) {{}}
+
+          // URL param
+          const url = new URL(window.location);
+          if (url.searchParams.has('student_code')) {{
+            url.searchParams.delete('student_code');
+            window.history.replaceState({{}}, '', url);
+          }}
+
+          // Cookies
+          const name = "{_cookie_name}";
+          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
+          const isSecure = {_secure_js};
+
+          // Host-only cookie (current strategy)
+          document.cookie = name + "=; Expires=" + past + "; Path=/; SameSite=Lax" + (isSecure ? "; Secure" : "");
+
+          // Legacy cleanup: try base-domain cookie too (if it ever existed)
+          const host  = window.location.hostname;
+          const parts = host.split('.');
+          if (parts.length >= 2) {{
+            const base = parts.slice(-2).join('.');
+            document.cookie = name + "=; Expires=" + past + "; Path=/; Domain=." + base + "; SameSite=Lax" + (isSecure ? "; Secure" : "");
+          }}
+
+          // Reload
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately
+    for k, v in {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "cookie_synced": False,
+    }.items():
+        st.session_state[k] = v
+
+    try:
+        qp_clear()
+    except Exception:
+        pass
+
+    st.stop()
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -9512,6 +9529,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
