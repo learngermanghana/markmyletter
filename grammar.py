@@ -1,22 +1,12 @@
-# teacher_app.py — Falowen Teacher Portal (MVP, Firebase-only)
-# Run: streamlit run teacher_app.py
+# teacher_app.py — Falowen Teacher Portal (Firebase-only)
+# Run on Streamlit Cloud (add service account JSON to Secrets)
 # Login passcode: 12344
-#
-# Notes:
-# - Uses Firebase Admin SDK + Firestore only (no Google Sheets, no Apps Script webhooks).
-# - Provide your service account in Streamlit Secrets as [firebase] (standard key fields),
-#   or as JSON in env var GCP_SERVICE_ACCOUNT_JSON.
-# - Optional allow-list in secrets:
-#   [roles]
-#   teachers = ["tutor@example.com"]
-#   admins   = ["admin@example.com"]
 
 import os
-import json
 import math
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import streamlit as st
 
@@ -24,16 +14,14 @@ import streamlit as st
 # SHA-256("12344") -> 8e2ceecbcb5c7a306792a3104b9b249f16e36d70da1ed02c7ba948690a0819b3
 HARDCODED_PASS_SHA256 = "8e2ceecbcb5c7a306792a3104b9b249f16e36d70da1ed02c7ba948690a0819b3"
 
-# Fallback to secrets/env if hardcoded is blank
 PASS_SHA256 = (
     HARDCODED_PASS_SHA256
     or (st.secrets.get("teacher", {}).get("portal_sha256", "") if hasattr(st, "secrets") else "")
     or os.getenv("TEACHER_PORTAL_SHA256", "")
 )
 
-ATTEMPT_LIMIT = 5
+ATTEMPT_LIMIT   = 5
 LOCKOUT_MINUTES = 5
-
 
 def _ok_pass(raw: str) -> bool:
     if not PASS_SHA256:
@@ -43,29 +31,32 @@ def _ok_pass(raw: str) -> bool:
     except Exception:
         return False
 
-
 st.set_page_config(page_title="Falowen • Teacher Portal", page_icon="🧑‍🏫", layout="wide")
 
-# ============================ FIRESTORE CLIENT ============================
-
+# ============================ FIREBASE (ADMIN) — NO GOOGLE.CLOUD ============================
 def _get_db():
+    """
+    Initializes Firebase Admin using a service account from Streamlit Secrets.
+    Accepts either:
+      [gcp.service_account]  OR  [firebase]
+    and always passes projectId explicitly.
+    """
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore as fbfs
 
-        # 1) Load service account from Streamlit Secrets
         sa = None
         if hasattr(st, "secrets"):
             if "gcp" in st.secrets and "service_account" in st.secrets["gcp"]:
                 sa = dict(st.secrets["gcp"]["service_account"])
-            elif "firebase" in st.secrets:   # your current block name is [firebase]
+            elif "firebase" in st.secrets:
                 sa = dict(st.secrets["firebase"])
 
         if not sa:
             st.error("🛑 Missing service account. Add it under [gcp.service_account] or [firebase] in Streamlit secrets.", icon="🛑")
             return None
 
-        # 2) Fix private key newlines if pasted with \n
+        # Fix \n if key pasted with escaped newlines
         if "private_key" in sa:
             sa["private_key"] = sa["private_key"].replace("\\n", "\n")
 
@@ -74,7 +65,6 @@ def _get_db():
             st.error("🛑 Service account JSON is missing project_id.", icon="🛑")
             return None
 
-        # 3) Initialize Firebase Admin with explicit projectId
         if not firebase_admin._apps:
             cred = credentials.Certificate(sa)
             firebase_admin.initialize_app(cred, {"projectId": project_id})
@@ -89,33 +79,23 @@ db = _get_db()
 if db is None:
     st.stop()
 
+# Optional healthcheck (comment out if you prefer no writes on boot)
+try:
+    db.collection("healthcheck").add({"ok": True, "at": datetime.utcnow(), "app": "teacher_portal"})
+except Exception:
+    pass
 
-# ============================ SIMPLE HELPERS ============================
-
-def _safe_str(v, default=""):
+# Simple login attempt audit
+def _record_login_attempt(status: str, email: str = ""):
     try:
-        import pandas as pd
-        if pd.isna(v):
-            return default
-    except Exception:
-        if v is None or (isinstance(v, float) and math.isnan(v)):
-            return default
-    s = str(v or "").strip()
-    return "" if s.lower() in ("nan", "none") else s
-
-
-def _record_login_attempt(status: str, who: str):
-    try:
-        db.collection("auth_logs").add({
+        db.collection("teacher_login").add({
             "at": datetime.utcnow(),
-            "status": status,
-            "who": _safe_str(who),
-            "ip": _safe_str(st.session_state.get("_client_ip", "")),
-            "ua": _safe_str(st.session_state.get("_client_ua", "")),
+            "status": status,  # "ok" or "bad"
+            "email": (email or "").strip().lower(),
+            "client": "teacher.falowen.app",
         })
     except Exception:
         pass
-
 
 # ============================ LOGIN FLOW ============================
 if "teacher_auth" not in st.session_state:
@@ -130,7 +110,6 @@ if "teacher_email" not in st.session_state:
 with st.container():
     st.markdown("<h2 style='margin:0;'>🧑‍🏫 Falowen • Teacher Portal</h2>", unsafe_allow_html=True)
 
-# lockout check
 now_ts = time.time()
 if st.session_state["__lock_until"] and now_ts < st.session_state["__lock_until"]:
     remaining = int(st.session_state["__lock_until"] - now_ts)
@@ -174,13 +153,21 @@ if not st.session_state["teacher_auth"]:
 
 # ============================ ROLES ============================
 ALLOWED = set(st.secrets.get("roles", {}).get("teachers", [])) if hasattr(st, "secrets") else set()
-ADMINS = set(st.secrets.get("roles", {}).get("admins", [])) if hasattr(st, "secrets") else set()
+ADMINS  = set(st.secrets.get("roles", {}).get("admins", []))   if hasattr(st, "secrets") else set()
 TEACHER_EMAIL = st.session_state.get("teacher_email", "")
 
 if ALLOWED and (TEACHER_EMAIL not in ALLOWED and TEACHER_EMAIL not in ADMINS):
     st.warning("Your email is not on the teachers/admins allow-list. You may have limited access.")
 
-# ============================ PERMISSIONS / AUDIT ============================
+# ============================ HELPERS ============================
+def _safe_str(v, default=""):
+    try:
+        import pandas as pd
+        if pd.isna(v): return default
+    except Exception:
+        if v is None or (isinstance(v, float) and math.isnan(v)): return default
+    s = str(v or "").strip()
+    return "" if s.lower() in ("nan", "none") else s
 
 def can_manage_class(user_email: str, class_doc: dict) -> bool:
     if user_email in ADMINS:
@@ -190,12 +177,10 @@ def can_manage_class(user_email: str, class_doc: dict) -> bool:
     for o in owners:
         if isinstance(o, dict):
             em = _safe_str(o.get("email"))
-            if em:
-                norm.add(em)
+            if em: norm.add(em)
         else:
             norm.add(_safe_str(o))
     return user_email in norm
-
 
 def log_audit(action: str, class_name: str, before: dict, after: dict, who: str):
     try:
@@ -204,13 +189,27 @@ def log_audit(action: str, class_name: str, before: dict, after: dict, who: str)
             "action": action,
             "class": class_name,
             "by": who,
-            "before": before,
-            "after": after,
+            "before": before, "after": after,
         })
     except Exception:
         pass
 
-# ============================ DATA LOADERS ============================
+def _post_announcement_via_webhook(cls: str, text: str, pinned: bool=False, link: str=""):
+    """Calls your Apps Script webhook to append a row to Announcements sheet."""
+    import requests
+    url = (st.secrets.get("webhooks", {}).get("announce", "") if hasattr(st, "secrets") else "").strip()
+    if not url:
+        st.warning("Announcement webhook not configured in secrets: [webhooks][announce].")
+        return False
+    try:
+        payload = {"class": cls, "announcement": text, "pinned": bool(pinned), "link": link}
+        r = requests.post(url, json=payload, timeout=8)
+        return r.ok
+    except Exception:
+        return False
+
+# ============================ SIDEBAR: CLASS PICKER ============================
+st.sidebar.markdown("### Classes")
 
 def _load_classes():
     try:
@@ -226,11 +225,7 @@ def _load_classes():
     except Exception:
         return []
 
-
-# ============================ SIDEBAR ============================
-st.sidebar.markdown("### Classes")
 all_classes = _load_classes()
-
 view_mode = st.sidebar.radio("View", ["My classes", "All classes"], horizontal=False)
 if view_mode == "My classes":
     my_classes = [c for c in all_classes if can_manage_class(TEACHER_EMAIL, c)]
@@ -276,105 +271,38 @@ if page == "Overview":
             st.write("**Q&A:** n/a")
 
     with col3:
-        # Announcements count
-        try:
-            ann_docs = list(
-                db.collection("classes").document(selected_name).collection("announcements").stream()
-            )
-            st.write(f"**Announcements:** {len(ann_docs)} posts")
-        except Exception:
-            st.write("**Announcements:** n/a")
-
         st.info("Use the left menu to switch sections.\n\n- Post announcements\n- Answer Q&A\n- Edit tutors / calendar / links")
 
-# ============================ ANNOUNCEMENTS (Firestore-only) ============================
+# ============================ ANNOUNCEMENTS ============================
 elif page == "Announcements":
     st.subheader(f"📢 Announcements — {selected_name}")
 
-    # Create new announcement
     with st.form("ann_form", clear_on_submit=True):
         txt = st.text_area("Announcement text", placeholder="[Forum update] A new reply has been posted in Class Q&A.", height=120)
         link = st.text_input("Optional link", placeholder="https://falowen.app/#classroom")
-        pinned = st.checkbox("Pin (e.g., urgent)", value=False)
-        send = st.form_submit_button("Post announcement")
-
+        col_a, col_b = st.columns([1, 1])
+        with col_a:
+            pinned = st.checkbox("Pin (e.g., urgent)", value=False)
+        with col_b:
+            send = st.form_submit_button("Post announcement")
     if send:
         if not txt.strip():
             st.warning("Write something first.")
         else:
-            payload = {
-                "text": txt.strip(),
-                "link": _safe_str(link),
-                "pinned": bool(pinned),
-                "by": TEACHER_EMAIL or "Tutor",
-                "timestamp": datetime.utcnow(),
-            }
-            try:
-                db.collection("classes").document(selected_name).collection("announcements").add(payload)
-                st.success("Announcement posted to Firestore.")
-            except Exception as e:
-                st.error(f"Couldn’t post: {e}")
+            ok = _post_announcement_via_webhook(selected_name, txt.strip(), pinned, link.strip())
+            if ok:
+                st.success("Announcement posted (check your sheet + mailer).")
+            else:
+                st.warning("Couldn’t post — check your webhook config.")
 
-    st.markdown("---")
+    st.caption("This writes a row to your Announcements sheet via your Apps Script webhook, so your existing Gmail mailer sends the email.")
 
-    # List announcements (newest first)
-    try:
-        anns = list(db.collection("classes").document(selected_name).collection("announcements").stream())
-        rows = []
-        for a in anns:
-            d = a.to_dict() or {}
-            d["__id"] = a.id
-            rows.append(d)
-        # Sort by pinned first, then timestamp desc
-        rows.sort(key=lambda r: (
-            0 if r.get("pinned") else 1,
-            -(r.get("timestamp").timestamp() if r.get("timestamp") else 0),
-        ))
-
-        for r in rows:
-            when = ""
-            try:
-                when = r.get("timestamp").strftime("%d %b %H:%M") + " UTC"
-            except Exception:
-                pass
-            pin = "📌 " if r.get("pinned") else ""
-            st.markdown(
-                f"<div style='padding:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;margin:8px 0;'>"
-                f"{pin}<b>{_safe_str(r.get('text'))}</b>"
-                f"<div style='color:#64748b;'>{_safe_str(r.get('link'))}</div>"
-                f"<div style='color:#94a3b8;margin-top:4px;'>by {_safe_str(r.get('by'))} • {when}</div>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-            c1, c2, c3 = st.columns([1, 1, 6])
-            with c1:
-                if st.button("Toggle Pin", key=f"pin_{r['__id']}"):
-                    try:
-                        db.collection("classes").document(selected_name).collection("announcements").document(r["__id"]).update({
-                            "pinned": not bool(r.get("pinned"))
-                        })
-                        st.success("Updated pin.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Pin failed: {e}")
-            with c2:
-                if st.button("Delete", key=f"del_{r['__id']}"):
-                    try:
-                        db.collection("classes").document(selected_name).collection("announcements").document(r["__id"]).delete()
-                        st.success("Deleted.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Delete failed: {e}")
-    except Exception as e:
-        st.error(f"Load failed: {e}")
-
-# ============================ Q&A MANAGER (Firestore-only) ============================
+# ============================ Q&A MANAGER ============================
 elif page == "Q&A Manager":
     st.subheader(f"💬 Class Q&A — {selected_name}")
 
     q_base = db.collection("class_qna").document(selected_name).collection("questions")
 
-    # Controls
     left, right = st.columns([1, 1])
     with left:
         live = st.toggle("Live updates (30s)", value=False, key="teacher_qna_live")
@@ -382,29 +310,23 @@ elif page == "Q&A Manager":
         if st.button("↻ Refresh now"):
             st.rerun()
 
-    # Load questions (latest first) — manual sort to avoid google.cloud import
-    try:
-        q_docs = list(q_base.stream())
-        q_items = []
-        for d in q_docs:
-            qd = d.to_dict() or {}
-            qd["__id"] = d.id
-            q_items.append(qd)
-        q_items.sort(key=lambda x: x.get("timestamp") or datetime.min, reverse=True)
-    except Exception:
-        q_items = []
+    # Load questions (latest first) — no google.cloud import, sort in Python
+    q_docs = list(q_base.stream())
+    questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+    questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
 
-    if not q_items:
+    if not questions:
         st.info("No questions yet.")
     else:
-        for q in q_items:
-            qid = q.get("__id", "")
+        for q in questions:
+            qid = q.get("id", "")
             ts = q.get("timestamp")
             when = ""
             try:
                 when = ts.strftime("%d %b %H:%M") + " UTC"
             except Exception:
                 pass
+
             st.markdown(
                 f"<div style='padding:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;margin:8px 0;'>"
                 f"<b>{_safe_str(q.get('asked_by_name'), '')}</b>"
@@ -412,24 +334,17 @@ elif page == "Q&A Manager":
                 f"{_safe_str(q.get('topic'), '') if q.get('topic') else ''}"
                 f"<div style='margin-top:6px;'>{_safe_str(q.get('question'), '')}</div>"
                 f"</div>",
-                unsafe_allow_html=True,
+                unsafe_allow_html=True
             )
 
-            # Replies list (oldest first)
+            # Replies (sorted oldest→newest)
             r_ref = db.collection("class_qna").document(selected_name).collection("questions").document(qid).collection("replies")
-            try:
-                r_docs = list(r_ref.stream())
-                r_items = []
-                for r in r_docs:
-                    rd = r.to_dict() or {}
-                    rd["__id"] = r.id
-                    r_items.append(rd)
-                r_items.sort(key=lambda x: x.get("timestamp") or datetime.min)
-            except Exception:
-                r_items = []
+            replies = list(r_ref.stream())
+            replies = [(r.id, r.to_dict() or {}) for r in replies]
+            replies.sort(key=lambda x: x[1].get("timestamp"))
 
-            if r_items:
-                for rd in r_items:
+            if replies:
+                for rid, rd in replies:
                     rts = ""
                     try:
                         rts = rd.get("timestamp").strftime("%d %b %H:%M") + " UTC"
@@ -439,37 +354,42 @@ elif page == "Q&A Manager":
                         f"<div style='margin-left:18px;color:#334155;'>↳ <b>{_safe_str(rd.get('replied_by_name'), '')}</b> "
                         f"<span style='color:#94a3b8;'>{rts}</span><br>"
                         f"{_safe_str(rd.get('reply_text'), '')}</div>",
-                        unsafe_allow_html=True,
+                        unsafe_allow_html=True
                     )
+
                     col_ed, col_del, _ = st.columns([1, 1, 6])
                     with col_ed:
-                        if st.button("✏️ Edit", key=f"r_ed_{qid}_{rd['__id']}"):
-                            st.session_state[f"edit_{qid}_{rd['__id']}"] = rd.get("reply_text", "")
+                        if st.button("✏️ Edit", key=f"r_ed_{qid}_{rid}"):
+                            st.session_state[f"edit_{qid}_{rid}"] = rd.get("reply_text", "")
                             st.rerun()
                     with col_del:
-                        if st.button("🗑️ Delete", key=f"r_del_{qid}_{rd['__id']}"):
+                        if st.button("🗑️ Delete", key=f"r_del_{qid}_{rid}"):
                             before = rd.copy()
-                            r_ref.document(rd["__id"]).delete()
+                            r_ref.document(rid).delete()
                             log_audit("delete_reply", selected_name, before, {}, TEACHER_EMAIL)
                             st.success("Reply deleted.")
                             st.rerun()
 
-                    # Inline editor
-                    edit_key = f"edit_{qid}_{rd['__id']}"
+                    edit_key = f"edit_{qid}_{rid}"
                     if edit_key in st.session_state:
-                        new_txt = st.text_area("Edit reply", key=f"edit_box_{qid}_{rd['__id']}", value=st.session_state[edit_key], height=100)
+                        new_txt = st.text_area(
+                            "Edit reply",
+                            key=f"edit_box_{qid}_{rid}",
+                            value=st.session_state[edit_key],
+                            height=100
+                        )
                         c1, c2 = st.columns([1, 1])
                         with c1:
-                            if st.button("💾 Save", key=f"save_{qid}_{rd['__id']}"):
+                            if st.button("💾 Save", key=f"save_{qid}_{rid}"):
                                 if new_txt.strip():
                                     before = rd.copy()
-                                    r_ref.document(rd["__id"]).update({"reply_text": new_txt.strip(), "edited_at": datetime.utcnow()})
+                                    r_ref.document(rid).update({"reply_text": new_txt.strip(), "edited_at": datetime.utcnow()})
                                     log_audit("edit_reply", selected_name, before, {"reply_text": new_txt.strip()}, TEACHER_EMAIL)
                                     st.success("Updated.")
                                 st.session_state.pop(edit_key, None)
                                 st.rerun()
                         with c2:
-                            if st.button("❌ Cancel", key=f"cancel_{qid}_{rd['__id']}"):
+                            if st.button("❌ Cancel", key=f"cancel_{qid}_{rid}"):
                                 st.session_state.pop(edit_key, None)
                                 st.rerun()
 
@@ -498,14 +418,12 @@ elif page == "Q&A Manager":
 elif page == "Class Meta":
     st.subheader(f"🛠️ Class Meta — {selected_name}")
 
-    # Reload latest doc
+    # Reload latest
     doc = db.collection("classes").document(selected_name).get()
     data = doc.to_dict() or {}
     before = data.copy()
 
-    # Tutors (simple: two rows)
     tutors = data.get("tutors") or []
-
     def _as_dict(t):
         if isinstance(t, dict):
             return {"name": _safe_str(t.get("name")), "email": _safe_str(t.get("email"))}
@@ -516,9 +434,9 @@ elif page == "Class Meta":
 
     calendar_url = _safe_str(data.get("calendar_url"))
     resources = data.get("resources") or {}
-    qod_url = _safe_str(resources.get("qod_url"))
+    qod_url     = _safe_str(resources.get("qod_url"))
     grammar_url = _safe_str(resources.get("grammar_url"))
-    drive_url = _safe_str(resources.get("drive_url"))
+    drive_url   = _safe_str(resources.get("drive_url"))
 
     with st.form("meta_form"):
         st.markdown("**Tutors**")
@@ -531,13 +449,13 @@ elif page == "Class Meta":
             t2_mail = st.text_input("Co-Tutor email (optional)", value=t2["email"])
 
         st.markdown("---")
-        calendar_url_new = st.text_input("Class calendar URL", value=calendar_url, placeholder="https://calendar.app/…")
+        calendar_url_new = st.text_input("Class calendar URL", value=calendar_url, placeholder="https://calendar.app/...")
 
         st.markdown("---")
         st.markdown("**Class Resources (simple)**")
-        qod_url_new = st.text_input("Question of the Day URL", value=qod_url, placeholder="https://…")
+        qod_url_new     = st.text_input("Question of the Day URL", value=qod_url, placeholder="https://…")
         grammar_url_new = st.text_input("Grammar Notes URL", value=grammar_url, placeholder="https://…")
-        drive_url_new = st.text_input("Class Drive URL", value=drive_url, placeholder="https://…")
+        drive_url_new   = st.text_input("Class Drive URL", value=drive_url, placeholder="https://…")
 
         save = st.form_submit_button("💾 Save meta")
 
@@ -558,7 +476,7 @@ elif page == "Class Meta":
             "updated_at": datetime.utcnow(),
             "updated_by": TEACHER_EMAIL,
         }
-        # Trim empty co-tutor if blank
+        # Trim empty co-tutor entry
         after["tutors"] = [t for t in after["tutors"] if t.get("name")]
 
         try:
@@ -567,4 +485,3 @@ elif page == "Class Meta":
             st.success("Saved.")
         except Exception as e:
             st.error(f"Couldn’t save: {e}")
-
