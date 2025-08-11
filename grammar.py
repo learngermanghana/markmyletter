@@ -5792,16 +5792,17 @@ How to prepare for your B1 oral exam.
 
 
 # ================================
-# 5a. EXAMS MODE & CUSTOM CHAT TAB (cleaned & de-duplicated)
+# 5a. EXAMS MODE & CUSTOM CHAT TAB (English labels, deduped, sheet-driven)
 # ================================
 
-# -- Firestore progress (kept as-is; used elsewhere)
+# -- Firestore progress (used elsewhere)
 def save_exam_progress(student_code, progress_items):
     doc_ref = db.collection("exam_progress").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     all_progress = data.get("completed", [])
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    from datetime import datetime as _dt
+    now = _dt.now().strftime("%Y-%m-%d %H:%M")
     for item in progress_items:
         already = any(
             p["level"] == item["level"] and
@@ -5818,7 +5819,7 @@ def save_exam_progress(student_code, progress_items):
             })
     doc_ref.set({"completed": all_progress}, merge=True)
 
-# Unified back step (use everywhere)
+# Unified back step
 def back_step(to_stage=1):
     keys_to_clear = []
     if to_stage == 1:
@@ -5861,54 +5862,57 @@ def clear_falowen_chat(student_code, mode, level, teil):
         else:
             doc_ref.delete()
 
-# --- CONFIG ---
-exam_sheet_id   = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
-exam_sheet_name = "exam_topics"
-exam_csv_url    = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
+# --- CONFIG: Exam topics Google Sheet (sheet-driven) ---
+_exam_sheet_id   = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
+_exam_sheet_name = "exam_topics"
+_exam_csv_url    = f"https://docs.google.com/spreadsheets/d/{_exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={_exam_sheet_name}"
 
 @st.cache_data
 def load_exam_topics():
     import pandas as _pd
     try:
-        df = _pd.read_csv(exam_csv_url)
+        df = _pd.read_csv(_exam_csv_url)
     except Exception:
         return _pd.DataFrame()
-    # Normalize common columns (some sheets use different headers)
-    # We’ll canonicalize to: Level, Teil, Topic, Keyword
+    # Canonicalize to: Level, Teil, Topic, Keyword (tolerate alt headers)
     cols = {c.strip(): c for c in df.columns}
     def pick(*names):
         for n in names:
             if n in cols: return cols[n]
         return None
-    # Rename if alternates exist
     topic_col   = pick("Topic", "Topic/Prompt", "Thema", "Prompt")
     keyword_col = pick("Keyword", "Keyword/Subtopic", "Schlüsselwort", "Subtopic")
-    if topic_col and topic_col != "Topic":
-        df = df.rename(columns={topic_col: "Topic"})
-    if keyword_col and keyword_col != "Keyword":
-        df = df.rename(columns={keyword_col: "Keyword"})
+    if topic_col   and topic_col   != "Topic":   df = df.rename(columns={topic_col: "Topic"})
+    if keyword_col and keyword_col != "Keyword": df = df.rename(columns={keyword_col: "Keyword"})
     for must in ["Level", "Teil", "Topic", "Keyword"]:
         if must not in df.columns:
             df[must] = ""
-    # Strip whitespace
     for c in ["Level", "Teil", "Topic", "Keyword"]:
         df[c] = df[c].astype(str).str.strip()
     return df
 
 df_exam = load_exam_topics()
 
-# Bubble styles + highlighters
-bubble_user = (
+# --- Small helpers (scoped) ---
+
+def _extract_part_number(label: str):
+    # Accept "Part 1 – ..." or "Teil 1 – ..." and return "1"
+    import re as _re
+    m = _re.search(r'(Teil|Part)\s*(\d+)', str(label), _re.IGNORECASE)
+    return m.group(2) if m else None
+
+# Bubble styles + keyword highlighter
+_bubble_user = (
     "background:#1976d2; color:#fff; border-radius:18px 18px 2px 18px;"
     "padding:10px 16px; margin:5px 0 5px auto; max-width:90vw; display:inline-block; font-size:1.12em;"
     "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
 )
-bubble_assistant = (
+_bubble_assistant = (
     "background:#faf9e4; color:#2d2d2d; border-radius:18px 18px 18px 2px;"
     "padding:10px 16px; margin:5px auto 5px 0; max-width:90vw; display:inline-block; font-size:1.12em;"
     "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
 )
-highlight_words = ["Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"]
+EXAM_HIGHLIGHT_WORDS = ["Error", "Tip", "Attention", "good", "correct", "great", "again", "Please", "Don’t forget"]
 
 def highlight_keywords(text, words, ignore_case=True):
     import re as _re
@@ -5923,7 +5927,7 @@ def highlight_keywords(text, words, ignore_case=True):
         )
     return text
 
-# Small PDF helper
+# Chat PDF
 def falowen_download_pdf(messages, filename):
     from fpdf import FPDF
     import os
@@ -5944,76 +5948,75 @@ def falowen_download_pdf(messages, filename):
     os.remove(pdf_output)
     return pdf_bytes
 
-# PROMPT BUILDERS (unchanged content, minor trims)
+# PROMPT BUILDERS (concise, English UI; German examples allowed)
 def build_a1_exam_intro():
     return (
-        "**A1 – Teil 1: Basic Introduction**\n\n"
-        "Introduce yourself with **Name, Land, Wohnort, Sprachen, Beruf, Hobby**.\n"
-        "Then I’ll ask:\n- Haben Sie Geschwister?\n- Wie alt ist deine Mutter?\n- Bist du verheiratet?\n\n"
-        "You might be asked to spell your name (**Buchstabieren**). Please introduce yourself now."
+        "**A1 – Part 1: Basic Introduction**\n\n"
+        "Introduce yourself with **Name, Country, City, Languages, Job, Hobby**.\n"
+        "Then I’ll ask:\n- Do you have siblings?\n- How old is your mother?\n- Are you married?\n\n"
+        "You might be asked to spell your name (**buchstabieren**). Please introduce yourself now."
     )
 
-def build_exam_instruction(level, teil):
-    # (shortened where possible; logic unchanged)
+def build_exam_instruction(level, teil_label):
+    # English-facing instructions
     if level == "A1":
-        if "Teil 1" in teil: return build_a1_exam_intro()
-        if "Teil 2" in teil:
-            return ("**A1 – Teil 2: Question and Answer**\n\n"
-                    "I’ll give you a topic and keyword. Ask a question with the keyword and answer it yourself. "
+        if "Part 1" in teil_label or "Teil 1" in teil_label: return build_a1_exam_intro()
+        if "Part 2" in teil_label or "Teil 2" in teil_label:
+            return ("**A1 – Part 2: Question and Answer**\n\n"
+                    "I’ll give you a topic and a keyword. Ask a question using the keyword and answer it yourself. "
                     "I’ll correct your German (in English) and say if you passed. Type 'Yes' to begin.")
-        if "Teil 3" in teil:
-            return ("**A1 – Teil 3: Making a Request**\n\n"
-                    "I’ll give you a prompt (e.g., 'Radio anmachen'). Write a polite request. I’ll correct you and move to the next prompt. Ready? Type 'Yes'.")
+        if "Part 3" in teil_label or "Teil 3" in teil_label:
+            return ("**A1 – Part 3: Making a Request**\n\n"
+                    "I’ll give you a short prompt (e.g., 'Radio anmachen'). Write a polite request. I’ll correct you and move on. Ready? Type 'Yes'.")
     if level == "A2":
-        if "Teil 1" in teil:
-            return ("**A2 – Teil 1: Fragen zu Schlüsselwörtern**\n\n"
-                    "I’ll give a topic. Ask & answer your own question. I’ll ask 3 questions, correct you (in English), and score you out of 25.")
-        if "Teil 2" in teil:
-            return ("**A2 – Teil 2: Über das Thema sprechen**\n\n"
-                    "Talk about the topic in 3–4 sentences. I’ll ask 3 questions, correct (in English), and score you out of 25.")
-        if "Teil 3" in teil:
-            return ("**A2 – Teil 3: Gemeinsam planen**\n\n"
-                    "We’ll plan together. After 5 prompts, I’ll score you out of 25 with feedback.")
+        if "Part 1" in teil_label or "Teil 1" in teil_label:
+            return ("**A2 – Part 1: Questions with Keywords**\n\n"
+                    "I’ll give a topic. Ask & answer your own question. I’ll ask up to 3, correct (in English), and score you /25.")
+        if "Part 2" in teil_label or "Teil 2" in teil_label:
+            return ("**A2 – Part 2: Talk about the Topic**\n\n"
+                    "Speak 3–4 sentences about the topic. I’ll ask up to 3, correct (in English), and score you /25.")
+        if "Part 3" in teil_label or "Teil 3" in teil_label:
+            return ("**A2 – Part 3: Plan Together**\n\n"
+                    "We’ll plan something together. After ~5 prompts I’ll score you /25 with feedback.")
     if level == "B1":
-        if "Teil 1" in teil:
-            return ("**B1 – Teil 1: Gemeinsam planen (Dialogue)**\n\n"
-                    "We plan an activity together. I’ll ask 5 questions max, then score you out of 25.")
-        if "Teil 2" in teil:
-            return ("**B1 – Teil 2: Präsentation**\n\n"
-                    "Give a short presentation. I’ll ask 3 questions, give feedback, and score you out of 25.")
-        if "Teil 3" in teil:
-            return ("**B1 – Teil 3: Feedback & Fragen**\n\n"
-                    "I’ll ask 3 questions about your presentation, then feedback & 25-mark score.")
+        if "Part 1" in teil_label or "Teil 1" in teil_label:
+            return ("**B1 – Part 1: Plan Together (Dialogue)**\n\n"
+                    "We plan an activity together. I’ll ask up to 5 questions, then score you /25.")
+        if "Part 2" in teil_label or "Teil 2" in teil_label:
+            return ("**B1 – Part 2: Presentation**\n\n"
+                    "Give a short presentation. I’ll ask ~3 questions, give feedback, and score you /25.")
+        if "Part 3" in teil_label or "Teil 3" in teil_label:
+            return ("**B1 – Part 3: Feedback & Questions**\n\n"
+                    "I’ll ask ~3 questions about your presentation, then feedback & a /25 score.")
     if level == "B2":
-        if "Teil 1" in teil: return "**B2 – Teil 1: Diskussion**\n\nWe discuss a topic. I’ll challenge your points and correct you."
-        if "Teil 2" in teil: return "**B2 – Teil 2: Präsentation**\n\nPresent a topic. I’ll ask probing questions and give advanced feedback."
-        if "Teil 3" in teil: return "**B2 – Teil 3: Argumentation**\n\nArgue your perspective. Expect detailed corrections."
+        if "Part 1" in teil_label or "Teil 1" in teil_label: return "**B2 – Part 1: Discussion**\n\nWe discuss a topic. I’ll challenge your points and correct you."
+        if "Part 2" in teil_label or "Teil 2" in teil_label: return "**B2 – Part 2: Presentation**\n\nPresent a topic. I’ll ask probing questions and give advanced feedback."
+        if "Part 3" in teil_label or "Teil 3" in teil_label: return "**B2 – Part 3: Argumentation**\n\nArgue your perspective. Expect detailed corrections."
     if level == "C1":
-        return ("Du bist auf C1. Ich spreche nur Deutsch, stelle anspruchsvolle Fragen, "
-                "gebe Feedback auf Deutsch und fördere komplexe Strukturen.")
+        return ("You are at C1. I will speak only German, ask demanding questions, "
+                "give feedback in German, and push complex structures.")
     return ""
 
-def build_exam_system_prompt(level, teil):
-    # (kept concise; same behavior)
+def build_exam_system_prompt(level, teil_label):
     if level == "A1":
-        if "Teil 1" in teil:
-            return ("You are Herr Felix, a supportive A1 examiner. Ask for full self-intro (Name/Land/Wohnort/Sprachen/Beruf/Hobby). "
+        if "Part 1" in teil_label or "Teil 1" in teil_label:
+            return ("You are Herr Felix, a supportive A1 examiner. Ask for full self-intro (Name/Country/City/Languages/Job/Hobby). "
                     "After the intro, ask the three fixed questions. Correct errors and explanations in English only; German examples OK. "
                     "End with a score /25 and pass/fail.")
-        if "Teil 2" in teil:
-            return ("You are Herr Felix, A1 examiner. Random Thema+Keyword from official list. "
+        if "Part 2" in teil_label or "Teil 2" in teil_label:
+            return ("You are Herr Felix, A1 examiner. Random Topic+Keyword from official list. "
                     "Student must ask a question with the keyword and answer it. Correct (explain in English) and after each turn say pass/fail. Keep it supportive.")
-        if "Teil 3" in teil:
+        if "Part 3" in teil_label or "Teil 3" in teil_label:
             return ("You are Herr Felix, A1 examiner. Give short prompts like 'Radio anmachen'. "
                     "Student writes a polite request. Correct (explain in English), provide the right version, then next prompt.")
     if level == "A2":
         return ("You are a Goethe A2 examiner (Herr Felix). Keep it exam-style, supportive, correct errors in English, "
-                "respect the number of questions for each Teil, and at the end score /25 with a short rationale.")
+                "respect the number of questions for each part, and at the end score /25 with a short rationale.")
     if level == "B1":
         return ("You are a Goethe B1 examiner (Herr Felix). Keep turns short, ask the specified number of questions, "
                 "correct in both German+English, and give an exam-style /25 score with reasoning.")
     if level == "B2":
-        return ("You are a B2 examiner (Herr Felix). Discuss/present/argue as per Teil. Provide advanced feedback, mostly in German; "
+        return ("You are a B2 examiner (Herr Felix). Discuss/present/argue as per the part. Provide advanced feedback, mostly in German; "
                 "English only for tricky points.")
     if level == "C1":
         return ("Du bist C1-Prüfer Herr Felix. Nur Deutsch, herausfordernde Fragen, präzises Feedback, anspruchsvolle Strukturen fördern.")
@@ -6043,24 +6046,25 @@ for key, val in {
     if key not in st.session_state:
         st.session_state[key] = val
 
-lesen_links = {
-    "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
-    "A2": [("Goethe A2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
-    "B1": [("Goethe B1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
-    "B2": [("Goethe B2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
-    "C1": [("Goethe C1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+# Official links (English labels)
+reading_links = {
+    "A1": [("Goethe A1 Reading (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+    "A2": [("Goethe A2 Reading (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+    "B1": [("Goethe B1 Reading (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+    "B2": [("Goethe B2 Reading (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+    "C1": [("Goethe C1 Reading (official practice)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
 }
-hoeren_links = {
-    "A1": [("Goethe A1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
-    "A2": [("Goethe A2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
-    "B1": [("Goethe B1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
-    "B2": [("Goethe B2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
-    "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+listening_links = {
+    "A1": [("Goethe A1 Listening (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+    "A2": [("Goethe A2 Listening (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+    "B1": [("Goethe B1 Listening (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+    "B2": [("Goethe B2 Listening (official practice)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+    "C1": [("Goethe C1 Listening (official practice)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
 }
 
 # ===== Tab
 if tab == "Exams Mode & Custom Chat":
-    # --- Login gate for isolation
+    # --- Login gate
     if "student_code" not in st.session_state or not st.session_state["student_code"]:
         code_in = st.text_input("Enter your Student Code to continue:", key="login_code")
         if st.button("Login"):
@@ -6101,14 +6105,14 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("Step 1: Choose Practice Mode")
         st.info(
             """
-            - 📝 **Exam Mode**: Speaking simulation + links to official Lesen/Hören
-            - 💬 **Custom Chat**: Free topic speaking practice
+            - 📝 **Exam Mode (Guided Simulation)**: Speaking simulation + links to official Reading/Listening
+            - 💬 **Custom Chat (Choose your own topic)**: Free topic speaking practice
             - 🎤 **Pronunciation & Speaking Checker**: Upload audio, get instant feedback
             """, icon="ℹ️"
         )
         mode = st.radio(
             "How would you like to practice?",
-            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)", "Pronunciation & Speaking Checker"],
+            ["Exam Mode (Guided Simulation)", "Custom Chat (Choose your own topic)", "Pronunciation & Speaking Checker"],
             key="falowen_mode_center"
         )
         if st.button("Next ➡️", key="falowen_next_mode"):
@@ -6132,7 +6136,7 @@ if tab == "Exams Mode & Custom Chat":
         with c2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 st.session_state["falowen_level"] = level
-                st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)" else 4
+                st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Exam Mode (Guided Simulation)" else 4
                 st.session_state["falowen_teil"] = None
                 st.session_state["falowen_messages"] = []
                 st.session_state["custom_topic_intro_done"] = False
@@ -6143,70 +6147,77 @@ if tab == "Exams Mode & Custom Chat":
     if st.session_state["falowen_stage"] == 3:
         st.subheader("Step 3: Choose Exam Part")
         teil_options = {
-            "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
-            "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
-            "B1": ["Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
-            "B2": ["Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
-            "C1": ["Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
+            "A1": ["Part 1 – Basic Introduction", "Part 2 – Question and Answer", "Part 3 – Making a Request",
+                   "Reading – Past Exam", "Listening – Past Exam"],
+            "A2": ["Part 1 – Questions with Keywords", "Part 2 – Talk about the Topic", "Part 3 – Plan Together",
+                   "Reading – Past Exam", "Listening – Past Exam"],
+            "B1": ["Part 1 – Plan Together (Dialogue)", "Part 2 – Presentation (Monologue)", "Part 3 – Feedback & Questions",
+                   "Reading – Past Exam", "Listening – Past Exam"],
+            "B2": ["Part 1 – Discussion", "Part 2 – Presentation", "Part 3 – Argumentation",
+                   "Reading – Past Exam", "Listening – Past Exam"],
+            "C1": ["Part 1 – Talk", "Part 2 – Discussion", "Part 3 – Evaluation",
+                   "Reading – Past Exam", "Listening – Past Exam"],
         }
         level = st.session_state["falowen_level"]
         teil = st.radio("Which exam part?", teil_options[level], key="falowen_teil_center")
 
-        # Lesen/Hören links
-        if "Lesen" in teil or "Hören" in teil:
-            if "Lesen" in teil:
+        # Reading/Listening links
+        is_reading = ("Reading" in teil) or ("Lesen" in teil)
+        is_listening = ("Listening" in teil) or ("Hören" in teil)
+        if is_reading or is_listening:
+            if is_reading:
                 st.markdown(
                     "<div style='background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;'>"
-                    "<span style='font-size:1.18em;color:#0277bd;'><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>",
+                    "<span style='font-size:1.18em;color:#0277bd;'><b>📖 Past Exam: Reading</b></span><br><br>",
                     unsafe_allow_html=True
                 )
-                for label, url in lesen_links.get(level, []):
+                for label, url in reading_links.get(level, []):
                     st.markdown(f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600">👉 {label}</a><br>', unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-            if "Hören" in teil:
+            if is_listening:
                 st.markdown(
                     "<div style='background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;'>"
-                    "<span style='font-size:1.18em;color:#512da8;'><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>",
+                    "<span style='font-size:1.18em;color:#512da8;'><b>🎧 Past Exam: Listening</b></span><br><br>",
                     unsafe_allow_html=True
                 )
-                for label, url in hoeren_links.get(level, []):
+                for label, url in listening_links.get(level, []):
                     st.markdown(f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600">👉 {label}</a><br>', unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-            if st.button("⬅️ Back", key="lesen_hoeren_back"):
+            if st.button("⬅️ Back", key="lesen_hoeren_back_en"):
                 back_step(2)
 
         else:
-            # Topic picker (robust to varying sheet headers)
-            teil_number = teil.split()[1]  # "1", "2", "3"
+            # Topic picker (sheet-driven; tolerant of "Teil X" in sheet)
+            teil_number = _extract_part_number(teil)  # "1"/"2"/"3"
             exam_topics = df_exam[
                 (df_exam["Level"].str.upper() == level.upper()) &
                 (df_exam["Teil"].str.contains(f"Teil {teil_number}", case=False, na=False))
-            ] if not df_exam.empty else pd.DataFrame()
+            ] if (teil_number and not df_exam.empty) else None
 
             topics_list = []
-            if not exam_topics.empty:
+            if exam_topics is not None and not exam_topics.empty:
                 tvals = exam_topics["Topic"].astype(str).str.strip()
                 kvals = exam_topics["Keyword"].astype(str).str.strip()
                 topics_list = [f"{t} – {k}" if k else t for t, k in zip(tvals, kvals) if t]
 
             search = st.text_input("🔍 Search topic or keyword...", "")
-            filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
+            filtered = [t for t in topics_list if search.lower() in t.lower()] if (search and topics_list) else topics_list
 
             if filtered:
                 st.markdown("**Preview: Available Topics**")
                 for t in filtered[:6]:
                     st.markdown(f"- {t}")
                 if len(filtered) > 6:
+                    c1, c2 = st.columns(2)
                     with st.expander(f"See all {len(filtered)} topics"):
-                        c1, c2 = st.columns(2)
                         for i, t in enumerate(filtered):
                             (c1 if i % 2 == 0 else c2).markdown(f"- {t}")
 
                 st.write("**Pick your topic or select random:**")
-                choice = st.selectbox("", ["(random)"] + filtered, key="topic_picker")
+                choice = st.selectbox("", ["(random)"] + filtered, key="topic_picker_en")
                 if choice == "(random)":
-                    import random
-                    chosen = random.choice(filtered)
+                    import random as _rand
+                    chosen = _rand.choice(filtered)
                 else:
                     chosen = choice
 
@@ -6222,17 +6233,17 @@ if tab == "Exams Mode & Custom Chat":
 
             c1, c2 = st.columns([1, 2])
             with c1:
-                if st.button("⬅️ Back", key="falowen_back_part"):
+                if st.button("⬅️ Back", key="falowen_back_part_en"):
                     back_step(2)
             with c2:
-                if st.button("Start Practice", key="falowen_start_practice"):
-                    import random
+                if st.button("Start Practice", key="falowen_start_practice_en"):
+                    import random as _rand
                     st.session_state["falowen_teil"] = teil
                     st.session_state["falowen_stage"] = 4
                     st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
-                    st.session_state["remaining_topics"] = filtered.copy()
-                    random.shuffle(st.session_state["remaining_topics"])
+                    st.session_state["remaining_topics"] = filtered.copy() if filtered else []
+                    _rand.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"] = []
                     st.rerun()
 
@@ -6268,7 +6279,7 @@ if tab == "Exams Mode & Custom Chat":
         level = st.session_state.get("falowen_level")
         teil  = st.session_state.get("falowen_teil")
         mode  = st.session_state.get("falowen_mode")
-        is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
+        is_exam = (mode == "Exam Mode (Guided Simulation)")
         student_code = st.session_state.get("student_code", "demo")
 
         # Load chat once
@@ -6284,14 +6295,14 @@ if tab == "Exams Mode & Custom Chat":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
                     st.markdown(
                         "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg.get('content',''), highlight_words)}</div>",
+                        f"<div style='{_bubble_assistant}'>{highlight_keywords(msg.get('content',''), EXAM_HIGHLIGHT_WORDS)}</div>",
                         unsafe_allow_html=True
                     )
             else:
                 with st.chat_message("user"):
                     st.markdown(
                         f"<div style='display:flex;justify-content:flex-end;'>"
-                        f"<div style='{bubble_user}'>🗣️ {msg.get('content','')}</div></div>",
+                        f"<div style='{_bubble_user}'>🗣️ {msg.get('content','')}</div></div>",
                         unsafe_allow_html=True
                     )
 
@@ -6334,12 +6345,13 @@ if tab == "Exams Mode & Custom Chat":
 
         # First instruction
         if not st.session_state["falowen_messages"]:
-            instruction = build_exam_instruction(level, teil) if is_exam else "Hallo! 👋 What would you like to talk about?"
+            instruction = build_exam_instruction(level, teil) if is_exam else "Hi! 👋 What would you like to talk about?"
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
         # Build system prompt
         if is_exam:
+            # ensure topic in session if we prepared a shuffled list
             if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
                 next_topic = st.session_state["remaining_topics"].pop(0)
                 if " – " in next_topic:
@@ -6351,7 +6363,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state.setdefault("used_topics", []).append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
-            system_prompt = f"{base_prompt} Thema: {topic}." if topic else base_prompt
+            system_prompt = f"{base_prompt} Topic: {topic}." if topic else base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
 
@@ -6363,14 +6375,13 @@ if tab == "Exams Mode & Custom Chat":
 
             with st.chat_message("user"):
                 st.markdown(
-                    f"<div style='display:flex;justify-content:flex-end;'><div style='{bubble_user}'>🗣️ {user_input}</div></div>",
+                    f"<div style='display:flex;justify-content:flex-end;'><div style='{_bubble_user}'>🗣️ {user_input}</div></div>",
                     unsafe_allow_html=True
                 )
 
             # Generate reply
             with st.chat_message("assistant", avatar="🧑‍🏫"):
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    # Use existing OpenAI client if available
                     try:
                         client
                     except NameError:
@@ -6392,7 +6403,7 @@ if tab == "Exams Mode & Custom Chat":
 
                 st.markdown(
                     "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply or '', highlight_words)}</div>",
+                    f"<div style='{_bubble_assistant}'>{highlight_keywords(ai_reply or '', EXAM_HIGHLIGHT_WORDS)}</div>",
                     unsafe_allow_html=True
                 )
 
@@ -6509,11 +6520,23 @@ if tab == "Exams Mode & Custom Chat":
             back_step(1)
 
 
+
 # =========================================
 # Vocab
 # =========================================
 
-# sentence_bank.py
+import streamlit as st
+import pandas as pd
+
+# If your app initializes Firestore elsewhere, we just reference safely.
+try:
+    db  # Firestore client
+except NameError:
+    db = None
+
+# ======================
+# Dictionary (sentences)
+# ======================
 SENTENCE_BANK = {
     "A1": [
         {
@@ -7426,8 +7449,6 @@ SENTENCE_BANK = {
 # Vocab Trainer (shard-safe; no duplicate imports)
 # ================================
 
-# If you initialize Firestore elsewhere, expose it here.
-# This helper prevents NameError if db isn't ready.
 def _get_db():
     try:
         return db  # provided by your app elsewhere
@@ -7448,15 +7469,12 @@ def load_student_levels():
     """
     Load the roster with a 'Level' column.
     Expected columns (case-insensitive): student_code, level
-    We normalize headers and try common alternatives for student code and level.
     """
     sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
     csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     df = pd.read_csv(csv_url)
-    # normalize headers
     df.columns = [c.strip().lower() for c in df.columns]
 
-    # try to align student_code column
     code_col_candidates  = ["student_code", "studentcode", "code", "student id", "id"]
     level_col_candidates = ["level", "klasse", "stufe"]
     code_col  = next((c for c in code_col_candidates  if c in df.columns), None)
@@ -7467,20 +7485,14 @@ def load_student_levels():
             f"Roster is missing required columns. "
             f"Found: {list(df.columns)}; need one of {code_col_candidates} and one of {level_col_candidates}."
         )
-        # still return something so callers don't crash
         df["__dummy_code__"]  = "demo001"
         df["__dummy_level__"] = "A1"
         return df.rename(columns={"__dummy_code__": "student_code", "__dummy_level__": "level"})
 
-    # rename to canonical names
     df = df.rename(columns={code_col: "student_code", level_col: "level"})
     return df
 
 def get_student_level(student_code: str, default: str = "A1") -> str:
-    """
-    Return student's Level (A1..C1) from the roster for this student_code.
-    Case-insensitive match on student_code.
-    """
     try:
         df = load_student_levels()
         if "student_code" not in df.columns or "level" not in df.columns:
@@ -7499,48 +7511,34 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
 # HELPERS: Vocab attempts (Firestore)
 # ================================
 def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
-    """Check if an attempt with this session_id already exists for the student."""
     if not session_id:
         return False
     _db = _get_db()
     if _db is None:
         return False
-
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if not doc.exists:
         return False
-
     data = doc.to_dict() or {}
     history = data.get("history", [])
     return any(h.get("session_id") == session_id for h in history)
 
-
 def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
-    """
-    Save one vocab practice attempt to Firestore.
-    Duplicate-safe using session_id.
-    """
     _db = _get_db()
     if _db is None:
         st.warning("Firestore not initialized; skipping stats save.")
         return
-
-    # local imports to avoid shard-wide duplicate imports
     from uuid import uuid4
     from datetime import datetime
-
     if not session_id:
         session_id = str(uuid4())
-
     if vocab_attempt_exists(student_code, session_id):
         return
-
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
-
     attempt = {
         "level": level,
         "total": int(total) if total is not None else 0,
@@ -7549,10 +7547,8 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words, ses
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "session_id": session_id,
     }
-
     history.append(attempt)
     completed = {w for a in history for w in a.get("practiced_words", [])}
-
     doc_ref.set({
         "history":         history,
         "last_practiced":  attempt["timestamp"],
@@ -7560,18 +7556,10 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words, ses
         "total_sessions":  len(history),
     }, merge=True)
 
-
 def get_vocab_stats(student_code):
-    """Load vocab practice stats from Firestore (or defaults)."""
     _db = _get_db()
     if _db is None:
-        return {
-            "history":         [],
-            "last_practiced":  None,
-            "completed_words": [],
-            "total_sessions":  0,
-        }
-
+        return {"history": [], "last_practiced": None, "completed_words": [], "total_sessions": 0}
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
@@ -7582,27 +7570,18 @@ def get_vocab_stats(student_code):
             "completed_words": data.get("completed_words", []),
             "total_sessions":  data.get("total_sessions", 0),
         }
-
-    return {
-        "history":         [],
-        "last_practiced":  None,
-        "completed_words": [],
-        "total_sessions":  0,
-    }
+    return {"history": [], "last_practiced": None, "completed_words": [], "total_sessions": 0}
 
 
 # ================================
 # HELPERS: Writing (Sentence Builder) persistence
 # ================================
 def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
-    """Append a sentence-builder attempt to Firestore."""
     _db = _get_db()
     if _db is None:
         st.warning("Firestore not initialized; skipping sentence stats save.")
         return
-
     from datetime import datetime
-
     doc_ref = _db.collection("sentence_builder_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
@@ -7622,10 +7601,6 @@ def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence,
     }, merge=True)
 
 def get_sentence_progress(student_code: str, level: str):
-    """
-    Returns (correct_unique_count, total_items_for_level)
-    based on history in 'sentence_builder_stats'.
-    """
     _db = _get_db()
     correct_set = set()
     if _db is not None:
@@ -7636,7 +7611,6 @@ def get_sentence_progress(student_code: str, level: str):
             for h in data.get("history", []):
                 if h.get("level") == level and h.get("correct"):
                     correct_set.add(h.get("target"))
-    # guard if SENTENCE_BANK not ready
     try:
         total_items = len(SENTENCE_BANK.get(level, []))
     except Exception:
@@ -7692,12 +7666,10 @@ def clean_text(text):
 
 def is_correct_answer(user_input, answer):
     import re
-    # Clean both sides; accept comma/;/ slash-separated variants
     possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
     return clean_text(str(user_input)) in possible
 
 def normalize_join(tokens):
-    """Join tokens and fix spaces before punctuation for sentence builder."""
     s = " ".join(tokens)
     for p in [",", ".", "!", "?", ":", ";"]:
         s = s.replace(f" {p}", p)
@@ -7707,17 +7679,20 @@ def normalize_join(tokens):
 # ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
+# if you drive tabs elsewhere, keep your own `tab` var; otherwise we default to showing this.
+try:
+    tab
+except NameError:
+    tab = "Vocab Trainer"
+
 if tab == "Vocab Trainer":
-    # --- Who is this? ---
     student_code = st.session_state.get("student_code", "demo001")
 
-    # --- Lock the level from your Sheet ---
     student_level_locked = get_student_level(
         student_code,
         default=(st.session_state.get("student_level", "A1"))
     ) or "A1"
 
-    # Header
     st.markdown(
         """
         <div style="
@@ -7735,7 +7710,7 @@ if tab == "Vocab Trainer":
 
     subtab = st.radio(
         "Choose practice:",
-        ["Sentence Builder", "Vocab Practice"],  # Sentence Builder first, Vocab second
+        ["Sentence Builder", "Vocab Practice", "Dictionary"],  # 👈 added Dictionary
         horizontal=True,
         key="vocab_practice_subtab"
     )
@@ -7747,13 +7722,11 @@ if tab == "Vocab Trainer":
         student_level = student_level_locked
         st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
-        # --- Guide & Progress (collapsed) ---
         with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
             done_unique, total_items = get_sentence_progress(student_code, student_level)
             pct = int((done_unique / total_items) * 100) if total_items else 0
             st.progress(pct)
             st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
-
             st.markdown(
                 """
                 <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
@@ -7762,40 +7735,22 @@ if tab == "Vocab Trainer":
                 """,
                 unsafe_allow_html=True
             )
-            st.caption(
-                "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
-                "Next for a new one."
-            )
-            st.markdown(
-                "**What these numbers mean:**  \n"
-                "- **Score** = Correct sentences *this session*.  \n"
-                "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
-            )
+            st.caption("Tip: Click words to build the sentence. Clear to reset, Check to submit, Next for a new one.")
+            st.markdown("**Score** = correct *this session*.  •  **Progress bar** = unique sentences ever solved at this level.")
 
-        # ---- session state defaults ----
         init_defaults = {
-            "sb_round": 0,
-            "sb_pool": None,
-            "sb_pool_level": None,
-            "sb_current": None,
-            "sb_shuffled": [],
-            "sb_selected_idx": [],
-            "sb_score": 0,
-            "sb_total": 0,
-            "sb_feedback": "",
-            "sb_correct": None,
+            "sb_round": 0, "sb_pool": None, "sb_pool_level": None, "sb_current": None,
+            "sb_shuffled": [], "sb_selected_idx": [], "sb_score": 0, "sb_total": 0,
+            "sb_feedback": "", "sb_correct": None,
         }
         for k, v in init_defaults.items():
             if k not in st.session_state:
                 st.session_state[k] = v
 
-        # ---- init / level change ----
         if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
             import random
             st.session_state.sb_pool_level = student_level
-            st.session_state.sb_pool = SENTENCE_BANK.get(
-                student_level, SENTENCE_BANK.get("A1", [])
-            ).copy()
+            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
             random.shuffle(st.session_state.sb_pool)
             st.session_state.sb_round = 0
             st.session_state.sb_score = 0
@@ -7808,15 +7763,11 @@ if tab == "Vocab Trainer":
 
         def new_sentence():
             import random
-            # Refill pool if empty
             if not st.session_state.sb_pool:
-                st.session_state.sb_pool = SENTENCE_BANK.get(
-                    student_level, SENTENCE_BANK.get("A1", [])
-                ).copy()
+                st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
                 random.shuffle(st.session_state.sb_pool)
             if st.session_state.sb_pool:
                 st.session_state.sb_current = st.session_state.sb_pool.pop()
-                # Expect keys: tokens (list), target_de (string), hint_en (string), prompt_en (string)
                 words = st.session_state.sb_current.get("tokens", [])[:]
                 random.shuffle(words)
                 st.session_state.sb_shuffled = words
@@ -7830,15 +7781,10 @@ if tab == "Vocab Trainer":
         if st.session_state.sb_current is None:
             new_sentence()
 
-        # ---- Top metrics for session ----
         cols = st.columns([3, 2, 2])
         with cols[0]:
             st.session_state.setdefault("sb_target", 5)
-            _ = st.number_input(
-                "Number of sentences this session",
-                min_value=1, max_value=20,
-                key="sb_target"
-            )
+            _ = st.number_input("Number of sentences this session", min_value=1, max_value=20, key="sb_target")
         target = int(st.session_state.sb_target)
         with cols[1]:
             st.metric("Score (this session)", f"{st.session_state.sb_score}")
@@ -7847,7 +7793,6 @@ if tab == "Vocab Trainer":
 
         st.divider()
 
-        # --- English prompt panel (what to translate) ---
         cur = st.session_state.sb_current or {}
         prompt_en   = cur.get("prompt_en", "")
         hint_en     = cur.get("hint_en", "")
@@ -7866,14 +7811,12 @@ if tab == "Vocab Trainer":
                 """,
                 unsafe_allow_html=True
             )
-            # Optional helper
             with st.expander("💡 Need a nudge? (Hint)"):
                 if hint_en:
                     st.markdown(f"**Hint:** {hint_en}")
                 if grammar_tag:
                     st.caption(f"Grammar: {grammar_tag}")
 
-        # ---- Buttons for word choices ----
         st.markdown("#### 🧩 Click the words in order")
         if st.session_state.sb_shuffled:
             word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
@@ -7886,12 +7829,10 @@ if tab == "Vocab Trainer":
                         st.session_state.sb_selected_idx.append(i)
                         st.rerun()
 
-        # ---- Preview ----
         chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
         st.markdown("#### ✨ Your sentence")
         st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
 
-        # ---- Actions ----
         a, b, c = st.columns(3)
         with a:
             if st.button("🧹 Clear"):
@@ -7911,9 +7852,7 @@ if tab == "Vocab Trainer":
                     st.session_state.sb_feedback = "✅ **Correct!** Great job!"
                 else:
                     tip = st.session_state.sb_current.get("hint_en", "")
-                    st.session_state.sb_feedback = (
-                        f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
-                    )
+                    st.session_state.sb_feedback = f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
                 save_sentence_attempt(
                     student_code=student_code,
                     level=student_level,
@@ -7931,7 +7870,6 @@ if tab == "Vocab Trainer":
                 new_sentence()
                 st.rerun()
 
-        # ---- Feedback box ----
         if st.session_state.sb_feedback:
             if st.session_state.sb_correct:
                 st.success(st.session_state.sb_feedback)
@@ -7942,26 +7880,18 @@ if tab == "Vocab Trainer":
     # SUBTAB: Vocab Practice (flashcards)
     # ===========================
     elif subtab == "Vocab Practice":
-        # init session vars
         defaults = {
-            "vt_history": [],
-            "vt_list": [],
-            "vt_index": 0,
-            "vt_score": 0,
-            "vt_total": None,
-            "vt_saved": False,       # save-once guard
-            "vt_session_id": None,   # unique id per practice session
+            "vt_history": [], "vt_list": [], "vt_index": 0, "vt_score": 0,
+            "vt_total": None, "vt_saved": False, "vt_session_id": None,
         }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
 
-        # --- Stats ---
         with st.expander("📝 Your Vocab Stats", expanded=False):
             stats = get_vocab_stats(student_code)
             st.markdown(f"- **Sessions:** {stats['total_sessions']}")
             st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
             st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-
             if st.checkbox("Show Last 5 Sessions"):
                 for a in stats["history"][-5:][::-1]:
                     st.markdown(
@@ -7970,16 +7900,13 @@ if tab == "Vocab Trainer":
                         unsafe_allow_html=True
                     )
 
-        # lock level for vocab practice
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
-        # we need stats here too (outside expander)
         stats = get_vocab_stats(student_code)
         completed = set(stats["completed_words"])
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-        # reset button
         if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
@@ -7988,13 +7915,11 @@ if tab == "Vocab Trainer":
         mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
         session_vocab = (not_done if mode == "Only new words" else items).copy()
 
-        # pick count and start
         if st.session_state.vt_total is None:
             maxc = len(session_vocab)
             if maxc == 0:
                 st.success("🎉 All done! Switch to 'All words' to repeat.")
                 st.stop()
-
             count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
             if st.button("Start", key="vt_start"):
                 import random
@@ -8009,19 +7934,16 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_session_id = str(uuid4())
                 st.rerun()
 
-        # show chat/history
         if st.session_state.vt_history:
             st.markdown("### 🗨️ Practice Chat")
             for who, msg in st.session_state.vt_history:
                 render_message(who, msg)
 
-        # practice loop
         tot = st.session_state.vt_total
         idx = st.session_state.vt_index
         if isinstance(tot, int) and idx < tot:
             word, answer = st.session_state.vt_list[idx]
 
-            # audio
             if st.button("🔊 Play & Download", key=f"tts_{idx}"):
                 try:
                     from gtts import gTTS
@@ -8042,7 +7964,6 @@ if tab == "Vocab Trainer":
                 except Exception as e:
                     st.error(f"Could not generate audio (gTTS): {e}")
 
-            # bigger, bolder input
             st.markdown(
                 """
                 <style>
@@ -8056,12 +7977,7 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
 
-            usr = st.text_input(
-                f"{word} = ?",
-                key=f"vt_input_{idx}",
-                placeholder="Type your answer here..."
-            )
-
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}", placeholder="Type your answer here...")
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
@@ -8073,19 +7989,14 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_index += 1
                 st.rerun()
 
-        # done
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
             words = [w for w, _ in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-
-            # 🔒 Save exactly once per session, with Firestore duplicate check
             if not st.session_state.get("vt_saved", False):
-                # ensure we have a session id
                 if not st.session_state.get("vt_session_id"):
                     from uuid import uuid4
                     st.session_state.vt_session_id = str(uuid4())
-
                 if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
                     save_vocab_attempt(
                         student_code=student_code,
@@ -8095,14 +8006,60 @@ if tab == "Vocab Trainer":
                         practiced_words=words,
                         session_id=st.session_state.vt_session_id
                     )
-
                 st.session_state.vt_saved = True
                 st.rerun()
-
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
+
+    # ===========================
+    # SUBTAB: Dictionary (search/browse)
+    # ===========================
+    elif subtab == "Dictionary":
+        lvl = student_level_locked
+        all_levels = sorted(VOCAB_LISTS.keys()) or [lvl]
+        c1, c2 = st.columns([2, 3])
+        with c1:
+            lvl = st.selectbox("Level", options=all_levels, index=all_levels.index(lvl) if lvl in all_levels else 0, key="dict_level")
+        with c2:
+            q = st.text_input("Search (German or English)", key="dict_query", placeholder="e.g., kaufen / to buy")
+
+        pairs = VOCAB_LISTS.get(lvl, [])
+        df = pd.DataFrame(pairs, columns=["German", "English"])
+        if q:
+            ql = q.strip().lower()
+            df = df[df.apply(lambda r: ql in str(r["German"]).lower() or ql in str(r["English"]).lower(), axis=1)]
+
+        st.caption(f"{len(df)} entries at level {lvl}.")
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        dcol1, dcol2, dcol3 = st.columns([2, 2, 3])
+        with dcol1:
+            if st.button("🔊 Pronounce (type a German word below)"):
+                pass
+        with dcol2:
+            if st.button("⬇️ Download CSV"):
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label=f"Download vocab_{lvl}.csv",
+                    data=csv,
+                    file_name=f"vocab_{lvl}.csv",
+                    mime="text/csv",
+                    key="dict_dl_btn"
+                )
+        with dcol3:
+            g_word = st.text_input("German word to pronounce", key="dict_tts_word", placeholder="z. B. kaufen")
+            if g_word and st.button("Play", key="dict_tts_play"):
+                try:
+                    from gtts import gTTS
+                    import tempfile
+                    t = gTTS(text=g_word, lang="de")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+                        t.save(fp.name)
+                        st.audio(fp.name, format="audio/mp3")
+                except Exception as e:
+                    st.error(f"Audio error (gTTS): {e}")
 
 
 # ===== OPTIONAL: simple bubble helper for other chat-style UIs =====
