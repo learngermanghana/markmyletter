@@ -4236,28 +4236,25 @@ if tab == "My Course":
         # Fallbacks you can edit; Firestore values (if any) will override these.
         CLASS_FALLBACKS_LOCAL = {
             _norm_class_local("A2 Koln Klasse"): {
-                "tutors": ["Your Name", "Co-Tutor"],
+                "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
                 "contact_email": "learngermanghana@gmail.com",
-                "image_url": "https://i.imgur.com/7uJRrbr.png",  # use a direct image URL
             },
             _norm_class_local("B1 Munich Klasse"): {
-                "tutors": ["Your Name"],
+                "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/5aWmmumc7pVLCKJZ6",
                 "contact_email": "learngermanghana@gmail.com",
-                "image_url": "https://i.imgur.com/7uJRrbr.png",
             },
             _norm_class_local("A2 Munich Klasse"): {
-                "tutors": ["Your Name"],
+                "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=MnFxZHZmYXYxZGUwODg3b2FuaWdodWRkYTBfMjAyNTA4MDRUMTkzMDAwWiBsZWFybmdlcm1hbmdoYW5hQG0&tmsrc=learngermanghana%40gmail.com&scp=ALL",
                 "contact_email": "learngermanghana@gmail.com",
                 "image_url": "https://i.imgur.com/7uJRrbr.png",
             },
             _norm_class_local("A1 Munich Klasse"): {
-                "tutors": ["Your Name"],
+                "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
                 "contact_email": "learngermanghana@gmail.com",
-                "image_url": "https://i.imgur.com/7uJRrbr.png",
             },
         }
 
