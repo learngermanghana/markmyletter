@@ -365,7 +365,6 @@ def is_contract_expired(row):
     today = datetime.now(timezone.utc).date()
     return expiry_date.date() < today
 
-
 # ————————————————————————————————————————————————————————
 # 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
 # ————————————————————————————————————————————————————————
@@ -375,20 +374,21 @@ def _expire_str(dt: datetime) -> str:
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
-    Host-only cookie, SameSite=Lax (stable on iOS Safari), add Secure on HTTPS.
-    No Domain attribute to avoid cross-site quirks on mobile.
+    Safari-friendly cookie: host-only, SameSite=Lax, Secure on HTTPS.
+    Also writes a localStorage backup.
     """
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")  # HTTPS in prod
+    use_secure = (os.getenv("ENV", "prod") != "dev")  # True on Streamlit/Render, False only for http dev
 
-    # Try library .set() first (host-only cookie)
+    # 1) Library cookie (server-visible)
     try:
         cookie_manager.set(
             key, norm,
             expires=expires,
             secure=use_secure,
-            samesite="Lax",   # <— important for iOS stability
+            samesite="Lax",
+            path="/",
         )
         cookie_manager.save()
     except Exception:
@@ -398,37 +398,42 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
         except Exception:
             pass
 
-    # Reinforce via JS (host-only; no Domain=)
-    encoded_val = urllib.parse.quote(norm)
-    exp_str = expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    # 2) JS cookie (host-only, no Domain=) + Max-Age (helps Safari)
+    max_age = 60 * 60 * 24 * 180  # 180 days
+    encoded_val = _urllib.quote(norm)
+    exp_str = _expire_str(expires)
     components.html(f"""
     <script>
-      try {{
-        var c = "{getattr(cookie_manager,'prefix','') or ''}student_code={encoded_val}; Expires={exp_str}; Path=/; SameSite=Lax";
-        {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
-        document.cookie = c;  // host-only cookie (more reliable on iOS)
-      }} catch(e) {{}}
+      (function(){{
+        try {{
+          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
+          {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
+          document.cookie = c;  // host-only
+          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
     </script>
     """, height=0)
 
-
-# 1) Push localStorage.student_code → URL query param via JS
+# 1) Push localStorage.student_code → URL query param (so we can log in even if cookies fail)
 components.html("""
 <script>
   (function(){
-    const code = localStorage.getItem('student_code');
-    if (code) {
-      const url = new URL(window.location);
-      if (!url.searchParams.get('student_code')) {
-        url.searchParams.set('student_code', code);
-        window.history.replaceState({}, '', url);
+    try {
+      const code = localStorage.getItem('student_code');
+      if (code) {
+        const url = new URL(window.location);
+        if (!url.searchParams.get('student_code')) {
+          url.searchParams.set('student_code', code);
+          window.history.replaceState({}, '', url);
+        }
       }
-    }
+    } catch(e) {}
   })();
 </script>
 """, height=0)
 
-# 2) Read student_code from URL, save to cookie (secure), then rerun ONCE to clear the param
+# 2) Query params helpers
 def qp_get():
     try:
         return st.query_params
@@ -444,42 +449,40 @@ def qp_clear():
         except Exception:
             pass
 
-params = qp_get()
-if "student_code" in params and params["student_code"]:
-    sc = params["student_code"][0].strip().lower() if isinstance(params["student_code"], list) else params["student_code"].strip().lower()
-
-    COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-    if not COOKIE_SECRET:
-        st.stop()
-    cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-    cookies_ready = cookie_manager.ready()  # Only call once!
-    if not cookies_ready:
-        st.warning("Cookies not ready; please refresh.")
-        st.stop()
-
-    # Only do the cookie write + rerun ONCE per session
-    if not st.session_state.get("cookie_synced", False):
-        set_student_code_cookie(cookie_manager, sc, expires=datetime.utcnow() + timedelta(days=180))
-        qp_clear()
-        st.session_state["cookie_synced"] = True   # mark handshake done
-        st.rerun()
-    else:
-        # Already synced this session: just remove the param and keep going
-        qp_clear()
-
-# 3) Normal cookie manager init (for all further cookie reads/writes)
+# 3) Init cookie manager once (needed below for both set/get)
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
-    st.error("Cookie secret missing.")
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
     st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-cookies_ready = cookie_manager.ready()  # Only call once per session!
-if not cookies_ready:
+if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
+# 4) Handshake: set cookie from ?student_code=, but ONLY clear the param after we confirm cookie exists
+params = qp_get()
+sc_param = params.get("student_code")
+if isinstance(sc_param, list):
+    sc_param = sc_param[0]
+sc_param = (sc_param or "").strip().lower()
 
-# 4) Ensure all needed session_state keys exist
+if sc_param:
+    if not st.session_state.get("__cookie_attempt"):
+        # First attempt: set cookie then rerun
+        st.session_state["__cookie_attempt"] = sc_param
+        set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
+        st.rerun()
+    else:
+        # Second pass: did the cookie stick? If yes, clear the URL param; if no, leave it as fallback.
+        attempted = st.session_state.get("__cookie_attempt", "")
+        have = (cookie_manager.get("student_code") or "").strip().lower()
+        if have == attempted:
+            qp_clear()
+            st.session_state.pop("__cookie_attempt", None)
+else:
+    st.session_state.pop("__cookie_attempt", None)
+
+# 5) Ensure session_state keys
 for key, default in [
     ("logged_in", False),
     ("student_row", None),
@@ -488,31 +491,30 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 4.5) Restore login from cookie BEFORE showing any public page
-if not st.session_state.get("logged_in", False):
-    code = (cookie_manager.get("student_code") or "").strip().lower()
-    if code:
-        try:
-            df_students = load_student_data()
-            # StudentCode already normalized in load_student_data
-            found = df_students[df_students["StudentCode"] == code]
-        except Exception:
-            found = pd.DataFrame()
+# 6) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
+code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+effective_code = code_cookie or sc_param
 
-        if not found.empty:
-            student_row = found.iloc[0]
-            if not is_contract_expired(student_row):
-                st.session_state.update({
-                    "logged_in": True,
-                    "student_row": student_row.to_dict(),
-                    "student_code": student_row["StudentCode"],
-                    "student_name": student_row["Name"]
-                })
-            else:
-                # Expired contract: clear cookie AND localStorage early to avoid loops
-                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-                components.html("<script>localStorage.removeItem('student_code');</script>", height=0)
-                # (Do not stop here; let the public page render)
+if not st.session_state.get("logged_in", False) and effective_code:
+    try:
+        df_students = load_student_data()
+        found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
+    except Exception:
+        found = pd.DataFrame()
+
+    if not found.empty:
+        student_row = found.iloc[0]
+        if not is_contract_expired(student_row):
+            st.session_state.update({
+                "logged_in": True,
+                "student_row": student_row.to_dict(),
+                "student_code": student_row["StudentCode"],
+                "student_name": student_row["Name"]
+            })
+        else:
+            # Expired: clear cookie + localStorage to avoid loops, but keep rendering public page
+            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+            components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
 
 
