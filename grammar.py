@@ -534,23 +534,6 @@ if not st.session_state.get("logged_in", False) and effective_code:
             set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
-# --- TEMP DEBUG (remove later) ---
-st.caption("Cookie debug (temporary)")
-st.write("cookie_manager.get('student_code'):", cookie_manager.get("student_code"))
-components.html("""
-  <div style="font:13px/1.4 ui-sans-serif;">
-    <div><b>document.cookie</b> (host-only expected):</div>
-    <pre id="c" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
-    <div><b>userAgent</b>:</div>
-    <pre id="u" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
-  </div>
-  <script>
-    document.getElementById('c').textContent = document.cookie || '(empty)';
-    document.getElementById('u').textContent = navigator.userAgent;
-  </script>
-""", height=160)
-
-
 
 # --- 1) Page config & session init ---------------------------------------------
 st.set_page_config(
@@ -1220,13 +1203,6 @@ def logout_user(cookie_manager):
 
     # Stop this run; the page will reload client-side
     st.stop()
-
-
-# ===== Example usage in your UI =====
-st.write(f"👋 Welcome, **{st.session_state.get('student_name','')}**")
-if st.button("Log out", type="primary"):
-    logout_user(cookie_manager)
-
 
 
 
