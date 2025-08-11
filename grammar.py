@@ -307,128 +307,6 @@ components.html("""
 </script>
 """, height=0)
 
-# =================== iOS Cookie Lab (temporary) ===================
-# Purpose: verify that cookies persist on iPhone/Safari and that
-# attributes (Lax + Secure) + manager init all behave correctly.
-
-# 0) Init the cookie manager ONCE and remember readiness
-if "_cm" not in st.session_state:
-    st.session_state["_cm"] = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-
-cm = st.session_state["_cm"]
-if not st.session_state.get("_cm_ready"):
-    if not cm.ready():
-        st.warning("Cookies not ready; please refresh.")
-        st.stop()
-    st.session_state["_cm_ready"] = True  # <- call .ready() exactly once
-
-def _expire_str(dt: datetime) -> str:
-    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
-def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
-    key = "student_code"
-    norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")
-
-    # Encrypted (server-visible) cookie
-    try:
-        cookie_manager.set(
-            key, norm,
-            expires=expires,
-            secure=use_secure,
-            samesite="Lax",
-            path="/",
-        )
-        cookie_manager.save()
-    except Exception:
-        try:
-            cookie_manager[key] = norm
-            cookie_manager.save()
-        except Exception:
-            pass
-
-    # Host-only JS cookie (no Domain=)
-    max_age = 60 * 60 * 24 * 180
-    exp_str = _expire_str(expires)
-    components.html(f"""
-    <script>
-      (function(){{
-        try {{
-          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}=" + encodeURIComponent("{norm}") +
-                  "; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
-          {"c += '; Secure';" if (os.getenv("ENV","prod") != "dev") else ""}
-          document.cookie = c;
-          try {{ localStorage.setItem('student_code', "{norm}"); }} catch(e) {{}}
-        }} catch(e) {{}}
-      }})();
-    </script>
-    """, height=0)
-
-with st.expander("🔧 iOS Cookie Lab (temporary) — remove after testing", expanded=True):
-    st.write("Encrypted value (from manager):", cm.get("student_code") or "(empty)")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        if st.button("Set ENCRYPTED cookie"):
-            code_val = (st.session_state.get("student_code") or "felixa1").strip().lower()
-            set_student_code_cookie(cm, code_val, datetime.utcnow() + timedelta(days=180))
-            st.success("Encrypted cookie set. Reload once and check below.")
-            st.rerun()
-
-    with c2:
-        if st.button("Set PLAIN test cookie"):
-            # Minimal, host-only cookie to isolate issues from the manager/encryption
-            components.html("""
-            <script>
-              try {
-                var s = (location.protocol === "https:") ? "; Secure" : "";
-                document.cookie = "ios_plain=1; Path=/; Max-Age=1800; SameSite=Lax" + s;
-              } catch(e) {}
-            </script>
-            """, height=0)
-            st.success("Plain cookie set (ios_plain=1). Reload and check below.")
-
-    with c3:
-        if st.button("Clear cookies (host-only)"):
-            # Expire host-only cookies
-            components.html("""
-            <script>
-              (function(){
-                try {
-                  const kill = (n) =>
-                    document.cookie = n + "=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/; SameSite=Lax" +
-                                      (location.protocol === "https:" ? "; Secure" : "");
-                  kill("ios_plain");
-                  kill("_streamlit_xsrf");
-                  kill("falowen_student_code");  // EncryptedCookieManager name
-                } catch(e) {}
-              })();
-            </script>
-            """, height=0)
-            st.info("Tried to clear common cookies. Reload and re-test.")
-
-    with c4:
-        if st.button("Show document.cookie"):
-            st.session_state["_show_dc"] = True
-
-    # Live document.cookie + userAgent display (what Safari actually has)
-    if st.session_state.get("_show_dc", False):
-        components.html("""
-          <div style="font:13px/1.45 ui-sans-serif;">
-            <div><b>document.cookie</b> (host-only expected):</div>
-            <pre id="c" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
-            <div><b>userAgent</b>:</div>
-            <pre id="u" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
-          </div>
-          <script>
-            document.getElementById('c').textContent = document.cookie || '(empty)';
-            document.getElementById('u').textContent = navigator.userAgent;
-          </script>
-        """, height=160)
-
-    st.caption("Tip: after a full reload, press “Show document.cookie” again. If the encrypted cookie vanishes but the plain cookie stays, the issue is likely manager/encryption; if both vanish, it’s iOS policy or attributes.")
-# ==================================================================
 
 
 
@@ -512,9 +390,28 @@ def is_contract_expired(row):
 # ============================================================
 # 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
 # ============================================================
+ENV = os.getenv("ENV", "prod")
+CM_PREFIX = "falowen_"
 
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+# --- Init cookie manager ONCE (avoid multiple .ready() calls) ---
+COOKIE_SECRET = (os.getenv("COOKIE_SECRET")
+                 or (st.secrets.get("COOKIE_SECRET") if hasattr(st, "secrets") else None))
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to Streamlit secrets or env.")
+    st.stop()
+
+if "_cm" not in st.session_state:
+    st.session_state["_cm"] = EncryptedCookieManager(prefix=CM_PREFIX, password=COOKIE_SECRET)
+cookie_manager = st.session_state["_cm"]
+
+if not st.session_state.get("_cm_ready", False):
+    if not cookie_manager.ready():
+        st.warning("Cookies not ready; please refresh.")
+        st.stop()
+    st.session_state["_cm_ready"] = True
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
@@ -523,7 +420,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")  # True on Streamlit/Render
+    use_secure = (ENV != "dev")  # True on Streamlit/Render
 
     # 1) Library cookie (server-visible)
     try:
@@ -550,8 +447,8 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     <script>
       (function(){{
         try {{
-          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
-          {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
+          var c = "{CM_PREFIX}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
+          {"c += '; Secure';" if (ENV != "dev") else ""}
           document.cookie = c;  // host-only (no Domain)
           try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
         }} catch(e) {{}}
@@ -593,17 +490,7 @@ def qp_clear():
         except Exception:
             pass
 
-# 3) Init cookie manager once
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
-    st.stop()
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-if not cookie_manager.ready():
-    st.warning("Cookies not ready; please refresh.")
-    st.stop()
-
-# 4) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
+# 3) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
 if isinstance(sc_param, list):
@@ -626,7 +513,7 @@ if sc_param:
 else:
     st.session_state.pop("__cookie_attempt", None)
 
-# 5) Ensure session_state keys
+# 4) Ensure session_state keys
 for key, default in [
     ("logged_in", False),
     ("student_row", None),
@@ -635,7 +522,7 @@ for key, default in [
 ]:
     st.session_state.setdefault(key, default)
 
-# 6) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
+# 5) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
 code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
 effective_code = code_cookie or sc_param
 
