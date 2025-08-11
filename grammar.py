@@ -112,6 +112,76 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+# ==== SERVER-SIDE SESSIONS (Firestore) ====
+SESSION_TTL_DAYS = 30
+SESSION_KEY = "falowen_sess"   # key in localStorage and cookie
+
+def _session_doc_id(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+def create_session(student_code: str, email: str, name: str) -> str:
+    import secrets
+    token = secrets.token_urlsafe(32)
+    doc_id = _session_doc_id(token)
+    db.collection("sessions").document(doc_id).set({
+        "student_code": student_code,
+        "email": email,
+        "name": name,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS),
+    })
+    return token
+
+def get_session(token: str):
+    if not token: 
+        return None
+    doc = db.collection("sessions").document(_session_doc_id(token)).get()
+    if not doc.exists:
+        return None
+    data = doc.to_dict() or {}
+    # expire?
+    exp = data.get("expires_at")
+    if exp and exp < datetime.utcnow():
+        try:
+            db.collection("sessions").document(_session_doc_id(token)).delete()
+        except Exception:
+            pass
+        return None
+    return data
+
+def refresh_session(token: str):
+    try:
+        db.collection("sessions").document(_session_doc_id(token)).update({
+            "expires_at": datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS),
+            "last_seen": datetime.utcnow(),
+        })
+    except Exception:
+        pass
+
+def destroy_session(token: str):
+    try:
+        db.collection("sessions").document(_session_doc_id(token)).delete()
+    except Exception:
+        pass
+
+def persist_session_token(token: str):
+    # Write to localStorage (primary) and a best-effort host-only cookie
+    components.html(
+        f"""
+        <script>
+          try {{
+            localStorage.setItem('{SESSION_KEY}', {json.dumps(token)});
+          }} catch(e) {{}}
+          try {{
+            var c = "{SESSION_KEY}=" + encodeURIComponent({json.dumps(token)}) + "; Path=/; SameSite=Lax";
+            {"c += "; Secure";" if os.getenv("ENV","prod") != "dev" else ""}
+            document.cookie = c;
+          }} catch(e) {{}}
+        </script>
+        """,
+        height=0
+    )
+
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
