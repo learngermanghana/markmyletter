@@ -1397,23 +1397,56 @@ def get_vocab_of_the_day(df: pd.DataFrame, level: str) -> dict | None:
     }
 
 
-def parse_contract_end(date_str: Any) -> Optional[datetime]:
-    s = ("" if pd.isna(date_str) else str(date_str)).strip()
-    if not s or s.lower() in ("nan", "none", "null"):
+def parse_contract_end(date_str) -> datetime | None:
+    # Local imports to avoid duplicate globals
+    from datetime import datetime, date
+
+    # Hard guards for blanks/NaNs
+    if date_str is None:
         return None
-    # Try strict known formats, then fall back to pandas
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+    try:
+        import math
+        if isinstance(date_str, float) and math.isnan(date_str):
+            return None
+    except Exception:
+        pass
+
+    # Already a datetime/date?
+    if isinstance(date_str, datetime):
+        return date_str
+    if isinstance(date_str, date):
+        return datetime.combine(date_str, datetime.min.time())
+
+    # Normalize string
+    s = str(date_str).strip()
+    if not s or s.lower() in {"nan", "none", "null"}:
+        return None
+
+    # Try common formats (add/remove as needed)
+    fmts = (
+        "%Y-%m-%d", "%Y/%m/%d",
+        "%d/%m/%Y", "%m/%d/%Y",
+        "%d-%m-%Y", "%m-%d-%Y",
+        "%d.%m.%y", "%d.%m.%Y",
+        "%d %b %Y", "%d %B %Y",
+    )
+    for fmt in fmts:
         try:
             return datetime.strptime(s, fmt)
         except ValueError:
             continue
+
+    # Last-resort parse via pandas if available
     try:
-        dt = pd.to_datetime(s, errors="coerce")
-        if pd.isna(dt):
-            return None
-        return dt.to_pydatetime()
+        import pandas as _pd
+        ts = _pd.to_datetime(s, dayfirst=True, errors="coerce")
+        if ts is not None and str(ts) != "NaT":
+            return ts.to_pydatetime()
     except Exception:
-        return None
+        pass
+
+    return None
+
 
 @st.cache_data(ttl=3600)  # 1h
 def load_reviews() -> pd.DataFrame:
