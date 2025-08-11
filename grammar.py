@@ -3572,25 +3572,6 @@ def render_section(day_info, key, title, icon):
                 render_link("🔗 Extra", ex)
 
 
-def _safe_str(v, default: str = "") -> str:
-    try:
-        import pandas as pd
-        if pd.isna(v):
-            return default
-    except Exception:
-        if v is None or (isinstance(v, float) and math.isnan(v)):
-            return default
-    if isinstance(v, str):
-        s = v.strip()
-        return "" if s.lower() in ("nan", "none") else s
-    s = str(v).strip()
-    return "" if s.lower() in ("nan", "none") else s
-
-def _safe_upper(v, default: str = "") -> str:
-    s = _safe_str(v, default)
-    return s.upper() if s else default
-
-
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
@@ -4169,14 +4150,28 @@ if tab == "My Course":
 
         db = _get_db()
 
-#
 
-        # ---------- context ----------
+        def _safe_str(v, default: str = "") -> str:
+            if v is None:
+                return default
+            if isinstance(v, float):
+                try:
+                    if math.isnan(v):
+                        return default
+                except Exception:
+                    pass
+            s = str(v).strip()
+            return "" if s.lower() in ("nan", "none") else s
+
+        def _safe_upper(v, default: str = "") -> str:
+            s = _safe_str(v, default)
+            return s.upper() if s else default
+
         student_row   = st.session_state.get("student_row", {}) or {}
-        student_code  = student_row.get("StudentCode", "demo001")
-        student_name  = student_row.get("Name", "Student")
-        student_level = (student_row.get("Level") or "A1").upper()
-        class_name    = (student_row.get("ClassName") or "").strip() or f"{student_level} General"
+        student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
+        student_name  = _safe_str(student_row.get("Name"), "Student")
+        student_level = _safe_upper(student_row.get("Level"), "A1")
+        class_name    = _safe_str(student_row.get("ClassName")) or f"{student_level} General"
 
         ADMINS = set()
         try:
@@ -9514,6 +9509,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
