@@ -365,6 +365,24 @@ def is_contract_expired(row):
     today = datetime.now(timezone.utc).date()
     return expiry_date.date() < today
 
+
+
+st.caption("Cookie debug (temporary)")
+st.write("cookie_manager.get('student_code'):", cookie_manager.get("student_code"))
+components.html("""
+  <div style="font:13px/1.4 ui-sans-serif;">
+    <div><b>document.cookie</b> (host-only expected):</div>
+    <pre id="c" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
+    <div><b>userAgent</b>:</div>
+    <pre id="u" style="white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;"></pre>
+  </div>
+  <script>
+    document.getElementById('c').textContent = document.cookie || '(empty)';
+    document.getElementById('u').textContent = navigator.userAgent;
+  </script>
+""", height=160)
+
+
 # ————————————————————————————————————————————————————————
 # 0) Cookie + localStorage “SSO” Setup (Works on iPhone/Safari/Chrome/Android)
 # ————————————————————————————————————————————————————————
