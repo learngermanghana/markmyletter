@@ -4252,7 +4252,7 @@ if tab == "My Course":
             _norm_class_local("A1 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/t4tbqAqF478XA9bD6",
-                "contact_email": "learngermanghana@gmail.com",
+                "contact_email": "learngermanghana@gmail.com"
         }
 
         # Merge Firestore -> fallbacks
@@ -9495,6 +9495,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
