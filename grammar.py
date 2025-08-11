@@ -583,6 +583,29 @@ if not st.session_state.get("logged_in", False) and effective_code:
             set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
             components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
+# --- Helper: persist login to cookie + localStorage (must be defined early) ---
+def save_cookie_after_login(student_code: str) -> None:
+    val = (student_code or "").strip().lower()
+    # Prefer the already-initialized manager; fall back to global
+    cm = st.session_state.get("_cm") if "_cm" in st.session_state else globals().get("cookie_manager")
+
+    try:
+        if cm:
+            set_student_code_cookie(cm, val, expires=datetime.utcnow() + timedelta(days=180))
+    except Exception:
+        pass
+
+    # Always mirror to localStorage so iOS users stay logged in even if the server cookie lags
+    components.html(
+        f"""
+        <script>
+          try {{ localStorage.setItem('student_code', {json.dumps(val)}); }} catch (e) {{}}
+        </script>
+        """,
+        height=0
+    )
+
+
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
