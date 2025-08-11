@@ -36,13 +36,30 @@ from openai import OpenAI
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
+# ---- Basic Page Config (sets <title>) ----
+st.set_page_config(
+    page_title="Falowen – Learn German with Learn Language Education Academy",
+    layout="wide",
+)
 
+# ==== HIDE STREAMLIT FOOTER/MENU ====
+st.markdown(
+    """
+    <style>
+      #MainMenu {visibility: hidden;}
+      footer {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- SEO: head tags (only on public/landing) ---
+# Note: Streamlit runs this in an iframe; <meta> tags here won't affect the parent document's head.
+# This still helps some embed contexts, and the title is already set via st.set_page_config.
 if not st.session_state.get("logged_in", False):
-    html("""
+    st_html("""
     <script>
-      // Page <title>
+      // Page <title> (already set by Streamlit, but keep as fallback)
       document.title = "Falowen – Learn German with Learn Language Education Academy";
 
       // Meta description
@@ -66,8 +83,13 @@ if not st.session_state.get("logged_in", False):
       link.href = canonicalHref;
 
       // Open Graph (helps WhatsApp/FB previews)
-      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
-        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
+      function setOG(p, v){
+        let t = document.querySelector(`meta[property="${p}"]`);
+        if(!t){
+          t = document.createElement('meta');
+          t.setAttribute('property', p);
+          document.head.appendChild(t);
+        }
         t.setAttribute('content', v);
       }
       setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
@@ -89,6 +111,7 @@ if not st.session_state.get("logged_in", False):
       document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 # ==== HIDE STREAMLIT FOOTER/MENU ====
 st.markdown(
@@ -9240,6 +9263,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
