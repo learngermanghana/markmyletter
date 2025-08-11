@@ -35,7 +35,13 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-
+# --- 1) Page config & session init ---------------------------------------------
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # --- Compatibility alias ---
 html = st_html  # ensures any html(...) calls use the Streamlit component
@@ -104,13 +110,100 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+# ==== FIREBASE ADMIN INIT & SESSION STORE ====
+try:
+    if not firebase_admin._apps:
+        cred_dict = dict(st.secrets["firebase"])
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    db = firestore.client()
+except Exception as e:
+    st.error(f"Firebase init failed: {e}")
+    st.stop()
 
-# ==== FIREBASE ADMIN INIT ====
-if not firebase_admin._apps:
-    cred_dict = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+# ---- Firestore sessions (server-side auth state) ----
+# NOTE: For auto-cleanup, set a Firestore TTL policy on the `expires_at` field
+# for the `sessions` collection in the Firebase Console.
+SESSIONS_COL = "sessions"
+SESSION_TTL_MIN = 60 * 24 * 14        # 14 days
+SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7  # 7 days
+
+def _rand_token(nbytes: int = 48) -> str:
+    # urlsafe, no padding
+    return base64.urlsafe_b64encode(os.urandom(nbytes)).rstrip(b"=").decode("ascii")
+
+def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str:
+    """
+    Create a server-side session doc with expiry. Returns the token (doc id).
+    """
+    now = time.time()
+    token = _rand_token()
+    db.collection(SESSIONS_COL).document(token).set({
+        "student_code": (student_code or "").strip().lower(),
+        "name": name or "",
+        "issued_at": now,
+        "expires_at": now + (SESSION_TTL_MIN * 60),
+        "ua_hash": ua_hash or "",
+    })
+    return token
+
+def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
+    """
+    Fetch & validate the session; returns dict if valid, else None.
+    """
+    if not token:
+        return None
+    try:
+        snap = db.collection(SESSIONS_COL).document(token).get()
+        if not snap.exists:
+            return None
+        data = snap.to_dict() or {}
+        if float(data.get("expires_at", 0)) < time.time():
+            return None
+        # Optional pinning to user-agent hash (skip if not used)
+        if data.get("ua_hash") and ua_hash and data["ua_hash"] != ua_hash:
+            return None
+        return data
+    except Exception:
+        return None
+
+def refresh_or_rotate_session_token(token: str) -> str:
+    """
+    Extend TTL on activity; rotate if older than ROTATE_AFTER. Returns current (or new) token.
+    """
+    try:
+        ref = db.collection(SESSIONS_COL).document(token)
+        snap = ref.get()
+        if not snap.exists:
+            return token
+        data = snap.to_dict() or {}
+        now = time.time()
+        # Extend TTL
+        ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
+
+        # Rotate if old
+        if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
+            new_token = _rand_token()
+            db.collection(SESSIONS_COL).document(new_token).set({
+                **data,
+                "issued_at": now,
+                "expires_at": now + (SESSION_TTL_MIN * 60),
+            })
+            # delete old token (best-effort)
+            try:
+                ref.delete()
+            except Exception:
+                pass
+            return new_token
+    except Exception:
+        pass
+    return token
+
+def destroy_session_token(token: str) -> None:
+    try:
+        db.collection(SESSIONS_COL).document(token).delete()
+    except Exception:
+        pass
 
 
 # ==== OPENAI CLIENT SETUP ====
@@ -297,10 +390,12 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 components.html("""
 <script>
   (function(){
-    var h = window.location.hostname;
-    if (h === "falowen.app") {
-      window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
-    }
+    try {
+      var h = window.location.hostname;
+      if (h === "falowen.app") {
+        window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
+      }
+    } catch(e) {}
   })();
 </script>
 """, height=0)
@@ -383,8 +478,10 @@ def is_contract_expired(row):
     today = datetime.utcnow().date()
     return expiry_date.date() < today
 
+
 # ============================================================
 # 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
+# + UA/LS bridge & token-first restore
 # ============================================================
 
 def _expire_str(dt: datetime) -> str:
@@ -433,41 +530,80 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     </script>
     """, height=0)
 
-# 1) Push localStorage.student_code → URL query param (lets us log in even if cookies fail)
+# 0a) UA/LS query-parameter bridge (no postMessage)
 components.html("""
 <script>
-  (function(){
-    try {
-      const code = localStorage.getItem('student_code');
-      if (code) {
-        const url = new URL(window.location);
-        if (!url.searchParams.get('student_code')) {
-          url.searchParams.set('student_code', code);
-          window.history.replaceState({}, '', url);
-        }
-      }
-    } catch(e) {}
-  })();
+ (function(){
+   async function sha256Hex(s){
+     const enc = new TextEncoder(); const data = enc.encode(s);
+     const buf = await crypto.subtle.digest('SHA-256', data);
+     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+   }
+   (async function(){
+     try{
+       const ua = navigator.userAgent||''; const lang = navigator.language||'';
+       const h  = await sha256Hex(ua + '|' + lang);
+       const ls = localStorage.getItem('session_token')||'';
+       const url = new URL(window.location);
+       let mut = false;
+       if (!url.searchParams.get('ua')) { url.searchParams.set('ua', h); mut = true; }
+       if (ls && !url.searchParams.get('ls')) { url.searchParams.set('ls', ls); mut = true; }
+       if (mut) window.location.replace(url.toString());
+     }catch(e){}
+   })();
+ })();
 </script>
 """, height=0)
 
-# 2) Query param helpers
+# 0b) Query param helpers
 def qp_get():
     try:
         return st.query_params
     except Exception:
         return st.experimental_get_query_params()
 
-def qp_clear():
+def qp_clear_keys(*keys):
     try:
-        st.query_params.clear()
+        qp = st.query_params
+        for k in keys:
+            if k in qp:
+                del qp[k]
     except Exception:
         try:
-            st.experimental_set_query_params()
+            st.experimental_set_query_params(**{k: [] for k in keys})
         except Exception:
             pass
+    # scrub in browser history
+    components.html("""
+    <script>
+      (function(){
+        try{
+          const u = new URL(window.location);
+          %s
+          window.history.replaceState({}, '', u);
+        }catch(e){}
+      })();
+    </script>
+    """ % "\n".join([f"if(u.searchParams.has('{k}')) u.searchParams.delete('{k}');" for k in keys]), height=0)
 
-# 3) Init cookie manager once
+# 0c) Ingest UA/LS bridge into session_state then scrub
+def _ingest_ua_ls_from_query():
+    qp = qp_get()
+    def _get1(k):
+        v = qp.get(k)
+        if isinstance(v, list): v = v[0]
+        return (v or "").strip()
+    ua = _get1("ua")
+    ls = _get1("ls")
+    changed = False
+    if ua and ua != st.session_state.get("__ua_hash"): st.session_state["__ua_hash"] = ua; changed = True
+    if ls and ls != st.session_state.get("__ls_token"): st.session_state["__ls_token"] = ls; changed = True
+    if ua or ls:
+        qp_clear_keys("ua", "ls")
+    return changed
+_ingest_ua_ls_from_query()
+
+# 0d) Init cookie manager once
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
@@ -477,11 +613,10 @@ if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# 4) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
+# 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
-if isinstance(sc_param, list):
-    sc_param = sc_param[0]
+if isinstance(sc_param, list): sc_param = sc_param[0]
 sc_param = (sc_param or "").strip().lower()
 
 if sc_param:
@@ -495,53 +630,108 @@ if sc_param:
         attempted = st.session_state.get("__cookie_attempt", "")
         have = (cookie_manager.get("student_code") or "").strip().lower()
         if have == attempted:
-            qp_clear()
+            qp_clear_keys("student_code")
             st.session_state.pop("__cookie_attempt", None)
 else:
     st.session_state.pop("__cookie_attempt", None)
 
-# 5) Ensure session_state keys
+# 0f) Ensure session_state keys
 for key, default in [
     ("logged_in", False),
     ("student_row", None),
     ("student_code", ""),
-    ("student_name", "")
+    ("student_name", ""),
+    ("session_token", ""),
+    ("__last_refresh", 0.0),
 ]:
     st.session_state.setdefault(key, default)
 
-# 6) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
-code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-effective_code = code_cookie or sc_param
+# 0g) Restore login (PREFER SERVER TOKEN), else fallback to student_code
+# Requires the session helpers from your Firebase init block:
+#   validate_session_token(), refresh_or_rotate_session_token()
 
-if not st.session_state.get("logged_in", False) and effective_code:
-    try:
-        df_students = load_student_data()
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
-    except Exception:
-        found = pd.DataFrame()
+# Read token candidates: URL ?t= (first hop), localStorage (ingested as __ls_token), cookie mirror (optional)
+def _get_token_candidates():
+    qp = qp_get()
+    t = qp.get("t")
+    if isinstance(t, list): t = t[0]
+    t = (t or "").strip()
+    ls = (st.session_state.get("__ls_token") or "").strip()
+    mem = (st.session_state.get("session_token") or "").strip()
+    out = [x for x in [mem, t, ls] if x]
+    seen, uniq = set(), []
+    for x in out:
+        if x not in seen:
+            uniq.append(x); seen.add(x)
+    return uniq
 
-    if not found.empty:
-        student_row = found.iloc[0]
-        if not is_contract_expired(student_row):
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-        else:
-            # Expired: clear cookie + localStorage to avoid loops
-            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-            components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
+restored = False
+if not st.session_state.get("logged_in", False):
+    for tok in _get_token_candidates():
+        data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
+        if not data:
+            continue
+        # Roster/contract guard
+        try:
+            df_students = load_student_data()
+            found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+        except Exception:
+            found = pd.DataFrame()
+        if found.empty or is_contract_expired(found.iloc[0]):
+            continue
+
+        row = found.iloc[0]
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": row.to_dict(),
+            "student_code": row["StudentCode"],
+            "student_name": row["Name"],
+            "session_token": tok,
+        })
+        # Refresh/rotate; persist new token client-side; scrub ?t=
+        new_tok = refresh_or_rotate_session_token(tok) or tok
+        st.session_state["session_token"] = new_tok
+        components.html(f"""
+        <script>
+          try {{
+            localStorage.setItem('session_token', {json.dumps(new_tok)});
+            const u = new URL(window.location);
+            if (u.searchParams.has('t')) {{ u.searchParams.delete('t'); window.history.replaceState({{}}, '', u); }}
+          }} catch(e) {{}}
+        </script>
+        """, height=0)
+        restored = True
+        break
+
+# Fallback: original cookie/param login using student_code
+if (not restored) and (not st.session_state.get("logged_in", False)):
+    code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+    effective_code = code_cookie or sc_param
+
+    if effective_code:
+        try:
+            df_students = load_student_data()
+            found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
+        except Exception:
+            found = pd.DataFrame()
+
+        if not found.empty:
+            student_row = found.iloc[0]
+            if not is_contract_expired(student_row):
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+            else:
+                # Expired: clear cookie + localStorage to avoid loops
+                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+                components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
 
 
-# --- 1) Page config & session init ---------------------------------------------
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -605,8 +795,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Helper: persist login to cookie + localStorage ---
-
+# --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
 def save_cookie_after_login(student_code: str) -> None:
     value = str(student_code or "").strip().lower()
     try:
@@ -624,6 +813,22 @@ def save_cookie_after_login(student_code: str) -> None:
         """.replace("__VAL__", json.dumps(value)),
         height=0
     )
+
+# --- NEW: persist session token client-side + scrub URL params -----------------
+def _persist_session_client(token: str, student_code: str = "") -> None:
+    components.html(f"""
+    <script>
+      try {{
+        localStorage.setItem('session_token', {json.dumps(token)});
+        if ({json.dumps(student_code)} !== "") {{
+          localStorage.setItem('student_code', {json.dumps(student_code)});
+        }}
+        const u = new URL(window.location);
+        ['t','ua','ls'].forEach(k => u.searchParams.delete(k));
+        window.history.replaceState({{}}, '', u);
+      }} catch(e) {{}}
+    </script>
+    """, height=0)
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
@@ -655,116 +860,8 @@ if not st.session_state.get("logged_in", False):
           <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
         </ul>
       </div>
-
-      <!-- ===== Compact stats strip ===== -->
-      <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.92rem; opacity:.98; }
-        @media (max-width:560px){ .stat { min-width:46%; } }
-      </style>
-      <div class="stats-strip" role="list" aria-label="Falowen highlights">
-        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-          <div class="num">300+</div>
-          <div class="label">Active learners</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-          <div class="num">1,200+</div>
-          <div class="label">Assignments submitted</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-          <div class="num">A1–C1</div>
-          <div class="label">Full course coverage</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-          <div class="num">4.8/5</div>
-          <div class="label">Avg. feedback</div>
-        </div>
-      </div>
-    </div>
+      ...
     """, unsafe_allow_html=True)
-
-    # Short explainer: which option to use
-    st.markdown("""
-    <div class="page-wrap" style="max-width:900px;margin-top:4px;">
-      <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 14px;border-radius:10px;">
-        <b>Which option should I use?</b><br>
-        • <b>Returning student</b>: you already created a password — log in.<br>
-        • <b>Sign up (approved)</b>: you’ve paid and your email & code are on the roster, but no account yet — create one.<br>
-        • <b>Request access</b>: brand new learner — fill the form and we’ll contact you.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Rotating multi-country reviews (with flags) ---
-    import json, streamlit.components.v1 as components
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-         "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-         "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-         "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.",
-         "author": "Kossi — Lomé, Togo 🇹🇬", "level": "B1"},
-        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-         "author": "Lea — Berlin, Germany 🇩🇪", "level": "B2"},
-        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-         "author": "Sipho — Johannesburg, South Africa 🇿🇦", "level": "A2"},
-        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-         "author": "Nadia — Windhoek, Namibia 🇳🇦", "level": "B1"},
-    ]
-    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-    _reviews_html = """
-<div class="page-wrap" role="region" aria-label="Student reviews" style="margin-top:10px;">
-  <div id="rev-quote" style="
-      background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
-      color:#475569;min-height:82px;display:flex;align-items:center;justify-content:center;text-align:center;">
-    Loading…
-  </div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
-    <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
-  </div>
-</div>
-<script>
-  const data = __DATA__;
-  let i = 0;
-  const quoteEl = document.getElementById('rev-quote');
-  const dotsEl  = document.getElementById('rev-dots');
-  const prevBtn = document.getElementById('rev-prev');
-  const nextBtn = document.getElementById('rev-next');
-  function renderDots(){
-    dotsEl.innerHTML = '';
-    data.forEach((_, idx) => {
-      const d = document.createElement('button');
-      d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
-      d.style.width = '10px'; d.style.height = '10px'; d.style.borderRadius = '999px';
-      d.style.border = 'none'; d.style.cursor = 'pointer';
-      d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
-      d.addEventListener('click', () => { i = idx; render(); });
-      dotsEl.appendChild(d);
-    });
-  }
-  function render(){
-    const r = data[i];
-    quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
-    renderDots();
-  }
-  function next(){ i = (i + 1) % data.length; render(); }
-  function prev(){ i = (i - 1 + data.length) % data.length; render(); }
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) { setInterval(next, 6000); }
-  render();
-</script>
-"""
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
 
     # Support / Help section
     st.markdown("""
@@ -860,13 +957,21 @@ if not st.session_state.get("logged_in", False):
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Contact the office."); return False
 
+            # --- NEW: issue server-side session token
+            ua_hash = st.session_state.get("__ua_hash", "")
+            sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+
             st.session_state.update({
                 "logged_in": True,
                 "student_row": student_row.to_dict(),
                 "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
+                "student_name": student_row["Name"],
+                "session_token": sess_token,
             })
-            save_cookie_after_login(student_row["StudentCode"])
+            # Persist code cookie + token locally, scrub URL params
+            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+            _persist_session_client(sess_token, student_row["StudentCode"])
+
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
             st.rerun()
@@ -912,9 +1017,10 @@ if not st.session_state.get("logged_in", False):
                     else:
                         data      = doc.to_dict() or {}
                         stored_pw = data.get("password", "")
-                        import bcrypt
+
                         def _is_bcrypt_hash(s: str) -> bool:
                             return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
+
                         ok = False
                         try:
                             if _is_bcrypt_hash(stored_pw):
@@ -926,16 +1032,25 @@ if not st.session_state.get("logged_in", False):
                                     doc_ref.update({"password": new_hash})
                         except Exception:
                             ok = False
+
                         if not ok:
                             st.error("Incorrect password.")
                         else:
+                            # --- NEW: issue server-side session token
+                            ua_hash = st.session_state.get("__ua_hash", "")
+                            sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+
                             st.session_state.update({
                                 "logged_in":   True,
                                 "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
-                                "student_name": student_row["Name"]
+                                "student_name": student_row["Name"],
+                                "session_token": sess_token,
                             })
-                            save_cookie_after_login(student_row["StudentCode"])
+                            # Persist code cookie + token locally, scrub URL params
+                            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+                            _persist_session_client(sess_token, student_row["StudentCode"])
+
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
@@ -970,29 +1085,9 @@ if not st.session_state.get("logged_in", False):
                     if doc_ref.get().exists:
                         st.error("An account with this student code already exists. Please log in instead.")
                     else:
-                        import bcrypt
                         hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                         doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
                         st.success("Account created! Please log in on the Returning tab.")
-
-    # --- Request Access (brand new learners) ---
-    with tab3:
-        st.markdown("""
-        <div class="page-wrap" style="text-align:center; margin-top:12px;">
-          <p>New student? Request access and we’ll contact you with payment instructions.</p>
-          <p>
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
-               target="_blank" rel="noopener"
-               style="background:#2563eb;color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;">
-              Request access (Google Form)
-            </a>
-          </p>
-          <p>
-            Or message us directly:
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-          </p>
-        </div>
-        """, unsafe_allow_html=True)
 
     # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
     st.markdown("""
@@ -1002,49 +1097,9 @@ if not st.session_state.get("logged_in", False):
       /* Keep controls tidy */
       .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
     </style>
-
-    <div class="page-wrap" style="display:flex; justify-content:center; margin:24px auto;">
-      <video id="falowen_demo" class="no-fs"
-        style="border-radius:12px; box-shadow:0 4px 12px #0002; width:min(92vw,420px); height:auto; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;"
-        aria-label="Falowen demo video showing the app features"
-        autoplay
-        muted
-        loop
-        controls
-        playsinline
-        webkit-playsinline
-        disablepictureinpicture
-        x-webkit-airplay="deny"
-        controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
-        preload="metadata"
-        oncontextmenu="return false;"
-      >
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-      </video>
-    </div>
-
-    <script>
-    (function(){
-      const v = document.getElementById('falowen_demo');
-
-      // If any browser still manages to enter fullscreen, immediately exit.
-      function exitFS(){
-        try {
-          if (document.fullscreenElement) document.exitFullscreen();
-          if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
-          if (document.msFullscreenElement && document.msExitFullscreen) document.msExitFullscreen();
-        } catch(e){}
-      }
-      ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange']
-        .forEach(evt => document.addEventListener(evt, exitFS, {passive:true}));
-
-      // Block programmatic requests, just in case.
-      if (v.requestFullscreen) v.requestFullscreen = () => Promise.reject();
-      if (v.webkitRequestFullscreen) v.webkitRequestFullscreen = () => {};
-    })();
-    </script>
+    ...
     """, unsafe_allow_html=True)
-#
+
 
     # Quick Links (high-contrast)
     st.markdown("""
@@ -1134,6 +1189,14 @@ if not st.session_state.get("logged_in", False):
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
+    # 0) Best-effort: destroy server-side session token
+    try:
+        tok = st.session_state.get("session_token", "")
+        if tok:
+            destroy_session_token(tok)
+    except Exception:
+        pass
+
     # 1) Expire the host-only cookie immediately (server + JS)
     try:
         set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
@@ -1148,38 +1211,47 @@ if st.button("Log out"):
         pass
 
     _prefix = getattr(cookie_manager, "prefix", "") or ""
-    _cookie_name = f"{_prefix}student_code"
+    _cookie_name_code = f"{_prefix}student_code"   # cookie set by EncryptedCookieManager
+    _cookie_name_tok  = "falowen_session"          # optional JS-set mirror for session token
     _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
 
-    # 2) Clear localStorage + URL param + cookies (host-only + legacy domain) and reload
+    # 2) Clear localStorage + URL params + cookies (host-only + legacy base-domain) and reload
     components.html(f"""
     <script>
       (function() {{
         try {{
           // localStorage
-          try {{ localStorage.removeItem('student_code'); }} catch (e) {{}}
+          try {{
+            localStorage.removeItem('student_code');
+            localStorage.removeItem('session_token');
+          }} catch (e) {{}}
 
-          // URL param
+          // URL params (student_code + token bridge)
           const url = new URL(window.location);
-          if (url.searchParams.has('student_code')) {{
-            url.searchParams.delete('student_code');
-            window.history.replaceState({{}}, '', url);
+          ['student_code','t','ua','ls'].forEach(k => url.searchParams.delete(k));
+          window.history.replaceState({{}}, '', url);
+
+          // Cookies: expire host-only + base-domain variants
+          const isSecure = {_secure_js};
+          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
+          const names = [{json.dumps(_cookie_name_code)}, {json.dumps(_cookie_name_tok)}];
+
+          function expireCookie(name, domain) {{
+            var s = name + "=; Expires=" + past + "; Path=/; SameSite=Lax";
+            if (isSecure) s += "; Secure";
+            if (domain) s += "; Domain=" + domain;
+            document.cookie = s;
           }}
 
-          // Cookies
-          const name = "{_cookie_name}";
-          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
-          const isSecure = {_secure_js};
+          // Host-only (current)
+          names.forEach(n => expireCookie(n));
 
-          // Host-only cookie (current strategy)
-          document.cookie = name + "=; Expires=" + past + "; Path=/; SameSite=Lax" + (isSecure ? "; Secure" : "");
-
-          // Legacy cleanup: try base-domain cookie too (if it ever existed)
+          // Base-domain (legacy cleanup)
           const host  = window.location.hostname;
           const parts = host.split('.');
           if (parts.length >= 2) {{
-            const base = parts.slice(-2).join('.');
-            document.cookie = name + "=; Expires=" + past + "; Path=/; Domain=." + base + "; SameSite=Lax" + (isSecure ? "; Secure" : "");
+            const base = '.' + parts.slice(-2).join('.');
+            names.forEach(n => expireCookie(n, base));
           }}
 
           // Reload
@@ -1195,7 +1267,11 @@ if st.button("Log out"):
         "student_row": None,
         "student_code": "",
         "student_name": "",
+        "session_token": "",
         "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "__ls_token": "",
     }.items():
         st.session_state[k] = v
 
@@ -1205,6 +1281,7 @@ if st.button("Log out"):
         pass
 
     st.stop()
+
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -9529,6 +9606,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
