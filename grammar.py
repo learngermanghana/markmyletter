@@ -4227,12 +4227,58 @@ if tab == "My Course":
 
         st.divider()
 
-        # ===================== TUTORS • CALENDAR • CONTACT =====================
-        # expects: tutors (list of {name,email} or names), calendar_url, contact_email,
-        #          image_url, student_name, student_code, class_name
-        import urllib.parse as _urllib
+        # ===================== CLASS META (safe resolver) =====================
+        import re, urllib.parse as _urllib
 
-        # Build lead / co-tutor from list
+        def _norm_class_local(s: str) -> str:
+            return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+        # Fallbacks you can edit; Firestore values (if any) will override these.
+        CLASS_FALLBACKS_LOCAL = {
+            _norm_class_local("A2 Koln Klasse"): {
+                "tutors": ["Your Name", "Co-Tutor"],
+                "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
+                "contact_email": "learngermanghana@gmail.com",
+                "image_url": "https://i.imgur.com/7uJRrbr.png",  # use a direct image URL
+            },
+            _norm_class_local("B1 Munich Klasse"): {
+                "tutors": ["Your Name"],
+                "calendar_url": "https://calendar.app.google/5aWmmumc7pVLCKJZ6",
+                "contact_email": "learngermanghana@gmail.com",
+                "image_url": "https://i.imgur.com/7uJRrbr.png",
+            },
+            _norm_class_local("A2 Munich Klasse"): {
+                "tutors": ["Your Name"],
+                "calendar_url": "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=MnFxZHZmYXYxZGUwODg3b2FuaWdodWRkYTBfMjAyNTA4MDRUMTkzMDAwWiBsZWFybmdlcm1hbmdoYW5hQG0&tmsrc=learngermanghana%40gmail.com&scp=ALL",
+                "contact_email": "learngermanghana@gmail.com",
+                "image_url": "https://i.imgur.com/7uJRrbr.png",
+            },
+            _norm_class_local("A1 Munich Klasse"): {
+                "tutors": ["Your Name"],
+                "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
+                "contact_email": "learngermanghana@gmail.com",
+                "image_url": "https://i.imgur.com/7uJRrbr.png",
+            },
+        }
+
+        # Merge Firestore -> fallbacks
+        _meta = {}
+        try:
+            doc = db.collection("classes").document(class_name).get()
+            if getattr(doc, "exists", False):
+                _meta.update(doc.to_dict() or {})
+        except Exception:
+            pass
+        _fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
+        _meta = {**_fb, **_meta}
+
+        tutors        = _meta.get("tutors", [])  # list of names or {name,email}
+        calendar_url  = (_meta.get("calendar_url") or "").strip()
+        contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
+        image_url     = (_meta.get("image_url") or "").strip()
+
+        # ===================== TUTORS • CALENDAR • CONTACT =====================
+        # Build lead / co-tutor
         lead_tutor = tutors[0] if tutors else None
         co_tutor   = tutors[1] if len(tutors) > 1 else None
 
@@ -4338,6 +4384,8 @@ if tab == "My Course":
             st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
+#
+
 
 
         # ===================== CLASS ROSTER =====================
