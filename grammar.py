@@ -1129,82 +1129,82 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 
-# ============================================================
-# Logout helper (iPhone/Safari friendly)
-# ============================================================
 
+# --- Logged In UI ---
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
-def logout_user(cookie_manager):
-    """Clear student session everywhere and reload the page."""
-    # 1) Clear server-visible cookie via the manager
+if st.button("Log out"):
+    # 1) Expire the host-only cookie immediately (server + JS)
+    try:
+        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+    except Exception:
+        pass
+
+    # Also try library delete (if supported)
     try:
         cookie_manager.delete("student_code")
         cookie_manager.save()
     except Exception:
         pass
 
-    # 2) Also overwrite the cookie with an expired value (belt & suspenders)
-    try:
-        use_secure = (os.getenv("ENV", "prod") != "dev")
-        prefix = getattr(cookie_manager, "prefix", "") or ""
-        cname_prefixed = f"{prefix}student_code"
-        # Build a tiny JS to expire both raw and prefixed names, host-only and base-domain (just in case)
-        components.html(f"""
-        <script>
-          (function(){{
-            function expire(name, extra) {{
-              document.cookie = name + "=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/" + (extra || "");
-            }}
-            try {{
-              // Remove localStorage backup
-              try {{ localStorage.removeItem('student_code'); }} catch(e) {{}}
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name = f"{_prefix}student_code"
+    _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
 
-              // Remove URL param
-              const url = new URL(window.location);
-              if (url.searchParams.has('student_code')) {{
-                url.searchParams.delete('student_code');
-                window.history.replaceState({{}}, '', url.pathname + url.search);
-              }}
+    # 2) Clear localStorage + URL param + cookies (host-only + legacy domain) and reload
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          // localStorage
+          try {{ localStorage.removeItem('student_code'); }} catch (e) {{}}
 
-              // Host-only cookies (most important for iOS)
-              expire({json.dumps(cname_prefixed)}, "; SameSite=Lax{'; Secure' if use_secure else ''}");
-              expire("student_code", "; SameSite=Lax{'; Secure' if use_secure else ''}");
+          // URL param
+          const url = new URL(window.location);
+          if (url.searchParams.has('student_code')) {{
+            url.searchParams.delete('student_code');
+            window.history.replaceState({{}}, '', url);
+          }}
 
-              // Try base-domain variants too (harmless if none exist)
-              try {{
-                const host = window.location.hostname;
-                const parts = host.split('.');
-                if (parts.length >= 2) {{
-                  const base = "." + parts.slice(-2).join('.');
-                  expire({json.dumps(cname_prefixed)}, "; Domain=" + base + "; SameSite=Lax{'; Secure' if use_secure else ''}");
-                  expire("student_code", "; Domain=" + base + "; SameSite=Lax{'; Secure' if use_secure else ''}");
-                }}
-              }} catch(e) {{}}
+          // Cookies
+          const name = "{_cookie_name}";
+          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
+          const isSecure = {_secure_js};
 
-              // Hard reload so Streamlit reboots without the cookie
-              window.location.replace(url.pathname + url.search);
-            }} catch(e) {{}}
-          }})();
-        </script>
-        """, height=0)
-    except Exception:
-        pass
+          // Host-only cookie (current strategy)
+          document.cookie = name + "=; Expires=" + past + "; Path=/; SameSite=Lax" + (isSecure ? "; Secure" : "");
 
-    # 3) Clear Streamlit session state immediately (server side)
+          // Legacy cleanup: try base-domain cookie too (if it ever existed)
+          const host  = window.location.hostname;
+          const parts = host.split('.');
+          if (parts.length >= 2) {{
+            const base = parts.slice(-2).join('.');
+            document.cookie = name + "=; Expires=" + past + "; Path=/; Domain=." + base + "; SameSite=Lax" + (isSecure ? "; Secure" : "");
+          }}
+
+          // Reload
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately
     for k, v in {
         "logged_in": False,
         "student_row": None,
         "student_code": "",
         "student_name": "",
         "cookie_synced": False,
-        "__cookie_attempt": None,
     }.items():
         st.session_state[k] = v
 
-    # Stop this run; the page will reload client-side
+    try:
+        qp_clear()
+    except Exception:
+        pass
+
     st.stop()
-
-
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
@@ -9526,6 +9526,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
