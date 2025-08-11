@@ -11,14 +11,12 @@ import random
 import math
 import re
 import sqlite3
-import streamlit.components.v1 as components
 import tempfile
 import time
 import urllib.parse              # for urllib.parse.urlencode(...)
 import urllib.parse as _urllib   # for _urllib.quote(...)
 from datetime import date, datetime, timedelta, timezone  # includes timezone
 from uuid import uuid4
-from streamlit.components.v1 import html as st_html
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -27,15 +25,14 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
-import streamlit.components.v1 as components  # use components.html(...)
+import streamlit.components.v1 as components  # for components.html(...)
+from streamlit.components.v1 import html as st_html  # alias for convenience
 from bs4 import BeautifulSoup
 from docx import Document
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
-# If you prefer calling st_html(...), keep this; otherwise you can remove it and use components.html(...)
-from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
@@ -9243,6 +9240,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
