@@ -10,28 +10,6 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
-# ============================ AUTH GATE (hardcoded + logging) ============================
-# SHA-256("12344") -> 8e2ceecbcb5c7a306792a3104b9b249f16e36d70da1ed02c7ba948690a0819b3
-HARDCODED_PASS_SHA256 = "8e2ceecbcb5c7a306792a3104b9b249f16e36d70da1ed02c7ba948690a0819b3"
-
-PASS_SHA256 = (
-    HARDCODED_PASS_SHA256
-    or (st.secrets.get("teacher", {}).get("portal_sha256", "") if hasattr(st, "secrets") else "")
-    or os.getenv("TEACHER_PORTAL_SHA256", "")
-)
-
-ATTEMPT_LIMIT   = 5
-LOCKOUT_MINUTES = 5
-
-def _ok_pass(raw: str) -> bool:
-    if not PASS_SHA256:
-        return False
-    try:
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest() == PASS_SHA256
-    except Exception:
-        return False
-
-st.set_page_config(page_title="Falowen • Teacher Portal", page_icon="🧑‍🏫", layout="wide")
 
 # ============================ FIREBASE (ADMIN) — NO GOOGLE.CLOUD ============================
 def _get_db():
@@ -485,3 +463,4 @@ elif page == "Class Meta":
             st.success("Saved.")
         except Exception as e:
             st.error(f"Couldn’t save: {e}")
+
