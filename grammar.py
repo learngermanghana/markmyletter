@@ -5792,9 +5792,10 @@ How to prepare for your B1 oral exam.
 
 
 # ================================
-# 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
+# 5a. EXAMS MODE & CUSTOM CHAT TAB (cleaned & de-duplicated)
 # ================================
 
+# -- Firestore progress (kept as-is; used elsewhere)
 def save_exam_progress(student_code, progress_items):
     doc_ref = db.collection("exam_progress").document(student_code)
     doc = doc_ref.get()
@@ -5802,7 +5803,6 @@ def save_exam_progress(student_code, progress_items):
     all_progress = data.get("completed", [])
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for item in progress_items:
-        # Only add if not already present (avoid duplicates)
         already = any(
             p["level"] == item["level"] and
             p["teil"] == item["teil"] and
@@ -5818,13 +5818,14 @@ def save_exam_progress(student_code, progress_items):
             })
     doc_ref.set({"completed": all_progress}, merge=True)
 
+# Unified back step (use everywhere)
 def back_step(to_stage=1):
-    # Clear relevant session state values depending on the step
+    keys_to_clear = []
     if to_stage == 1:
         keys_to_clear = [
             "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
             "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
-            "remaining_topics", "used_topics", "_falowen_loaded"
+            "remaining_topics", "used_topics", "_falowen_loaded", "falowen_practiced_topics"
         ]
     elif to_stage == 2:
         keys_to_clear = [
@@ -5838,33 +5839,65 @@ def back_step(to_stage=1):
             "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
             "remaining_topics", "used_topics", "_falowen_loaded"
         ]
-    else:
-        keys_to_clear = []
-
     for k in keys_to_clear:
         st.session_state.pop(k, None)
-    # Ensure no stray None keys remain
     st.session_state.pop(None, None)
     st.session_state["falowen_stage"] = to_stage
     st.rerun()
 
+# Delete a single thread only (mode/level/teil)
+def clear_falowen_chat(student_code, mode, level, teil):
+    chat_key = f"{mode}_{level}_{(teil or 'custom')}"
+    doc_ref = db.collection("falowen_chats").document(student_code)
+    snap = doc_ref.get()
+    if not snap.exists:
+        return
+    data = snap.to_dict() or {}
+    chats = data.get("chats", {})
+    if chat_key in chats:
+        del chats[chat_key]
+        if chats:
+            doc_ref.set({"chats": chats}, merge=False)
+        else:
+            doc_ref.delete()
 
 # --- CONFIG ---
-exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
-exam_sheet_name = "exam_topics"   # <-- update if your tab is named differently
-exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
+exam_sheet_id   = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
+exam_sheet_name = "exam_topics"
+exam_csv_url    = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
 
 @st.cache_data
 def load_exam_topics():
-    df = pd.read_csv(exam_csv_url)
-    # Fill missing columns for Teil 3 if you only have a prompt
-    for col in ['Level', 'Teil', 'Topic', 'Keyword']:
-        if col not in df.columns:
-            df[col] = ""
+    import pandas as _pd
+    try:
+        df = _pd.read_csv(exam_csv_url)
+    except Exception:
+        return _pd.DataFrame()
+    # Normalize common columns (some sheets use different headers)
+    # We’ll canonicalize to: Level, Teil, Topic, Keyword
+    cols = {c.strip(): c for c in df.columns}
+    def pick(*names):
+        for n in names:
+            if n in cols: return cols[n]
+        return None
+    # Rename if alternates exist
+    topic_col   = pick("Topic", "Topic/Prompt", "Thema", "Prompt")
+    keyword_col = pick("Keyword", "Keyword/Subtopic", "Schlüsselwort", "Subtopic")
+    if topic_col and topic_col != "Topic":
+        df = df.rename(columns={topic_col: "Topic"})
+    if keyword_col and keyword_col != "Keyword":
+        df = df.rename(columns={keyword_col: "Keyword"})
+    for must in ["Level", "Teil", "Topic", "Keyword"]:
+        if must not in df.columns:
+            df[must] = ""
+    # Strip whitespace
+    for c in ["Level", "Teil", "Topic", "Keyword"]:
+        df[c] = df[c].astype(str).str.strip()
     return df
 
 df_exam = load_exam_topics()
 
+# Bubble styles + highlighters
 bubble_user = (
     "background:#1976d2; color:#fff; border-radius:18px 18px 2px 18px;"
     "padding:10px 16px; margin:5px 0 5px auto; max-width:90vw; display:inline-block; font-size:1.12em;"
@@ -5875,23 +5908,14 @@ bubble_assistant = (
     "padding:10px 16px; margin:5px auto 5px 0; max-width:90vw; display:inline-block; font-size:1.12em;"
     "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
 )
-highlight_words = [
-    "Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"
-]
-
-import re
+highlight_words = ["Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"]
 
 def highlight_keywords(text, words, ignore_case=True):
-    """
-    Highlights each keyword in the input text with a styled span.
-    - Uses word boundaries to match whole words only.
-    - Escapes each keyword for regex safety.
-    - Allows case-insensitive matching if ignore_case=True.
-    """
-    flags = re.IGNORECASE if ignore_case else 0
+    import re as _re
+    flags = _re.IGNORECASE if ignore_case else 0
     for w in words:
-        pattern = r'\b' + re.escape(w) + r'\b'
-        text = re.sub(
+        pattern = r'\b' + _re.escape(w) + r'\b'
+        text = _re.sub(
             pattern,
             lambda m: f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{m.group(0)}</span>",
             text,
@@ -5899,581 +5923,274 @@ def highlight_keywords(text, words, ignore_case=True):
         )
     return text
 
-def clear_falowen_chat(student_code, mode, level, teil):
-    """Deletes the saved chat for a particular student/mode/level/teil from Firestore."""
-    chat_key = f"{mode}_{level}_{teil or 'custom'}"
-    doc_ref = db.collection("falowen_chats").document(student_code)
-    doc = doc_ref.get()
-    if doc.exists:
-        data = doc.to_dict()
-        chats = data.get("chats", {})
-        if chat_key in chats:
-            del chats[chat_key]
-            doc_ref.set({"chats": chats}, merge=True)
+# Small PDF helper
+def falowen_download_pdf(messages, filename):
+    from fpdf import FPDF
+    import os
+    def safe_latin1(text):
+        return str(text).encode("latin1", "replace").decode("latin1")
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    chat_text = ""
+    for m in messages:
+        role = "Herr Felix" if m["role"] == "assistant" else "Student"
+        chat_text += f"{role}: {safe_latin1(m['content'])}\n\n"
+    pdf.multi_cell(0, 10, chat_text)
+    pdf_output = f"{filename}.pdf"
+    pdf.output(pdf_output)
+    with open(pdf_output, "rb") as f:
+        pdf_bytes = f.read()
+    os.remove(pdf_output)
+    return pdf_bytes
 
+# PROMPT BUILDERS (unchanged content, minor trims)
+def build_a1_exam_intro():
+    return (
+        "**A1 – Teil 1: Basic Introduction**\n\n"
+        "Introduce yourself with **Name, Land, Wohnort, Sprachen, Beruf, Hobby**.\n"
+        "Then I’ll ask:\n- Haben Sie Geschwister?\n- Wie alt ist deine Mutter?\n- Bist du verheiratet?\n\n"
+        "You might be asked to spell your name (**Buchstabieren**). Please introduce yourself now."
+    )
 
+def build_exam_instruction(level, teil):
+    # (shortened where possible; logic unchanged)
+    if level == "A1":
+        if "Teil 1" in teil: return build_a1_exam_intro()
+        if "Teil 2" in teil:
+            return ("**A1 – Teil 2: Question and Answer**\n\n"
+                    "I’ll give you a topic and keyword. Ask a question with the keyword and answer it yourself. "
+                    "I’ll correct your German (in English) and say if you passed. Type 'Yes' to begin.")
+        if "Teil 3" in teil:
+            return ("**A1 – Teil 3: Making a Request**\n\n"
+                    "I’ll give you a prompt (e.g., 'Radio anmachen'). Write a polite request. I’ll correct you and move to the next prompt. Ready? Type 'Yes'.")
+    if level == "A2":
+        if "Teil 1" in teil:
+            return ("**A2 – Teil 1: Fragen zu Schlüsselwörtern**\n\n"
+                    "I’ll give a topic. Ask & answer your own question. I’ll ask 3 questions, correct you (in English), and score you out of 25.")
+        if "Teil 2" in teil:
+            return ("**A2 – Teil 2: Über das Thema sprechen**\n\n"
+                    "Talk about the topic in 3–4 sentences. I’ll ask 3 questions, correct (in English), and score you out of 25.")
+        if "Teil 3" in teil:
+            return ("**A2 – Teil 3: Gemeinsam planen**\n\n"
+                    "We’ll plan together. After 5 prompts, I’ll score you out of 25 with feedback.")
+    if level == "B1":
+        if "Teil 1" in teil:
+            return ("**B1 – Teil 1: Gemeinsam planen (Dialogue)**\n\n"
+                    "We plan an activity together. I’ll ask 5 questions max, then score you out of 25.")
+        if "Teil 2" in teil:
+            return ("**B1 – Teil 2: Präsentation**\n\n"
+                    "Give a short presentation. I’ll ask 3 questions, give feedback, and score you out of 25.")
+        if "Teil 3" in teil:
+            return ("**B1 – Teil 3: Feedback & Fragen**\n\n"
+                    "I’ll ask 3 questions about your presentation, then feedback & 25-mark score.")
+    if level == "B2":
+        if "Teil 1" in teil: return "**B2 – Teil 1: Diskussion**\n\nWe discuss a topic. I’ll challenge your points and correct you."
+        if "Teil 2" in teil: return "**B2 – Teil 2: Präsentation**\n\nPresent a topic. I’ll ask probing questions and give advanced feedback."
+        if "Teil 3" in teil: return "**B2 – Teil 3: Argumentation**\n\nArgue your perspective. Expect detailed corrections."
+    if level == "C1":
+        return ("Du bist auf C1. Ich spreche nur Deutsch, stelle anspruchsvolle Fragen, "
+                "gebe Feedback auf Deutsch und fördere komplexe Strukturen.")
+    return ""
+
+def build_exam_system_prompt(level, teil):
+    # (kept concise; same behavior)
+    if level == "A1":
+        if "Teil 1" in teil:
+            return ("You are Herr Felix, a supportive A1 examiner. Ask for full self-intro (Name/Land/Wohnort/Sprachen/Beruf/Hobby). "
+                    "After the intro, ask the three fixed questions. Correct errors and explanations in English only; German examples OK. "
+                    "End with a score /25 and pass/fail.")
+        if "Teil 2" in teil:
+            return ("You are Herr Felix, A1 examiner. Random Thema+Keyword from official list. "
+                    "Student must ask a question with the keyword and answer it. Correct (explain in English) and after each turn say pass/fail. Keep it supportive.")
+        if "Teil 3" in teil:
+            return ("You are Herr Felix, A1 examiner. Give short prompts like 'Radio anmachen'. "
+                    "Student writes a polite request. Correct (explain in English), provide the right version, then next prompt.")
+    if level == "A2":
+        return ("You are a Goethe A2 examiner (Herr Felix). Keep it exam-style, supportive, correct errors in English, "
+                "respect the number of questions for each Teil, and at the end score /25 with a short rationale.")
+    if level == "B1":
+        return ("You are a Goethe B1 examiner (Herr Felix). Keep turns short, ask the specified number of questions, "
+                "correct in both German+English, and give an exam-style /25 score with reasoning.")
+    if level == "B2":
+        return ("You are a B2 examiner (Herr Felix). Discuss/present/argue as per Teil. Provide advanced feedback, mostly in German; "
+                "English only for tricky points.")
+    if level == "C1":
+        return ("Du bist C1-Prüfer Herr Felix. Nur Deutsch, herausfordernde Fragen, präzises Feedback, anspruchsvolle Strukturen fördern.")
+    return ""
+
+def build_custom_chat_prompt(level):
+    if level == "C1":
+        return ("You are a supportive German C1 teacher. Ask one question at a time, suggest useful opening phrases, "
+                "check C1 level, correct politely, and after 5 smart questions give scores & tips and a 60-word mini-presentation from the student’s own words.")
+    correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
+    return (
+        f"You are Herr Felix, a supportive German teacher. Outline how the session will run, encourage questions, and focus on speaking. "
+        f"Pick ~4 useful keywords from the student topic; ask up to 2 questions per keyword (one at a time). "
+        f"After each answer: feedback in English and a German suggestion to extend. "
+        f"If they paste a letter prompt, kindly redirect them to the Schreiben tab’s ideas generator. "
+        f"If they ask 3 grammar questions in a row, remind them to read the course book first, then continue. "
+        f"Stop after 8 total questions; give a summary, scores, and a 60-word presentation using their words. "
+        f"All corrections {correction_lang}."
+    )
+
+# ---- SESSION STATE DEFAULTS ----
+for key, val in {
+    "falowen_stage": 1, "falowen_mode": None, "falowen_level": None, "falowen_teil": None,
+    "falowen_messages": [], "falowen_turn_count": 0, "custom_topic_intro_done": False,
+    "custom_chat_level": None, "falowen_exam_topic": None, "falowen_exam_keyword": None,
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
+
+lesen_links = {
+    "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+    "A2": [("Goethe A2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+    "B1": [("Goethe B1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+    "B2": [("Goethe B2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+    "C1": [("Goethe C1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+}
+hoeren_links = {
+    "A1": [("Goethe A1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
+    "A2": [("Goethe A2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
+    "B1": [("Goethe B1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
+    "B2": [("Goethe B2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
+    "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
+}
+
+# ===== Tab
 if tab == "Exams Mode & Custom Chat":
-    # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
+    # --- Login gate for isolation
     if "student_code" not in st.session_state or not st.session_state["student_code"]:
-        code = st.text_input("Enter your Student Code to continue:", key="login_code")
+        code_in = st.text_input("Enter your Student Code to continue:", key="login_code")
         if st.button("Login"):
-            st.session_state["student_code"] = code.strip()
-            st.session_state["last_logged_code"] = code.strip()
+            st.session_state["student_code"] = (code_in or "").strip()
+            st.session_state["last_logged_code"] = (code_in or "").strip()
             st.rerun()
         st.stop()
     else:
         code = st.session_state["student_code"]
-        last_code = st.session_state.get("last_logged_code", None)
+        last_code = st.session_state.get("last_logged_code")
         if last_code != code:
-            # Clear all chat-related session state for new login
             for k in [
                 "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
-                "custom_topic_intro_done", "falowen_turn_count",
-                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
+                "custom_topic_intro_done", "falowen_turn_count", "falowen_exam_topic",
+                "falowen_exam_keyword", "remaining_topics", "used_topics",
                 "_falowen_loaded", "falowen_practiced_topics"
             ]:
-                if k in st.session_state: del st.session_state[k]
+                st.session_state.pop(k, None)
             st.session_state["last_logged_code"] = code
             st.rerun()
 
-    # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
     if "falowen_practiced_topics" not in st.session_state:
         st.session_state["falowen_practiced_topics"] = []
 
-
-        
-    # 🗣️ Compact tab header
+    # Header
     st.markdown(
         '''
-        <div style="
-            padding: 8px 12px;
-            background: #28a745;
-            color: #fff;
-            border-radius: 6px;
-            text-align: center;
-            margin-bottom: 8px;
-            font-size: 1.3rem;
-        ">
+        <div style="padding:8px 12px;background:#28a745;color:#fff;border-radius:6px;
+                    text-align:center;margin-bottom:8px;font-size:1.3rem;">
             🗣️ Exam Simulator & Custom Chat
         </div>
-        ''',
-        unsafe_allow_html=True
+        ''', unsafe_allow_html=True
     )
     st.divider()
-
-
-
-    # ---- PDF Helper ----
-    def falowen_download_pdf(messages, filename):
-        from fpdf import FPDF
-        import os
-        def safe_latin1(text):
-            return text.encode("latin1", "replace").decode("latin1")
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        chat_text = ""
-        for m in messages:
-            role = "Herr Felix" if m["role"] == "assistant" else "Student"
-            safe_msg = safe_latin1(m["content"])
-            chat_text += f"{role}: {safe_msg}\n\n"
-        pdf.multi_cell(0, 10, chat_text)
-        pdf_output = f"{filename}.pdf"
-        pdf.output(pdf_output)
-        with open(pdf_output, "rb") as f:
-            pdf_bytes = f.read()
-        os.remove(pdf_output)
-        return pdf_bytes
-
-
-    # ---- PROMPT BUILDERS (ALL LOGIC) ----
-    def build_a1_exam_intro():
-        return (
-            "**A1 – Teil 1: Basic Introduction**\n\n"
-            "In the A1 exam's first part, you will be asked to introduce yourself. "
-            "Typical information includes: your **Name, Land, Wohnort, Sprachen, Beruf, Hobby**.\n\n"
-            "After your introduction, you will be asked 3 basic questions such as:\n"
-            "- Haben Sie Geschwister?\n"
-            "- Wie alt ist deine Mutter?\n"
-            "- Bist du verheiratet?\n\n"
-            "You might also be asked to spell your name (**Buchstabieren**). "
-            "Please introduce yourself now using all the keywords above."
-        )
-
-    def build_exam_instruction(level, teil):
-        if level == "A1":
-            if "Teil 1" in teil:
-                return build_a1_exam_intro()
-            elif "Teil 2" in teil:
-                return (
-                    "**A1 – Teil 2: Question and Answer**\n\n"
-                    "You will get a topic and a keyword. Your job: ask a question using the keyword, "
-                    "then answer it yourself. Example: Thema: Geschäft – Keyword: schließen → "
-                    "Wann schließt das Geschäft?\nLet's try one. Type 'Yes' in the chatbox so we start?"
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "**A1 – Teil 3: Making a Request**\n\n"
-                    "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or imperative. "
-                    "Example: Können Sie bitte das Radio anmachen?\nReady?"
-                    "Type Yes in the chatbox so we start?"
-                )
-        if level == "A2":
-            if "Teil 1" in teil:
-                return (
-                    "**A2 – Teil 1: Fragen zu Schlüsselwörtern**\n\n"
-                    "You'll get a topic (e.g. 'Wohnort'). Ask a question, then answer it yourself. "
-                    "When you're ready, type 'Begin'."
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "**A2 – Teil 2: Über das Thema sprechen**\n\n"
-                    "Talk about the topic in 3–4 sentences. I'll correct and give tips. Start when ready."
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "**A2 – Teil 3: Gemeinsam planen**\n\n"
-                    "Let's plan something together. Respond and make suggestions. Start when ready."
-                )
-        if level == "B1":
-            if "Teil 1" in teil:
-                return (
-                    "**B1 – Teil 1: Gemeinsam planen**\n\n"
-                    "We'll plan an activity together (e.g., a trip or party). Give your ideas and answer questions."
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "**B1 – Teil 2: Präsentation**\n\n"
-                    "Give a short presentation on the topic (about 2 minutes). I'll ask follow-up questions."
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "**B1 – Teil 3: Feedback & Fragen stellen**\n\n"
-                    "Answer questions about your presentation. I'll give you feedback on your language and structure."
-                )
-        if level == "B2":
-            if "Teil 1" in teil:
-                return (
-                    "**B2 – Teil 1: Diskussion**\n\n"
-                    "We'll discuss a topic. Express your opinion and justify it."
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "**B2 – Teil 2: Präsentation**\n\n"
-                    "Present a topic in detail. I'll challenge your points and help you improve."
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "**B2 – Teil 3: Argumentation**\n\n"
-                    "Argue your perspective. I'll give feedback and counterpoints."
-                )
-        if level == "C1":
-            if "Teil 1" in teil:
-                return (
-                    "**C1 – Teil 1: Vortrag**\n\n"
-                    "Bitte halte einen kurzen Vortrag zum Thema. Ich werde anschließend Fragen stellen und deine Sprache bewerten."
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "**C1 – Teil 2: Diskussion**\n\n"
-                    "Diskutiere mit mir über das gewählte Thema. Ich werde kritische Nachfragen stellen."
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "**C1 – Teil 3: Bewertung**\n\n"
-                    "Bewerte deine eigene Präsentation. Was würdest du beim nächsten Mal besser machen?"
-                )
-        return ""
-
-    def build_exam_system_prompt(level, teil):
-        if level == "A1":
-            if "Teil 1" in teil:
-                return (
-                    "You are Herr Felix, a supportive A1 German examiner. "
-                    "Ask the student to introduce themselves using the keywords (Name, Land, Wohnort, Sprachen, Beruf, Hobby). "
-                    "Check if all info is given, correct any errors (explain in English), and give the right way to say things in German. "
-                    "1. Always explain errors and suggestion in English only. Only next question should be German. They are just A1 student "
-                    "After their intro, ask these three questions one by one: "
-                    "'Haben Sie Geschwister?', 'Wie alt ist deine Mutter?', 'Bist du verheiratet?'. "
-                    "Correct their answers (explain in English). At the end, mention they may be asked to spell their name ('Buchstabieren') and wish them luck."
-                    "Give them a score out of 25 and let them know if they passed or not"
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "You are Herr Felix, an A1 examiner. Randomly give the student a Thema and Keyword from the official list. "
-                    "Let them know you have 52 cards available and here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
-                    "Tell them to ask a question with the keyword and answer it themselves, then correct their German (explain errors in English, show the correct version), and move to the next topic."
-                     "1.After every input, let them know if they passed or not and explain why you said so"
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "You are Herr Felix, an A1 examiner. Give the student a prompt (e.g. 'Radio anmachen'). "
-                    "Let them know you have 20 cards available and you here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
-                    "Ask them to write a polite request or imperative and answer themseves like their partners will do. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt."
-                    " They respond using Ja gerne or In ordnung. They can also answer using Ja, Ich kann and the question of the verb at the end (e.g 'Ich kann das Radio anmachen'). "
-                )
-        if level == "A2":
-            if "Teil 1" in teil:
-                return (
-                    "You are Herr Felix, a Goethe A2 examiner. Give a topic from the A2 list. "
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
-                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
-                    "2. Use phrases like your next recommended question to ask for the next question"
-                    "Ask the student to ask and answer a question on it. Always correct their German (explain errors in English), show the correct version, and encourage."
-                    "Ask one question at a time"
-                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
-                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
-                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "You are Herr Felix, an A2 examiner. Give a topic. Student gives a short monologue. Correct errors (in English), give suggestions, and follow up with one question."
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
-                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
-                    "2. Use phrases like your next recommended question to ask for the next question"
-                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
-                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
-                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them understand"
-                    
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "You are Herr Felix, an A2 examiner. Plan something together (e.g., going to the cinema). Check student's suggestions, correct errors, and keep the conversation going."
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
-                    "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
-                    "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
-                )
-        if level == "B1":
-            if "Teil 1" in teil:
-                return (
-                    "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
-                    "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
-                    "1. Give short answers that encourages the student to also type back"
-                    "2. After student input, let the student know you will ask just 5 questions and after give a score out of 25 marks. Explain in English for them to understand. "
-                    "3. Ask only 5 questions and try and end the conversation"
-                    "4. Give score after every presentation whether they passed or not"
-                    "5. Use phrases like your next recommended question to ask for the next question"
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
-                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks. Explain in English for them to understand. "
-                    "2. Ask only 3 questions and one question at a time"
-                    "3. Dont make your reply too long and complicated but friendly"
-                    "4. After your third question, mark and give the student their scores"
-                    "5. Use phrases like your next recommended question to ask for the next question"
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "You are Herr Felix, a Goethe B1 examiner. Student answers questions about their presentation. "
-                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
-                    "Give exam-style feedback (in German and English), correct language, and motivate."
-                    "1. Ask only 3 questions and one question at a time"
-                    "2. Dont make your reply too long and complicated but friendly"
-                    "3. After your third question, mark and give the student their scores out of 25 marks. Explain in English for them to understand"
-                    "4. Use phrases like your next recommended question to ask for the next question"
-                )
-        if level == "B2":
-            if "Teil 1" in teil:
-                return (
-                    "You are Herr Felix, a B2 examiner. Discuss a topic with the student. Challenge their points. Correct errors (mostly in German, but use English if it's a big mistake), and always provide the correct form."
-                )
-            elif "Teil 2" in teil:
-                return (
-                    "You are Herr Felix, a B2 examiner. Listen to the student's presentation. Give high-level feedback (mostly in German), ask probing questions, and always highlight advanced vocabulary and connectors."
-                )
-            elif "Teil 3" in teil:
-                return (
-                    "You are Herr Felix, a B2 examiner. Argue your perspective. Give detailed, advanced corrections (mostly German, use English if truly needed). Encourage native-like answers."
-                )
-        if level == "C1":
-            if "Teil 1" in teil or "Teil 2" in teil or "Teil 3" in teil:
-                return (
-                    "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
-                    "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
-                )
-        return ""
-#
-    def build_custom_chat_prompt(level):
-        if level == "C1":
-            return (
-                "You are supportive German C1 Teacher. Speak both english and German "
-                "Ask student one question at a time"
-                "Suggest useful phrases student can use to begin their phrases"
-                "Check if student is writing on C1 Level"
-                "After correction, proceed to the next question using the phrase your next recommended question"
-                "When there is error, correct for the student and teach them how to say it correctly"
-                "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
-                "Help student progress from B2 to C1 with your support and guidance"
-            )
-        if level in ["A1", "A2", "B1", "B2"]:
-            correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
-            return (
-                f"You are Herr Felix, a supportive and innovative German teacher. "
-                f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
-                f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
-                f"Promise them that if they answer all 8 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
-                f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
-                f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
-                f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
-                f" Explain difficult words when level is A1,A2,B1,B2. "
-                f"IMPORTANT: If a student asks 3 grammar questions in a row without trying to answer your conversation questions, respond warmly but firmly: remind them to check their course book using the search button for grammar explanations. Explain that reading their book will help them become more independent and confident as a learner. Kindly pause grammar explanations until they have checked the book and tried the conversation questions. Stay positive, but firm about using the resources. If they still have a specific question after reading, gladly help. "
-                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 8 questions in total). "
-                f"Never ask more than 2 questions about the same keyword. "
-                f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
-                f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
-                f"All feedback and corrections should be {correction_lang}. "
-                f"Encourage the student and keep the chat motivating. "
-            )
-        return ""
-
-#
-# ---- SESSION STATE DEFAULTS ----
-    default_state = {
-        "falowen_stage": 1,
-        "falowen_mode": None,
-        "falowen_level": None,
-        "falowen_teil": None,
-        "falowen_messages": [],
-        "falowen_turn_count": 0,
-        "custom_topic_intro_done": False,
-        "custom_chat_level": None,
-        "falowen_exam_topic": None,
-        "falowen_exam_keyword": None,
-    }
-    for key, val in default_state.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
-
-    lesen_links = {
-        "A1": [("Goethe A1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
-        "A2": [("Goethe A2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
-        "B1": [("Goethe B1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
-        "B2": [("Goethe B2 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
-        "C1": [("Goethe C1 Lesen (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
-    }
-
-    hoeren_links = {
-        "A1": [("Goethe A1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd1/ueb.html")],
-        "A2": [("Goethe A2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzsd2/ueb.html")],
-        "B1": [("Goethe B1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb1/ueb.html")],
-        "B2": [("Goethe B2 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/mm/en/spr/prf/gzb2/ue9.html")],
-        "C1": [("Goethe C1 Hören (Lesen & Hören page)", "https://www.goethe.de/ins/be/en/spr/prf/gzc1/u24.html")],
-    }
 
     # ---- STAGE 1: Mode Selection ----
     if st.session_state["falowen_stage"] == 1:
         st.subheader("Step 1: Choose Practice Mode")
-
         st.info(
             """
-            **Which mode should you choose?**
-
-            - 📝 **Exam Mode**:  
-                Practice for your official Goethe exam!  
-                - Includes **Speaking** (Sprechen) with a live chat examiner  
-                - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
-                - See official exam instructions and practice with authentic topics
-
-            - 💬 **Custom Chat**:  
-                Chat about any topic!  
-                - Great for practicing presentations, your own ideas, or general German conversation  
-                - No exam restrictions—learn at your own pace
-
-            - 🎤 **Pronunciation & Speaking Checker**:  
-                Record or upload a short audio, get instant feedback on your pronunciation, fluency, and speaking.  
-                - Perfect for practicing real answers and getting AI-based scoring & tips!
-            """,
-            icon="ℹ️"
+            - 📝 **Exam Mode**: Speaking simulation + links to official Lesen/Hören
+            - 💬 **Custom Chat**: Free topic speaking practice
+            - 🎤 **Pronunciation & Speaking Checker**: Upload audio, get instant feedback
+            """, icon="ℹ️"
         )
-
-        # Mode selection radio
         mode = st.radio(
             "How would you like to practice?",
-            [
-                "Geführte Prüfungssimulation (Exam Mode)",
-                "Eigenes Thema/Frage (Custom Chat)",
-                "Pronunciation & Speaking Checker"
-            ],
+            ["Geführte Prüfungssimulation (Exam Mode)", "Eigenes Thema/Frage (Custom Chat)", "Pronunciation & Speaking Checker"],
             key="falowen_mode_center"
         )
-
-        # Next button logic
         if st.button("Next ➡️", key="falowen_next_mode"):
             st.session_state["falowen_mode"] = mode
-            # Skip level/teil selection if in Pronunciation mode, jump to special stage
-            if mode == "Pronunciation & Speaking Checker":
-                st.session_state["falowen_stage"] = 99
-            else:
-                st.session_state["falowen_stage"] = 2
-            st.session_state["falowen_level"] = None
-            st.session_state["falowen_teil"] = None
-            st.session_state["falowen_messages"] = []
-            st.session_state["custom_topic_intro_done"] = False
+            st.session_state["falowen_stage"] = 99 if mode == "Pronunciation & Speaking Checker" else 2
+            for k in ["falowen_level", "falowen_teil", "falowen_messages", "custom_topic_intro_done"]:
+                st.session_state[k] = None if k != "falowen_messages" else []
             st.rerun()
-
 
     # ---- STAGE 2: Level Selection ----
     if st.session_state["falowen_stage"] == 2:
-        # If Pronunciation & Speaking Checker, skip this stage!
         if st.session_state["falowen_mode"] == "Pronunciation & Speaking Checker":
             st.session_state["falowen_stage"] = 99
             st.rerun()
-
         st.subheader("Step 2: Choose Your Level")
-        level = st.radio(
-            "Select your level:",
-            ["A1", "A2", "B1", "B2", "C1"],
-            key="falowen_level_center"
-        )
-
-        # ← Back and Next → in two columns
-        col1, col2 = st.columns(2)
-        with col1:
+        level = st.radio("Select your level:", ["A1", "A2", "B1", "B2", "C1"], key="falowen_level_center")
+        c1, c2 = st.columns(2)
+        with c1:
             if st.button("⬅️ Back", key="falowen_back1"):
-                # Back from Level → Mode selection
-                st.session_state["falowen_stage"] = 1
-                st.session_state["falowen_messages"] = []
-                st.session_state["_falowen_loaded"] = False
-                st.rerun()
-        with col2:
+                back_step(1)
+        with c2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 st.session_state["falowen_level"] = level
-                if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
-                    st.session_state["falowen_stage"] = 3
-                else:
-                    st.session_state["falowen_stage"] = 4
+                st.session_state["falowen_stage"] = 3 if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)" else 4
                 st.session_state["falowen_teil"] = None
                 st.session_state["falowen_messages"] = []
                 st.session_state["custom_topic_intro_done"] = False
                 st.rerun()
-
         st.stop()
-        
+
     # ---- STAGE 3: Choose Exam Part ----
     if st.session_state["falowen_stage"] == 3:
         st.subheader("Step 3: Choose Exam Part")
-
-        # 1) exam‑part options per level
         teil_options = {
-            "A1": [
-                "Teil 1 – Basic Introduction",
-                "Teil 2 – Question and Answer",
-                "Teil 3 – Making A Request",
-                "Lesen – Past Exam Reading",
-                "Hören – Past Exam Listening"
-            ],
-            "A2": [
-                "Teil 1 – Fragen zu Schlüsselwörtern",
-                "Teil 2 – Über das Thema sprechen",
-                "Teil 3 – Gemeinsam planen",
-                "Lesen – Past Exam Reading",
-                "Hören – Past Exam Listening"
-            ],
-            "B1": [
-                "Teil 1 – Gemeinsam planen (Dialogue)",
-                "Teil 2 – Präsentation (Monologue)",
-                "Teil 3 – Feedback & Fragen stellen",
-                "Lesen – Past Exam Reading",
-                "Hören – Past Exam Listening"
-            ],
-            "B2": [
-                "Teil 1 – Diskussion",
-                "Teil 2 – Präsentation",
-                "Teil 3 – Argumentation",
-                "Lesen – Past Exam Reading",
-                "Hören – Past Exam Listening"
-            ],
-            "C1": [
-                "Teil 1 – Vortrag",
-                "Teil 2 – Diskussion",
-                "Teil 3 – Bewertung",
-                "Lesen – Past Exam Reading",
-                "Hören – Past Exam Listening"
-            ]
+            "A1": ["Teil 1 – Basic Introduction", "Teil 2 – Question and Answer", "Teil 3 – Making A Request", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
+            "A2": ["Teil 1 – Fragen zu Schlüsselwörtern", "Teil 2 – Über das Thema sprechen", "Teil 3 – Gemeinsam planen", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
+            "B1": ["Teil 1 – Gemeinsam planen (Dialogue)", "Teil 2 – Präsentation (Monologue)", "Teil 3 – Feedback & Fragen stellen", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
+            "B2": ["Teil 1 – Diskussion", "Teil 2 – Präsentation", "Teil 3 – Argumentation", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
+            "C1": ["Teil 1 – Vortrag", "Teil 2 – Diskussion", "Teil 3 – Bewertung", "Lesen – Past Exam Reading", "Hören – Past Exam Listening"],
         }
         level = st.session_state["falowen_level"]
-        teil = st.radio(
-            "Which exam part?",
-            teil_options[level],
-            key="falowen_teil_center"
-        )
+        teil = st.radio("Which exam part?", teil_options[level], key="falowen_teil_center")
 
-        # 2) If Lesen/Hören, show links + Back
+        # Lesen/Hören links
         if "Lesen" in teil or "Hören" in teil:
             if "Lesen" in teil:
                 st.markdown(
-                    """
-                    <div style="background:#e1f5fe;border-radius:10px;
-                                padding:1.1em 1.4em;margin:1.2em 0;">
-                      <span style="font-size:1.18em;color:#0277bd;">
-                        <b>📖 Past Exam: Lesen (Reading)</b>
-                      </span><br><br>
-                    """,
+                    "<div style='background:#e1f5fe;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;'>"
+                    "<span style='font-size:1.18em;color:#0277bd;'><b>📖 Past Exam: Lesen (Reading)</b></span><br><br>",
                     unsafe_allow_html=True
                 )
                 for label, url in lesen_links.get(level, []):
-                    st.markdown(
-                        f'<a href="{url}" target="_blank" '
-                        f'style="font-size:1.10em;color:#1976d2;font-weight:600">'
-                        f'👉 {label}</a><br>',
-                        unsafe_allow_html=True
-                    )
+                    st.markdown(f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#1976d2;font-weight:600">👉 {label}</a><br>', unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-
             if "Hören" in teil:
                 st.markdown(
-                    """
-                    <div style="background:#ede7f6;border-radius:10px;
-                                padding:1.1em 1.4em;margin:1.2em 0;">
-                      <span style="font-size:1.18em;color:#512da8;">
-                        <b>🎧 Past Exam: Hören (Listening)</b>
-                      </span><br><br>
-                    """,
+                    "<div style='background:#ede7f6;border-radius:10px;padding:1.1em 1.4em;margin:1.2em 0;'>"
+                    "<span style='font-size:1.18em;color:#512da8;'><b>🎧 Past Exam: Hören (Listening)</b></span><br><br>",
                     unsafe_allow_html=True
                 )
                 for label, url in hoeren_links.get(level, []):
-                    st.markdown(
-                        f'<a href="{url}" target="_blank" '
-                        f'style="font-size:1.10em;color:#5e35b1;font-weight:600">'
-                        f'👉 {label}</a><br>',
-                        unsafe_allow_html=True
-                    )
+                    st.markdown(f'<a href="{url}" target="_blank" style="font-size:1.10em;color:#5e35b1;font-weight:600">👉 {label}</a><br>', unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-
-            # Back button
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
-                st.session_state["falowen_stage"] = 2
-                st.session_state["falowen_messages"] = []
-                st.rerun()
+                back_step(2)
 
         else:
-            # 3) Topic-picker / search UI
-            teil_number = teil.split()[1]
-            topic_col   = "Topic/Prompt"
-            keyword_col = "Keyword/Subtopic"
+            # Topic picker (robust to varying sheet headers)
+            teil_number = teil.split()[1]  # "1", "2", "3"
             exam_topics = df_exam[
-                (df_exam["Level"] == level) &
-                (df_exam["Teil"]  == f"Teil {teil_number}")
-            ] if teil_number else pd.DataFrame()
+                (df_exam["Level"].str.upper() == level.upper()) &
+                (df_exam["Teil"].str.contains(f"Teil {teil_number}", case=False, na=False))
+            ] if not df_exam.empty else pd.DataFrame()
 
+            topics_list = []
             if not exam_topics.empty:
-                topic_vals   = exam_topics[topic_col].astype(str).str.strip()
-                keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
-                topics_list  = [
-                    f"{t} – {k}" if k else t
-                    for t, k in zip(topic_vals, keyword_vals) if t
-                ]
-            else:
-                topics_list = []
+                tvals = exam_topics["Topic"].astype(str).str.strip()
+                kvals = exam_topics["Keyword"].astype(str).str.strip()
+                topics_list = [f"{t} – {k}" if k else t for t, k in zip(tvals, kvals) if t]
 
             search = st.text_input("🔍 Search topic or keyword...", "")
-            filtered = (
-                [t for t in topics_list if search.lower() in t.lower()]
-                if search else topics_list
-            )
+            filtered = [t for t in topics_list if search.lower() in t.lower()] if search else topics_list
 
             if filtered:
                 st.markdown("**Preview: Available Topics**")
@@ -6481,53 +6198,48 @@ if tab == "Exams Mode & Custom Chat":
                     st.markdown(f"- {t}")
                 if len(filtered) > 6:
                     with st.expander(f"See all {len(filtered)} topics"):
-                        col1, col2 = st.columns(2)
+                        c1, c2 = st.columns(2)
                         for i, t in enumerate(filtered):
-                            with (col1 if i % 2 == 0 else col2):
-                                st.markdown(f"- {t}")
+                            (c1 if i % 2 == 0 else c2).markdown(f"- {t}")
 
                 st.write("**Pick your topic or select random:**")
                 choice = st.selectbox("", ["(random)"] + filtered, key="topic_picker")
-                chosen = random.choice(filtered) if choice == "(random)" else choice
+                if choice == "(random)":
+                    import random
+                    chosen = random.choice(filtered)
+                else:
+                    chosen = choice
 
                 if " – " in chosen:
                     topic, keyword = chosen.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"]   = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
                 else:
-                    st.session_state["falowen_exam_topic"]   = chosen
-                    st.session_state["falowen_exam_keyword"] = None
-
-                tp = st.session_state["falowen_exam_topic"]
-                kw = st.session_state["falowen_exam_keyword"]
-                if tp:
-                    st.success(f"**Your exam topic is:** {tp}" + (f" – {kw}" if kw else ""))
+                    topic, keyword = chosen, None
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
+                st.success(f"**Your exam topic is:** {topic}" + (f" – {keyword}" if keyword else ""))
             else:
                 st.info("No topics found. Try a different search.")
 
-            # Back + Start Practice
-            col1, col2 = st.columns([1, 2])
-            with col1:
+            c1, c2 = st.columns([1, 2])
+            with c1:
                 if st.button("⬅️ Back", key="falowen_back_part"):
-                    st.session_state["falowen_stage"]    = 2
-                    st.session_state["falowen_messages"] = []
-                    st.rerun()
-            with col2:
+                    back_step(2)
+            with c2:
                 if st.button("Start Practice", key="falowen_start_practice"):
-                    st.session_state["falowen_teil"]            = teil
-                    st.session_state["falowen_stage"]           = 4
-                    st.session_state["falowen_messages"]        = []
+                    import random
+                    st.session_state["falowen_teil"] = teil
+                    st.session_state["falowen_stage"] = 4
+                    st.session_state["falowen_messages"] = []
                     st.session_state["custom_topic_intro_done"] = False
-                    st.session_state["remaining_topics"]        = filtered.copy()
+                    st.session_state["remaining_topics"] = filtered.copy()
                     random.shuffle(st.session_state["remaining_topics"])
-                    st.session_state["used_topics"]             = []
+                    st.session_state["used_topics"] = []
                     st.rerun()
-
 
     # ==========================
     # FIRESTORE CHAT HELPERS
     # ==========================
-    def _chat_key(mode: str, level: str, teil: str | None) -> str:
+    def _chat_key(mode, level, teil):
         return f"{mode}_{level}_{(teil or 'custom')}"
 
     def save_falowen_chat(student_code, mode, level, teil, messages):
@@ -6545,172 +6257,105 @@ if tab == "Exams Mode & Custom Chat":
         chats = (snap.to_dict() or {}).get("chats", {})
         return chats.get(_chat_key(mode, level, teil), [])
 
-    def clear_falowen_chat(student_code, mode, level, teil):
-        """Delete ONLY the current chat thread (mode/level/teil). If it's the last one, remove the doc."""
-        doc_ref = db.collection("falowen_chats").document(student_code)
-        snap = doc_ref.get()
-        if not snap.exists:
-            return
-        data = snap.to_dict() or {}
-        chats = data.get("chats", {})
-        key = _chat_key(mode, level, teil)
-        if key in chats:
-            del chats[key]
-            if chats:
-                doc_ref.set({"chats": chats}, merge=False)
-            else:
-                doc_ref.delete()
-
-    def back_step():
-        """Always return to the main tab selection (Stage 1), regardless of current mode."""
-        # Clear per-run choices so the student can decide again cleanly
-        for key in [
-            "falowen_mode", "falowen_level", "falowen_teil",
-            "falowen_exam_topic", "falowen_exam_keyword",
-            "remaining_topics", "used_topics", "falowen_messages"
-        ]:
-            st.session_state.pop(key, None)
-
-        # Reset flags and go to the home stage
-        st.session_state["_falowen_loaded"] = False
-        st.session_state["falowen_stage"] = 1
-        st.rerun()
-
-
+    # Fallback if usage tracker not defined elsewhere
+    try:
+        inc_sprechen_usage
+    except NameError:
+        def inc_sprechen_usage(*_a, **_k): pass
 
     # ---- STAGE 4: MAIN CHAT ----
     if st.session_state.get("falowen_stage") == 4:
-        import re
-
         level = st.session_state.get("falowen_level")
-        teil = st.session_state.get("falowen_teil")
-        mode = st.session_state.get("falowen_mode")
-        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
-        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+        teil  = st.session_state.get("falowen_teil")
+        mode  = st.session_state.get("falowen_mode")
+        is_exam = (mode == "Geführte Prüfungssimulation (Exam Mode)")
         student_code = st.session_state.get("student_code", "demo")
 
-
-        # Load chat from db once
+        # Load chat once
         if not st.session_state.get("_falowen_loaded"):
             loaded = load_falowen_chat(student_code, mode, level, teil)
             if loaded:
                 st.session_state["falowen_messages"] = loaded
             st.session_state["_falowen_loaded"] = True
 
-        # Helper for safe message format
-        def ensure_message_format(msg):
-            if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                return msg
-            if isinstance(msg, (list, tuple)) and len(msg) == 2:
-                return {"role": msg[0], "content": msg[1]}
-            if isinstance(msg, str):
-                return {"role": "user", "content": msg}
-            return None
-
-        # Render chat
-        msgs = [ensure_message_format(m) for m in st.session_state.get("falowen_messages", [])]
-        st.session_state["falowen_messages"] = [m for m in msgs if m]
-
-        for msg in st.session_state["falowen_messages"]:
-            if msg["role"] == "assistant":
+        # Render chat log
+        for msg in st.session_state.get("falowen_messages", []):
+            if msg.get("role") == "assistant":
                 with st.chat_message("assistant", avatar="🧑‍🏫"):
                     st.markdown(
                         "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg.get('content',''), highlight_words)}</div>",
                         unsafe_allow_html=True
                     )
             else:
                 with st.chat_message("user"):
                     st.markdown(
                         f"<div style='display:flex;justify-content:flex-end;'>"
-                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        f"<div style='{bubble_user}'>🗣️ {msg.get('content','')}</div></div>",
                         unsafe_allow_html=True
                     )
 
-        # PDF + TXT download
+        # Downloads
         if st.session_state["falowen_messages"]:
-            teil_str = str(teil) if teil else "chat"
+            teil_str = str(teil or "chat")
             pdf_bytes = falowen_download_pdf(
                 st.session_state["falowen_messages"],
                 f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}"
             )
-            st.download_button(
-                "⬇️ Download Chat as PDF",
-                pdf_bytes,
-                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
-                mime="application/pdf"
-            )
+            st.download_button("⬇️ Download Chat as PDF", pdf_bytes,
+                               file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
+                               mime="application/pdf")
+            chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
+            st.download_button("⬇️ Download Chat as TXT", chat_as_text.encode("utf-8"),
+                               file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
+                               mime="text/plain")
 
-            chat_as_text = "\n".join([
-                f"{msg['role'].capitalize()}: {msg['content']}"
-                for msg in st.session_state["falowen_messages"]
-            ])
-            st.download_button(
-                "⬇️ Download Chat as TXT",
-                chat_as_text.encode("utf-8"),  # Unicode-safe
-                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
-                mime="text/plain"
-            )
-
-        # Action buttons (Delete + Back)
-        col1, col2 = st.columns(2)
-
-        with col1:
+        # Controls
+        c1, c2 = st.columns(2)
+        with c1:
             if st.button("🗑️ Delete All Chat History"):
                 try:
-                    # Prefer per-thread clear if you want only the current thread gone:
-                    # clear_falowen_chat(student_code, mode, level, teil)
-                    # If you truly want EVERYTHING for this student removed:
                     db.collection("falowen_chats").document(student_code).delete()
                 except Exception as e:
                     st.error(f"Could not delete chat history: {e}")
                 else:
-                    # Clear local session state so UI resets
                     for key in [
-                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
-                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
-                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                        "falowen_stage","falowen_mode","falowen_level","falowen_teil","falowen_messages",
+                        "custom_topic_intro_done","falowen_exam_topic","falowen_exam_keyword",
+                        "remaining_topics","used_topics","_falowen_loaded"
                     ]:
-                        if key in st.session_state:
-                            del st.session_state[key]
+                        st.session_state.pop(key, None)
                     st.session_state["falowen_stage"] = 1
                     st.success("All chat history deleted.")
                     st.rerun()
-
-        with col2:
+        with c2:
             if st.button("⬅️ Back"):
-                back_step()
+                back_step(1)
 
-        # Initial instruction if chat is empty
+        # First instruction
         if not st.session_state["falowen_messages"]:
-            instruction = build_exam_instruction(level, teil) if is_exam else (
-                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-            )
+            instruction = build_exam_instruction(level, teil) if is_exam else "Hallo! 👋 What would you like to talk about?"
             st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-        # Build system prompt including topic/context
+        # Build system prompt
         if is_exam:
             if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
                 next_topic = st.session_state["remaining_topics"].pop(0)
                 if " – " in next_topic:
                     topic, keyword = next_topic.split(" – ", 1)
-                    st.session_state["falowen_exam_topic"] = topic
-                    st.session_state["falowen_exam_keyword"] = keyword
                 else:
-                    st.session_state["falowen_exam_topic"] = next_topic
-                    st.session_state["falowen_exam_keyword"] = None
-                st.session_state["used_topics"].append(next_topic)
+                    topic, keyword = next_topic, None
+                st.session_state["falowen_exam_topic"] = topic
+                st.session_state["falowen_exam_keyword"] = keyword
+                st.session_state.setdefault("used_topics", []).append(next_topic)
             base_prompt = build_exam_system_prompt(level, teil)
             topic = st.session_state.get("falowen_exam_topic")
-            if topic:
-                system_prompt = f"{base_prompt} Thema: {topic}."
-            else:
-                system_prompt = base_prompt
+            system_prompt = f"{base_prompt} Thema: {topic}." if topic else base_prompt
         else:
             system_prompt = build_custom_chat_prompt(level)
 
-        # Chat input & assistant response
+        # Chat input
         user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
         if user_input:
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
@@ -6718,38 +6363,42 @@ if tab == "Exams Mode & Custom Chat":
 
             with st.chat_message("user"):
                 st.markdown(
-                    f"<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
+                    f"<div style='display:flex;justify-content:flex-end;'><div style='{bubble_user}'>🗣️ {user_input}</div></div>",
                     unsafe_allow_html=True
                 )
 
-            with st.chat_message(
-                "assistant",
-                avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
-            ):
+            # Generate reply
+            with st.chat_message("assistant", avatar="🧑‍🏫"):
                 with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                    messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    # Use existing OpenAI client if available
                     try:
-                        resp = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=messages,
-                            temperature=0.15,
-                            max_tokens=600
-                        )
-                        ai_reply = resp.choices[0].message.content.strip()
-                    except Exception as e:
-                        ai_reply = f"Sorry, an error occurred: {e}"
+                        client
+                    except NameError:
+                        client = None
+                    ai_reply = None
+                    if client is None:
+                        ai_reply = "Sorry, chat model is not configured right now."
+                    else:
+                        try:
+                            resp = client.chat.completions.create(
+                                model="gpt-4o",
+                                messages=[{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"],
+                                temperature=0.15,
+                                max_tokens=600
+                            )
+                            ai_reply = (resp.choices[0].message.content or "").strip()
+                        except Exception as e:
+                            ai_reply = f"Sorry, an error occurred: {e}"
 
                 st.markdown(
                     "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply or '', highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
 
-            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply or ""})
             save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
 
-        # End session button & summary
         st.divider()
         if st.button("✅ End Session & Show Summary"):
             st.session_state["falowen_stage"] = 5
@@ -6760,161 +6409,105 @@ if tab == "Exams Mode & Custom Chat":
         st.success("🎉 Practice Session Complete!")
         st.markdown("#### Your Exam Summary")
 
-        # Show transcript
         if st.session_state.get("falowen_messages"):
             for msg in st.session_state["falowen_messages"]:
                 who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
                 st.markdown(f"**{who}:** {msg['content']}")
 
-        # Download options (PDF/TXT)
-        if st.session_state.get("falowen_messages"):
-            teil_str = str(st.session_state.get("falowen_teil") or "chat")
+            teil_str = str(st.session_state.get("falowen_teil") or "chat").replace(" ", "_")
             level_str = str(st.session_state.get("falowen_level") or "")
-            filename_base = f"Falowen_Chat_{level_str}_{teil_str.replace(' ', '_')}"
+            filename_base = f"Falowen_Chat_{level_str}_{teil_str}"
+            pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], filename_base)
+            st.download_button("⬇️ Download Chat as PDF", pdf_bytes, file_name=f"{filename_base}.pdf", mime="application/pdf")
+            chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
+            st.download_button("⬇️ Download Chat as TXT", chat_as_text.encode("utf-8"), file_name=f"{filename_base}.txt", mime="text/plain")
 
-            pdf_bytes = falowen_download_pdf(
-                st.session_state["falowen_messages"],
-                filename_base
-            )
-            st.download_button(
-                "⬇️ Download Chat as PDF",
-                pdf_bytes,
-                file_name=f"{filename_base}.pdf",
-                mime="application/pdf"
-            )
-
-            chat_as_text = "\n".join([
-                f"{msg['role'].capitalize()}: {msg['content']}"
-                for msg in st.session_state["falowen_messages"]
-            ])
-            st.download_button(
-                "⬇️ Download Chat as TXT",
-                chat_as_text.encode("utf-8"),
-                file_name=f"{filename_base}.txt",
-                mime="text/plain"
-            )
-
-        # Back only (no restart here, per your spec)
         if st.button("⬅️ Back"):
-            back_step()
-
-
+            back_step(1)
 
     # ---- STAGE 99: Pronunciation & Speaking Checker ----
     if st.session_state.get("falowen_stage") == 99:
-        import datetime
+        from datetime import date as _date
 
-        # ====== DAILY LIMIT ENFORCEMENT BLOCK (AT THE TOP) ======
-        today_str = datetime.date.today().isoformat()
+        # Daily limit
+        today_str = _date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
         doc = uploads_ref.get()
         data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
-        count = data.get("count", 0)
+        count = int(data.get("count", 0) or 0)
         if last_date != today_str:
             count = 0
         if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
             st.stop()
-        # =======================================================
 
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
-            """
-            Record or upload your speaking sample below (max 60 seconds).  
-            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your phone.  
-            • Then tap **Browse** and open your phone's file manager to select the saved WAV/MP3/M4A audio file.  
-            (Vocaroo sharing links are **not** supported. If you can't see your file, use your phone's Files app or change browsers.)
-            """
+            "Upload a short WAV/MP3/M4A (≤ 60s). If recording online, use vocaroo.com, download the file, then upload it here."
         )
-
-        # --- General file uploader: allow all files for easier selection on mobile ---
         audio_file = st.file_uploader(
-            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A preferred). Tap 'Browse' to use your phone's file manager.",
-            type=None,  # Allow ALL file types so phone users see all files
-            accept_multiple_files=False,
-            key="pron_audio_uploader"
+            "Upload audio (≤ 60s). If you can’t see your file, open your phone’s Files app and re-try.",
+            type=None, accept_multiple_files=False, key="pron_audio_uploader"
         )
 
         if audio_file:
-            # Accept only wav, mp3, or m4a (extra check)
-            allowed_types = [
-                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
-                "audio/x-m4a", "audio/m4a", "audio/mp4"
-            ]
-            allowed_exts = (".mp3", ".wav", ".m4a")
-            # Sometimes the MIME type can be non-standard, so check both
-            if not (
-                audio_file.type in allowed_types
-                or audio_file.name.lower().endswith(allowed_exts)
-            ):
-                st.error("Please upload a .mp3, .wav, or .m4a audio file. If you can't see your file, use your phone's Files app or change browsers.")
+            allowed_types = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/x-m4a", "audio/m4a", "audio/mp4"]
+            allowed_exts  = (".mp3", ".wav", ".m4a")
+            if not (audio_file.type in allowed_types or audio_file.name.lower().endswith(allowed_exts)):
+                st.error("Please upload a .mp3, .wav, or .m4a audio file.")
             else:
                 st.audio(audio_file)
-                # Transcribe with Whisper
+                # Transcribe
                 try:
-                    transcript_resp = client.audio.transcriptions.create(
-                        file=audio_file,
-                        model="whisper-1"
-                    )
+                    client
+                except NameError:
+                    client = None
+                if client is None:
+                    st.error("Speech model is not configured right now.")
+                    st.stop()
+                try:
+                    transcript_resp = client.audio.transcriptions.create(file=audio_file, model="whisper-1")
                     transcript_text = transcript_resp.text
                 except Exception as e:
                     st.error(f"Sorry, could not process audio: {e}")
                     st.stop()
 
-                # Show what the AI heard
                 st.markdown(f"**I heard you say:**  \n> {transcript_text}")
 
-                # Build evaluation prompt
                 eval_prompt = (
                     "You are a German tutor. The student said:\n"
                     f'"{transcript_text}"\n\n'
-                    "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
-                    "and then give three concise tips per category. "
-                    "Format as:\n"
-                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Score Pronunciation, Grammar, and Fluency each out of 100, then give three tips per category.\n"
+                    "Format:\nPronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                     "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                     "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
                 )
-
                 with st.spinner("Evaluating your sample..."):
                     try:
                         eval_resp = client.chat.completions.create(
                             model="gpt-4o",
-                            messages=[
-                                {"role": "system", "content": "You are a helpful German tutor."},
-                                {"role": "user", "content": eval_prompt}
-                            ],
+                            messages=[{"role": "system", "content": "You are a helpful German tutor."},
+                                      {"role": "user", "content": eval_prompt}],
                             temperature=0.2
                         )
                         result_text = eval_resp.choices[0].message.content
                     except Exception as e:
-                        st.error(f"Evaluation error: {e}")
                         result_text = None
+                        st.error(f"Evaluation error: {e}")
 
                 if result_text:
                     st.markdown(result_text)
-                    # After successful upload/evaluation, increment usage count
                     uploads_ref.set({"count": count + 1, "date": today_str})
-                    st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
+                    st.info("💡 Tip: Use Custom Chat first to brainstorm ideas, then come back to record.")
                     if st.button("🔄 Try Another"):
                         st.rerun()
-                else:
-                    st.error("Could not get feedback. Please try again later.")
-
         else:
-            st.info(
-                "No audio uploaded yet. You can use your phone's recorder app or vocaroo.com, then download and upload the WAV/MP3/M4A file here."
-            )
+            st.info("No audio uploaded yet.")
 
         if st.button("⬅️ Back to Main Menu"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
+            back_step(1)
 
-
-# =========================================
-# End
-# =========================================
 
 # =========================================
 # Vocab
@@ -7829,6 +7422,9 @@ SENTENCE_BANK = {
     ]
 }
 
+# ================================
+# Vocab Trainer (shard-safe; no duplicate imports)
+# ================================
 
 # If you initialize Firestore elsewhere, expose it here.
 # This helper prevents NameError if db isn't ready.
@@ -7838,6 +7434,11 @@ def _get_db():
     except NameError:
         return None
 
+# Guard SENTENCE_BANK in case this shard loads before it's defined
+try:
+    SENTENCE_BANK
+except NameError:
+    SENTENCE_BANK = {"A1": [], "A2": [], "B1": [], "B2": [], "C1": []}
 
 # ================================
 # HELPERS: Level loading (Google Sheet)
@@ -7856,9 +7457,9 @@ def load_student_levels():
     df.columns = [c.strip().lower() for c in df.columns]
 
     # try to align student_code column
-    code_col_candidates = ["student_code", "studentcode", "code", "student id", "id"]
+    code_col_candidates  = ["student_code", "studentcode", "code", "student id", "id"]
     level_col_candidates = ["level", "klasse", "stufe"]
-    code_col = next((c for c in code_col_candidates if c in df.columns), None)
+    code_col  = next((c for c in code_col_candidates  if c in df.columns), None)
     level_col = next((c for c in level_col_candidates if c in df.columns), None)
 
     if code_col is None or level_col is None:
@@ -7867,7 +7468,7 @@ def load_student_levels():
             f"Found: {list(df.columns)}; need one of {code_col_candidates} and one of {level_col_candidates}."
         )
         # still return something so callers don't crash
-        df["__dummy_code__"] = "demo001"
+        df["__dummy_code__"]  = "demo001"
         df["__dummy_level__"] = "A1"
         return df.rename(columns={"__dummy_code__": "student_code", "__dummy_level__": "level"})
 
@@ -7882,7 +7483,6 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
     """
     try:
         df = load_student_levels()
-        # ensure columns exist after normalization/rename
         if "student_code" not in df.columns or "level" not in df.columns:
             return default
         sc = str(student_code).strip().lower()
@@ -7895,6 +7495,9 @@ def get_student_level(student_code: str, default: str = "A1") -> str:
         return default
 
 
+# ================================
+# HELPERS: Vocab attempts (Firestore)
+# ================================
 def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
     """Check if an attempt with this session_id already exists for the student."""
     if not session_id:
@@ -7923,6 +7526,10 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words, ses
         st.warning("Firestore not initialized; skipping stats save.")
         return
 
+    # local imports to avoid shard-wide duplicate imports
+    from uuid import uuid4
+    from datetime import datetime
+
     if not session_id:
         session_id = str(uuid4())
 
@@ -7947,10 +7554,10 @@ def save_vocab_attempt(student_code, level, total, correct, practiced_words, ses
     completed = {w for a in history for w in a.get("practiced_words", [])}
 
     doc_ref.set({
-        "history":           history,
-        "last_practiced":    attempt["timestamp"],
-        "completed_words":   sorted(completed),
-        "total_sessions":    len(history),
+        "history":         history,
+        "last_practiced":  attempt["timestamp"],
+        "completed_words": sorted(completed),
+        "total_sessions":  len(history),
     }, merge=True)
 
 
@@ -7959,29 +7566,28 @@ def get_vocab_stats(student_code):
     _db = _get_db()
     if _db is None:
         return {
-            "history":           [],
-            "last_practiced":    None,
-            "completed_words":   [],
-            "total_sessions":    0,
+            "history":         [],
+            "last_practiced":  None,
+            "completed_words": [],
+            "total_sessions":  0,
         }
 
     doc_ref = _db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
         data = doc.to_dict() or {}
-        # Ensure we don't return "best"
         return {
-            "history": data.get("history", []),
-            "last_practiced": data.get("last_practiced"),
+            "history":         data.get("history", []),
+            "last_practiced":  data.get("last_practiced"),
             "completed_words": data.get("completed_words", []),
-            "total_sessions": data.get("total_sessions", 0),
+            "total_sessions":  data.get("total_sessions", 0),
         }
 
     return {
-        "history":           [],
-        "last_practiced":    None,
-        "completed_words":   [],
-        "total_sessions":    0,
+        "history":         [],
+        "last_practiced":  None,
+        "completed_words": [],
+        "total_sessions":  0,
     }
 
 
@@ -7994,6 +7600,8 @@ def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence,
     if _db is None:
         st.warning("Firestore not initialized; skipping sentence stats save.")
         return
+
+    from datetime import datetime
 
     doc_ref = _db.collection("sentence_builder_stats").document(student_code)
     doc = doc_ref.get()
@@ -8024,11 +7632,15 @@ def get_sentence_progress(student_code: str, level: str):
         ref = _db.collection("sentence_builder_stats").document(student_code)
         doc = ref.get()
         if doc.exists:
-            data = doc.to_dict()
+            data = doc.to_dict() or {}
             for h in data.get("history", []):
                 if h.get("level") == level and h.get("correct"):
                     correct_set.add(h.get("target"))
-    total_items = len(SENTENCE_BANK.get(level, []))
+    # guard if SENTENCE_BANK not ready
+    try:
+        total_items = len(SENTENCE_BANK.get(level, []))
+    except Exception:
+        total_items = 0
     return len(correct_set), total_items
 
 
@@ -8059,7 +7671,6 @@ def load_vocab_lists():
     return lists
 
 VOCAB_LISTS = load_vocab_lists()
-
 
 # ================================
 # SMALL UI + CHECK HELPERS
@@ -8092,6 +7703,7 @@ def normalize_join(tokens):
         s = s.replace(f" {p}", p)
     return s
 
+
 # ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
@@ -8103,9 +7715,7 @@ if tab == "Vocab Trainer":
     student_level_locked = get_student_level(
         student_code,
         default=(st.session_state.get("student_level", "A1"))
-    )
-    if not student_level_locked:
-        student_level_locked = "A1"
+    ) or "A1"
 
     # Header
     st.markdown(
@@ -8131,7 +7741,7 @@ if tab == "Vocab Trainer":
     )
 
     # ===========================
-    # SUBTAB: Sentence Builder (now first)
+    # SUBTAB: Sentence Builder
     # ===========================
     if subtab == "Sentence Builder":
         student_level = student_level_locked
@@ -8139,7 +7749,6 @@ if tab == "Vocab Trainer":
 
         # --- Guide & Progress (collapsed) ---
         with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
-            # Lifetime progress bar
             done_unique, total_items = get_sentence_progress(student_code, student_level)
             pct = int((done_unique / total_items) * 100) if total_items else 0
             st.progress(pct)
@@ -8292,7 +7901,6 @@ if tab == "Vocab Trainer":
                 st.rerun()
         with b:
             if st.button("✅ Check"):
-                # Map correct keys from your bank
                 target_sentence = st.session_state.sb_current.get("target_de", "").strip()
                 chosen_sentence = normalize_join(chosen_tokens).strip()
                 correct = (chosen_sentence.lower() == target_sentence.lower())
@@ -8362,9 +7970,11 @@ if tab == "Vocab Trainer":
                         unsafe_allow_html=True
                     )
 
-        # lock level
+        # lock level for vocab practice
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
+        # we need stats here too (outside expander)
+        stats = get_vocab_stats(student_code)
         completed = set(stats["completed_words"])
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
@@ -8432,7 +8042,7 @@ if tab == "Vocab Trainer":
                 except Exception as e:
                     st.error(f"Could not generate audio (gTTS): {e}")
 
-            # bigger, bolder, clearer input
+            # bigger, bolder input
             st.markdown(
                 """
                 <style>
@@ -8471,7 +8081,7 @@ if tab == "Vocab Trainer":
 
             # 🔒 Save exactly once per session, with Firestore duplicate check
             if not st.session_state.get("vt_saved", False):
-                # Ensure we have a session id (covers rare cases where it wasn't set)
+                # ensure we have a session id
                 if not st.session_state.get("vt_session_id"):
                     from uuid import uuid4
                     st.session_state.vt_session_id = str(uuid4())
@@ -8493,13 +8103,9 @@ if tab == "Vocab Trainer":
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
-#
 
 
-
-
-
-# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
+# ===== OPTIONAL: simple bubble helper for other chat-style UIs =====
 def bubble(role, text):
     color = "#7b2ff2" if role == "assistant" else "#222"
     bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
@@ -8511,64 +8117,94 @@ def bubble(role, text):
         </div>
     """
 
+# ============================
+# ✍️ SCHREIBEN TRAINER (consolidated, null-safe)
+# ============================
 
+# --- minimal imports (safe even if already imported elsewhere) ---
+import re
+from datetime import date, datetime
+import pandas as pd
+import streamlit as st
 
-# ===== Schreiben =====
+# --- Firestore: use existing if present; otherwise try to create; else run without DB ---
+try:
+    db  # already defined by app?
+except NameError:
+    db = None
 
-db = firestore.client()
+try:
+    firestore  # may exist if firebase_admin was inited earlier
+except NameError:
+    firestore = None
 
-# -- Feedback HTML Highlight Helper --
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
+if db is None:
+    # Try firebase_admin first
+    try:
+        from firebase_admin import firestore as _fbfs
+        firestore = _fbfs
+        db = firestore.client()
+    except Exception:
+        # Fall back to google-cloud-firestore (service account via env)
+        try:
+            from google.cloud import firestore as _gfs
+            firestore = _gfs
+            db = firestore.Client()
+        except Exception:
+            firestore = None
+            db = None
+
+# If your app already provided _get_db(), keep it; otherwise define a tiny shim
+try:
+    _get_db  # noqa: F821
+except NameError:
+    def _get_db():
+        try:
+            return db
+        except NameError:
+            return None
+
+# -------------------------------
+# Feedback HTML Highlight Helper
+# -------------------------------
+_HIGHLIGHT_WORDS = ["correct", "should", "mistake", "improve", "tip"]
 
 def highlight_feedback(text: str) -> str:
-    # 1) Highlight “[correct]…[/correct]” spans in green
+    # [correct]...[/correct] → green chip
     text = re.sub(
         r"\[correct\](.+?)\[/correct\]",
-        r"<span style="
-        r"'background-color:#d4edda;"
-        r"color:#155724;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"font-weight:600;'"
-        r">\1</span>",
+        (
+            r"<span style=\"background-color:#d4edda;color:#155724;"
+            r"border-radius:4px;padding:2px 6px;margin:0 2px;font-weight:600;\">"
+            r"\1</span>"
+        ),
         text,
         flags=re.DOTALL
     )
-
-    # 2) Highlight “[wrong]…[/wrong]” spans in red with strikethrough
+    # [wrong]...[/wrong] → red chip with strike
     text = re.sub(
         r"\[wrong\](.+?)\[/wrong\]",
-        r"<span style="
-        r"'background-color:#f8d7da;"
-        r"color:#721c24;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"text-decoration:line-through;"
-        r"font-weight:600;'"
-        r">\1</span>",
+        (
+            r"<span style=\"background-color:#f8d7da;color:#721c24;"
+            r"border-radius:4px;padding:2px 6px;margin:0 2px;"
+            r"text-decoration:line-through;font-weight:600;\">"
+            r"\1</span>"
+        ),
         text,
         flags=re.DOTALL
     )
+    # Bold key words
+    if _HIGHLIGHT_WORDS:
+        pattern = r"\b(" + "|".join(map(re.escape, _HIGHLIGHT_WORDS)) + r")\b"
+        text = re.sub(pattern, r"<strong style='color:#d63384'>\1</strong>", text, flags=re.IGNORECASE)
 
-    # 3) Bold keywords
-    def repl_kw(m):
-        return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
-    pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
-    text = re.sub(pattern, repl_kw, text, flags=re.IGNORECASE)
-
-    # 4) Restyle the final breakdown block as a simple, transparent list
+    # Turn Grammar/Vocabulary/Spelling/Structure lines into a simple UL (best-effort)
     def _format_breakdown(m):
-        lines = [line.strip() for line in m.group(0).splitlines() if line.strip()]
-        items = "".join(f"<li style='margin-bottom:4px'>{line}</li>" for line in lines)
+        lines = [ln.strip() for ln in m.group(0).splitlines() if ln.strip()]
+        items = "".join(f"<li style='margin-bottom:4px'>{ln}</li>" for ln in lines)
         return (
-            "<ul style='margin:8px 0 12px 1em;"
-            "padding:0;"
-            "list-style:disc inside;"
-            "font-size:0.95em;'>"
-            f"{items}"
-            "</ul>"
+            "<ul style='margin:8px 0 12px 1em;padding:0;list-style:disc inside;font-size:0.95em;'>"
+            f"{items}</ul>"
         )
 
     text = re.sub(
@@ -8577,68 +8213,69 @@ def highlight_feedback(text: str) -> str:
         text,
         flags=re.DOTALL
     )
-
     return text
 
-# -- Firestore-only: Usage Limit (Daily Mark My Letter) --
-def get_schreiben_usage(student_code):
+# ---------------------------------
+# Firestore helpers (all null-safe)
+# ---------------------------------
+def get_schreiben_usage(student_code: str) -> int:
+    _db = _get_db()
+    if not _db:
+        return 0
     today = str(date.today())
-    doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
-    return doc.to_dict().get("count", 0) if doc.exists else 0
+    snap = _db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
+    return (snap.to_dict() or {}).get("count", 0) if snap.exists else 0
 
-def inc_schreiben_usage(student_code):
+def inc_schreiben_usage(student_code: str) -> None:
+    _db = _get_db()
+    if not _db:
+        return
     today = str(date.today())
-    doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
-    doc = doc_ref.get()
-    if doc.exists:
-        doc_ref.update({"count": firestore.Increment(1)})
+    ref = _db.collection("schreiben_usage").document(f"{student_code}_{today}")
+    snap = ref.get()
+    if snap.exists:
+        ref.update({"count": firestore.Increment(1)})
     else:
-        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+        ref.set({"student_code": student_code, "date": today, "count": 1})
 
-# -- Firestore-only: Submission + Full letter (Saves for feedback & stats) --
-def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str):
+def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str) -> None:
+    _db = _get_db()
+    if not _db:
+        return
     payload = {
         "student_code": student_code,
-        "score": score,
-        "passed": passed,
-        "date": firestore.SERVER_TIMESTAMP,  # Always use server time
+        "score": int(score or 0),
+        "passed": bool(passed),
+        "date": firestore.SERVER_TIMESTAMP,  # server time
         "level": level,
         "assignment": "Schreiben Trainer",
-        "letter": letter,
+        "letter": letter or "",
     }
-    db.collection("schreiben_submissions").add(payload)
+    _db.collection("schreiben_submissions").add(payload)
 
-# -- Firestore-only: Recalculate All Schreiben Stats (called after every submission) --
-def update_schreiben_stats(student_code: str):
-    """
-    Recalculates stats for a student after every submission.
-    """
-    submissions = db.collection("schreiben_submissions").where(
-        "student_code", "==", student_code
-    ).stream()
-
+def update_schreiben_stats(student_code: str) -> None:
+    _db = _get_db()
+    if not _db:
+        return
+    submissions = _db.collection("schreiben_submissions").where("student_code", "==", student_code).stream()
     total = 0
     passed = 0
     scores = []
     last_letter = ""
     last_attempt = None
-
     for doc in submissions:
-        data = doc.to_dict()
+        data = doc.to_dict() or {}
         total += 1
-        score = data.get("score", 0)
-        scores.append(score)
+        sc = int(data.get("score", 0) or 0)
+        scores.append(sc)
         if data.get("passed"):
             passed += 1
-        last_letter = data.get("letter", "") or last_letter
+        last_letter = data.get("letter") or last_letter
         last_attempt = data.get("date", last_attempt)
-
-    pass_rate = (passed / total * 100) if total > 0 else 0
+    pass_rate = (passed / total * 100.0) if total else 0.0
     best_score = max(scores) if scores else 0
-    average_score = sum(scores) / total if scores else 0
-
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    stats_ref.set({
+    average_score = (sum(scores) / total) if scores else 0.0
+    _db.collection("schreiben_stats").document(student_code).set({
         "total": total,
         "passed": passed,
         "pass_rate": pass_rate,
@@ -8649,37 +8286,49 @@ def update_schreiben_stats(student_code: str):
         "attempts": scores
     }, merge=True)
 
-# -- Firestore-only: Fetch stats for display (for status panel etc) --
-def get_schreiben_stats(student_code: str):
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    doc = stats_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    else:
+def get_schreiben_stats(student_code: str) -> dict:
+    _db = _get_db()
+    if not _db:
         return {
             "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
             "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
         }
+    snap = _db.collection("schreiben_stats").document(student_code).get()
+    if not snap.exists:
+        return {
+            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+        }
+    return snap.to_dict() or {
+        "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
+        "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
+    }
 
-# -- Firestore-only: Usage Limit (Daily Letter Coach) --
-def get_letter_coach_usage(student_code):
+def get_letter_coach_usage(student_code: str) -> int:
+    _db = _get_db()
+    if not _db:
+        return 0
     today = str(date.today())
-    doc = db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
-    return doc.to_dict().get("count", 0) if doc.exists else 0
+    snap = _db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
+    return (snap.to_dict() or {}).get("count", 0) if snap.exists else 0
 
-def inc_letter_coach_usage(student_code):
+def inc_letter_coach_usage(student_code: str) -> None:
+    _db = _get_db()
+    if not _db:
+        return
     today = str(date.today())
-    doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
-    doc = doc_ref.get()
-    if doc.exists:
-        doc_ref.update({"count": firestore.Increment(1)})
+    ref = _db.collection("letter_coach_usage").document(f"{student_code}_{today}")
+    snap = ref.get()
+    if snap.exists:
+        ref.update({"count": firestore.Increment(1)})
     else:
-        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
+        ref.set({"student_code": student_code, "date": today, "count": 1})
 
-# -- Firestore: Save/load Letter Coach progress --
-def save_letter_coach_progress(student_code, level, prompt, chat):
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
+def save_letter_coach_progress(student_code: str, level: str, prompt: str, chat: list) -> None:
+    _db = _get_db()
+    if not _db:
+        return
+    _db.collection("letter_coach_progress").document(student_code).set({
         "student_code": student_code,
         "level": level,
         "prompt": prompt,
@@ -8687,42 +8336,40 @@ def save_letter_coach_progress(student_code, level, prompt, chat):
         "date": firestore.SERVER_TIMESTAMP
     })
 
-def load_letter_coach_progress(student_code):
-    doc = db.collection("letter_coach_progress").document(student_code).get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    else:
+def load_letter_coach_progress(student_code: str):
+    _db = _get_db()
+    if not _db:
         return "", []
+    snap = _db.collection("letter_coach_progress").document(student_code).get()
+    if not snap.exists:
+        return "", []
+    data = snap.to_dict() or {}
+    return data.get("prompt", ""), data.get("chat", [])
 
-
-# --- Helper: Get level from Google Sheet (public CSV) ---
-
+# ---------------------------
+# Level from Google Sheet
+# ---------------------------
 SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
 
 @st.cache_data(ttl=300)
 def load_sheet():
     return pd.read_csv(SHEET_URL)
 
-def get_level_from_code(student_code):
+def get_level_from_code(student_code: str) -> str:
     df = load_sheet()
-    student_code = str(student_code).strip().lower()
-    # Make sure 'StudentCode' column exists and is lowercase
+    sc = str(student_code).strip().lower()
     if "StudentCode" not in df.columns:
         df.columns = [c.strip() for c in df.columns]
     if "StudentCode" in df.columns:
-        matches = df[df["StudentCode"].astype(str).str.strip().str.lower() == student_code]
-        if not matches.empty:
-            # Handles NaN, empty cells
-            level = matches.iloc[0]["Level"]
+        row = df[df["StudentCode"].astype(str).str.strip().str.lower() == sc]
+        if not row.empty:
+            level = row.iloc[0].get("Level", "A1")
             return str(level).strip().upper() if pd.notna(level) else "A1"
     return "A1"
 
-
-
-
-#Maincode for me
-
+# ============================
+# MAIN UI: Schreiben Trainer
+# ============================
 if tab == "Schreiben Trainer":
     st.markdown(
         '''
@@ -8744,74 +8391,74 @@ if tab == "Schreiben Trainer":
         """
         ✍️ **This section is for Writing (Schreiben) only.**
         - Practice your German letters, emails, and essays for A1–C1 exams.
-        - **Want to prepare for class presentations, topic expansion, or practice Speaking, Reading (Lesen), or Listening (Hören)?**  
-          👉 Go to **Exam Mode & Custom Chat** (tab above)!
-        - **Tip:** Choose your exam level on the right before submitting your letter. Your writing will be checked and scored out of 25 marks, just like in the real exam.
+        - **Want to prepare Speaking/Reading/Listening?** Go to **Exam Mode & Custom Chat** (tab above).
+        - **Tip:** Your exam level is auto-detected from your student code (right below).
         """,
         icon="✉️"
     )
 
     st.divider()
 
-    # --- Writing stats summary with Firestore ---
+    # --- Writing stats summary with Firestore (null-safe) ---
     student_code = st.session_state.get("student_code", "demo")
     stats = get_schreiben_stats(student_code)
-    if stats:
-        total = stats.get("total", 0)
-        passed = stats.get("passed", 0)
-        pass_rate = stats.get("pass_rate", 0)
+    total = stats.get("total", 0)
+    passed = stats.get("passed", 0)
+    pass_rate = stats.get("pass_rate", 0.0)
 
-        # Milestone and title logic
-        if total <= 2:
-            writer_title = "🟡 Beginner Writer"
-            milestone = "Write 3 letters to become a Rising Writer!"
-        elif total <= 5 or pass_rate < 60:
-            writer_title = "🟡 Rising Writer"
-            milestone = "Achieve 60% pass rate and 6 letters to become a Confident Writer!"
-        elif total <= 7 or (60 <= pass_rate < 80):
-            writer_title = "🔵 Confident Writer"
-            milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
-        elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
-            writer_title = "🟢 Advanced Writer"
-            milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
-        elif total >= 10 and pass_rate >= 95:
-            writer_title = "🏅 Master Writer!"
-            milestone = "You've reached the highest milestone! Keep maintaining your skills 🎉"
-        else:
-            writer_title = "✏️ Active Writer"
-            milestone = "Keep going to unlock your next milestone!"
-
-        st.markdown(
-            f"""
-            <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
-                        box-shadow:0 1px 6px #00000010;">
-                <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
-                <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
-                <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
-                <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    if total <= 2:
+        writer_title = "🟡 Beginner Writer"
+        milestone = "Write 3 letters to become a Rising Writer!"
+    elif total <= 5 or pass_rate < 60:
+        writer_title = "🟡 Rising Writer"
+        milestone = "Reach 6 attempts and 60% pass rate to become a Confident Writer!"
+    elif total <= 7 or (60 <= pass_rate < 80):
+        writer_title = "🔵 Confident Writer"
+        milestone = "Reach 8 attempts and 80% pass rate to become an Advanced Writer!"
+    elif total >= 8 and pass_rate >= 80 and not (total >= 10 and pass_rate >= 95):
+        writer_title = "🟢 Advanced Writer"
+        milestone = "Reach 10 attempts and 95% pass rate to become a Master Writer!"
+    elif total >= 10 and pass_rate >= 95:
+        writer_title = "🏅 Master Writer!"
+        milestone = "You've reached the highest milestone! 🎉"
     else:
-        st.info("No writing stats found yet. Write your first letter to see progress!")
+        writer_title = "✏️ Active Writer"
+        milestone = "Keep going to unlock your next milestone!"
 
-    # --- Update session states for new student (preserves drafts, etc) ---
-    prev_student_code = st.session_state.get("prev_student_code", None)
-    if student_code != prev_student_code:
-        stats = get_schreiben_stats(student_code)
-        st.session_state[f"{student_code}_schreiben_input"] = stats.get("last_letter", "")
-        st.session_state[f"{student_code}_last_feedback"] = None
-        st.session_state[f"{student_code}_last_user_letter"] = None
-        st.session_state[f"{student_code}_delta_compare_feedback"] = None
-        st.session_state[f"{student_code}_final_improved_letter"] = ""
-        st.session_state[f"{student_code}_awaiting_correction"] = False
-        st.session_state[f"{student_code}_improved_letter"] = ""
-        st.session_state["prev_student_code"] = student_code
+    st.markdown(
+        f"""
+        <div style="background:#fff8e1;padding:18px 12px 14px 12px;border-radius:12px;margin-bottom:12px;
+                    box-shadow:0 1px 6px #00000010;">
+            <span style="font-weight:bold;font-size:1.25rem;color:#d63384;">{writer_title}</span><br>
+            <span style="font-weight:bold;font-size:1.09rem;color:#444;">📊 Your Writing Stats</span><br>
+            <span style="color:#202020;font-size:1.05rem;"><b>Total Attempts:</b> {total}</span><br>
+            <span style="color:#202020;font-size:1.05rem;"><b>Passed:</b> {passed}</span><br>
+            <span style="color:#202020;font-size:1.05rem;"><b>Pass Rate:</b> {pass_rate:.1f}%</span><br>
+            <span style="color:#e65100;font-weight:bold;font-size:1.03rem;">{milestone}</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # --- Sub-tabs for the Trainer ---
+    # --- Level detection (auto) ---
+    if student_code:
+        detected_level = get_level_from_code(student_code)
+        if st.session_state.get("prev_student_code_for_level") != student_code:
+            st.session_state["schreiben_level"] = detected_level
+            st.session_state["prev_student_code_for_level"] = student_code
+    else:
+        detected_level = "A1"
+        st.session_state.setdefault("schreiben_level", detected_level)
+
+    schreiben_level = st.session_state.get("schreiben_level", "A1")
+    st.markdown(
+        f"<span style='color:gray;font-size:0.97em;'>Auto-detected level from your code: <b>{detected_level}</b></span>",
+        unsafe_allow_html=True
+    )
+
+    st.divider()
+
+    # --- Sub-tabs ---
     sub_tab = st.radio(
         "Choose Mode",
         ["Mark My Letter", "Ideas Generator (Letter Coach)"],
@@ -8819,57 +8466,38 @@ if tab == "Schreiben Trainer":
         key=f"schreiben_sub_tab_{student_code}"
     )
 
-        # --- Level picker: Auto-detect from student code (manual override removed) ---
-    if student_code:
-        detected_level = get_level_from_code(student_code)
-        # Only apply detected level when first seeing this student code
-        if st.session_state.get("prev_student_code_for_level") != student_code:
-            st.session_state["schreiben_level"] = detected_level
-            st.session_state["prev_student_code_for_level"] = student_code
-    else:
-        detected_level = "A1"
-        if "schreiben_level" not in st.session_state:
-            st.session_state["schreiben_level"] = detected_level
-
-    # Ensure current writing level variable reflects auto-detected one
-    schreiben_level = st.session_state.get("schreiben_level", "A1")
-
-    st.markdown(
-        f"<span style='color:gray;font-size:0.97em;'>Auto-detected level from your code: <b>{detected_level}</b></span>",
-        unsafe_allow_html=True
-    )
-
-
-    st.divider()
-
-    # ----------- 1. MARK MY LETTER -----------
+    # =========================
+    # 1) MARK MY LETTER
+    # =========================
     if sub_tab == "Mark My Letter":
         MARK_LIMIT = 3
         daily_so_far = get_schreiben_usage(student_code)
         st.markdown(f"**Daily usage:** {daily_so_far} / {MARK_LIMIT}")
 
+        # carry last saved letter into the text area
+        st.session_state.setdefault(f"{student_code}_schreiben_input", stats.get("last_letter", ""))
+
         user_letter = st.text_area(
             "Paste or type your German letter/essay here.",
             key=f"{student_code}_schreiben_input",
-            value=st.session_state.get(f"{student_code}_schreiben_input", ""),
-            disabled=(daily_so_far >= MARK_LIMIT),
             height=400,
-            placeholder="Write your German letter here..."
+            placeholder="Write your German letter here...",
+            disabled=(daily_so_far >= MARK_LIMIT),
         )
 
-        # AUTOSAVE LOGIC (save every edit that's different from last_letter)
-        if (
-            user_letter.strip() and
-            user_letter != get_schreiben_stats(student_code).get("last_letter", "")
-        ):
-            doc_ref = db.collection("schreiben_stats").document(student_code)
-            doc = doc_ref.get()
-            data = doc.to_dict() if doc.exists else {}
-            data["last_letter"] = user_letter
-            doc_ref.set(data, merge=True)
+        # AUTOSAVE (only if DB available)
+        if user_letter.strip():
+            prev_last = stats.get("last_letter", "")
+            if user_letter != prev_last:
+                _db = _get_db()
+                if _db:
+                    doc_ref = _db.collection("schreiben_stats").document(student_code)
+                    doc = doc_ref.get()
+                    data = doc.to_dict() if doc.exists else {}
+                    data["last_letter"] = user_letter
+                    doc_ref.set(data, merge=True)
 
-        # --- Word count and Goethe exam rules ---
-        import re
+        # --- Word count + Goethe rules ---
         def get_level_requirements(level):
             reqs = {
                 "A1": {"min": 25, "max": 40, "desc": "A1 formal/informal letters should be 25–40 words. Cover all bullet points."},
@@ -8880,34 +8508,27 @@ if tab == "Schreiben Trainer":
             }
             return reqs.get(level.upper(), reqs["A1"])
 
-        def count_words(text):
-            return len(re.findall(r'\b\w+\b', text))
-
         if user_letter.strip():
             words = re.findall(r'\b\w+\b', user_letter)
             chars = len(user_letter)
             st.info(f"**Word count:** {len(words)} &nbsp;|&nbsp; **Character count:** {chars}")
 
-            # -- Apply Goethe writing rules here --
-            requirements = get_level_requirements(detected_level)  # << USE AUTO-DETECTED LEVEL
-            word_count = count_words(user_letter)
-            min_wc = requirements["min"]
-            max_wc = requirements["max"]
-
+            requirements = get_level_requirements(detected_level)
+            wc = len(words)
             if detected_level in ("A1", "A2"):
-                if word_count < min_wc:
-                    st.error(f"⚠️ Your letter is too short for {detected_level} ({word_count} words). {requirements['desc']}")
+                if wc < requirements["min"]:
+                    st.error(f"⚠️ Your letter is too short for {detected_level} ({wc} words). {requirements['desc']}")
                     st.stop()
-                elif word_count > max_wc:
-                    st.warning(f"ℹ️ Your letter is a bit long for {detected_level} ({word_count} words). The exam expects {min_wc}-{max_wc} words.")
+                elif wc > requirements["max"]:
+                    st.warning(f"ℹ️ Your letter is a bit long for {detected_level} ({wc} words). Expected {requirements['min']}-{requirements['max']} words.")
             else:
-                if word_count < min_wc:
-                    st.error(f"⚠️ Your essay is too short for {detected_level} ({word_count} words). {requirements['desc']}")
+                if wc < requirements["min"]:
+                    st.error(f"⚠️ Your essay is too short for {detected_level} ({wc} words). {requirements['desc']}")
                     st.stop()
-                elif word_count > max_wc + 40 and detected_level in ("B1", "B2"):
-                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {detected_level} ({word_count} words). Try to stay within the guidelines.")
+                elif detected_level in ("B1", "B2") and wc > (requirements["max"] + 40):
+                    st.warning(f"ℹ️ Your essay is longer than the usual limit for {detected_level} ({wc} words). Try to stay within the guidelines.")
 
-        # --------- Reset correction states (do not indent inside above ifs)
+        # --- Per-student correction state (single init) ---
         for k, v in [
             ("last_feedback", None),
             ("last_user_letter", None),
@@ -8916,58 +8537,34 @@ if tab == "Schreiben Trainer":
             ("awaiting_correction", False),
             ("final_improved_letter", "")
         ]:
-            session_key = f"{student_code}_{k}"
-            if session_key not in st.session_state:
-                st.session_state[session_key] = v
-
-        # Namespaced correction state per student (reset on session)
-        for k, v in [
-            ("last_feedback", None),
-            ("last_user_letter", None),
-            ("delta_compare_feedback", None),
-            ("improved_letter", ""),
-            ("awaiting_correction", False),
-            ("final_improved_letter", "")
-        ]:
-            session_key = f"{student_code}_{k}"
-            if session_key not in st.session_state:
-                st.session_state[session_key] = v
+            sk = f"{student_code}_{k}"
+            if sk not in st.session_state:
+                st.session_state[sk] = v
 
         submit_disabled = daily_so_far >= MARK_LIMIT or not user_letter.strip()
-        feedback_btn = st.button(
-            "Get Feedback",
-            type="primary",
-            disabled=submit_disabled,
-            key=f"feedback_btn_{student_code}"
-        )
+        feedback_btn = st.button("Get Feedback", type="primary", disabled=submit_disabled, key=f"feedback_btn_{student_code}")
 
         if feedback_btn:
             st.session_state[f"{student_code}_awaiting_correction"] = True
             ai_prompt = (
                 f"You are Herr Felix, a supportive and innovative German letter writing trainer.\n"
-                f"You help students prepare for A1, A2, B1, B2, and C1 German exam letters or essays.\n"
                 f"The student has submitted a {schreiben_level} German letter or essay.\n"
                 f"Your job is to mark, score, and explain feedback in a kind, step-by-step way.\n"
                 f"Always answer in English.\n"
-                f"1. Give a quick summary (one line) of how well the student did overall.\n"
-                f"2. Then show a detailed breakdown of strengths and weaknesses in 4 areas:\n"
-                f"   Grammar, Vocabulary, Spelling, Structure.\n"
-                f"3. For each area, say what was good and what should improve.\n"
-                f"4. Highlight every mistake with [wrong]...[/wrong] and every good example with [correct]...[/correct].\n"
-                f"5. Give 2-3 improvement tips in bullet points.\n"
-                f"6. At the end, give a realistic score out of 25 in the format: Score: X/25.\n"
-                f"7. For A1 and A2, be strict about connectors, basic word order, modal verbs, and correct formal/informal greeting.\n"
-                f"8. For B1+, mention exam criteria and what examiner wants.\n"
-                f"9. Never write a new letter for the student, only mark what they submit.\n"
-                f"10. When possible, point out specific lines or examples from their letter in your feedback.\n"
-                f"11. When student score is 18 or above then they have passed. When score is less than 18, is a fail and they must try again before submitting to prevent low marks.\n"
-                f"12. After completion, remind them to only copy their improved letter without your feedback, go to 'my course' on the app and submit together with their lesen and horen answers. They only share the letter and feedback with their teacher for evaluation only when they preparing for the exams\n"
-                
+                f"1) One-line overall summary.\n"
+                f"2) Detailed breakdown: Grammar, Vocabulary, Spelling, Structure.\n"
+                f"3) Highlight mistakes with [wrong]...[/wrong] and good examples with [correct]...[/correct].\n"
+                f"4) 2–3 improvement tips in bullets.\n"
+                f"5) End with 'Score: X/25'.\n"
+                f"6) A1–A2: be strict with connectors, word order, modal verbs, and formal/informal greeting.\n"
+                f"7) B1+: mention exam criteria.\n"
+                f"8) Do not write a new letter; only mark what they submit.\n"
+                f"9) If score >= 18 → Passed; else → Fail with encouragement.\n"
             )
 
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
                 try:
-                    completion = client.chat.completions.create(
+                    completion = client.chat.completions.create(  # assumes `client` is configured globally in your app
                         model="gpt-4o",
                         messages=[
                             {"role": "system", "content": ai_prompt},
@@ -8976,11 +8573,8 @@ if tab == "Schreiben Trainer":
                         temperature=0.6,
                     )
                     feedback = completion.choices[0].message.content
-                    st.session_state[f"{student_code}_last_feedback"] = feedback
-                    st.session_state[f"{student_code}_last_user_letter"] = user_letter
-                    st.session_state[f"{student_code}_delta_compare_feedback"] = None
                 except Exception as e:
-                    st.error("AI feedback failed. Please check your OpenAI setup.")
+                    st.error(f"AI feedback failed. Please check your OpenAI setup. ({e})")
                     feedback = None
 
             if feedback:
@@ -8988,23 +8582,24 @@ if tab == "Schreiben Trainer":
                 st.markdown("---")
                 st.markdown("#### 📝 Feedback from Herr Felix")
                 st.markdown(highlight_feedback(feedback), unsafe_allow_html=True)
-                st.session_state[f"{student_code}_awaiting_correction"] = True
+                st.session_state[f"{student_code}_last_feedback"] = feedback
+                st.session_state[f"{student_code}_last_user_letter"] = user_letter
+                st.session_state[f"{student_code}_delta_compare_feedback"] = None
 
-                # --- Save to Firestore ---
-                score_match = re.search(r"Score[: ]+(\d+)", feedback)
-                score = int(score_match.group(1)) if score_match else 0
-                passed = score >= 17
+                # Save to Firestore (null-safe) + stats
+                m = re.search(r"Score\s*[:\-]?\s*(\d+)\s*/\s*25", feedback, flags=re.I)
+                score = max(0, min(25, int(m.group(1)))) if m else 0
+                passed_flag = score >= 18  # pass threshold per your spec
+
                 save_submission(
                     student_code=student_code,
                     score=score,
-                    passed=passed,
-                    timestamp=None,  # Not needed
+                    passed=passed_flag,
+                    timestamp=None,
                     level=schreiben_level,
                     letter=user_letter
                 )
                 update_schreiben_stats(student_code)
-
-
 
         # --- Improvement section: Compare, download, WhatsApp ---
         if st.session_state.get(f"{student_code}_last_feedback") and st.session_state.get(f"{student_code}_last_user_letter"):
@@ -9019,14 +8614,12 @@ if tab == "Schreiben Trainer":
                 <div style="background:#e3f7da; border-left:7px solid #44c767; 
                 color:#295327; padding:1.15em; margin-top:1em; border-radius:10px; font-size:1.09em;">
                     🔁 <b>Try to improve your letter!</b><br>
-                    Paste your improved version below and click <b>Compare My Improvement</b>.<br>
-                    The AI will highlight what’s better, what’s still not fixed, and give extra tips.<br>
-                    <b>You can download or share the improved version & new feedback below.</b>
+                    Paste your improved version below and click <b>Compare My Improvement</b>.
                 </div>
                 """, unsafe_allow_html=True
             )
             improved_letter = st.text_area(
-                "Your improved version (try to fix the mistakes Herr Felix mentioned):",
+                "Your improved version (fix the mistakes mentioned):",
                 key=f"{student_code}_improved_letter",
                 height=400,
                 placeholder="Paste your improved letter here..."
@@ -9035,19 +8628,12 @@ if tab == "Schreiben Trainer":
 
             if compare_clicked and improved_letter.strip():
                 ai_compare_prompt = (
-                    "You are Herr Felix, a supportive German writing coach. "
-                    "A student first submitted this letter:\n\n"
-                    f"{st.session_state[f'{student_code}_last_user_letter']}\n\n"
-                    "Your feedback was:\n"
-                    f"{st.session_state[f'{student_code}_last_feedback']}\n\n"
-                    "Now the student has submitted an improved version below.\n"
-                    "Compare both versions and:\n"
-                    "- Tell the student exactly what they improved, and which mistakes were fixed.\n"
-                    "- Point out if there are still errors left, with new tips for further improvement.\n"
-                    "- Encourage the student. If the improvement is significant, say so.\n"
-                    "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
-                    "2. Always explain your feeback in English for them to understand. You can still highlight their german phrases. But your correction should be english\n"
-                    "- Give a revised score out of 25 (Score: X/25)."
+                    "You are Herr Felix, a supportive German writing coach.\n"
+                    "Compare the student's improved letter with the original feedback.\n"
+                    "- Explain what improved and which mistakes were fixed.\n"
+                    "- Point out remaining errors with new tips.\n"
+                    "- Encourage the student.\n"
+                    "- End with 'Score: X/25'.\n"
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
                     try:
@@ -9055,35 +8641,38 @@ if tab == "Schreiben Trainer":
                             model="gpt-4o",
                             messages=[
                                 {"role": "system", "content": ai_compare_prompt},
-                                {"role": "user", "content": improved_letter}
+                                {"role": "user", "content": f"Original feedback:\n{st.session_state[f'{student_code}_last_feedback']}\n\nImproved letter:\n{improved_letter}"}
                             ],
                             temperature=0.5,
                         )
                         compare_feedback = result.choices[0].message.content
-                        st.session_state[f"{student_code}_delta_compare_feedback"] = compare_feedback
-                        st.session_state[f"{student_code}_final_improved_letter"] = improved_letter
                     except Exception as e:
-                        st.session_state[f"{student_code}_delta_compare_feedback"] = f"Sorry, there was an error comparing your letters: {e}"
+                        compare_feedback = f"Sorry, there was an error comparing your letters: {e}"
+
+                st.session_state[f"{student_code}_delta_compare_feedback"] = compare_feedback
+                st.session_state[f"{student_code}_final_improved_letter"] = improved_letter
 
             if st.session_state.get(f"{student_code}_delta_compare_feedback"):
                 st.markdown("---")
                 st.markdown("### 📝 Improvement Feedback from Herr Felix")
-                st.markdown(highlight_feedback(st.session_state[f"{student_code}_delta_compare_feedback"]), unsafe_allow_html=True)
+                st.markdown(
+                    highlight_feedback(st.session_state[f"{student_code}_delta_compare_feedback"]),
+                    unsafe_allow_html=True
+                )
 
                 # PDF & WhatsApp buttons
                 from fpdf import FPDF
                 import urllib.parse, os
 
-                def sanitize_text(text):
-                    return text.encode('latin-1', errors='replace').decode('latin-1')
+                def _latin_sanitize(text):
+                    return (text or "").encode('latin-1', errors='replace').decode('latin-1')
 
-                # PDF
                 pdf = FPDF()
                 pdf.add_page()
                 pdf.set_font("Arial", size=12)
-                improved_letter = st.session_state.get(f"{student_code}_final_improved_letter", "")
-                improved_feedback = st.session_state[f"{student_code}_delta_compare_feedback"]
-                pdf.multi_cell(0, 10, f"Your Improved Letter:\n\n{sanitize_text(improved_letter)}\n\nFeedback from Herr Felix:\n\n{sanitize_text(improved_feedback)}")
+                improved_letter_txt = st.session_state.get(f"{student_code}_final_improved_letter", "")
+                improved_feedback_txt = st.session_state[f"{student_code}_delta_compare_feedback"]
+                pdf.multi_cell(0, 10, f"Your Improved Letter:\n\n{_latin_sanitize(improved_letter_txt)}\n\nFeedback from Herr Felix:\n\n{_latin_sanitize(improved_feedback_txt)}")
                 pdf_output = f"Feedback_{student_code}_{schreiben_level}_improved.pdf"
                 pdf.output(pdf_output)
                 with open(pdf_output, "rb") as f:
@@ -9096,10 +8685,9 @@ if tab == "Schreiben Trainer":
                 )
                 os.remove(pdf_output)
 
-                # WhatsApp share
                 wa_message = (
                     f"Hi, here is my IMPROVED German letter and AI feedback:\n\n"
-                    f"{improved_letter}\n\n"
+                    f"{improved_letter_txt}\n\n"
                     f"Feedback:\n{st.session_state[f'{student_code}_delta_compare_feedback']}"
                 )
                 wa_url = (
@@ -9112,16 +8700,19 @@ if tab == "Schreiben Trainer":
                     unsafe_allow_html=True
                 )
 
-
+    # =========================
+    # 2) IDEAS GENERATOR (Letter Coach)
+    # =========================
     if sub_tab == "Ideas Generator (Letter Coach)":
-        import io
+        import streamlit.components.v1 as components
 
-        # === NAMESPACED SESSION KEYS (per student) ===
         student_code = st.session_state.get("student_code", "demo")
-        ns_prefix = f"{student_code}_letter_coach_"
-        def ns(key): return ns_prefix + key
 
-        # --- Reset per-student Letter Coach state on student change ---
+        # Namespaced state per student
+        ns_prefix = f"{student_code}_letter_coach_"
+        def ns(k): return ns_prefix + k
+
+        # Load previous progress once per student login
         prev_letter_coach_code = st.session_state.get("prev_letter_coach_code", None)
         if student_code != prev_letter_coach_code:
             last_prompt, last_chat = load_letter_coach_progress(student_code)
@@ -9130,140 +8721,39 @@ if tab == "Schreiben Trainer":
             st.session_state[ns("stage")] = 1 if last_chat else 0
             st.session_state["prev_letter_coach_code"] = student_code
 
-        # --- Set per-student defaults if missing ---
         for k, default in [("prompt", ""), ("chat", []), ("stage", 0)]:
-            if ns(k) not in st.session_state:
-                st.session_state[ns(k)] = default
-
+            st.session_state.setdefault(ns(k), default)
 
         LETTER_COACH_PROMPTS = {
             "A1": (
                 "You are Herr Felix, a creative and supportive German letter-writing coach for A1 students. "
-                "Always reply in English, never in German. "
-                "When a student submits something, first congratulate them with ideas about how to go about the letter. "
-                "Analyze if their message is a new prompt, a continuation, or a question. "
-                "If it's a question, answer simply and encourage them to keep building their letter step by step. "
-                "If it's a continuation, review their writing so far and guide them to the next step. "
-                "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students, help them but let them think by themselves also. "
-                "    2. For conjunctions, only suggest 'weil', 'deshalb', 'ich möchte wissen, ob' and 'ich möchte wissen, wann'. Don't recommend 'da', 'dass' and relative clauses. "
-                "    3. For requests, teach them how to use 'Könnten Sie...' and how it ends with a main verb to make a request when necessary. "
-                "    4. For formal/informal letter: guide them to use 'Ich schreibe Ihnen/dir...', and show how to use 'weil' with 'ich' and end with only 'möchte' to prevent mistakes. Be strict with this. "
-                "    5. Always check that the student statement is not too long or complicated. For example, if they use two conjunctions, warn them and break it down for them. "
-                "    6. Warn students if their statement per input is too long or complicated. When student statement has more than 7 or 8 words, break it down for them with full stops and simple conjunctions. "
-                "    7. Always add your ideas after student submits their sentence if necessary. "
-                "    8. Make sure the complete letter is between 25 and 35 words. "
-                "    9. When the letter is about cancelling appointments, teach students how they can use reasons connected to weather and health to cancel appointments. Teach them how to use 'absagen' to cancel appointments. "
-                "    10. For enquiries or registrations, teach students how to use 'Anfrage stellen' for the Ich schreibe. "
-                "    11. When the letter is about registrations like a course, teach students how they can use 'anfangen', 'beginnen'. "
-                "    12. Asking for price, teach them how to use 'wie viel kostet...' and how they should ask for price always when it is about enquiries. "
-                "    13. Teach them to use 'Es tut mir leid.' to say sorry. "
-                "    14. Always remind students to use 'Ich schreibe Ihnen/dir, weil ich ... möchte.' for their reasons. "
-                "Always make grammar correction or suggest a better phrase when necessary. "
-                "If it's a continuation, review their writing so far and guide them to the next step. "
-                "If it's a new prompt, give a brief, simple overview (in English) of how to build their letter (greeting, introduction, reason, request, closing), with short examples for each. "
-                "For the introduction, always remind the student to use: 'Ich schreibe Ihnen, weil ich ...' for formal letters or 'Ich schreibe dir, weil ich ...' for informal letters. "
-                "For the main request, always recommend ending the sentence with 'möchte' or another basic modal verb, as this is the easiest and most correct way at A1 (e.g., 'Ich möchte einen Termin machen.'). "
-                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only the next part—first the greeting (wait for it), then only the introduction (wait for it), then reason, then request, then closing—one after the other, never more than one at a time. "
-                "After each student reply, check their answer, give gentle feedback, and then again state 'Your next recommended step:' and prompt for just the next section. "
-                "Only help with basic connectors ('und', 'aber', 'weil', 'deshalb', 'ich möchte wissen'). Never write the full letter yourself—coach one part at a time. "
-                "The chat session should last for about 10 student replies. If the student is not done by then, gently remind them: 'Most letters can be completed in about 10 steps. Please try to finish soon.' "
-                "If after 14 student replies, the letter is still not finished, end the session with: 'We have reached the end of this coaching session. Please copy your letter below so far and paste it into the “Mark My Letter” tool for full AI feedback and a score.' "
-                "Throughout, your questions must be progressive, one at a time, and always guide the student logically through the structure."
+                "Reply in English only. Coach one tiny step at a time (greeting → introduction → reason → request → closing). "
+                "Keep total length 25–35 words, prefer simple connectors (und, aber, weil, deshalb). "
+                "After each reply, show: 'Your next recommended step:' and ask for the next single piece only."
             ),
             "A2": (
-                "You are Herr Felix, a creative and supportive German letter-writing coach for A2 students. "
-                "Always reply in English, never in German. "
-                "Congratulate the student on their first submission with ideas about how to go about the letter. Analyze whether it is a prompt, a continuation, or a question. "
-                "    1. Always give students short ideas, structure and tips and phrases on how to build their points for the conversation in English and simple German. Don't overfeed students; help them but let them think by themselves also. "
-                "    2. For structure, require their letter to use clear sequencing with 'Zuerst' (for the first paragraph), 'Dann' or 'Außerdem' (for the body/second idea), and 'Zum Schluss' (for closing/last idea). "
-                "       - Always recommend 'Zuerst' instead of 'Erstens' for A2 letters, as it is simpler and more natural for personal or exam letters. "
-                "    3. For connectors, use 'und', 'aber', 'weil', 'denn', 'deshalb', 'ich mochte wissen, ob', 'ich mochte wissen, wann', 'ich mochte wissen, wo', and encourage linking words for clarity. Recommend one at a time in a statement to prevent mistakes. When a student use two or more conjucntion in one statement less than 7 words, simplify for them to use just once to prevent errors"
-                "    4. After every reply, give a tip or phrase, but never write the full letter for them. "
-                "    5. Remind them not to write sentences longer than 7–8 words; break long sentences into short, clear ideas. "
-                "    6. Letter should be between 30 and 40 words. "
-                "    7. For cancellations, suggest health/weather reasons ('Ich bin krank.', 'Es regnet stark.') and use 'absagen' (e.g., 'Ich schreibe Ihnen, weil ich absagen möchte.'). "
-                "    8. For enquiries/registrations, show 'Anfrage stellen' (e.g., 'Ich schreibe Ihnen, weil ich eine Anfrage stellen möchte.') and include asking for price: 'Wie viel kostet...?'. "
-                "    9. For appointments, recommend 'vereinbaren' ('Ich möchte einen neuen Termin vereinbaren.'). "
-                "    10. To say sorry, use: 'Es tut mir leid.' "
-                "    11. Always correct grammar and suggest improved phrases when needed. "
-                "    12. At each step, say 'Your next recommended step:' and ask for only the next section (first greeting, then introduction, then body using 'Zuerst', 'Außerdem', then final point 'Zum Schluss', then polite closing phrase 'Ich freue mich'). "
-                "    13. The session should be complete in about 10 student replies; if not, remind them to finish soon. After 14, end and tell the student to copy their letter below and paste into 'Mark My Letter' for feedback. "
-                "    14. Throughout, do not write the whole letter—guide only one part at a time."
-                
+                "You are Herr Felix, a supportive A2 writing coach. Reply in English. "
+                "Require clear sequencing: 'Zuerst', 'Außerdem', 'Zum Schluss'. Keep 30–40 words. "
+                "One step at a time and always prompt with 'Your next recommended step:'."
             ),
             "B1": (
-                "You are Herr Felix, a supportive German letter/essay coach for B1 students. "
-                "Always reply in English, never in German. "
-                "Congratulate the student with ideas about how to go about the letter, analyze the type of submission, and determine whether it is a formal letter, informal letter, or opinion essay. "
-                "If you are not sure, politely ask the student what type of writing they need help with. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always be sure that students complete formal letter is between 40 to 50 words,informal letter and opinion essay between 80 to 90 words "
-                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
-                "For a formal letter, give a brief overview of the structure (greeting, introduction, main reason/request, closing), with useful examples. "
-                "Always make grammar correction or suggest a better phrase when necessary. "
-                "For an informal letter, outline the friendly structure (greeting, introduction, reason, personal info, closing), with simple examples. "
-                "For an opinion essay, provide a short overview: introduction (with phrases like 'Heutzutage ist ... ein wichtiges Thema.' or 'Ich bin der Meinung, dass...'), main points (advantages, disadvantages, opinion), connectors, and closing. "
-                "After your overview, always use the phrase 'Your next recommended step:' and ask for only one section at a time—greeting, then introduction, then main points, then closing—never more than one at a time. "
-                "After each answer, provide feedback, then again prompt with 'Your next recommended step:'. "
-                "Encourage the use of appropriate connectors ('außerdem', 'trotzdem', 'weil', 'deshalb'). "
-                "If the student is still writing after 10 turns, encourage them to finish. At 14, end the chat, reminding them to copy their letter below and paste their draft in 'Mark My Letter' for feedback."
+                "You are Herr Felix, a supportive B1 letter/essay coach. Reply in English. "
+                "Use paragraph sequence; encourage connectors (außerdem, trotzdem, weil, deshalb). "
+                "Coach one section per turn and prompt: 'Your next recommended step:'."
             ),
             "B2": (
-                "You are Herr Felix, a supportive German writing coach for B2 students. "
-                "Always reply in English, never in German. "
-                "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an opinion/argumentative essay. "
-                "If you are not sure, politely ask the student what type of writing they need help with. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequences and sentence starters "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always be sure that students complete formal letter is between 100 to 150 words and opinion essay is 150 to 170 words "
-                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
-                "Always make grammar correction or suggest a better phrase when necessary. "
-                "For a formal letter, briefly outline the advanced structure: greeting, introduction, clear argument/reason, supporting details, closing—with examples. "
-                "For an informal letter, outline a friendly but organized structure: greeting, personal introduction, main point/reason, examples, closing. "
-                "For an opinion or argumentative essay, outline: introduction (with a strong thesis), arguments (with connectors and examples), counterarguments, connectors, conclusion, closing. "
-                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only one section at a time. "
-                "After each student reply, give feedback, then use 'Your next recommended step:' again. "
-                "Suggest and model advanced connectors ('denn', 'dennoch', 'außerdem', 'jedoch', 'zum Beispiel', 'einerseits...andererseits'). "
-                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to copy their letter below and paste their draft in 'Mark My Letter' for feedback."
+                "You are Herr Felix, a supportive B2 coach. Reply in English. "
+                "Guide formal letters (100–150) and opinion essays (150–170). "
+                "Advanced connectors welcome; one section per turn; prompt with 'Your next recommended step:'."
             ),
             "C1": (
-                "You are Herr Felix, an advanced and supportive German writing coach for C1 students. "
-                "Always reply in English, and in German when neccessary. If the German is difficult, explain it to the student "
-                "Congratulate the student with ideas about how to go about the letter, analyze the type of input, and determine if it is a formal letter, informal letter, or an academic/opinion essay. "
-                f"1. Always give students short ideas,structure and tips and phrases on how to build their points for the conversation in English and simple German. Dont overfeed students, help them but let them think by themselves also "
-                f"2. Always check to be sure their letters are organized with paragraphs using sequence and sentence starters "
-                f"3. Always add your ideas after student submmit their sentence if necessary "
-                f"4. Always be sure that students complete formal letter is between 120 to 150 words and opinion essay is 230 to 250 words "
-                f"5. When giving ideas for sentences, just give 2 to 3 words and tell student to continue from there. Let the student also think and dont over feed them. "
-                "If you are not sure, politely ask the student what type of writing they need help with. "
-                "For a formal letter, give a precise overview: greeting, sophisticated introduction, detailed argument, supporting evidence, closing, with nuanced examples. "
-                "Always make grammar correction or suggest a better phrase when necessary. "
-                "For an informal letter, outline a nuanced and expressive structure: greeting, detailed introduction, main point/reason, personal opinion, nuanced closing. "
-                "For academic or opinion essays, provide a clear outline: introduction (with a strong thesis and background), well-structured arguments, counterpoints, advanced connectors, conclusion, and closing—with C1-level examples. "
-                "After your overview or advice, always use the phrase 'Your next recommended step:' and ask for only one section at a time. "
-                "After each answer, provide feedback, then again prompt with 'Your next recommended step:'. "
-                "Model and suggest advanced connectors ('nicht nur... sondern auch', 'obwohl', 'dennoch', 'folglich', 'somit'). "
-                "If the student is still writing after 10 turns, gently encourage finishing; after 14, end the chat and ask the student to  paste their draft in 'Mark My Letter' for feedback and a score."
+                "You are Herr Felix, an advanced C1 coach. Reply mainly in English (German when useful). "
+                "Guide structure, thesis, arguments, counterpoints; ask for one section at a time. "
+                "Always prompt with 'Your next recommended step:'."
             ),
         }
 
-        def reset_letter_coach():
-            for k in [
-                "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
-                "letter_coach_type", "selected_letter_lines", "letter_coach_uploaded"
-            ]:
-                st.session_state[k] = 0 if k == "letter_coach_stage" else []
-            st.session_state["letter_coach_uploaded"] = False
-
-        def bubble(role, text):
-            if role == "assistant":
-                return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
-            return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
-
-        # --- General Instructions for Students (Minimal Welcome + Subline) ---
+        # Header
         st.markdown(
             """
             <div style="
@@ -9273,19 +8763,11 @@ if tab == "Schreiben Trainer":
                 box-shadow: 0 2px 8px #e5e1fa22;
                 padding: 0.75em 1em 0.72em 1em;
                 margin-bottom: 1.1em;
-                margin-top: 0.1em;
                 color: #4b2976;
                 font-size: 1.03rem;
-                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                text-align: center;
-                ">
-                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
-                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
-                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
-                </span>
-                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
-                    Get started below 👇
-                </div>
+                text-align: center;">
+                ✉️ <b>Welcome to Letter Coach</b><br>
+                <span style="color:#b48be6;">Get started below 👇</span>
             </div>
             """,
             unsafe_allow_html=True
@@ -9298,7 +8780,7 @@ if tab == "Schreiben Trainer":
             st.warning("You have reached today's letter coach limit. Please come back tomorrow.")
             st.stop()
 
-        # --- Stage 0: Prompt input ---
+        # Stage 0: enter prompt
         if st.session_state[ns("stage")] == 0:
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             with st.form(ns("prompt_form"), clear_on_submit=True):
@@ -9306,24 +8788,22 @@ if tab == "Schreiben Trainer":
                     "",
                     value=st.session_state[ns("prompt")],
                     height=120,
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an ..."
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
             if prompt:
-                word_count = len(prompt.split())
-                char_count = len(prompt)
                 st.markdown(
-                    f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                    f"Words: <b>{word_count}</b> &nbsp;|&nbsp; Characters: <b>{char_count}</b>"
+                    f"<div style='color:#7b2ff2; font-size:0.97em;'>"
+                    f"Words: <b>{len(prompt.split())}</b> &nbsp;|&nbsp; Characters: <b>{len(prompt)}</b>"
                     "</div>",
                     unsafe_allow_html=True
                 )
 
             if send and prompt:
                 st.session_state[ns("prompt")] = prompt
-                student_level = st.session_state.get("schreiben_level", "A1")
-                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=prompt)
+                lvl = st.session_state.get("schreiben_level", "A1")
+                system_prompt = LETTER_COACH_PROMPTS.get(lvl, LETTER_COACH_PROMPTS["A1"])
                 chat_history = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
@@ -9337,145 +8817,114 @@ if tab == "Schreiben Trainer":
                     )
                     ai_reply = resp.choices[0].message.content
                 except Exception as e:
-                    ai_reply = "Sorry, there was an error generating a response. Please try again."
+                    ai_reply = f"Sorry, there was an error generating a response. ({e})"
                 chat_history.append({"role": "assistant", "content": ai_reply})
 
                 st.session_state[ns("chat")] = chat_history
                 st.session_state[ns("stage")] = 1
                 inc_letter_coach_usage(student_code)
-                save_letter_coach_progress(
-                    student_code,
-                    student_level,
-                    st.session_state[ns("prompt")],
-                    st.session_state[ns("chat")],
-                )
+                save_letter_coach_progress(student_code, lvl, st.session_state[ns("prompt")], st.session_state[ns("chat")])
                 st.rerun()
 
             if prompt:
                 st.markdown("---")
                 st.markdown(f"📝 **Letter/Essay Prompt or Draft:**\n\n{prompt}")
 
-        # --- Stage 1: Coaching Chat ---
+        # Stage 1: coaching chat
         elif st.session_state[ns("stage")] == 1:
             st.markdown("---")
             st.markdown(f"📝 **Letter/Essay Prompt:**\n\n{st.session_state[ns('prompt')]}")
             chat_history = st.session_state[ns("chat")]
+
+            # Pretty bubbles
+            def bubble(role, text):
+                if role == "assistant":
+                    return f"""<div style='background:#f4eafd;color:#7b2ff2;border-radius:16px 16px 16px 3px;margin-bottom:8px;margin-right:80px;box-shadow:0 2px 8px rgba(123,47,242,0.08);padding:13px 18px;text-align:left;max-width:88vw;font-size:1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
+                return f"""<div style='background:#eaf4ff;color:#1a237e;border-radius:16px 16px 3px 16px;margin-bottom:8px;margin-left:80px;box-shadow:0 2px 8px rgba(26,35,126,0.07);padding:13px 18px;text-align:right;max-width:88vw;font-size:1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
+
             for msg in chat_history[1:]:
                 st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+
+            # Turn guidance
             num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
             if num_student_turns == 10:
-                st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
+                st.info("🔔 You’ve written 10 steps. Most letters finish in 7–10 turns. Try to complete soon.")
             elif num_student_turns == 12:
-                st.warning(
-                    "⏰ You have reached 12 writing turns. "
-                    "Usually, your letter should be complete by now. "
-                    "If you want feedback, click **END SUMMARY** or download your letter as TXT. "
-                    "You can always start a new session for more practice."
-                )
+                st.warning("⏰ You’ve reached 12 turns. Wrap up and use **END SUMMARY** or download your draft. You can start a new session anytime.")
             elif num_student_turns > 12:
-                st.warning(
-                    f"🚦 You are now at {num_student_turns} turns. "
-                    "Long letters are okay, but usually a good letter is finished in 7–12 turns. "
-                    "Try to wrap up, click **END SUMMARY** or download your letter as TXT."
-                )
+                st.warning(f"🚦 You’re at {num_student_turns} turns. Aim to finish now.")
 
+            # Input box
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
                 user_input = st.text_area(
                     "",
                     value="",
                     key=ns("user_input"),
                     height=400,
-                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+                    placeholder="Type your next step or a question here..."
                 )
                 send = st.form_submit_button("Send")
             if send and user_input.strip():
                 chat_history.append({"role": "user", "content": user_input})
-                student_level = st.session_state.get("schreiben_level", "A1")
-                system_prompt = LETTER_COACH_PROMPTS[student_level].format(prompt=st.session_state[ns("prompt")])
+                lvl = st.session_state.get("schreiben_level", "A1")
+                system_prompt = LETTER_COACH_PROMPTS.get(lvl, LETTER_COACH_PROMPTS["A1"])
                 with st.spinner("👨‍🏫 Herr Felix is typing..."):
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
-                        temperature=0.22,
-                        max_tokens=380
-                    )
-                    ai_reply = resp.choices[0].message.content
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[{"role": "system", "content": system_prompt}] + chat_history[1:] + [{"role": "user", "content": user_input}],
+                            temperature=0.22,
+                            max_tokens=380
+                        )
+                        ai_reply = resp.choices[0].message.content
+                    except Exception as e:
+                        ai_reply = f"Sorry, there was an error. ({e})"
                 chat_history.append({"role": "assistant", "content": ai_reply})
                 st.session_state[ns("chat")] = chat_history
-                save_letter_coach_progress(
-                    student_code,
-                    student_level,
-                    st.session_state[ns("prompt")],
-                    st.session_state[ns("chat")],
-                )
+                save_letter_coach_progress(student_code, lvl, st.session_state[ns("prompt")], st.session_state[ns("chat")])
+                inc_letter_coach_usage(student_code)
                 st.rerun()
 
-            # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
-            import streamlit.components.v1 as components
-
-            user_msgs = [
-                msg["content"]
-                for msg in st.session_state[ns("chat")][1:]
-                if msg.get("role") == "user"
-            ]
-
+            # Live draft selection
+            user_msgs = [m["content"] for m in st.session_state[ns("chat")][1:] if m.get("role") == "user"]
             st.markdown("""
                 **📝 Your Letter Draft**
                 - Tick the lines you want to include in your letter draft.
-                - You can untick any part you want to leave out.
-                - Only ticked lines will appear in your downloadable draft below.
+                - Only ticked lines appear in the draft below for copy/download.
             """)
 
-            # Store selection in session state (keeps selection per student)
-            if ns("selected_letter_lines") not in st.session_state or \
-                len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
+            if ns("selected_letter_lines") not in st.session_state or len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
                 st.session_state[ns("selected_letter_lines")] = [True] * len(user_msgs)
 
             selected_lines = []
             for i, line in enumerate(user_msgs):
                 st.session_state[ns("selected_letter_lines")][i] = st.checkbox(
-                    line,
-                    value=st.session_state[ns("selected_letter_lines")][i],
-                    key=ns(f"letter_line_{i}")
+                    line, value=st.session_state[ns("selected_letter_lines")][i], key=ns(f"letter_line_{i}")
                 )
                 if st.session_state[ns("selected_letter_lines")][i]:
                     selected_lines.append(line)
 
             letter_draft = "\n".join(selected_lines)
-
-            # --- Live word/character count for the letter draft ---
-            draft_word_count = len(letter_draft.split())
-            draft_char_count = len(letter_draft)
             st.markdown(
-                f"<div style='color:#7b2ff2; font-size:0.97em; margin-bottom:0.18em;'>"
-                f"Words: <b>{draft_word_count}</b> &nbsp;|&nbsp; Characters: <b>{draft_char_count}</b>"
+                f"<div style='color:#7b2ff2; font-size:0.97em;'>"
+                f"Words: <b>{len(letter_draft.split())}</b> &nbsp;|&nbsp; Characters: <b>{len(letter_draft)}</b>"
                 "</div>",
                 unsafe_allow_html=True
             )
 
-            # --- Modern, soft header (copy/download) ---
             st.markdown(
                 """
                 <div style="
-                    background:#23272b;
-                    color:#eee;
-                    border-radius:10px;
-                    padding:0.72em 1.04em;
-                    margin-bottom:0.4em;
-                    font-size:1.07em;
-                    font-weight:400;
-                    border:1px solid #343a40;
-                    box-shadow:0 2px 10px #0002;
-                    text-align:left;
-                ">
+                    background:#23272b;color:#eee;border-radius:10px;
+                    padding:0.72em 1.04em;margin-bottom:0.4em;font-size:1.07em;
+                    border:1px solid #343a40;box-shadow:0 2px 10px #0002;text-align:left;">
                     <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
+                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below</span>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 
-            # --- Mobile-friendly copy/download box ---
             components.html(f"""
                 <textarea id="letterBox_{student_code}" readonly rows="6" style="
                     width: 100%;
@@ -9489,53 +8938,21 @@ if tab == "Schreiben Trainer":
                     box-shadow: 0 2px 8px #ffe08266;
                     margin-bottom: 0.5em;
                     resize: none;
-                    overflow:auto;
-                " onclick="this.select()">{letter_draft}</textarea>
+                    overflow:auto;"
+                    onclick="this.select()">{letter_draft}</textarea>
                 <button onclick="navigator.clipboard.writeText(document.getElementById('letterBox_{student_code}').value)" 
                     style="
-                        background:#ffc107;
-                        color:#3e2723;
-                        font-size:1.08em;
-                        font-weight:bold;
-                        padding:0.48em 1.12em;
-                        margin-top:0.4em;
-                        border:none;
-                        border-radius:7px;
-                        cursor:pointer;
-                        box-shadow:0 2px 8px #ffe08255;
-                        width:100%;
-                        max-width:320px;
-                        display:block;
-                        margin-left:auto;
-                        margin-right:auto;
-                    ">
+                        background:#ffc107;color:#3e2723;font-size:1.08em;font-weight:bold;
+                        padding:0.48em 1.12em;margin-top:0.4em;border:none;border-radius:7px;cursor:pointer;
+                        box-shadow:0 2px 8px #ffe08255;width:100%;max-width:320px;display:block;margin-left:auto;margin-right:auto;">
                     📋 Copy Text
                 </button>
                 <style>
                     @media (max-width: 480px) {{
-                        #letterBox_{student_code} {{
-                            font-size: 1.16em !important;
-                            min-width: 93vw !important;
-                        }}
+                        #letterBox_{student_code} {{ font-size: 1.16em !important; min-width: 93vw !important; }}
                     }}
                 </style>
             """, height=175)
-
-            st.markdown("""
-                <div style="
-                    background:#ffe082;
-                    padding:0.9em 1.2em;
-                    border-radius:10px;
-                    margin:0.4em 0 1.2em 0;
-                    color:#543c0b;
-                    font-weight:600;
-                    border-left:6px solid #ffc107;
-                    font-size:1.08em;">
-                    📋 <span>On phone, tap in the box above to select all for copy.<br>
-                    Or just tap <b>Copy Text</b>.<br>
-                    To download, use the button below.</span>
-                </div>
-            """, unsafe_allow_html=True)
 
             st.download_button(
                 "⬇️ Download Letter as TXT",
@@ -9548,14 +8965,8 @@ if tab == "Schreiben Trainer":
                 st.session_state[ns("prompt")] = ""
                 st.session_state[ns("selected_letter_lines")] = []
                 st.session_state[ns("stage")] = 0
-                save_letter_coach_progress(
-                    student_code,
-                    st.session_state.get("schreiben_level", "A1"),
-                    "",
-                    [],
-                )
+                save_letter_coach_progress(student_code, st.session_state.get("schreiben_level", "A1"), "", [])
                 st.rerun()
-
 
 
 
