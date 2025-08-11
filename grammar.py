@@ -4227,129 +4227,43 @@ if tab == "My Course":
 
         st.divider()
 
-                # ===================== TUTORS • CALENDAR • CONTACT =====================
-        import re, urllib.parse
+        # ===================== TUTORS • CALENDAR • CONTACT =====================
+        # expects: tutors (list of {name,email} or names), calendar_url, contact_email,
+        #          image_url, student_name, student_code, class_name
+        import urllib.parse as _urllib
 
-        def _norm_class_local(s: str) -> str:
-            return re.sub(r"\s+", " ", (s or "").strip().lower())
+        # Build lead / co-tutor from list
+        lead_tutor = tutors[0] if tutors else None
+        co_tutor   = tutors[1] if len(tutors) > 1 else None
 
-        # Fallbacks (edit tutors/contact/image as needed; supports multiple tutors)
-        CLASS_FALLBACKS_LOCAL = {
-            _norm_class_local("A2 Koln Klasse"): {
-                "tutors": ["Your Name", "Co-Tutor"],
-                "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
-                "contact_email": "learngermanghana@gmail.com",
-                "image_url": "blob:https://imgur.com/54b3b21f-dac4-4e6c-b7d9-fbe93537e6d9",
-            },
-            _norm_class_local("B1 Munich Klasse"): {
-                "tutors": ["Your Name"],
-                "calendar_url": "https://calendar.app.google/5aWmmumc7pVLCKJZ6",
-                "contact_email": "learngermanghana@gmail.com",
-                "image_url": "blob:https://imgur.com/54b3b21f-dac4-4e6c-b7d9-fbe93537e6d9",
-            },
-            _norm_class_local("A2 Munich Klasse"): {
-                "tutors": ["Your Name"],
-                "calendar_url": "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=MnFxZHZmYXYxZGUwODg3b2FuaWdodWRkYTBfMjAyNTA4MDRUMTkzMDAwWiBsZWFybmdlcm1hbmdoYW5hQG0&tmsrc=learngermanghana%40gmail.com&scp=ALL",
-                "contact_email": "learngermanghana@gmail.com",
-                "image_url": "blob:https://imgur.com/54b3b21f-dac4-4e6c-b7d9-fbe93537e6d9",
-            },
-            _norm_class_local("A1 Munich Klasse"): {
-                "tutors": ["Your Name"],
-                "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
-                "contact_email": "learngermanghana@gmail.com",
-                "image_url": "blob:https://imgur.com/54b3b21f-dac4-4e6c-b7d9-fbe93537e6d9",
-            },
-        }
+        def _tutor_line(t):
+            if not t:
+                return ""
+            if isinstance(t, dict):
+                name  = (t.get("name") or "").strip()
+                email = (t.get("email") or "").strip()
+            else:
+                name, email = str(t).strip(), ""
+            email_html = f" <span style='color:#64748b'>&lt;{email}&gt;</span>" if email else ""
+            return f"{name}{email_html}"
 
-        def _normalize_tutors(val):
-            if not val:
-                return []
-            if isinstance(val, str):
-                items = [x.strip() for x in val.split(",") if x.strip()]
-                return [{"name": x, "email": ""} for x in items]
-            out = []
-            for x in val if isinstance(val, list) else [val]:
-                if isinstance(x, dict):
-                    out.append({"name": (x.get("name") or "").strip(),
-                                "email": (x.get("email") or "").strip()})
-                else:
-                    out.append({"name": str(x).strip(), "email": ""})
-            return [t for t in out if t["name"]]
-
-        def _load_class_meta_local(class_name: str) -> dict:
-            meta = {}
-            # Firestore (preferred)
-            try:
-                doc = db.collection("classes").document(class_name).get()
-                if getattr(doc, "exists", False):
-                    meta.update(doc.to_dict() or {})
-            except Exception:
-                pass
-            # Fallbacks
-            fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
-            merged = {**fb, **meta}
-            tutors = _normalize_tutors(merged.get("tutors"))
-            return {
-                "tutors": tutors,
-                "calendar_url": (merged.get("calendar_url") or "").strip(),
-                "contact_email": (merged.get("contact_email") or "learngermanghana@gmail.com").strip(),
-                "image_url": (merged.get("image_url") or "").strip(),
-            }
-
-        def _save_class_meta_local(class_name: str, tutors_csv: str, calendar_url: str, contact_email: str, image_url: str) -> bool:
-            tutors = [{"name": n.strip(), "email": ""} for n in (tutors_csv or "").split(",") if n.strip()]
-            try:
-                db.collection("classes").document(class_name).set(
-                    {
-                        "tutors": tutors,
-                        "calendar_url": (calendar_url or "").strip(),
-                        "contact_email": (contact_email or "").strip(),
-                        "image_url": (image_url or "").strip(),
-                    },
-                    merge=True
-                )
-                return True
-            except Exception as e:
-                st.warning(f"Couldn't save class settings: {e}")
-                return False
-
-        def _mailto_link_local(to_email: str, subject: str, body: str) -> str:
-            qs = urllib.parse.urlencode({"subject": subject, "body": body})
-            return f"mailto:{to_email}?{qs}"
-
-        # --- Resolve meta for THIS student's class ---
-        meta = _load_class_meta_local(class_name)
-        tutors = meta.get("tutors", [])
-        calendar_url = meta.get("calendar_url")
-        contact_email = meta.get("contact_email") or "learngermanghana@gmail.com"
-        image_url = meta.get("image_url") or ""
-
-        # Build tutor display list
-        if tutors:
-            tutor_lines = []
-            for t in tutors:
-                line = f"• {t['name']}" + (f"  <span style='color:#64748b'>&lt;{t['email']}&gt;</span>" if t.get("email") else "")
-                tutor_lines.append(line)
-            tutors_html = "<br>".join(tutor_lines)
-        else:
-            tutors_html = "<span style='color:#64748b'>Not set</span>"
-
-        # Private email button (prefill subject/body)
-        s_name = student_name
-        s_code = student_code
-        mailto_subject = f"Private message from {s_name} ({s_code}) — {class_name}"
-        mailto_body = (
-            f"Hello Tutor,\n\n"
-            f"This is a private message from {s_name} ({s_code}).\n"
-            f"Class: {class_name}\n\n"
-            f"Message:\n"
+        # Private email mailto (prefill subject/body)
+        _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
+        _body = (
+            f"Hello Tutor,%0D%0A%0D%0A"
+            f"This is a private message from {student_name} ({student_code}).%0D%0A"
+            f"Class: {class_name}%0D%0A%0D%0A"
+            f"Message:%0D%0A"
         )
-        mailto = _mailto_link_local(contact_email, mailto_subject, mailto_body)
+        _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
 
-        # Two-column layout: details left, profile card right
-        left, right = st.columns([7, 5])
+        # Two-column layout
+        left, right = st.columns([7, 5], vertical_alignment="top")
 
         with left:
+            t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
+            t_cotutor = _tutor_line(co_tutor)
+
             st.markdown(
                 f"""
                 <div style="
@@ -4362,8 +4276,9 @@ if tab == "My Course":
                     box-shadow: 0 2px 6px rgba(0,0,0,.05);
                 ">
                   <div style="font-size:1.05rem; margin-bottom:8px;">
-                    👩‍🏫 <b>Tutor(s):</b><br>{tutors_html}
+                    👩‍🏫 <b>Tutor:</b> {t_primary}
                   </div>
+                  {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
                   <div style="font-size:1.05rem;">
                     📅 <b>Class Calendar:</b>
                     {"<a href='"+calendar_url+"' target='_blank'>Open calendar link</a>" if calendar_url else "<span style='color:#64748b'>No calendar link yet</span>"}
@@ -4373,7 +4288,7 @@ if tab == "My Course":
                     This ensures you get reminders for every class session.
                   </div>
                   <div style="margin-top:14px;">
-                    <a href="{mailto}" target="_blank" style="
+                    <a href="{_mailto}" target="_blank" style="
                        display:inline-block;padding:8px 12px;border-radius:8px;
                        background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
                        ✉️ Private message your tutor
@@ -4399,68 +4314,31 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True
             )
-            if image_url:
+            # Only render valid http(s) image URLs; use_container_width replaces deprecated use_column_width
+            if image_url and image_url.startswith(("http://", "https://")):
                 try:
-                    st.image(image_url, caption="Falowen • Learn Language", use_column_width=True)
+                    st.image(image_url, caption="Falowen • Learn Language", use_container_width=True)
                 except Exception:
-                    st.caption("Image unavailable")
-            else:
-                st.caption("")
+                    st.caption(" ")
 
-            if tutors:
-                st.markdown(
-                    "<div style='font-weight:600;margin-top:8px;'>Your Teaching Team</div>",
-                    unsafe_allow_html=True
-                )
-                for t in tutors:
-                    name = t.get("name") or ""
-                    email = t.get("email") or ""
-                    st.markdown(
-                        f"• {name}" + (f"  <span style='color:#64748b'>({email})</span>" if email else ""),
-                        unsafe_allow_html=True
-                    )
+            # Right-side tutor summary
+            if co_tutor:
+                st.markdown("<div style='font-weight:600;margin-top:8px;'>Your Teaching Team</div>", unsafe_allow_html=True)
+                if lead_tutor:
+                    st.markdown(f"• {_tutor_line(lead_tutor)}", unsafe_allow_html=True)
+                st.markdown(f"• {_tutor_line(co_tutor)}", unsafe_allow_html=True)
+            elif lead_tutor:
+                st.markdown("<div style='font-weight:600;margin-top:8px;'>Your Tutor</div>", unsafe_allow_html=True)
+                st.markdown(f"• {_tutor_line(lead_tutor)}", unsafe_allow_html=True)
+
             st.markdown(
                 f"<div style='margin-top:8px;color:#475569;'>Email: <b>{contact_email}</b></div>",
                 unsafe_allow_html=True
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ===== Admin editor for Tutors/Calendar/Email/Image (optional) =====
-        if IS_ADMIN:
-            with st.expander("Class settings (admin)"):
-                current_names = ", ".join([t["name"] for t in tutors]) if tutors else ""
-                current_img = image_url or ""
-                new_names = st.text_input(
-                    "Tutor name(s) — comma separated",
-                    value=current_names,
-                    placeholder="e.g., Jane Doe, John Mensah"
-                )
-                new_cal = st.text_input(
-                    "Google Calendar link",
-                    value=calendar_url or "",
-                    placeholder="https://calendar.app.google/... or full Google Calendar URL"
-                )
-                new_email = st.text_input(
-                    "Contact email (private messages go here)",
-                    value=contact_email,
-                    placeholder="learngermanghana@gmail.com"
-                )
-                new_img = st.text_input(
-                    "Tutor / Brand image URL",
-                    value=current_img,
-                    placeholder="https://i.imgur.com/your-image.png"
-                )
-
-                c1, c2 = st.columns([1, 5])
-                with c1:
-                    if st.button("💾 Save settings"):
-                        if _save_class_meta_local(class_name, new_names, new_cal, new_email, new_img):
-                            st.success("Class settings saved.")
-                            st.experimental_rerun()
-                with c2:
-                    st.caption("Use a direct image URL (not blob:). You can refine tutors (with emails) later in Firestore.")
-
         st.divider()
+
 
         # ===================== CLASS ROSTER =====================
         st.markdown("### 👥 Class Members")
