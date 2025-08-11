@@ -36,23 +36,22 @@ st.set_page_config(page_title="Falowen • Teacher Portal", page_icon="🧑‍�
 
 # ============================ DB CLIENT (init early for login logging) ============================
 def _get_db():
-    # Try Firebase Admin → google.cloud fallback
     try:
         import firebase_admin
-        from firebase_admin import firestore as fbfs
+        from firebase_admin import credentials, firestore as fbfs
+        # Load service account from Streamlit Secrets
+        sa = st.secrets["gcp"]["service_account"]
         if not firebase_admin._apps:
-            firebase_admin.initialize_app()
+            cred = credentials.Certificate(sa)
+            firebase_admin.initialize_app(cred, {
+                "projectId": sa.get("project_id")
+            })
         return fbfs.client()
-    except Exception:
-        pass
-    try:
-        from google.cloud import firestore as gcf
-        return gcf.Client()
-    except Exception:
-        st.error(
-            "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
-            icon="🛑",
-        )
+    except KeyError:
+        st.error("Missing [gcp.service_account] in Streamlit secrets.", icon="🛑")
+        raise
+    except Exception as e:
+        st.error(f"Firestore init failed: {e}", icon="🛑")
         raise
 
 db = _get_db()
@@ -471,3 +470,4 @@ elif page == "Class Meta":
             st.success("Saved.")
         except Exception as e:
             st.error(f"Couldn’t save: {e}")
+
