@@ -14,7 +14,7 @@ import sqlite3
 import tempfile
 import time
 import urllib.parse as _urllib
-from datetime import date, datetime, timedelta, timezone  # ← added timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 # ==== Third-Party Packages ====
@@ -35,12 +35,36 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-
+# ---- Streamlit page config MUST be first Streamlit call ----
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # --- Compatibility alias ---
 html = st_html  # ensures any html(...) calls use the Streamlit component
 
+# --- State bootstrap (idempotent; prevents double-click on first render) -------
+def _bootstrap_state():
+    defaults = {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "__ls_token": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
 
+_bootstrap_state()
 
 # --- SEO: head tags (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
@@ -105,13 +129,87 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==== FIREBASE ADMIN INIT ====
-if not firebase_admin._apps:
-    cred_dict = dict(st.secrets["firebase"])
-    cred = credentials.Certificate(cred_dict)
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+# ==== FIREBASE ADMIN INIT & SESSION STORE ====
+try:
+    if not firebase_admin._apps:
+        cred_dict = dict(st.secrets["firebase"])
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    db = firestore.client()
+except Exception as e:
+    st.error(f"Firebase init failed: {e}")
+    st.stop()
 
+# ---- Firestore sessions (server-side auth state) ----
+# Enable a TTL policy on `expires_at` in Firebase Console for auto-cleanup.
+SESSIONS_COL = "sessions"
+SESSION_TTL_MIN = 60 * 24 * 14         # 14 days
+SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7 # 7 days
+
+def _rand_token(nbytes: int = 48) -> str:
+    return base64.urlsafe_b64encode(os.urandom(nbytes)).rstrip(b"=").decode("ascii")
+
+def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str:
+    now = time.time()
+    token = _rand_token()
+    db.collection(SESSIONS_COL).document(token).set({
+        "student_code": (student_code or "").strip().lower(),
+        "name": name or "",
+        "issued_at": now,
+        "expires_at": now + (SESSION_TTL_MIN * 60),
+        "ua_hash": ua_hash or "",
+    })
+    return token
+
+def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
+    if not token:
+        return None
+    try:
+        snap = db.collection(SESSIONS_COL).document(token).get()
+        if not snap.exists:
+            return None
+        data = snap.to_dict() or {}
+        if float(data.get("expires_at", 0)) < time.time():
+            return None
+        if data.get("ua_hash") and ua_hash and data["ua_hash"] != ua_hash:
+            return None
+        return data
+    except Exception:
+        return None
+
+def refresh_or_rotate_session_token(token: str) -> str:
+    try:
+        ref = db.collection(SESSIONS_COL).document(token)
+        snap = ref.get()
+        if not snap.exists:
+            return token
+        data = snap.to_dict() or {}
+        now = time.time()
+        # Extend TTL
+        ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
+
+        # Rotate if old
+        if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
+            new_token = _rand_token()
+            db.collection(SESSIONS_COL).document(new_token).set({
+                **data,
+                "issued_at": now,
+                "expires_at": now + (SESSION_TTL_MIN * 60),
+            })
+            try:
+                ref.delete()
+            except Exception:
+                pass
+            return new_token
+    except Exception:
+        pass
+    return token
+
+def destroy_session_token(token: str) -> None:
+    try:
+        db.collection(SESSIONS_COL).document(token).delete()
+    except Exception:
+        pass
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -120,7 +218,6 @@ if not OPENAI_API_KEY:
     st.stop()
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
-
 
 # ==== DB CONNECTION & INITIALIZATION ====
 def get_connection():
@@ -239,7 +336,8 @@ def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 
-YOUTUBE_API_KEY = "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4"
+# Prefer secrets for keys; fallback to existing value
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
 YOUTUBE_PLAYLIST_IDS = {
     "A1": [
@@ -247,7 +345,7 @@ YOUTUBE_PLAYLIST_IDS = {
     ],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",   # removed &index=5
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
         "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
     ],
     "B1": [
@@ -255,16 +353,12 @@ YOUTUBE_PLAYLIST_IDS = {
         "PLB92CD6B288E5DB61",
     ],
     "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",       # Deutsch B2 Grammatik | Learn German B2
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",     # Deutsch B2 | Easy German
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",     # B2 Prüfungsvorbereitung
+        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
+        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
+        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
     ],
 }
 
-
-# ================================================
-# YOUTUBE PLAYLIST FETCH (cache 12h)
-# ================================================
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
@@ -297,10 +391,12 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 components.html("""
 <script>
   (function(){
-    var h = window.location.hostname;
-    if (h === "falowen.app") {
-      window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
-    }
+    try {
+      var h = window.location.hostname;
+      if (h === "falowen.app") {
+        window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
+      }
+    } catch(e) {}
   })();
 </script>
 """, height=0)
@@ -383,8 +479,9 @@ def is_contract_expired(row):
     today = datetime.utcnow().date()
     return expiry_date.date() < today
 
+
 # ============================================================
-# 0) Cookie + localStorage “SSO” (iPhone/Safari friendly)
+# 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
 # ============================================================
 
 def _expire_str(dt: datetime) -> str:
@@ -433,25 +530,32 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     </script>
     """, height=0)
 
-# 1) Push localStorage.student_code → URL query param (lets us log in even if cookies fail)
+# 0a) UA/LS query-parameter bridge (no postMessage)
 components.html("""
 <script>
-  (function(){
-    try {
-      const code = localStorage.getItem('student_code');
-      if (code) {
-        const url = new URL(window.location);
-        if (!url.searchParams.get('student_code')) {
-          url.searchParams.set('student_code', code);
-          window.history.replaceState({}, '', url);
-        }
-      }
-    } catch(e) {}
-  })();
+ (function(){
+   async function sha256Hex(s){
+     const enc = new TextEncoder(); const data = enc.encode(s);
+     const buf = await crypto.subtle.digest('SHA-256', data);
+     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+   }
+   (async function(){
+     try{
+       const ua = navigator.userAgent||''; const lang = navigator.language||'';
+       const h  = await sha256Hex(ua + '|' + lang);
+       const ls = localStorage.getItem('session_token')||'';
+       const url = new URL(window.location);
+       let mut = false;
+       if (!url.searchParams.get('ua')) { url.searchParams.set('ua', h); mut = true; }
+       if (ls && !url.searchParams.get('ls')) { url.searchParams.set('ls', ls); mut = true; }
+       if (mut) window.location.replace(url.toString());
+     }catch(e){}
+   })();
+ })();
 </script>
 """, height=0)
 
-# 2) Query param helpers
+# 0b) Query param helpers
 def qp_get():
     try:
         return st.query_params
@@ -467,7 +571,51 @@ def qp_clear():
         except Exception:
             pass
 
-# 3) Init cookie manager once
+def qp_clear_keys(*keys):
+    try:
+        qp = st.query_params
+        for k in keys:
+            if k in qp:
+                del qp[k]
+    except Exception:
+        try:
+            st.experimental_set_query_params(**{k: [] for k in keys})
+        except Exception:
+            pass
+    # scrub in browser history
+    components.html("""
+    <script>
+      (function(){
+        try{
+          const u = new URL(window.location);
+          %s
+          window.history.replaceState({}, '', u);
+        }catch(e){}
+      })();
+    </script>
+    """ % "\n".join([f"if(u.searchParams.has('{k}')) u.searchParams.delete('{k}');" for k in keys]), height=0)
+
+# 0c) Ingest UA/LS bridge into session_state then scrub
+def _ingest_ua_ls_from_query():
+    qp = qp_get()
+    def _get1(k):
+        v = qp.get(k)
+        if isinstance(v, list): v = v[0]
+        return (v or "").strip()
+    ua = _get1("ua")
+    ls = _get1("ls")
+    changed = False
+    if ua and ua != st.session_state.get("__ua_hash"): st.session_state["__ua_hash"] = ua; changed = True
+    if ls and ls != st.session_state.get("__ls_token"): st.session_state["__ls_token"] = ls; changed = True
+    if ua or ls:
+        qp_clear_keys("ua", "ls")
+    return changed
+_ingest_ua_ls_from_query()
+
+# Defensive scrub in case a shared link includes bridge params
+qp_clear_keys("t", "ua", "ls")
+
+# 0d) Init cookie manager once
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
@@ -477,7 +625,7 @@ if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# 4) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
+# 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
 if isinstance(sc_param, list):
@@ -495,55 +643,126 @@ if sc_param:
         attempted = st.session_state.get("__cookie_attempt", "")
         have = (cookie_manager.get("student_code") or "").strip().lower()
         if have == attempted:
-            qp_clear()
+            qp_clear_keys("student_code")
             st.session_state.pop("__cookie_attempt", None)
 else:
     st.session_state.pop("__cookie_attempt", None)
 
-# 5) Ensure session_state keys
-for key, default in [
-    ("logged_in", False),
-    ("student_row", None),
-    ("student_code", ""),
-    ("student_name", "")
-]:
-    st.session_state.setdefault(key, default)
+# 0f) Restore login (PREFER SERVER TOKEN), else fallback to student_code
+def _get_token_candidates():
+    qp = qp_get()
+    t = qp.get("t")
+    if isinstance(t, list): t = t[0]
+    t = (t or "").strip()
+    ls = (st.session_state.get("__ls_token") or "").strip()
+    mem = (st.session_state.get("session_token") or "").strip()
+    out = [x for x in [mem, t, ls] if x]
+    seen, uniq = set(), []
+    for x in out:
+        if x not in seen:
+            uniq.append(x); seen.add(x)
+    return uniq
 
-# 6) Restore login: prefer cookie, else fall back to ?student_code= (keeps iPhone users logged in)
-code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
-effective_code = code_cookie or sc_param
+restored = False
+if not st.session_state.get("logged_in", False):
+    for tok in _get_token_candidates():
+        data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
+        if not data:
+            continue
+        # Roster/contract guard
+        try:
+            df_students = load_student_data()
+            found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+        except Exception:
+            found = pd.DataFrame()
+        if found.empty or is_contract_expired(found.iloc[0]):
+            continue
 
-if not st.session_state.get("logged_in", False) and effective_code:
+        row = found.iloc[0]
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": row.to_dict(),
+            "student_code": row["StudentCode"],
+            "student_name": row["Name"],
+            "session_token": tok,
+        })
+        # Refresh/rotate; persist new token client-side; scrub ?t=
+        new_tok = refresh_or_rotate_session_token(tok) or tok
+        st.session_state["session_token"] = new_tok
+        components.html(f"""
+        <script>
+          try {{
+            localStorage.setItem('session_token', {json.dumps(new_tok)});
+            const u = new URL(window.location);
+            if (u.searchParams.has('t')) {{ u.searchParams.delete('t'); window.history.replaceState({{}}, '', u); }}
+          }} catch(e) {{}}
+        </script>
+        """, height=0)
+        restored = True
+        break
+
+# Fallback: original cookie/param login using student_code
+if (not restored) and (not st.session_state.get("logged_in", False)):
+    code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+    effective_code = code_cookie or sc_param
+
+    if effective_code:
+        try:
+            df_students = load_student_data()
+            found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
+        except Exception:
+            found = pd.DataFrame()
+
+        if not found.empty:
+            student_row = found.iloc[0]
+            if not is_contract_expired(student_row):
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+            else:
+                # Expired: clear cookie + localStorage to avoid loops
+                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+                components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
+
+
+# --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
+def save_cookie_after_login(student_code: str) -> None:
+    value = str(student_code or "").strip().lower()
     try:
-        df_students = load_student_data()
-        found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
+        _cm  = globals().get("cookie_manager")
+        _set = globals().get("set_student_code_cookie")
+        if _cm and _set:
+            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
     except Exception:
-        found = pd.DataFrame()
+        pass
+    components.html(
+        """
+        <script>
+          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
+        </script>
+        """.replace("__VAL__", json.dumps(value)),
+        height=0
+    )
 
-    if not found.empty:
-        student_row = found.iloc[0]
-        if not is_contract_expired(student_row):
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
-            })
-        else:
-            # Expired: clear cookie + localStorage to avoid loops
-            set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-            components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
+# --- NEW: persist session token client-side + scrub URL params -----------------
+def _persist_session_client(token: str, student_code: str = "") -> None:
+    components.html(f"""
+    <script>
+      try {{
+        localStorage.setItem('session_token', {json.dumps(token)});
+        if ({json.dumps(student_code)} !== "") {{
+          localStorage.setItem('student_code', {json.dumps(student_code)});
+        }}
+        const u = new URL(window.location);
+        ['t','ua','ls'].forEach(k => u.searchParams.delete(k));
+        window.history.replaceState({{}}, '', u);
+      }} catch(e) {{}}
+    </script>
+    """, height=0)
 
-
-# --- 1) Page config & session init ---------------------------------------------
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
 
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
 st.markdown("""
@@ -568,19 +787,18 @@ st.markdown("""
   .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
   /* Higher-contrast chips for WCAG */
   .quick-links a {
-    background: #e2e8f0;   /* light gray for contrast */
+    background: #e2e8f0;
     padding: 8px 16px;
     border-radius: 8px;
     font-weight:600;
     text-decoration:none;
-    color:#0f172a;          /* very dark text */
+    color:#0f172a;
     border:1px solid #cbd5e1;
   }
   .quick-links a:hover { background:#cbd5e1; }
 
-  /* Buttons: strong contrast */
   .stButton > button {
-    background:#2563eb;     /* blue */
+    background:#2563eb;
     color:#ffffff;
     font-weight:700;
     border-radius:8px;
@@ -588,15 +806,13 @@ st.markdown("""
   }
   .stButton > button:hover { background:#1d4ed8; }
 
-  /* Clear keyboard focus for accessibility */
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
   [role="button"]:focus-visible {
-    outline:3px solid #f59e0b;  /* amber focus ring */
+    outline:3px solid #f59e0b;
     outline-offset:2px;
     box-shadow:none !important;
   }
 
-  /* Legible inputs */
   input, textarea { color:#0f172a !important; }
 
   @media (max-width:600px){
@@ -605,25 +821,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Helper: persist login to cookie + localStorage ---
-
-def save_cookie_after_login(student_code: str) -> None:
-    value = str(student_code or "").strip().lower()
-    try:
-        _cm  = globals().get("cookie_manager")
-        _set = globals().get("set_student_code_cookie")
-        if _cm and _set:
-            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
-    except Exception:
-        pass
-    components.html(
-        """
-        <script>
-          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
-        </script>
-        """.replace("__VAL__", json.dumps(value)),
-        height=0
-    )
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
@@ -655,116 +852,8 @@ if not st.session_state.get("logged_in", False):
           <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
         </ul>
       </div>
-
-      <!-- ===== Compact stats strip ===== -->
-      <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.92rem; opacity:.98; }
-        @media (max-width:560px){ .stat { min-width:46%; } }
-      </style>
-      <div class="stats-strip" role="list" aria-label="Falowen highlights">
-        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-          <div class="num">300+</div>
-          <div class="label">Active learners</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-          <div class="num">1,200+</div>
-          <div class="label">Assignments submitted</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-          <div class="num">A1–C1</div>
-          <div class="label">Full course coverage</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-          <div class="num">4.8/5</div>
-          <div class="label">Avg. feedback</div>
-        </div>
-      </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # Short explainer: which option to use
-    st.markdown("""
-    <div class="page-wrap" style="max-width:900px;margin-top:4px;">
-      <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 14px;border-radius:10px;">
-        <b>Which option should I use?</b><br>
-        • <b>Returning student</b>: you already created a password — log in.<br>
-        • <b>Sign up (approved)</b>: you’ve paid and your email & code are on the roster, but no account yet — create one.<br>
-        • <b>Request access</b>: brand new learner — fill the form and we’ll contact you.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- Rotating multi-country reviews (with flags) ---
-    import json, streamlit.components.v1 as components
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-         "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-         "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-         "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.",
-         "author": "Kossi — Lomé, Togo 🇹🇬", "level": "B1"},
-        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-         "author": "Lea — Berlin, Germany 🇩🇪", "level": "B2"},
-        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-         "author": "Sipho — Johannesburg, South Africa 🇿🇦", "level": "A2"},
-        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-         "author": "Nadia — Windhoek, Namibia 🇳🇦", "level": "B1"},
-    ]
-    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-    _reviews_html = """
-<div class="page-wrap" role="region" aria-label="Student reviews" style="margin-top:10px;">
-  <div id="rev-quote" style="
-      background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
-      color:#475569;min-height:82px;display:flex;align-items:center;justify-content:center;text-align:center;">
-    Loading…
-  </div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
-    <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
-  </div>
-</div>
-<script>
-  const data = __DATA__;
-  let i = 0;
-  const quoteEl = document.getElementById('rev-quote');
-  const dotsEl  = document.getElementById('rev-dots');
-  const prevBtn = document.getElementById('rev-prev');
-  const nextBtn = document.getElementById('rev-next');
-  function renderDots(){
-    dotsEl.innerHTML = '';
-    data.forEach((_, idx) => {
-      const d = document.createElement('button');
-      d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
-      d.style.width = '10px'; d.style.height = '10px'; d.style.borderRadius = '999px';
-      d.style.border = 'none'; d.style.cursor = 'pointer';
-      d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
-      d.addEventListener('click', () => { i = idx; render(); });
-      dotsEl.appendChild(d);
-    });
-  }
-  function render(){
-    const r = data[i];
-    quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
-    renderDots();
-  }
-  function next(){ i = (i + 1) % data.length; render(); }
-  function prev(){ i = (i - 1 + data.length) % data.length; render(); }
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) { setInterval(next, 6000); }
-  render();
-</script>
-"""
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=240)
 
     # Support / Help section
     st.markdown("""
@@ -860,13 +949,21 @@ if not st.session_state.get("logged_in", False):
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Contact the office."); return False
 
+            # --- NEW: issue server-side session token
+            ua_hash = st.session_state.get("__ua_hash", "")
+            sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+
             st.session_state.update({
                 "logged_in": True,
                 "student_row": student_row.to_dict(),
                 "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"]
+                "student_name": student_row["Name"],
+                "session_token": sess_token,
             })
-            save_cookie_after_login(student_row["StudentCode"])
+            # Persist code cookie + token locally, scrub URL params
+            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+            _persist_session_client(sess_token, student_row["StudentCode"])
+
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
             st.rerun()
@@ -912,9 +1009,10 @@ if not st.session_state.get("logged_in", False):
                     else:
                         data      = doc.to_dict() or {}
                         stored_pw = data.get("password", "")
-                        import bcrypt
+
                         def _is_bcrypt_hash(s: str) -> bool:
                             return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
+
                         ok = False
                         try:
                             if _is_bcrypt_hash(stored_pw):
@@ -926,16 +1024,25 @@ if not st.session_state.get("logged_in", False):
                                     doc_ref.update({"password": new_hash})
                         except Exception:
                             ok = False
+
                         if not ok:
                             st.error("Incorrect password.")
                         else:
+                            # --- NEW: issue server-side session token
+                            ua_hash = st.session_state.get("__ua_hash", "")
+                            sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+
                             st.session_state.update({
                                 "logged_in":   True,
                                 "student_row": dict(student_row),
                                 "student_code": student_row["StudentCode"],
-                                "student_name": student_row["Name"]
+                                "student_name": student_row["Name"],
+                                "session_token": sess_token,
                             })
-                            save_cookie_after_login(student_row["StudentCode"])
+                            # Persist code cookie + token locally, scrub URL params
+                            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+                            _persist_session_client(sess_token, student_row["StudentCode"])
+
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
 
@@ -970,29 +1077,9 @@ if not st.session_state.get("logged_in", False):
                     if doc_ref.get().exists:
                         st.error("An account with this student code already exists. Please log in instead.")
                     else:
-                        import bcrypt
                         hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                         doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
                         st.success("Account created! Please log in on the Returning tab.")
-
-    # --- Request Access (brand new learners) ---
-    with tab3:
-        st.markdown("""
-        <div class="page-wrap" style="text-align:center; margin-top:12px;">
-          <p>New student? Request access and we’ll contact you with payment instructions.</p>
-          <p>
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header"
-               target="_blank" rel="noopener"
-               style="background:#2563eb;color:#fff;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;">
-              Request access (Google Form)
-            </a>
-          </p>
-          <p>
-            Or message us directly:
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
-          </p>
-        </div>
-        """, unsafe_allow_html=True)
 
     # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
     st.markdown("""
@@ -1002,49 +1089,7 @@ if not st.session_state.get("logged_in", False):
       /* Keep controls tidy */
       .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
     </style>
-
-    <div class="page-wrap" style="display:flex; justify-content:center; margin:24px auto;">
-      <video id="falowen_demo" class="no-fs"
-        style="border-radius:12px; box-shadow:0 4px 12px #0002; width:min(92vw,420px); height:auto; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;"
-        aria-label="Falowen demo video showing the app features"
-        autoplay
-        muted
-        loop
-        controls
-        playsinline
-        webkit-playsinline
-        disablepictureinpicture
-        x-webkit-airplay="deny"
-        controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
-        preload="metadata"
-        oncontextmenu="return false;"
-      >
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-      </video>
-    </div>
-
-    <script>
-    (function(){
-      const v = document.getElementById('falowen_demo');
-
-      // If any browser still manages to enter fullscreen, immediately exit.
-      function exitFS(){
-        try {
-          if (document.fullscreenElement) document.exitFullscreen();
-          if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
-          if (document.msFullscreenElement && document.msExitFullscreen) document.msExitFullscreen();
-        } catch(e){}
-      }
-      ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange']
-        .forEach(evt => document.addEventListener(evt, exitFS, {passive:true}));
-
-      // Block programmatic requests, just in case.
-      if (v.requestFullscreen) v.requestFullscreen = () => Promise.reject();
-      if (v.webkitRequestFullscreen) v.webkitRequestFullscreen = () => {};
-    })();
-    </script>
     """, unsafe_allow_html=True)
-#
 
     # Quick Links (high-contrast)
     st.markdown("""
@@ -1065,34 +1110,34 @@ if not st.session_state.get("logged_in", False):
 
     # 1) How Falowen works (with non-clickable uniform images)
     LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"  # TODO: replace with your course book image URL
+    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
     RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown("""
-        <img src="{src}" alt="Login screenshot"
+        st.markdown(f"""
+        <img src="{LOGIN_IMG_URL}" alt="Login screenshot"
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
         <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
-        """.format(src=LOGIN_IMG_URL), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     with c2:
-        st.markdown("""
-        <img src="{src}" alt="Course Book screenshot"
+        st.markdown(f"""
+        <img src="{COURSEBOOK_IMG_URL}" alt="Course Book screenshot"
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
         <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
-        """.format(src=COURSEBOOK_IMG_URL), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     with c3:
-        st.markdown("""
-        <img src="{src}" alt="Results screenshot"
+        st.markdown(f"""
+        <img src="{RESULTS_IMG_URL}" alt="Results screenshot"
              style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
         <div style="height:8px;"></div>
         <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
-        """.format(src=RESULTS_IMG_URL), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -1129,79 +1174,102 @@ if not st.session_state.get("logged_in", False):
     st.stop()
 
 
-# ============================================================
-# Logout helper (iPhone/Safari friendly)
-# ============================================================
 
+# --- Logged In UI ---
+st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
-def logout_user(cookie_manager):
-    """Clear student session everywhere and reload the page."""
-    # 1) Clear server-visible cookie via the manager
+if st.button("Log out"):
+    # 0) Best-effort: destroy server-side session token
+    try:
+        tok = st.session_state.get("session_token", "")
+        if tok:
+            destroy_session_token(tok)
+    except Exception:
+        pass
+
+    # 1) Expire the host-only cookie immediately (server + JS)
+    try:
+        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+    except Exception:
+        pass
+
+    # Also try library delete (if supported)
     try:
         cookie_manager.delete("student_code")
         cookie_manager.save()
     except Exception:
         pass
 
-    # 2) Also overwrite the cookie with an expired value (belt & suspenders)
-    try:
-        use_secure = (os.getenv("ENV", "prod") != "dev")
-        prefix = getattr(cookie_manager, "prefix", "") or ""
-        cname_prefixed = f"{prefix}student_code"
-        # Build a tiny JS to expire both raw and prefixed names, host-only and base-domain (just in case)
-        components.html(f"""
-        <script>
-          (function(){{
-            function expire(name, extra) {{
-              document.cookie = name + "=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/" + (extra || "");
-            }}
-            try {{
-              // Remove localStorage backup
-              try {{ localStorage.removeItem('student_code'); }} catch(e) {{}}
+    _prefix = getattr(cookie_manager, "prefix", "") or ""
+    _cookie_name_code = f"{_prefix}student_code"   # cookie set by EncryptedCookieManager
+    _cookie_name_tok  = "falowen_session"          # optional JS-set mirror for session token
+    _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
 
-              // Remove URL param
-              const url = new URL(window.location);
-              if (url.searchParams.has('student_code')) {{
-                url.searchParams.delete('student_code');
-                window.history.replaceState({{}}, '', url.pathname + url.search);
-              }}
+    # 2) Clear localStorage + URL params + cookies (host-only + legacy base-domain) and reload
+    components.html(f"""
+    <script>
+      (function() {{
+        try {{
+          // localStorage
+          try {{
+            localStorage.removeItem('student_code');
+            localStorage.removeItem('session_token');
+          }} catch (e) {{}}
 
-              // Host-only cookies (most important for iOS)
-              expire({json.dumps(cname_prefixed)}, "; SameSite=Lax{'; Secure' if use_secure else ''}");
-              expire("student_code", "; SameSite=Lax{'; Secure' if use_secure else ''}");
+          // URL params (student_code + token bridge)
+          const url = new URL(window.location);
+          ['student_code','t','ua','ls'].forEach(k => url.searchParams.delete(k));
+          window.history.replaceState({{}}, '', url);
 
-              // Try base-domain variants too (harmless if none exist)
-              try {{
-                const host = window.location.hostname;
-                const parts = host.split('.');
-                if (parts.length >= 2) {{
-                  const base = "." + parts.slice(-2).join('.');
-                  expire({json.dumps(cname_prefixed)}, "; Domain=" + base + "; SameSite=Lax{'; Secure' if use_secure else ''}");
-                  expire("student_code", "; Domain=" + base + "; SameSite=Lax{'; Secure' if use_secure else ''}");
-                }}
-              }} catch(e) {{}}
+          // Cookies: expire host-only + base-domain variants
+          const isSecure = {_secure_js};
+          const past = "Thu, 01 Jan 1970 00:00:00 GMT";
+          const names = [{json.dumps(_cookie_name_code)}, {json.dumps(_cookie_name_tok)}];
 
-              // Hard reload so Streamlit reboots without the cookie
-              window.location.replace(url.pathname + url.search);
-            }} catch(e) {{}}
-          }})();
-        </script>
-        """, height=0)
-    except Exception:
-        pass
+          function expireCookie(name, domain) {{
+            var s = name + "=; Expires=" + past + "; Path=/; SameSite=Lax";
+            if (isSecure) s += "; Secure";
+            if (domain) s += "; Domain=" + domain;
+            document.cookie = s;
+          }}
 
-    # 3) Clear Streamlit session state immediately (server side)
+          // Host-only (current)
+          names.forEach(n => expireCookie(n));
+
+          // Base-domain (legacy cleanup)
+          const host  = window.location.hostname;
+          const parts = host.split('.');
+          if (parts.length >= 2) {{
+            const base = '.' + parts.slice(-2).join('.');
+            names.forEach(n => expireCookie(n, base));
+          }}
+
+          // Reload
+          window.location.replace(url.pathname + url.search);
+        }} catch (e) {{}}
+      }})();
+    </script>
+    """, height=0)
+
+    # 3) Clear Streamlit session state immediately
     for k, v in {
         "logged_in": False,
         "student_row": None,
         "student_code": "",
         "student_name": "",
+        "session_token": "",
         "cookie_synced": False,
-        "__cookie_attempt": None,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "__ls_token": "",
     }.items():
         st.session_state[k] = v
 
-    # Stop this run; the page will reload client-side
+    try:
+        qp_clear()
+    except Exception:
+        pass
+
     st.stop()
 
 
@@ -5299,116 +5367,36 @@ if tab == "My Course":
 
 
 
-# =========================== MY RESULTS & RESOURCES ===========================
-# Safe utilities (define only if missing to avoid duplicates)
-if "html_stdlib" not in globals():
-    import html as html_stdlib
-if "urllib" not in globals():
-    import urllib
-if "linkify_html" not in globals():
-    def linkify_html(text):
-        """Escape HTML and convert URLs in plain text to anchor tags."""
-        s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
-        s = html_stdlib.escape(s)
-        s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
-        return s
-if "_clean_link" not in globals():
-    def _clean_link(val) -> str:
-        """Return a clean string or '' if empty/NaN/common placeholders."""
-        if val is None: return ""
-        if isinstance(val, float) and pd.isna(val): return ""
-        s = str(val).strip()
-        return "" if s.lower() in {"", "nan", "none", "null", "0"} else s
-if "_is_http_url" not in globals():
-    def _is_http_url(s: str) -> bool:
-        try:
-            u = urllib.parse.urlparse(str(s))
-            return u.scheme in ("http", "https") and bool(u.netloc)
-        except Exception:
-            return False
+#Myresults
+def linkify_html(text):
+    """Escape HTML and convert URLs in plain text to anchor tags."""
+    s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
+    s = html_stdlib.escape(s)  # <-- use stdlib html, not the component
+    s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+    return s
 
-# Reuse the app’s schedules provider if available (no duplicate calls)
-def _get_level_schedules():
-    if "load_level_schedules" in globals() and callable(load_level_schedules):
-        return load_level_schedules()
-    # Fallback (won’t run if you’ve got load_level_schedules)
-    def _safe(fn):
-        try: return fn()
-        except Exception: return []
-    return {
-        "A1": _safe(get_a1_schedule),
-        "A2": _safe(get_a2_schedule),
-        "B1": _safe(get_b1_schedule),
-        "B2": _safe(get_b2_schedule),
-        "C1": _safe(get_c1_schedule),
-    }
 
-# Plain/emoji score label once; reuse everywhere
-if "score_label_fmt" not in globals():
-    def score_label_fmt(score, *, plain=False):
-        try:
-            s = float(score)
-        except Exception:
-            return "" if not plain else "Needs Improvement"
-        if s >= 90: return "Excellent 🌟" if not plain else "Excellent"
-        if s >= 75: return "Good 👍"      if not plain else "Good"
-        if s >= 60: return "Sufficient ✔️" if not plain else "Sufficient"
-        return "Needs Improvement ❗" if not plain else "Needs Improvement"
+def _clean_link(val) -> str:
+    """Return a clean string or '' if empty/NaN/common placeholders."""
+    if val is None:
+        return ""
+    if isinstance(val, float) and pd.isna(val):
+        return ""
+    s = str(val).strip()
+    if s.lower() in {"", "nan", "none", "null", "0"}:
+        return ""
+    return s
 
-# PDF text sanitizer defined up-front (header needs it)
-if "clean_for_pdf" not in globals():
-    import unicodedata as _ud
-    def clean_for_pdf(text):
-        if not isinstance(text, str):
-            text = str(text)
-        text = _ud.normalize('NFKD', text)
-        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-        return text.replace('\n', ' ').replace('\r', ' ')
-
-# Prefer secrets/env for sheet; fallback to constant
-def _results_csv_url():
+def _is_http_url(s: str) -> bool:
     try:
-        u = (st.secrets.get("results", {}).get("csv_url", "") if hasattr(st, "secrets") else "").strip()
-        if u: return u
+        u = urllib.parse.urlparse(s)
+        return u.scheme in ("http", "https") and bool(u.netloc)
     except Exception:
-        pass
-    return "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+        return False
 
-# Cached fetch of scores (robust columns)
-@st.cache_data(ttl=600)
-def fetch_scores(csv_url: str):
-    resp = requests.get(csv_url, timeout=8)
-    resp.raise_for_status()
-    df = pd.read_csv(io.StringIO(resp.text), engine='python')
-    # normalize columns
-    df.columns = [str(c).strip().lower().replace("studentcode", "student_code") for c in df.columns]
-    # a few friendly aliases
-    aliases = {
-        "assignment/chapter": "assignment",
-        "chapter": "assignment",
-        "score (%)": "score",
-    }
-    for src, dst in aliases.items():
-        if src in df.columns and dst not in df.columns:
-            df = df.rename(columns={src: dst})
-    required = ["student_code", "name", "assignment", "score", "date", "level"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        # Return empty with diagnostic columns so UI can error cleanly
-        return pd.DataFrame(columns=required)
-    df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
-    return df
-
-# Tiny helpers for current user
-def _get_current_student():
-    row = st.session_state.get("student_row", {}) or {}
-    code = (row.get("StudentCode") or st.session_state.get("student_code", "") or "").strip()
-    name = (row.get("Name") or st.session_state.get("student_name", "") or "").strip()
-    level = (row.get("Level") or "").strip().upper()
-    return code, name, level
 
 if tab == "My Results and Resources":
-    # Header
+    # 📊 Compact Results & Resources header
     st.markdown(
         '''
         <div style="
@@ -5426,106 +5414,155 @@ if tab == "My Results and Resources":
         unsafe_allow_html=True
     )
     st.divider()
+    
+    # ============ LEVEL SCHEDULES (assume these functions are defined above) ============
+    LEVEL_SCHEDULES = {
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+        "B2": get_b2_schedule(),
+        "C1": get_c1_schedule(),
+    }
 
-    # Live CSV URL (secrets/env-aware)
-    GOOGLE_SHEET_CSV = _results_csv_url()
+    # --- LIVE GOOGLE SHEETS CSV LINK ---
+    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
-    # Utility: manual download link for PDF
-    def _pdf_dl_link(pdf_bytes, filename="results.pdf"):
-        import base64 as _b64
-        b64 = _b64.b64encode(pdf_bytes).decode()
+    def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
+        b64 = base64.b64encode(pdf_bytes).decode()
         return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
 
-    # Refresh
+    @st.cache_data
+    def fetch_scores():
+        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
+        response.raise_for_status()
+        df = pd.read_csv(io.StringIO(response.text), engine='python')
+        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
+        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
+        df = df.dropna(subset=required_cols)
+        return df
+
+    # --- Session Vars ---
+    student_code = st.session_state.get("student_code", "")
+    student_name = st.session_state.get("student_name", "")
+    st.header("📈 My Results and Resources Hub")
+    st.markdown("View and download your assignment history. All results are private and only visible to you.")
+
+    # ========== REFRESH BUTTON ==========
     if st.button("🔄 Refresh for your latest results"):
         st.cache_data.clear()
         st.success("Cache cleared! Reloading…")
         st.rerun()
 
-    # Load data
-    df_scores = fetch_scores(GOOGLE_SHEET_CSV)
+    # ========== FETCH AND FILTER DATA ==========
+    df_scores = fetch_scores()
     required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
         st.write("Columns found:", df_scores.columns.tolist())
         st.stop()
 
-    # Current student
-    student_code, student_name, _ = _get_current_student()
-    code_key = (student_code or "").lower().strip()
-
-    st.header("📈 My Results and Resources Hub")
-    st.markdown("View and download your assignment history. All results are private and only visible to you.")
-
-    # Filter to user
-    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
+    code = (student_code or "").lower().strip()
+    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
-    # Level selector
-    df_user = df_user.copy()
-    df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
-    levels = sorted(df_user["level"].unique())
+    # --- Choose level
+    df_user = df_user.copy()  # avoid SettingWithCopy
+    df_user['level'] = df_user['level'].astype(str).str.upper().str.strip()
+    levels = sorted(df_user['level'].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level].copy()
 
-    # Metrics
+    # ========== METRICS ==========
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total = int(totals.get(level, 0))
-    completed = int(df_lvl["assignment"].nunique())
-    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
-    avg_score = float(df_lvl["score"].mean() or 0)
-    best_score = float(df_lvl["score"].max() or 0)
+    total = totals.get(level, 0)
+    completed = df_lvl['assignment'].nunique()
+    df_lvl['score'] = pd.to_numeric(df_lvl['score'], errors='coerce')
+    avg_score = df_lvl['score'].mean() or 0
+    best_score = df_lvl['score'].max() or 0
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Assignments", total)
-    c2.metric("Completed", completed)
-    c3.metric("Average Score", f"{avg_score:.1f}")
-    c4.metric("Best Score", f"{best_score:.0f}")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Assignments", total)
+    col2.metric("Completed", completed)
+    col3.metric("Average Score", f"{avg_score:.1f}")
+    col4.metric("Best Score", best_score)
 
-    # Detailed results
+    # ========== DETAILED RESULTS ==========
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
-    # Default display (available to PDF section below)
-    df_display = (
-        df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
-              .reset_index(drop=True)
-    )
-    # Ensure optional cols exist
-    if "comments" not in df_display.columns: df_display["comments"] = ""
-    if "link" not in df_display.columns: df_display["link"] = ""
+    def score_label(score):
+        try:
+            s = float(score)
+        except Exception:
+            return ""
+        if s >= 90:
+            return "Excellent 🌟"
+        elif s >= 75:
+            return "Good 👍"
+        elif s >= 60:
+            return "Sufficient ✔️"
+        else:
+            return "Needs Improvement ❗"
 
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        base_cols = ["assignment", "score", "date", "comments", "link"]
-        for _, row in df_display[base_cols].iterrows():
-            perf = score_label_fmt(row["score"])
-            comment_html = linkify_html(row["comments"])
-            ref_link = _clean_link(row.get("link"))
-            show_ref = bool(ref_link) and _is_http_url(ref_link) and pd.notna(pd.to_numeric(row["score"], errors="coerce"))
+        if 'comments' in df_lvl.columns:
+            # Build the display columns dynamically (include 'link' if present)
+            base_cols = ['assignment', 'score', 'date', 'comments']
+            if 'link' in df_lvl.columns:
+                base_cols.append('link')
 
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 18px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                        <b>Feedback:</b> {comment_html}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                      [base_cols]
+                      .reset_index(drop=True)
             )
-            if show_ref:
+
+            for _, row in df_display.iterrows():
+                perf = score_label(row['score'])
+                comment_html = linkify_html(row['comments'])
+
+                # only show a real link
+                raw_link = row['link'] if ('link' in df_display.columns) else None
+                ref_link = _clean_link(raw_link)
+                has_valid_link = bool(ref_link) and _is_http_url(ref_link)
+
                 st.markdown(
-                    f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
+                    f"""
+                    <div style="margin-bottom: 18px;">
+                        <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                        Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                        <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                            <b>Feedback:</b> {comment_html}
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
-            st.divider()
 
-    # Badges
-    st.markdown("---")
+                # Show Lesen/Hören reference only if there is a valid numeric score AND a valid URL
+                if has_valid_link:
+                    has_score_num = pd.to_numeric(row['score'], errors='coerce')
+                    if not pd.isna(has_score_num):
+                        st.markdown(
+                            f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
+                            unsafe_allow_html=True
+                        )
+
+                st.divider()
+        else:
+            df_display = (
+                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
+                      [['assignment', 'score', 'date']]
+                      .reset_index(drop=True)
+            )
+            st.table(df_display)
+
+            
+    st.markdown("---") 
+
+    # ========== BADGES & TROPHIES ==========
     st.markdown("### 🏅 Badges & Trophies")
     with st.expander("What badges can you earn?", expanded=False):
         st.markdown(
@@ -5557,33 +5594,42 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-    # Skipped assignments (use shared schedule cache)
-    schedules_map = _get_level_schedules()
-    schedule = schedules_map.get(level, [])
-    def _extract_all_nums(chapter_str):
+    # ========== SKIPPED ASSIGNMENTS LOGIC ==========
+    def extract_all_chapter_nums(chapter_str):
         parts = re.split(r'[_\s,;]+', str(chapter_str))
         nums = []
         for part in parts:
-            m = re.search(r'\d+(?:\.\d+)?', part)
-            if m: nums.append(float(m.group()))
+            match = re.search(r'\d+(?:\.\d+)?', part)
+            if match:
+                nums.append(float(match.group()))
         return nums
 
+    # Build a set of all chapter numbers completed by student
     completed_nums = set()
     for _, row in df_lvl.iterrows():
-        for num in _extract_all_nums(row["assignment"]):
-            completed_nums.add(num)
-    last_num = max(completed_nums) if completed_nums else 0.0
+        nums = extract_all_chapter_nums(row['assignment'])
+        completed_nums.update(nums)
 
+    last_num = max(completed_nums) if completed_nums else 0
+
+    schedule = LEVEL_SCHEDULES.get(level, [])
     skipped_assignments = []
     for lesson in schedule:
         chapter_field = lesson.get("chapter", "")
-        lesson_nums = _extract_all_nums(chapter_field)
+        lesson_nums = extract_all_chapter_nums(chapter_field)
         day = lesson.get("day", "")
         has_assignment = lesson.get("assignment", False)
         for chap_num in lesson_nums:
-            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
-                skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
-                break
+            if (
+                has_assignment
+                and chap_num < last_num
+                and chap_num not in completed_nums
+            ):
+                skipped_assignments.append(
+                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
+                )
+                break  # Only need to flag once per lesson
+
     if skipped_assignments:
         st.markdown(
             f"""
@@ -5591,7 +5637,7 @@ if tab == "My Results and Resources":
                 background-color: #fff3cd;
                 border-left: 6px solid #ffecb5;
                 color: #7a6001;
-                padding: 16px 18px;
+                padding: 16px 18px 16px 16px;
                 border-radius: 8px;
                 margin: 12px 0;
                 font-size: 1.05em;">
@@ -5603,52 +5649,64 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-    # Next assignment recommendation (skip Schreiben & Sprechen-only)
-    def _is_recommendable(lesson):
+    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
+    def is_recommendable_assignment(lesson):
         topic = str(lesson.get("topic", "")).lower()
-        return not ("schreiben" in topic and "sprechen" in topic)
-    def _extract_max_num(chapter):
+        # Skip if both "schreiben" and "sprechen" in topic
+        if "schreiben" in topic and "sprechen" in topic:
+            return False
+        return True
+
+    def extract_chapter_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        return max([float(n) for n in nums], default=None)
+        if not nums:
+            return None
+        return max(float(n) for n in nums)
 
     completed_chapters = []
-    for a in df_lvl["assignment"]:
-        n = _extract_max_num(a)
-        if n is not None: completed_chapters.append(n)
-    last_num = max(completed_chapters) if completed_chapters else 0.0
+    for assignment in df_lvl['assignment']:
+        num = extract_chapter_num(assignment)
+        if num is not None:
+            completed_chapters.append(num)
+    last_num = max(completed_chapters) if completed_chapters else 0
 
     next_assignment = None
     for lesson in schedule:
-        chap_num = _extract_max_num(lesson.get("chapter", ""))
-        if not _is_recommendable(lesson):
-            continue
+        chap_num = extract_chapter_num(lesson.get("chapter", ""))
+        if not is_recommendable_assignment(lesson):
+            continue  # Skip Schreiben & Sprechen lessons
         if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
+            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
         st.info("🎉 Great Job!")
 
-    # ======================= PDF SUMMARY DOWNLOAD =======================
-    COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
-    PAGE_WIDTH, MARGIN = 210, 10
+    # ========== DOWNLOAD PDF SUMMARY ==========
+    # Constants for layout
+    COL_ASSN_W = 45
+    COL_SCORE_W = 18
+    COL_DATE_W = 30
+    PAGE_WIDTH = 210  # A4 width in mm
+    MARGIN = 10       # default margin
     FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
     LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
-    @st.cache_data(ttl=3600)
+    @st.cache_data
     def fetch_logo():
+        import requests, tempfile
         try:
-            r = requests.get(LOGO_URL, timeout=6)
-            r.raise_for_status()
-            import tempfile
+            resp = requests.get(LOGO_URL, timeout=6)
+            resp.raise_for_status()
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            tmp.write(r.content); tmp.flush()
+            tmp.write(resp.content)
+            tmp.flush()
             return tmp.name
         except Exception:
             return None
@@ -5668,6 +5726,7 @@ if tab == "My Results and Resources":
             self.set_font("Arial", 'B', 16)
             self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
             self.ln(3)
+
         def footer(self):
             self.set_y(-15)
             self.set_font("Arial", 'I', 9)
@@ -5678,18 +5737,37 @@ if tab == "My Results and Resources":
             self.alias_nb_pages()
 
     if st.button("⬇️ Download PDF Summary"):
+        import unicodedata
+        def clean_for_pdf(text):
+            if not isinstance(text, str):
+                text = str(text)
+            text = unicodedata.normalize('NFKD', text)
+            text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+            text = text.replace('\n', ' ').replace('\r', ' ')
+            return text
+
+        def score_label(score):
+            try:
+                s = float(score)
+            except:
+                return "Needs Improvement"
+            if s >= 90:
+                return "Excellent"
+            elif s >= 75:
+                return "Good"
+            elif s >= 60:
+                return "Sufficient"
+            else:
+                return "Needs Improvement"
+
+        # Create PDF and add first page
         pdf = PDFReport()
         pdf.add_page()
 
         # Student Info
         pdf.set_font("Arial", '', 12)
-        # Find a name to show (prefer df_user)
-        try:
-            shown_name = df_user.name.iloc[0]
-        except Exception:
-            shown_name = student_name or "Student"
-        pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
         pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
         pdf.ln(5)
 
@@ -5697,43 +5775,43 @@ if tab == "My Results and Resources":
         pdf.set_font("Arial", 'B', 13)
         pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
         pdf.ln(6)
 
-        # Table
+        # Table Header
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(235, 235, 245)
         pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
         pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
         pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
         pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
-
         pdf.set_font("Arial", '', 10)
         pdf.set_fill_color(249, 249, 249)
         row_fill = False
 
+        # Table Rows with wrapped feedback
         for _, row in df_display.iterrows():
             assn = clean_for_pdf(str(row['assignment'])[:24])
             score_txt = clean_for_pdf(str(row['score']))
             date_txt = clean_for_pdf(str(row['date']))
-            label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
+            label = clean_for_pdf(score_label(row['score']))
             pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
             pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
             pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
             pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
             row_fill = not row_fill
 
+        # Output Download
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
         st.download_button(
             label="Download PDF",
             data=pdf_bytes,
-            file_name=f"{code_key}_results_{level}.pdf",
+            file_name=f"{code}_results_{level}.pdf",
             mime="application/pdf"
         )
-        st.markdown(_pdf_dl_link(pdf_bytes, f"{code_key}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
         st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
-    # ======================= USEFUL RESOURCES =======================
     st.markdown("---")
     st.subheader("📚 Useful Resources")
     st.markdown(
@@ -5754,7 +5832,6 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
-
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
@@ -8478,8 +8555,6 @@ def bubble(role, text):
 
 
 
-
-
 # ===== Schreiben =====
 
 db = firestore.client()
@@ -8927,9 +9002,6 @@ if tab == "Schreiben Trainer":
                 f"8. For B1+, mention exam criteria and what examiner wants.\n"
                 f"9. Never write a new letter for the student, only mark what they submit.\n"
                 f"10. When possible, point out specific lines or examples from their letter in your feedback.\n"
-                f"11. When student score is 18 or above then they have passed. When score is less than 18, is a fail and they must try again before submitting to prevent low marks.\n"
-                f"12. After completion, remind them to only copy their improved letter without your feedback, go to 'my course' on the app and submit together with their lesen and horen answers. They only share the letter and feedback with their teacher for evaluation only when they preparing for the exams\n"
-                
             )
 
             with st.spinner("🧑‍🏫 Herr Felix is typing..."):
@@ -9522,6 +9594,9 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
 
 
 
