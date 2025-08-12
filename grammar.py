@@ -1136,7 +1136,7 @@ if not st.session_state.get("logged_in", False):
     if handle_google_login():
         st.stop()
 
-    # Tabs: Returning / Sign Up (Approved) / Request Access
+     # Tabs: Returning / Sign Up (Approved) / Request Access
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     # --- Returning ---
@@ -1241,7 +1241,7 @@ if not st.session_state.get("logged_in", False):
                         doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
                         st.success("Account created! Please log in on the Returning tab.")
 
-        # --- Request Access ---
+    # --- Request Access ---
     with tab3:
         st.markdown(
             """
