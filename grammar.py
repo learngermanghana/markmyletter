@@ -5299,36 +5299,116 @@ if tab == "My Course":
 
 
 
-#Myresults
-def linkify_html(text):
-    """Escape HTML and convert URLs in plain text to anchor tags."""
-    s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
-    s = html_stdlib.escape(s)  # <-- use stdlib html, not the component
-    s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
-    return s
+# =========================== MY RESULTS & RESOURCES ===========================
+# Safe utilities (define only if missing to avoid duplicates)
+if "html_stdlib" not in globals():
+    import html as html_stdlib
+if "urllib" not in globals():
+    import urllib
+if "linkify_html" not in globals():
+    def linkify_html(text):
+        """Escape HTML and convert URLs in plain text to anchor tags."""
+        s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
+        s = html_stdlib.escape(s)
+        s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+        return s
+if "_clean_link" not in globals():
+    def _clean_link(val) -> str:
+        """Return a clean string or '' if empty/NaN/common placeholders."""
+        if val is None: return ""
+        if isinstance(val, float) and pd.isna(val): return ""
+        s = str(val).strip()
+        return "" if s.lower() in {"", "nan", "none", "null", "0"} else s
+if "_is_http_url" not in globals():
+    def _is_http_url(s: str) -> bool:
+        try:
+            u = urllib.parse.urlparse(str(s))
+            return u.scheme in ("http", "https") and bool(u.netloc)
+        except Exception:
+            return False
 
+# Reuse the app’s schedules provider if available (no duplicate calls)
+def _get_level_schedules():
+    if "load_level_schedules" in globals() and callable(load_level_schedules):
+        return load_level_schedules()
+    # Fallback (won’t run if you’ve got load_level_schedules)
+    def _safe(fn):
+        try: return fn()
+        except Exception: return []
+    return {
+        "A1": _safe(get_a1_schedule),
+        "A2": _safe(get_a2_schedule),
+        "B1": _safe(get_b1_schedule),
+        "B2": _safe(get_b2_schedule),
+        "C1": _safe(get_c1_schedule),
+    }
 
-def _clean_link(val) -> str:
-    """Return a clean string or '' if empty/NaN/common placeholders."""
-    if val is None:
-        return ""
-    if isinstance(val, float) and pd.isna(val):
-        return ""
-    s = str(val).strip()
-    if s.lower() in {"", "nan", "none", "null", "0"}:
-        return ""
-    return s
+# Plain/emoji score label once; reuse everywhere
+if "score_label_fmt" not in globals():
+    def score_label_fmt(score, *, plain=False):
+        try:
+            s = float(score)
+        except Exception:
+            return "" if not plain else "Needs Improvement"
+        if s >= 90: return "Excellent 🌟" if not plain else "Excellent"
+        if s >= 75: return "Good 👍"      if not plain else "Good"
+        if s >= 60: return "Sufficient ✔️" if not plain else "Sufficient"
+        return "Needs Improvement ❗" if not plain else "Needs Improvement"
 
-def _is_http_url(s: str) -> bool:
+# PDF text sanitizer defined up-front (header needs it)
+if "clean_for_pdf" not in globals():
+    import unicodedata as _ud
+    def clean_for_pdf(text):
+        if not isinstance(text, str):
+            text = str(text)
+        text = _ud.normalize('NFKD', text)
+        text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
+        return text.replace('\n', ' ').replace('\r', ' ')
+
+# Prefer secrets/env for sheet; fallback to constant
+def _results_csv_url():
     try:
-        u = urllib.parse.urlparse(s)
-        return u.scheme in ("http", "https") and bool(u.netloc)
+        u = (st.secrets.get("results", {}).get("csv_url", "") if hasattr(st, "secrets") else "").strip()
+        if u: return u
     except Exception:
-        return False
+        pass
+    return "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
 
+# Cached fetch of scores (robust columns)
+@st.cache_data(ttl=600)
+def fetch_scores(csv_url: str):
+    resp = requests.get(csv_url, timeout=8)
+    resp.raise_for_status()
+    df = pd.read_csv(io.StringIO(resp.text), engine='python')
+    # normalize columns
+    df.columns = [str(c).strip().lower().replace("studentcode", "student_code") for c in df.columns]
+    # a few friendly aliases
+    aliases = {
+        "assignment/chapter": "assignment",
+        "chapter": "assignment",
+        "score (%)": "score",
+    }
+    for src, dst in aliases.items():
+        if src in df.columns and dst not in df.columns:
+            df = df.rename(columns={src: dst})
+    required = ["student_code", "name", "assignment", "score", "date", "level"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        # Return empty with diagnostic columns so UI can error cleanly
+        return pd.DataFrame(columns=required)
+    df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
+    return df
+
+# Tiny helpers for current user
+def _get_current_student():
+    row = st.session_state.get("student_row", {}) or {}
+    code = (row.get("StudentCode") or st.session_state.get("student_code", "") or "").strip()
+    name = (row.get("Name") or st.session_state.get("student_name", "") or "").strip()
+    level = (row.get("Level") or "").strip().upper()
+    return code, name, level
 
 if tab == "My Results and Resources":
-    # 📊 Compact Results & Resources header
+    # Header
     st.markdown(
         '''
         <div style="
@@ -5346,155 +5426,106 @@ if tab == "My Results and Resources":
         unsafe_allow_html=True
     )
     st.divider()
-    
-    # ============ LEVEL SCHEDULES (assume these functions are defined above) ============
-    LEVEL_SCHEDULES = {
-        "A1": get_a1_schedule(),
-        "A2": get_a2_schedule(),
-        "B1": get_b1_schedule(),
-        "B2": get_b2_schedule(),
-        "C1": get_c1_schedule(),
-    }
 
-    # --- LIVE GOOGLE SHEETS CSV LINK ---
-    GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ/gviz/tq?tqx=out:csv"
+    # Live CSV URL (secrets/env-aware)
+    GOOGLE_SHEET_CSV = _results_csv_url()
 
-    def get_pdf_download_link(pdf_bytes, filename="results.pdf"):
-        b64 = base64.b64encode(pdf_bytes).decode()
+    # Utility: manual download link for PDF
+    def _pdf_dl_link(pdf_bytes, filename="results.pdf"):
+        import base64 as _b64
+        b64 = _b64.b64encode(pdf_bytes).decode()
         return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
 
-    @st.cache_data
-    def fetch_scores():
-        response = requests.get(GOOGLE_SHEET_CSV, timeout=7)
-        response.raise_for_status()
-        df = pd.read_csv(io.StringIO(response.text), engine='python')
-        df.columns = [col.strip().lower().replace('studentcode', 'student_code') for col in df.columns]
-        required_cols = ["student_code", "name", "assignment", "score", "date", "level"]
-        df = df.dropna(subset=required_cols)
-        return df
-
-    # --- Session Vars ---
-    student_code = st.session_state.get("student_code", "")
-    student_name = st.session_state.get("student_name", "")
-    st.header("📈 My Results and Resources Hub")
-    st.markdown("View and download your assignment history. All results are private and only visible to you.")
-
-    # ========== REFRESH BUTTON ==========
+    # Refresh
     if st.button("🔄 Refresh for your latest results"):
         st.cache_data.clear()
         st.success("Cache cleared! Reloading…")
         st.rerun()
 
-    # ========== FETCH AND FILTER DATA ==========
-    df_scores = fetch_scores()
+    # Load data
+    df_scores = fetch_scores(GOOGLE_SHEET_CSV)
     required_cols = {"student_code", "name", "assignment", "score", "date", "level"}
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
         st.write("Columns found:", df_scores.columns.tolist())
         st.stop()
 
-    code = (student_code or "").lower().strip()
-    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code]
+    # Current student
+    student_code, student_name, _ = _get_current_student()
+    code_key = (student_code or "").lower().strip()
+
+    st.header("📈 My Results and Resources Hub")
+    st.markdown("View and download your assignment history. All results are private and only visible to you.")
+
+    # Filter to user
+    df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
         st.stop()
 
-    # --- Choose level
-    df_user = df_user.copy()  # avoid SettingWithCopy
-    df_user['level'] = df_user['level'].astype(str).str.upper().str.strip()
-    levels = sorted(df_user['level'].unique())
+    # Level selector
+    df_user = df_user.copy()
+    df_user["level"] = df_user["level"].astype(str).str.upper().str.strip()
+    levels = sorted(df_user["level"].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level].copy()
 
-    # ========== METRICS ==========
+    # Metrics
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total = totals.get(level, 0)
-    completed = df_lvl['assignment'].nunique()
-    df_lvl['score'] = pd.to_numeric(df_lvl['score'], errors='coerce')
-    avg_score = df_lvl['score'].mean() or 0
-    best_score = df_lvl['score'].max() or 0
+    total = int(totals.get(level, 0))
+    completed = int(df_lvl["assignment"].nunique())
+    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
+    avg_score = float(df_lvl["score"].mean() or 0)
+    best_score = float(df_lvl["score"].max() or 0)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Assignments", total)
-    col2.metric("Completed", completed)
-    col3.metric("Average Score", f"{avg_score:.1f}")
-    col4.metric("Best Score", best_score)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Assignments", total)
+    c2.metric("Completed", completed)
+    c3.metric("Average Score", f"{avg_score:.1f}")
+    c4.metric("Best Score", f"{best_score:.0f}")
 
-    # ========== DETAILED RESULTS ==========
+    # Detailed results
     st.markdown("---")
     st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
 
-    def score_label(score):
-        try:
-            s = float(score)
-        except Exception:
-            return ""
-        if s >= 90:
-            return "Excellent 🌟"
-        elif s >= 75:
-            return "Good 👍"
-        elif s >= 60:
-            return "Sufficient ✔️"
-        else:
-            return "Needs Improvement ❗"
+    # Default display (available to PDF section below)
+    df_display = (
+        df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
+              .reset_index(drop=True)
+    )
+    # Ensure optional cols exist
+    if "comments" not in df_display.columns: df_display["comments"] = ""
+    if "link" not in df_display.columns: df_display["link"] = ""
 
     with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
-        if 'comments' in df_lvl.columns:
-            # Build the display columns dynamically (include 'link' if present)
-            base_cols = ['assignment', 'score', 'date', 'comments']
-            if 'link' in df_lvl.columns:
-                base_cols.append('link')
+        base_cols = ["assignment", "score", "date", "comments", "link"]
+        for _, row in df_display[base_cols].iterrows():
+            perf = score_label_fmt(row["score"])
+            comment_html = linkify_html(row["comments"])
+            ref_link = _clean_link(row.get("link"))
+            show_ref = bool(ref_link) and _is_http_url(ref_link) and pd.notna(pd.to_numeric(row["score"], errors="coerce"))
 
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                      [base_cols]
-                      .reset_index(drop=True)
-            )
-
-            for _, row in df_display.iterrows():
-                perf = score_label(row['score'])
-                comment_html = linkify_html(row['comments'])
-
-                # only show a real link
-                raw_link = row['link'] if ('link' in df_display.columns) else None
-                ref_link = _clean_link(raw_link)
-                has_valid_link = bool(ref_link) and _is_http_url(ref_link)
-
-                st.markdown(
-                    f"""
-                    <div style="margin-bottom: 18px;">
-                        <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                        Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
-                        <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
-                            <b>Feedback:</b> {comment_html}
-                        </div>
+            st.markdown(
+                f"""
+                <div style="margin-bottom: 18px;">
+                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                    <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
+                        <b>Feedback:</b> {comment_html}
                     </div>
-                    """,
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            if show_ref:
+                st.markdown(
+                    f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
                     unsafe_allow_html=True
                 )
+            st.divider()
 
-                # Show Lesen/Hören reference only if there is a valid numeric score AND a valid URL
-                if has_valid_link:
-                    has_score_num = pd.to_numeric(row['score'], errors='coerce')
-                    if not pd.isna(has_score_num):
-                        st.markdown(
-                            f'🔍 <a href="{ref_link}" target="_blank" rel="noopener">View answer reference (Lesen & Hören)</a>',
-                            unsafe_allow_html=True
-                        )
-
-                st.divider()
-        else:
-            df_display = (
-                df_lvl.sort_values(['assignment', 'score'], ascending=[True, False])
-                      [['assignment', 'score', 'date']]
-                      .reset_index(drop=True)
-            )
-            st.table(df_display)
-
-            
-    st.markdown("---") 
-
-    # ========== BADGES & TROPHIES ==========
+    # Badges
+    st.markdown("---")
     st.markdown("### 🏅 Badges & Trophies")
     with st.expander("What badges can you earn?", expanded=False):
         st.markdown(
@@ -5526,42 +5557,33 @@ if tab == "My Results and Resources":
     if badge_count == 0:
         st.warning("No badges yet. Complete more assignments to earn badges!")
 
-    # ========== SKIPPED ASSIGNMENTS LOGIC ==========
-    def extract_all_chapter_nums(chapter_str):
+    # Skipped assignments (use shared schedule cache)
+    schedules_map = _get_level_schedules()
+    schedule = schedules_map.get(level, [])
+    def _extract_all_nums(chapter_str):
         parts = re.split(r'[_\s,;]+', str(chapter_str))
         nums = []
         for part in parts:
-            match = re.search(r'\d+(?:\.\d+)?', part)
-            if match:
-                nums.append(float(match.group()))
+            m = re.search(r'\d+(?:\.\d+)?', part)
+            if m: nums.append(float(m.group()))
         return nums
 
-    # Build a set of all chapter numbers completed by student
     completed_nums = set()
     for _, row in df_lvl.iterrows():
-        nums = extract_all_chapter_nums(row['assignment'])
-        completed_nums.update(nums)
+        for num in _extract_all_nums(row["assignment"]):
+            completed_nums.add(num)
+    last_num = max(completed_nums) if completed_nums else 0.0
 
-    last_num = max(completed_nums) if completed_nums else 0
-
-    schedule = LEVEL_SCHEDULES.get(level, [])
     skipped_assignments = []
     for lesson in schedule:
         chapter_field = lesson.get("chapter", "")
-        lesson_nums = extract_all_chapter_nums(chapter_field)
+        lesson_nums = _extract_all_nums(chapter_field)
         day = lesson.get("day", "")
         has_assignment = lesson.get("assignment", False)
         for chap_num in lesson_nums:
-            if (
-                has_assignment
-                and chap_num < last_num
-                and chap_num not in completed_nums
-            ):
-                skipped_assignments.append(
-                    f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}"
-                )
-                break  # Only need to flag once per lesson
-
+            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
+                skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
+                break
     if skipped_assignments:
         st.markdown(
             f"""
@@ -5569,7 +5591,7 @@ if tab == "My Results and Resources":
                 background-color: #fff3cd;
                 border-left: 6px solid #ffecb5;
                 color: #7a6001;
-                padding: 16px 18px 16px 16px;
+                padding: 16px 18px;
                 border-radius: 8px;
                 margin: 12px 0;
                 font-size: 1.05em;">
@@ -5581,64 +5603,52 @@ if tab == "My Results and Resources":
             unsafe_allow_html=True
         )
 
-    # ========== NEXT ASSIGNMENT RECOMMENDATION ==========
-    def is_recommendable_assignment(lesson):
+    # Next assignment recommendation (skip Schreiben & Sprechen-only)
+    def _is_recommendable(lesson):
         topic = str(lesson.get("topic", "")).lower()
-        # Skip if both "schreiben" and "sprechen" in topic
-        if "schreiben" in topic and "sprechen" in topic:
-            return False
-        return True
-
-    def extract_chapter_num(chapter):
+        return not ("schreiben" in topic and "sprechen" in topic)
+    def _extract_max_num(chapter):
         nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        if not nums:
-            return None
-        return max(float(n) for n in nums)
+        return max([float(n) for n in nums], default=None)
 
     completed_chapters = []
-    for assignment in df_lvl['assignment']:
-        num = extract_chapter_num(assignment)
-        if num is not None:
-            completed_chapters.append(num)
-    last_num = max(completed_chapters) if completed_chapters else 0
+    for a in df_lvl["assignment"]:
+        n = _extract_max_num(a)
+        if n is not None: completed_chapters.append(n)
+    last_num = max(completed_chapters) if completed_chapters else 0.0
 
     next_assignment = None
     for lesson in schedule:
-        chap_num = extract_chapter_num(lesson.get("chapter", ""))
-        if not is_recommendable_assignment(lesson):
-            continue  # Skip Schreiben & Sprechen lessons
+        chap_num = _extract_max_num(lesson.get("chapter", ""))
+        if not _is_recommendable(lesson):
+            continue
         if chap_num and chap_num > last_num:
             next_assignment = lesson
             break
     if next_assignment:
         st.success(
             f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment['day']}: {next_assignment['chapter']} – {next_assignment['topic']}**\n\n"
+            f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
             f"**Goal:** {next_assignment.get('goal','')}\n\n"
             f"**Instruction:** {next_assignment.get('instruction','')}"
         )
     else:
         st.info("🎉 Great Job!")
 
-    # ========== DOWNLOAD PDF SUMMARY ==========
-    # Constants for layout
-    COL_ASSN_W = 45
-    COL_SCORE_W = 18
-    COL_DATE_W = 30
-    PAGE_WIDTH = 210  # A4 width in mm
-    MARGIN = 10       # default margin
+    # ======================= PDF SUMMARY DOWNLOAD =======================
+    COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+    PAGE_WIDTH, MARGIN = 210, 10
     FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
     LOGO_URL = "https://i.imgur.com/iFiehrp.png"
 
-    @st.cache_data
+    @st.cache_data(ttl=3600)
     def fetch_logo():
-        import requests, tempfile
         try:
-            resp = requests.get(LOGO_URL, timeout=6)
-            resp.raise_for_status()
+            r = requests.get(LOGO_URL, timeout=6)
+            r.raise_for_status()
+            import tempfile
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            tmp.write(resp.content)
-            tmp.flush()
+            tmp.write(r.content); tmp.flush()
             return tmp.name
         except Exception:
             return None
@@ -5658,7 +5668,6 @@ if tab == "My Results and Resources":
             self.set_font("Arial", 'B', 16)
             self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
             self.ln(3)
-
         def footer(self):
             self.set_y(-15)
             self.set_font("Arial", 'I', 9)
@@ -5669,37 +5678,18 @@ if tab == "My Results and Resources":
             self.alias_nb_pages()
 
     if st.button("⬇️ Download PDF Summary"):
-        import unicodedata
-        def clean_for_pdf(text):
-            if not isinstance(text, str):
-                text = str(text)
-            text = unicodedata.normalize('NFKD', text)
-            text = ''.join(c if 32 <= ord(c) <= 255 else '?' for c in text)
-            text = text.replace('\n', ' ').replace('\r', ' ')
-            return text
-
-        def score_label(score):
-            try:
-                s = float(score)
-            except:
-                return "Needs Improvement"
-            if s >= 90:
-                return "Excellent"
-            elif s >= 75:
-                return "Good"
-            elif s >= 60:
-                return "Sufficient"
-            else:
-                return "Needs Improvement"
-
-        # Create PDF and add first page
         pdf = PDFReport()
         pdf.add_page()
 
         # Student Info
         pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 8, clean_for_pdf(f"Name: {df_user.name.iloc[0]}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Code: {code}     Level: {level}"), ln=1)
+        # Find a name to show (prefer df_user)
+        try:
+            shown_name = df_user.name.iloc[0]
+        except Exception:
+            shown_name = student_name or "Student"
+        pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
         pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
         pdf.ln(5)
 
@@ -5707,43 +5697,43 @@ if tab == "My Results and Resources":
         pdf.set_font("Arial", 'B', 13)
         pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
         pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
         pdf.ln(6)
 
-        # Table Header
+        # Table
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(235, 235, 245)
         pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
         pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
         pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
         pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
+
         pdf.set_font("Arial", '', 10)
         pdf.set_fill_color(249, 249, 249)
         row_fill = False
 
-        # Table Rows with wrapped feedback
         for _, row in df_display.iterrows():
             assn = clean_for_pdf(str(row['assignment'])[:24])
             score_txt = clean_for_pdf(str(row['score']))
             date_txt = clean_for_pdf(str(row['date']))
-            label = clean_for_pdf(score_label(row['score']))
+            label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
             pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
             pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
             pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
             pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
             row_fill = not row_fill
 
-        # Output Download
         pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
         st.download_button(
             label="Download PDF",
             data=pdf_bytes,
-            file_name=f"{code}_results_{level}.pdf",
+            file_name=f"{code_key}_results_{level}.pdf",
             mime="application/pdf"
         )
-        st.markdown(get_pdf_download_link(pdf_bytes, f"{code}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.markdown(_pdf_dl_link(pdf_bytes, f"{code_key}_results_{level}.pdf"), unsafe_allow_html=True)
         st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
 
+    # ======================= USEFUL RESOURCES =======================
     st.markdown("---")
     st.subheader("📚 Useful Resources")
     st.markdown(
@@ -5764,6 +5754,7 @@ A2-level speaking exam guide.
 How to prepare for your B1 oral exam.
         """
     )
+
 
 # ================================
 # 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
