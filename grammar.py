@@ -7536,6 +7536,14 @@ SENTENCE_BANK = {
     ]
 }
 
+# =========================================
+# Vocab
+# =========================================
+
+# sentence_bank.py
+SENTENCE_BANK = {
+    # ... (KEEP YOUR FULL SENTENCE_BANK EXACTLY AS YOU POSTED ABOVE)
+}
 
 # If you initialize Firestore elsewhere, expose it here.
 # This helper prevents NameError if db isn't ready.
@@ -7799,6 +7807,33 @@ def normalize_join(tokens):
         s = s.replace(f" {p}", p)
     return s
 
+# ---------- Dictionary helpers ----------
+def _flatten_vocab_entries(vocab_lists: dict):
+    rows = []
+    for lvl, pairs in (vocab_lists or {}).items():
+        for de, en in pairs:
+            rows.append({
+                "level":   str(lvl).upper().strip(),
+                "german":  str(de).strip(),
+                "english": str(en).strip()
+            })
+    return rows
+
+@st.cache_data(show_spinner=False)
+def _dict_tts_bytes_de(word: str, slow: bool = False):
+    """Return MP3 bytes for a German word (cached)."""
+    try:
+        from gtts import gTTS
+        import io
+        t = gTTS(text=word, lang="de", slow=bool(slow))
+        buf = io.BytesIO()
+        t.write_to_fp(buf)
+        buf.seek(0)
+        return buf.read()
+    except Exception:
+        return None
+
+
 # ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
@@ -7832,7 +7867,7 @@ if tab == "Vocab Trainer":
 
     subtab = st.radio(
         "Choose practice:",
-        ["Sentence Builder", "Vocab Practice"],  # Sentence Builder first, Vocab second
+        ["Sentence Builder", "Vocab Practice", "Dictionary"],  # ← added Dictionary
         horizontal=True,
         key="vocab_practice_subtab"
     )
@@ -8200,10 +8235,102 @@ if tab == "Vocab Trainer":
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
-#
 
+    # ===========================
+    # SUBTAB: Dictionary (search + pronunciation)
+    # ===========================
+    elif subtab == "Dictionary":
+        st.info("📖 Quick bilingual dictionary. Type in **German or English**. Click the speaker to **hear the German word**.")
 
+        # Build flat table once
+        all_entries = _flatten_vocab_entries(VOCAB_LISTS)  # [{'level','german','english'}...]
+        df_all = pd.DataFrame(all_entries)
 
+        # Filters
+        q = st.text_input("Search word…", key="dict_query").strip()
+        mode = st.radio("Filter", ["All levels", "Only my level"], horizontal=True, key="dict_mode")
+        my_level = student_level_locked
+
+        if mode == "Only my level":
+            df_view = df_all[df_all["level"].astype(str).str.upper().eq(my_level)].copy()
+        else:
+            df_view = df_all.copy()
+
+        # Search
+        if q:
+            qlow = q.lower()
+            hits = df_view[
+                df_view["german"].str.lower().str.contains(qlow) |
+                df_view["english"].str.lower().str.contains(qlow)
+            ].sort_values(["level","german"])
+            count = len(hits)
+            if count == 0:
+                st.warning("No exact matches. Try a shorter query.")
+                sugg = df_view[
+                    df_view["german"].str.lower().str.startswith(qlow) |
+                    df_view["english"].str.lower().str.startswith(qlow)
+                ].head(12)
+                if not sugg.empty:
+                    st.caption("Suggestions:")
+                    cols = st.columns(3)
+                    for i, (_, r) in enumerate(sugg.iterrows()):
+                        with cols[i % 3]:
+                            st.markdown(
+                                f"<div style='padding:8px 10px;background:#f7f7ff;border:1px solid #e0e0ff;"
+                                f"border-radius:10px;margin:6px 0;'>"
+                                f"<b>{r['german']}</b><br><span style='color:#555'>{r['english']}</span>"
+                                f"<br><span style='font-size:0.8em;color:#8c8cff'>Level {r['level']}</span>"
+                                f"</div>", unsafe_allow_html=True
+                            )
+                st.stop()
+        else:
+            # No query: sample a small set for browsing
+            hits = df_view.sample(min(12, len(df_view)), random_state=42).sort_values(["level","german"]) if len(df_view) else df_view
+
+        # Results table header
+        st.markdown(
+            """
+            <div style="display:flex;gap:8px;font-weight:600;padding:8px 10px;border-bottom:1px solid #eee;">
+              <div style="flex:3">German</div>
+              <div style="flex:3">English</div>
+              <div style="flex:1">Level</div>
+              <div style="flex:1">Pronunciation</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Rows with pronounce buttons
+        max_rows = 20  # keep it snappy
+        for i, (_, r) in enumerate(hits.head(max_rows).iterrows()):
+            de = r["german"]; en = r["english"]; lvl = r["level"]
+            cols = st.columns([3,3,1,1])
+            with cols[0]:
+                st.write(de)
+            with cols[1]:
+                st.write(en)
+            with cols[2]:
+                st.write(lvl)
+            with cols[3]:
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("🔊", key=f"dict_play_{i}"):
+                        audio = _dict_tts_bytes_de(de, slow=False)
+                        if audio:
+                            st.audio(audio, format="audio/mp3")
+                        else:
+                            st.error("Could not generate audio.")
+                with c2:
+                    if st.button("🐢", key=f"dict_play_slow_{i}"):
+                        audio_slow = _dict_tts_bytes_de(de, slow=True)
+                        if audio_slow:
+                            st.audio(audio_slow, format="audio/mp3")
+                        else:
+                            st.error("Could not generate audio.")
+
+        # Optional: full table view toggle
+        with st.expander("Show as table (copy/paste)"):
+            st.dataframe(hits.reset_index(drop=True), use_container_width=True)
 
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
@@ -8217,6 +8344,7 @@ def bubble(role, text):
             <b>{name}:</b><br>{text}
         </div>
     """
+
 
 
 
