@@ -1274,235 +1274,92 @@ if st.button("Log out"):
 
 
 
-# ==== GOOGLE SHEET LOADING FUNCTIONS =========================================
-_SHEETS_TIMEOUT = 10
 
-def _fetch_csv(url: str, *, timeout: int = _SHEETS_TIMEOUT) -> pd.DataFrame:
-    try:
-        resp = requests.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return pd.read_csv(io.StringIO(resp.text), dtype=str)
-    except Exception:
-        return pd.DataFrame()
-
-def _norm_cols(df: pd.DataFrame, *, lower=True, strip=True) -> pd.DataFrame:
-    if df.empty:
-        return df
-    cols = df.columns
-    if strip: cols = cols.str.strip()
-    if lower: cols = cols.str.lower()
-    df.columns = cols
-    return df
-
-@st.cache_data(ttl=600)  # refresh every 10 minutes
-def load_assignment_scores() -> pd.DataFrame:
+# ==== GOOGLE SHEET LOADING FUNCTIONS ====
+@st.cache_data
+def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = _fetch_csv(url)
-    df = _norm_cols(df)
-    if df.empty:
-        return df
-
-    # Trim every cell
-    for c in df.columns:
-        df[c] = df[c].astype(str).str.strip()
-
-    # Ensure expected columns exist (create if missing to avoid KeyErrors)
-    for need in ["studentcode", "name", "level", "assignment", "score", "date"]:
-        if need not in df.columns:
-            df[need] = ""
-
-    # Normalize common fields
-    df["studentcode"] = df["studentcode"].str.lower().str.strip()
-    df["level"] = df["level"].str.upper().str.strip()
-
-    # Parse dates robustly -> date
-    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
-    # Numeric score
-    df["score"] = pd.to_numeric(df["score"], errors="coerce")
-
+    df = pd.read_csv(url, dtype=str)
+    df.columns = df.columns.str.strip().str.lower()
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
 
-@st.cache_data(ttl=86400)  # 24h cache; vocab changes rarely
-def load_full_vocab_sheet() -> pd.DataFrame:
+@st.cache_data
+def load_full_vocab_sheet():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    df = _fetch_csv(csv_url)
-    if df.empty:
-        return df
-
-    # Preserve original case for content columns; just strip
-    df.columns = df.columns.str.strip()
-    # Tolerate casing variations on Level/German/English/Example
-    # Build a lowercase name map
-    lower_map = {c.lower(): c for c in df.columns}
-    lvl = lower_map.get("level")
-    if not lvl:
+    try:
+        df = pd.read_csv(csv_url, dtype=str)
+    except Exception:
+        st.error("Could not load vocab sheet.")
         return pd.DataFrame()
+    df.columns = df.columns.str.strip()
+    if "Level" not in df.columns:
+        return pd.DataFrame()
+    df = df[df["Level"].notna()]
+    df["Level"] = df["Level"].str.upper().str.strip()
+    return df
 
-    df = df[df[lvl].notna()].copy()
-    df[lvl] = df[lvl].astype(str).str.upper().str.strip()
-
-    # Normalize a view with consistent keys
-    def col(name: str) -> str:
-        return lower_map.get(name.lower(), name)
-
-    out = pd.DataFrame({
-        "Level":   df[lvl],
-        "German":  df[col("German")] if col("German") in df.columns else "",
-        "English": df[col("English")] if col("English") in df.columns else "",
-        "Example": df[col("Example")] if col("Example") in df.columns else "",
-    })
-    # Defensive string trim
-    for c in out.columns:
-        out[c] = out[c].astype(str).str.strip()
-    return out
-
-def get_vocab_of_the_day(df: pd.DataFrame, level: str) -> dict | None:
-    # Guard: empty DF or missing args
-    if df is None or df.empty or not level:
-        return None
-
-    # Build a case-insensitive column lookup
-    colmap = {c.strip().lower(): c for c in df.columns}
-
-    # Required column: Level
-    lvl_col = colmap.get("level")
-    if not lvl_col:
-        return None
-
-    # Normalize and filter by level
-    level_norm = (level or "").strip().upper()
-    subset = df[df[lvl_col].astype(str).str.strip().str.upper() == level_norm]
+def get_vocab_of_the_day(df, level):
+    level = level.upper().strip()
+    subset = df[df["Level"] == level]
     if subset.empty:
         return None
-
-    # Stable daily pick per level (no external/global import)
     from datetime import date as _date
-    idx = _date.today().toordinal() % len(subset)
+    today_ordinal = _date.today().toordinal()
+    idx = today_ordinal % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
-
-    # Optional columns (case-insensitive)
-    ger_col = colmap.get("german")
-    eng_col = colmap.get("english")
-    ex_col  = colmap.get("example")
-
-    def _val(col_name):
-        return "" if not col_name else (str(row.get(col_name, "") or "").strip())
-
     return {
-        "german":  _val(ger_col),
-        "english": _val(eng_col),
-        "example": _val(ex_col),
+        "german": row.get("German", ""),
+        "english": row.get("English", ""),
+        "example": row.get("Example", "") if "Example" in row else ""
     }
 
-
-def parse_contract_end(date_str) -> datetime | None:
-    # Local imports to avoid duplicate globals
-    from datetime import datetime, date
-
-    # Hard guards for blanks/NaNs
-    if date_str is None:
+def parse_contract_end(date_str):
+    if not date_str or str(date_str).lower() in ("nan", "none", ""):
         return None
-    try:
-        import math
-        if isinstance(date_str, float) and math.isnan(date_str):
-            return None
-    except Exception:
-        pass
-
-    # Already a datetime/date?
-    if isinstance(date_str, datetime):
-        return date_str
-    if isinstance(date_str, date):
-        return datetime.combine(date_str, datetime.min.time())
-
-    # Normalize string
-    s = str(date_str).strip()
-    if not s or s.lower() in {"nan", "none", "null"}:
-        return None
-
-    # Try common formats (add/remove as needed)
-    fmts = (
-        "%Y-%m-%d", "%Y/%m/%d",
-        "%d/%m/%Y", "%m/%d/%Y",
-        "%d-%m-%Y", "%m-%d-%Y",
-        "%d.%m.%y", "%d.%m.%Y",
-        "%d %b %Y", "%d %B %Y",
-    )
-    for fmt in fmts:
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
         try:
-            return datetime.strptime(s, fmt)
+            return datetime.strptime(date_str, fmt)
         except ValueError:
             continue
-
-    # Last-resort parse via pandas if available
-    try:
-        import pandas as _pd
-        ts = _pd.to_datetime(s, dayfirst=True, errors="coerce")
-        if ts is not None and str(ts) != "NaT":
-            return ts.to_pydatetime()
-    except Exception:
-        pass
-
     return None
 
-
-@st.cache_data(ttl=3600)  # 1h
-def load_reviews() -> pd.DataFrame:
+@st.cache_data
+def load_reviews():
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    df = _fetch_csv(url)
-    df = _norm_cols(df)
-    if df.empty:
-        return df
-    # Heuristic mapping for expected fields
-    # Accept variants like 'review', 'text', 'name', 'rating'
-    name_col = next((c for c in df.columns if c in ("student_name","name","author")), None)
-    text_col = next((c for c in df.columns if c in ("review_text","review","text","quote")), None)
-    rate_col = next((c for c in df.columns if c in ("rating","stars")), None)
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
 
-    out = pd.DataFrame()
-    if text_col: out["review_text"] = df[text_col].astype(str).str.strip()
-    else:        out["review_text"] = ""
-
-    if name_col: out["student_name"] = df[name_col].astype(str).str.strip()
-    else:        out["student_name"] = ""
-
-    if rate_col:
-        out["rating"] = pd.to_numeric(df[rate_col], errors="coerce").fillna(5).clip(1,5).astype(int)
-    else:
-        out["rating"] = 5
-    return out
-
-
-# ==== DASHBOARD TOP (only when logged in) =====================================
 if st.session_state.get("logged_in"):
-    student_code = (st.session_state.get("student_code") or "").strip().lower()
-    student_name = st.session_state.get("student_name") or ""
+    student_code = st.session_state["student_code"].strip().lower()
+    student_name = st.session_state["student_name"]
 
     # Load student info
     df_students = load_student_data()
-    # be tolerant to casing already normalized by loader
-    matches = df_students[df_students["StudentCode"].str.lower() == student_code] if not df_students.empty else pd.DataFrame()
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
     # Greeting helper
-    first_name = (student_row.get("Name") or student_name or "Student").split()[0].title()
+    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
     # -------------------- CONTRACT (compute only) --------------------
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
-    today_dt = datetime.utcnow()  # UTC to avoid skew
+    today_dt = datetime.today()
     contract_end = parse_contract_end(contract_end_str)
 
     contract_title_extra = "• no date"
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
-    urgent_contract = False
 
+    urgent_contract = False
     if contract_end:
-        days_left = (contract_end.date() - today_dt.date()).days
+        days_left = (contract_end - today_dt).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
         if 0 < days_left <= 30:
             contract_notice_level = "warning"
@@ -1527,32 +1384,33 @@ if st.session_state.get("logged_in"):
 
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
-    if df_assign.empty:
-        mask_student = pd.Series(dtype=bool)
-        dates = []
-        assignment_count = 0
-        streak = 0
-    else:
-        mask_student = df_assign["studentcode"] == student_code
-        dates = sorted(df_assign.loc[mask_student, "date"].dropna().unique(), reverse=True)
-        streak = 1 if dates else 0
-        for i in range(1, len(dates)):
-            if (dates[i - 1] - dates[i]).days == 1:
-                streak += 1
-            else:
-                break
+    df_assign["date"] = pd.to_datetime(
+        df_assign["date"], format="%Y-%m-%d", errors="coerce"
+    ).dt.date
+    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
-        today = date.today()
-        monday = today - timedelta(days=today.weekday())
-        assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i - 1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
 
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
     WEEKLY_GOAL = 3
-    goal_left = max(0, WEEKLY_GOAL - int(assignment_count))
+    goal_left = max(0, WEEKLY_GOAL - assignment_count)
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
-    urgent_assignments = goal_left > 0 and (date.today().weekday() >= 5)  # urgent if weekend
+
+    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
+
 
     # -------------------- BELL STATIC LOGIC --------------------
     bell_color = "#333"  # Static, non-urgent color
+
     st.markdown(f"""
         <div style="display:flex;align-items:center;gap:10px;
                     font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
@@ -1563,7 +1421,7 @@ if st.session_state.get("logged_in"):
         </div>
     """, unsafe_allow_html=True)
 
-    # -------------------- SINGLE BADGE ROW --------------------
+    # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
     st.markdown("""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
@@ -1580,23 +1438,23 @@ if st.session_state.get("logged_in"):
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
 
     # -------------------- LEADERBOARD (compute only) --------------------
+    import random
     MIN_ASSIGNMENTS = 3
-    user_level = (student_row.get('Level') or '').upper().strip()
-    df_level = pd.DataFrame()
 
-    if not df_assign.empty and user_level:
-        df_level = (
-            df_assign[df_assign['level'] == user_level]
-            .groupby(['studentcode', 'name'], as_index=False)
-            .agg(total_score=('score', 'sum'),
-                 completed=('assignment', 'nunique'))
-        )
-        df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
-        df_level = df_level.sort_values(['total_score', 'completed'],
-                                        ascending=[False, False]).reset_index(drop=True)
-        df_level['Rank'] = df_level.index + 1
+    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
+    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
+    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
-    your_row = df_level[df_level['studentcode'].str.lower() == student_code] if not df_level.empty else pd.DataFrame()
+    df_level = (
+        df_assign[df_assign['level'] == user_level]
+        .groupby(['studentcode', 'name'], as_index=False)
+        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
+    )
+    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
+    df_level = df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
+    df_level['Rank'] = df_level.index + 1
+
+    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
     total_students = len(df_level)
 
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
@@ -1631,8 +1489,7 @@ if st.session_state.get("logged_in"):
         if assignment_count >= WEEKLY_GOAL:
             st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
         else:
-            left = int(goal_left)
-            st.info(f"Submit {left} more assignment{'s' if left != 1 else ''} by Sunday to hit your goal.")
+            st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
 
     # Vocab of the Day (collapsed)
     with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=False):
@@ -1656,19 +1513,20 @@ if st.session_state.get("logged_in"):
             percent_rank = (rank / total_students) * 100 if total_students else 0
             progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
+            # Rotate messages (kept from your logic)
             STUDY_TIPS = [
                 "Study a little every day. Small steps lead to big progress!",
                 "Teach someone else what you learned to remember it better!",
                 "If you make a mistake, that’s good! Mistakes are proof you are learning.",
                 "Don’t just read—say your answers aloud for better memory.",
-                "Review your old assignments to see how far you’ve come!",
+                "Review your old assignments to see how far you’ve come!"
             ]
             INSPIRATIONAL_QUOTES = [
                 "“The secret of getting ahead is getting started.” – Mark Twain",
                 "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
                 "“It always seems impossible until it’s done.” – Nelson Mandela",
                 "“The expert in anything was once a beginner.” – Helen Hayes",
-                "“Learning never exhausts the mind.” – Leonardo da Vinci",
+                "“Learning never exhausts the mind.” – Leonardo da Vinci"
             ]
             rotate = random.randint(0, 3)
             if rotate == 0:
@@ -1719,29 +1577,27 @@ if st.session_state.get("logged_in"):
             )
         else:
             st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
-            if not df_assign.empty and user_level:
-                completed = (
-                    df_assign[
-                        (df_assign['studentcode'] == student_code) &
-                        (df_assign['level'] == user_level)
-                    ]['assignment']
-                    .nunique()
-                )
-                progress_pct = (completed / total_possible) * 100 if total_possible else 0
-                if completed > 0:
-                    st.markdown(
-                        f"""
-                        <div style='margin-top:8px;'>
-                            <b>Your Progress:</b> {completed} / {total_possible} assignments
-                            <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
-                                <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
-                            </div>
+            completed = df_assign[
+                (df_assign['studentcode'].str.lower() == student_code.lower()) &
+                (df_assign['level'] == user_level)
+            ]['assignment'].nunique()
+            total_possible = totals.get(user_level, 0)
+            progress_pct = (completed / total_possible) * 100 if total_possible else 0
+            if completed > 0:
+                st.markdown(
+                    f"""
+                    <div style='margin-top:8px;'>
+                        <b>Your Progress:</b> {completed} / {total_possible} assignments
+                        <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                            <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
                         </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.info("Start submitting assignments to see your progress bar here!")
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("Start submitting assignments to see your progress bar here!")
+
 
     st.divider()
 
@@ -1759,26 +1615,31 @@ if st.session_state.get("logged_in"):
         key="main_tab_select"
     )
 
-# ==== DASHBOARD BODY ==========================================================
-if st.session_state.get("logged_in") and tab == "Dashboard":
+
+if tab == "Dashboard":
     # --- Helper to avoid AttributeError on any row type ---
     def safe_get(row, key, default=""):
+        # mapping-style
         try:
-            return row.get(key, default)   # mapping-style
+            return row.get(key, default)
         except Exception:
             pass
+        # attribute-style
         try:
-            return getattr(row, key, default)  # attribute-style
+            return getattr(row, key, default)
         except Exception:
             pass
+        # index/key access
         try:
-            return row[key]  # index-style
+            return row[key]
         except Exception:
             return default
 
+    # --- Ensure student_row is something we can call safe_get() on ---
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
+    # (no need to convert to dict—safe_get covers all cases)
 
     # --- Student Info & Balance | Compact Card, Info-Bar Style ---
     name = safe_get(student_row, "Name")
@@ -1816,13 +1677,14 @@ if st.session_state.get("logged_in") and tab == "Dashboard":
     """
     st.markdown(info_html, unsafe_allow_html=True)
     try:
-        bal = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
+        bal = float(safe_get(student_row, "Balance", 0))
         if bal > 0:
             st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
     except Exception:
         pass
 
-    # ==== CLASS SCHEDULES (unchanged data, safe rendering) ====
+
+    # ==== CLASS SCHEDULES DICTIONARY ====
     GROUP_SCHEDULES = {
         "A1 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -1876,6 +1738,9 @@ if st.session_state.get("logged_in") and tab == "Dashboard":
     }
 
     # ==== SHOW UPCOMING CLASSES CARD ====
+    from datetime import datetime, timedelta
+
+    # use safe_get instead of direct .get()
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -2068,23 +1933,25 @@ if st.session_state.get("logged_in") and tab == "Dashboard":
         st.warning("No exam date configured for your level.")
 
     # --- Reviews Section ---
+    import datetime
+
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()   # expects 'review_text', 'student_name', 'rating'
+    reviews = load_reviews()   # <-- assumes this returns a DataFrame with 'review_text', 'student_name', 'rating' columns
+
     if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
     else:
         rev_list = reviews.to_dict("records")
-        today_idx = date.today().toordinal() % len(rev_list)
+        # Pick one review per day using today's date
+        today_idx = datetime.date.today().toordinal() % len(rev_list)
         r = rev_list[today_idx]
-        try:
-            stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
-        except Exception:
-            stars = "★" * 5
+        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
         st.markdown(
             f"> {r.get('review_text','')}\n"
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
+
 
 def get_a1_schedule():
     return [
