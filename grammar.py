@@ -7299,6 +7299,78 @@ def save_sb_checkpoint(student_code, *, level, current, shuffled, selected_idx, 
 def clear_sb_checkpoint(student_code):
     _save_sb_map(student_code, {})
 
+
+# Ensure expected globals exist (no duplication if you already defined them)
+try:
+    SENTENCE_BANK
+except NameError:
+    SENTENCE_BANK = {"A1": [], "A2": [], "B1": [], "B2": [], "C1": []}
+
+try:
+    VOCAB_LISTS
+except NameError:
+    VOCAB_LISTS = {}
+
+# Fallback for roster + level resolver
+try:
+    get_student_level
+except NameError:
+    @st.cache_data
+    def load_student_levels():
+        """Minimal roster loader used by the fallback get_student_level."""
+        try:
+            sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+            csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+            df = pd.read_csv(csv_url)
+            df.columns = [c.strip().lower() for c in df.columns]
+            code_col_candidates  = ["student_code", "studentcode", "code", "student id", "id"]
+            level_col_candidates = ["level", "klasse", "stufe"]
+            code_col  = next((c for c in code_col_candidates  if c in df.columns), None)
+            level_col = next((c for c in level_col_candidates if c in df.columns), None)
+            if code_col and level_col:
+                return df.rename(columns={code_col: "student_code", level_col: "level"})
+        except Exception:
+            pass
+        return pd.DataFrame([{"student_code":"demo001","level":"A1"}])
+
+    def get_student_level(student_code: str, default: str = "A1") -> str:
+        try:
+            df = load_student_levels()
+            sc = str(student_code).strip().lower()
+            row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
+            if not row.empty:
+                return str(row.iloc[0]["level"]).upper().strip()
+        except Exception:
+            pass
+        return default
+
+# Simple UI + checker fallbacks
+try:
+    render_message
+except NameError:
+    def render_message(role, msg):
+        st.write(f"**{('Herr Felix 👨‍🏫' if role=='assistant' else 'You')}:** {msg}")
+
+try:
+    def _clean_text(text):  # helper used by is_correct_answer fallback
+        return str(text).replace("the ", "").replace(",", "").replace(".", "").strip().lower()
+    is_correct_answer
+except NameError:
+    import re
+    def is_correct_answer(user_input, answer):
+        possible = [_clean_text(a) for a in re.split(r"[,/;]", str(answer))]
+        return _clean_text(user_input) in possible
+
+try:
+    normalize_join
+except NameError:
+    def normalize_join(tokens):
+        s = " ".join(tokens)
+        for p in [",", ".", "!", "?", ":", ";"]:
+            s = s.replace(f" {p}", p)
+        return s
+
+
 # ================================
 # TAB: Vocab Trainer (with Dictionary)
 # ================================
