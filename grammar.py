@@ -8601,6 +8601,7 @@ if tab == "Vocab Trainer":
 #
 
 
+
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
     color = "#7b2ff2" if role == "assistant" else "#222"
