@@ -8296,72 +8296,274 @@ if tab == "Vocab Trainer":
                 st.rerun()
 
     # ===========================
-    # SUBTAB: Dictionary (Delif)
+    # SUBTAB: Dictionary (simple, sticky search, mobile-friendly)
     # ===========================
     elif subtab == "Dictionary":
-        st.header("Delif Dictionary")
-        st.write("Search any word. Entries include example sentences pulled from your Sentence Bank.")
+        import io, json, difflib
 
-        # In-memory store for dictionary entries
-        if "delif_dict" not in st.session_state:
-            st.session_state["delif_dict"] = {}
+        # ---------- Helpers ----------
+        def _fallback_df(levels):
+            rows = []
+            for lvl in levels:
+                for de, en in VOCAB_LISTS.get(lvl, []):
+                    rows.append({"Level": lvl, "German": de, "English": en, "Pronunciation": ""})
+            return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Level","German","English","Pronunciation"])
 
-        # ---- Merge Sentence Bank tokens into dictionary (safe to call every render) ----
-        def _merge_from_sentence_bank():
-            for level, items in SENTENCE_BANK.items():
-                for item in items:
-                    target_sentence = item.get("target_de") or " ".join(item.get("tokens", []))
-                    tokens = [t for t in item.get("tokens", []) if t not in [",", ".", "!", "?", ":", ";"]]
-                    for tok in tokens:
-                        key = str(tok).strip().lower()
-                        if not key:
+        def _merge_sentence_bank(df, levels):
+            extra = []
+            for lvl in levels:
+                for item in SENTENCE_BANK.get(lvl, []):
+                    for tok in item.get("tokens", []):
+                        t = str(tok).strip()
+                        if not t or t in [",", ".", "!", "?", ":", ";"]:
                             continue
-                        entry = st.session_state["delif_dict"].setdefault(
-                            key, {"definition": "", "examples": []}
-                        )
-                        if target_sentence and target_sentence not in entry["examples"]:
-                            entry["examples"].append(target_sentence)
+                        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
+                            extra.append({"Level": lvl, "German": t, "English": "", "Pronunciation": ""})
+            if extra:
+                df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+                df = df.drop_duplicates(subset=["Level","German"]).reset_index(drop=True)
+            return df
 
-        _merge_from_sentence_bank()
+        def _tts_bytes_de(text: str) -> bytes:
+            try:
+                from gtts import gTTS
+                buf = io.BytesIO()
+                gTTS(text=text, lang="de").write_to_fp(buf)
+                buf.seek(0)
+                return buf.read()
+            except Exception:
+                return b""
 
-        # ---- Search ----
-        q = st.text_input("Search term").strip().lower()
-        if q:
-            entry = st.session_state["delif_dict"].get(q)
-            if entry:
-                st.subheader(q.capitalize())
-                st.write(f"**Definition:** {entry['definition'] or 'No definition yet'}")
-                if entry["examples"]:
-                    st.write("**Examples:**")
-                    for ex in entry["examples"][:12]:
-                        st.write(f"- {ex}")
-                else:
-                    st.caption("No example sentences yet.")
-            else:
-                st.warning(f"'{q}' not found in dictionary.")
+        def _json_from_text(raw: str) -> dict:
+            txt = (raw or "").strip()
+            if txt.startswith("```"):
+                txt = txt.strip("`")
+                if "\n" in txt:
+                    txt = txt.split("\n", 1)[1]
+                if "```" in txt:
+                    txt = txt.split("```", 1)[0]
+            try:
+                return json.loads(txt)
+            except Exception:
+                return {}
 
-        # ---- Add / Edit Entry ----
-        st.subheader("Add or Edit Entry")
-        new_word = st.text_input("Word (lowercase is fine)").strip().lower()
-        new_definition = st.text_area("Definition (English or German)")
-        if st.button("Save Entry"):
-            if new_word:
-                entry = st.session_state["delif_dict"].setdefault(
-                    new_word, {"definition": "", "examples": []}
+        def _enrich_word(german: str, english_hint: str, level: str):
+            """Fill Pronunciation + English + 2 examples if missing (quiet background call)."""
+            try:
+                prompt = (
+                    "You are a precise German lexicographer.\n"
+                    f'Word: "{german}"\n'
+                    f'Known English hint (may be empty): "{english_hint}"\n'
+                    f'Level: {level}\n\n'
+                    "Return compact JSON with keys: ipa, english, examples (2 items with keys de and en)."
                 )
-                entry["definition"] = new_definition
-                st.success(f"Saved entry for '{new_word}'.")
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    temperature=0.2,
+                    max_tokens=220,
+                    messages=[
+                        {"role": "system", "content": "Return strict JSON only."},
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+                data = _json_from_text(resp.choices[0].message.content)
+                ipa = str(data.get("ipa", "") or "")
+                eng = str(data.get("english", "") or english_hint or "")
+                exs = data.get("examples", []) or []
+                clean = []
+                for ex in exs[:2]:
+                    clean.append({
+                        "de": str(ex.get("de", "") or ""),
+                        "en": str(ex.get("en", "") or "")
+                    })
+                return {"pron": ipa, "english": eng, "examples": clean}
+            except Exception:
+                return {"pron": "", "english": english_hint or "", "examples": []}
+
+        # diacritic/umlaut normalization so "ae" finds "ä", etc.
+        _map = {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}
+        def _norm(s: str) -> str:
+            s = (s or "").strip().lower()
+            for k,v in _map.items():
+                s = s.replace(k, v)
+            return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
+
+        # ---------- Build data (CSV + Sentence Bank) ----------
+        levels = [student_level_locked]
+        df_dict = _fallback_df(levels)
+        df_dict = _merge_sentence_bank(df_dict, levels)
+        for c in ["Level","German","English","Pronunciation"]:
+            if c not in df_dict.columns:
+                df_dict[c] = ""
+        df_dict["g_norm"] = df_dict["German"].astype(str).map(_norm)
+        df_dict["e_norm"] = df_dict["English"].astype(str).map(_norm)
+        df_dict = df_dict.sort_values(["German"]).reset_index(drop=True)
+
+        # ---------- Mobile-friendly sticky search ----------
+        st.markdown(
+            """
+            <style>
+              .sticky-search { position: sticky; top: 0; z-index: 999; background: white; padding: 8px 0 10px 0; }
+              input[type="text"] { font-size: 18px !important; }
+              .chip { display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; margin-right:6px; margin-bottom:6px; }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        with st.container():
+            st.markdown('<div class="sticky-search">', unsafe_allow_html=True)
+            cols = st.columns([6, 3, 3])
+            with cols[0]:
+                q = st.text_input("🔎 Search (German or English)", key="dict_q", placeholder="e.g., Wochenende, bakery, spielen")
+            with cols[1]:
+                search_in = st.selectbox("Field", ["Both", "German", "English"], index=0, key="dict_field")
+            with cols[2]:
+                match_mode = st.selectbox("Match", ["Contains", "Starts with", "Exact"], index=0, key="dict_mode")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # ---------- Filter (and add enrichment when empty) ----------
+        df_view = df_dict.copy()
+        suggestions = []
+        top_row = None
+
+        if q:
+            qn = _norm(q)
+
+            # masks by field
+            g_contains = df_view["g_norm"].str.contains(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
+            g_starts   = df_view["g_norm"].str.startswith(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
+            g_exact    = df_view["g_norm"].eq(qn) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
+
+            e_contains = df_view["e_norm"].str.contains(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
+            e_starts   = df_view["e_norm"].str.startswith(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
+            e_exact    = df_view["e_norm"].eq(qn) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
+
+            if match_mode == "Contains":
+                mask = g_contains | e_contains
+            elif match_mode == "Starts with":
+                mask = g_starts | e_starts
             else:
-                st.error("Please enter a word before saving.")
+                mask = g_exact | e_exact
 
-        # ---- Browse all entries (optional) ----
-        if st.checkbox("Show all dictionary entries"):
-            for word in sorted(st.session_state["delif_dict"].keys()):
-                definition = st.session_state["delif_dict"][word]["definition"] or "No definition"
-                st.write(f"**{word}**: {definition}")
+            if mask.any():
+                df_view = df_view[mask].copy().reset_index(drop=True)
+                # prefer exact > starts > contains
+                exact_mask  = (g_exact | e_exact)
+                starts_mask = (g_starts | e_starts)
+                if exact_mask.any():
+                    top_row = df_view[exact_mask].iloc[0]
+                elif starts_mask.any():
+                    top_row = df_view[starts_mask].iloc[0]
+                else:
+                    top_row = df_view.iloc[0]
+            else:
+                # no local match → show fuzzy suggestions + enrich the query so learners still get value
+                vocab_all = df_view["German"].astype(str).unique().tolist()
+                suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
 
+                enrich = _enrich_word(q, "", student_level_locked)
+                new_row = {
+                    "Level": student_level_locked,
+                    "German": q.capitalize() if q.islower() else q,
+                    "English": enrich.get("english", ""),
+                    "Pronunciation": enrich.get("pron", ""),
+                    "g_norm": _norm(q),
+                    "e_norm": _norm(enrich.get("english","")),
+                }
+                df_view = pd.concat([df_view, pd.DataFrame([new_row])], ignore_index=True)
+                top_row = pd.Series(new_row)
+                st.session_state.setdefault("dict_cache", {})
+                st.session_state["dict_cache"][(new_row["German"], student_level_locked)] = {
+                    "pron": new_row["Pronunciation"],
+                    "english": new_row["English"],
+                    "examples": enrich.get("examples", []),
+                }
+        else:
+            # no query → show first word (nice landing state) if available
+            if not df_view.empty:
+                top_row = df_view.iloc[0]
 
+        # ---------- Details (always ABOVE) ----------
+        if "dict_cache" not in st.session_state:
+            st.session_state["dict_cache"] = {}
 
+        if top_row is not None and len(top_row) > 0:
+            de  = str(top_row["German"])
+            en  = str(top_row.get("English", "") or "")
+            lvl = str(top_row.get("Level", student_level_locked))
+            pron = str(top_row.get("Pronunciation", "") or "")
+
+            cache_key = (de, lvl)
+            cached = st.session_state["dict_cache"].get(cache_key, {})
+
+            # Backfill pronunciation/english/examples if missing
+            if not pron or not cached.get("examples"):
+                enrich = _enrich_word(de, en, lvl)
+                if not pron and enrich.get("pron"):
+                    pron = enrich["pron"]
+                if not en and enrich.get("english"):
+                    en = enrich["english"]
+                if enrich.get("examples"):
+                    cached["examples"] = enrich["examples"]
+                st.session_state["dict_cache"][cache_key] = {
+                    "pron": pron, "english": en, "examples": cached.get("examples", [])
+                }
+
+            examples = st.session_state["dict_cache"].get(cache_key, {}).get("examples", [])
+
+            st.markdown(f"### {de}")
+            if en:
+                st.markdown(f"**Meaning:** {en}")
+            if pron:
+                st.caption(f"**Pronunciation:** /{pron}/")
+
+            audio_bytes = _tts_bytes_de(de)
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                if st.button("🔊 Pronounce", key=f"say_{de}_{lvl}"):
+                    if audio_bytes:
+                        st.audio(audio_bytes, format="audio/mp3")
+            with c2:
+                if audio_bytes:
+                    st.download_button(
+                        "⬇️ Download MP3",
+                        data=audio_bytes,
+                        file_name=f"{de}.mp3",
+                        mime="audio/mpeg",
+                        key=f"dl_{de}_{lvl}"
+                    )
+                else:
+                    st.caption("Audio currently unavailable.")
+
+            with st.expander("📌 Examples", expanded=True):
+                if examples:
+                    for ex in examples[:2]:
+                        de_ex = (ex.get("de", "") or "").strip()
+                        en_ex = (ex.get("en", "") or "").strip()
+                        if de_ex:
+                            st.markdown(f"- **{de_ex}**")
+                            if en_ex:
+                                st.caption(f"  ↳ {en_ex}")
+                else:
+                    st.caption("No examples yet.")
+
+        # ---------- Did you mean (chips) ----------
+        if q and suggestions:
+            st.markdown("**Did you mean:**")
+            bcols = st.columns(min(5, len(suggestions)))
+            for i, s in enumerate(suggestions[:5]):
+                with bcols[i]:
+                    if st.button(s, key=f"sugg_{i}"):
+                        st.session_state["dict_q"] = s
+                        st.rerun()
+
+        # ---------- Scrollable table INSIDE an expander (clean page) ----------
+        with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
+            df_show = df_view[["German","English","Pronunciation"]].copy()
+            st.dataframe(df_show, use_container_width=True, height=420)
+#
+
+                
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
