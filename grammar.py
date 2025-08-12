@@ -8237,100 +8237,116 @@ if tab == "Vocab Trainer":
                 st.rerun()
 
     # ===========================
-    # SUBTAB: Dictionary (search + pronunciation)
+    # SUBTAB: Dictionary (scroll + range + details)
     # ===========================
     elif subtab == "Dictionary":
-        st.info("📖 Quick bilingual dictionary. Type in **German or English**. Click the speaker to **hear the German word**.")
+        import math
 
-        # Build flat table once
-        all_entries = _flatten_vocab_entries(VOCAB_LISTS)  # [{'level','german','english'}...]
-        df_all = pd.DataFrame(all_entries)
-
-        # Filters
-        q = st.text_input("Search word…", key="dict_query").strip()
-        mode = st.radio("Filter", ["All levels", "Only my level"], horizontal=True, key="dict_mode")
-        my_level = student_level_locked
-
-        if mode == "Only my level":
-            df_view = df_all[df_all["level"].astype(str).str.upper().eq(my_level)].copy()
-        else:
-            df_view = df_all.copy()
-
-        # Search
-        if q:
-            qlow = q.lower()
-            hits = df_view[
-                df_view["german"].str.lower().str.contains(qlow) |
-                df_view["english"].str.lower().str.contains(qlow)
-            ].sort_values(["level","german"])
-            count = len(hits)
-            if count == 0:
-                st.warning("No exact matches. Try a shorter query.")
-                sugg = df_view[
-                    df_view["german"].str.lower().str.startswith(qlow) |
-                    df_view["english"].str.lower().str.startswith(qlow)
-                ].head(12)
-                if not sugg.empty:
-                    st.caption("Suggestions:")
-                    cols = st.columns(3)
-                    for i, (_, r) in enumerate(sugg.iterrows()):
-                        with cols[i % 3]:
-                            st.markdown(
-                                f"<div style='padding:8px 10px;background:#f7f7ff;border:1px solid #e0e0ff;"
-                                f"border-radius:10px;margin:6px 0;'>"
-                                f"<b>{r['german']}</b><br><span style='color:#555'>{r['english']}</span>"
-                                f"<br><span style='font-size:0.8em;color:#8c8cff'>Level {r['level']}</span>"
-                                f"</div>", unsafe_allow_html=True
-                            )
-                st.stop()
-        else:
-            # No query: sample a small set for browsing
-            hits = df_view.sample(min(12, len(df_view)), random_state=42).sort_values(["level","german"]) if len(df_view) else df_view
-
-        # Results table header
-        st.markdown(
-            """
-            <div style="display:flex;gap:8px;font-weight:600;padding:8px 10px;border-bottom:1px solid #eee;">
-              <div style="flex:3">German</div>
-              <div style="flex:3">English</div>
-              <div style="flex:1">Level</div>
-              <div style="flex:1">Pronunciation</div>
-            </div>
-            """,
-            unsafe_allow_html=True
+        st.info(
+            "📖 Browse all words in your level (scroll the table) or search. "
+            "Pick any row for pronunciation, examples, and save."
         )
 
-        # Rows with pronounce buttons
-        max_rows = 20  # keep it snappy
-        for i, (_, r) in enumerate(hits.head(max_rows).iterrows()):
-            de = r["german"]; en = r["english"]; lvl = r["level"]
-            cols = st.columns([3,3,1,1])
-            with cols[0]:
-                st.write(de)
-            with cols[1]:
-                st.write(en)
-            with cols[2]:
-                st.write(lvl)
-            with cols[3]:
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("🔊", key=f"dict_play_{i}"):
-                        audio = _dict_tts_bytes_de(de, slow=False)
-                        if audio:
-                            st.audio(audio, format="audio/mp3")
-                        else:
-                            st.error("Could not generate audio.")
-                with c2:
-                    if st.button("🐢", key=f"dict_play_slow_{i}"):
-                        audio_slow = _dict_tts_bytes_de(de, slow=True)
-                        if audio_slow:
-                            st.audio(audio_slow, format="audio/mp3")
-                        else:
-                            st.error("Could not generate audio.")
+        # --- Controls ---
+        source_mode = st.radio(
+            "Data source",
+            ["CSV only", "CSV + Sentence Bank"],
+            horizontal=True,
+            key="dict_src_mode"
+        )
+        level_scope = st.radio(
+            "Levels",
+            ["Your level only", "All levels"],
+            horizontal=True,
+            key="dict_level_scope"
+        )
 
-        # Optional: full table view toggle
-        with st.expander("Show as table (copy/paste)"):
-            st.dataframe(hits.reset_index(drop=True), use_container_width=True)
+        # Which levels to show
+        levels_to_include = (
+            [student_level_locked] if level_scope == "Your level only"
+            else ["A1", "A2", "B1", "B2", "C1"]
+        )
+
+        # --- Build dataframe (tries your helper first, falls back to CSV) ---
+        try:
+            # expects your earlier helper
+            df_dict = _build_dictionary_df(
+                levels=levels_to_include,
+                include_sentence_bank=(source_mode == "CSV + Sentence Bank")
+            )
+        except Exception:
+            # fallback: build from VOCAB_LISTS only
+            rows = []
+            for lvl in levels_to_include:
+                for de, en in VOCAB_LISTS.get(lvl, []):
+                    rows.append({"Level": lvl, "German": de, "English": en, "IPA": ""})
+            df_dict = pd.DataFrame(rows)
+
+        # --- Search/filter ---
+        q = st.text_input("🔎 Search German or English", key="dict_query").strip()
+        if q:
+            qlow = q.lower()
+            mask = (
+                df_dict["German"].astype(str).str.lower().str.contains(qlow)
+                | df_dict["English"].astype(str).str.lower().str.contains(qlow)
+            )
+            df_view = df_dict[mask].copy()
+        else:
+            df_view = df_dict.copy()
+
+        # --- Scrollable table (shows full range) ---
+        st.caption(f"Showing {len(df_view)} / {len(df_dict)} words")
+        st.dataframe(
+            df_view[["Level", "German", "English", "IPA"]].sort_values(["Level", "German"]),
+            use_container_width=True,
+            height=420
+        )
+
+        # --- Row details / actions ---
+        options = ["— select a word —"] + df_view["German"].tolist()
+        pick = st.selectbox("Details", options, key="dict_pick")
+
+        if pick and pick != "— select a word —":
+            row = df_view[df_view["German"] == pick].iloc[0]
+            de = str(row["German"])
+            en = str(row["English"])
+            ipa = str(row.get("IPA", "") or "")
+            lvl = str(row.get("Level", ""))
+
+            st.markdown(f"### {de}")
+            st.markdown(f"**Meaning:** {en}")
+            if ipa:
+                st.caption(f"**IPA:** /{ipa}/")
+
+            c1, c2, c3 = st.columns([1, 1, 3])
+            with c1:
+                if st.button("🔊 Pronounce", key=f"say_{de}"):
+                    try:
+                        # your helper creates mp3 bytes (gTTS or similar)
+                        audio_bytes = _dict_tts_bytes_de(de)
+                        st.audio(audio_bytes, format="audio/mp3")
+                    except Exception as e:
+                        st.warning(f"Audio unavailable: {e}")
+            with c2:
+                if st.button("➕ Save to My List", key=f"save_{de}"):
+                    try:
+                        _add_to_custom_vocab(student_code, de, en, lvl)
+                        st.success("Added to your list.")
+                    except Exception as e:
+                        st.warning(f"Couldn't save: {e}")
+
+            with st.expander("📌 Example sentences"):
+                try:
+                    examples = _examples_for_word(de) or []
+                except Exception:
+                    examples = []
+                if examples:
+                    for ex in examples:
+                        st.markdown(f"- {ex}")
+                else:
+                    st.caption("No examples available for this word.")
+#
+
 
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
