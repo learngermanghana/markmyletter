@@ -933,15 +933,17 @@ components.html("""
 </script>
 """, height=0)
 
-# --- Early client-side restore gate to prevent "flash-logout" on hard refresh ---
-if not st.session_state.get("logged_in", False):
+# --- Early client-side restore gate (no infinite "restoring" state) ---
+has_cookie_tok = bool((cookie_manager.get("session_token") or "").strip())
+
+if (not st.session_state.get("logged_in", False)) and (not has_cookie_tok):
+    # If Safari nuked cookies but LS still has the token, bounce it into the URL (?ls=...)
     components.html(
         """
         <script>
           (function(){
             try {
               var tok = localStorage.getItem('session_token') || '';
-              // Only redirect if we have a token AND it isn't already in the URL
               if (tok) {
                 var u = new URL(window.location);
                 if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
@@ -955,9 +957,8 @@ if not st.session_state.get("logged_in", False):
         """,
         height=0
     )
-    # Show a small message while the redirect happens
-    st.info("Restoring your session…")
-    st.stop()
+    # NOTE: no st.stop() here — if there's no LS token, we just render the normal homepage.
+
 
 
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
