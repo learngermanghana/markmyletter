@@ -3647,7 +3647,8 @@ def get_c1_schedule():
     ]
 
 
-# --- DEV MOCK LOGIN (kept lightweight; remove in prod) ---
+
+# --- FORCE A MOCK LOGIN FOR TESTING ---
 if "student_row" not in st.session_state:
     st.session_state["student_row"] = {
         "Name": "Test Student",
@@ -3656,215 +3657,189 @@ if "student_row" not in st.session_state:
         "ClassName": "A1 Berlin Klasse",
     }
 
-student_row = st.session_state.get("student_row", {}) or {}
-student_level = str(student_row.get("Level", "A1")).upper().strip()
+student_row = st.session_state.get("student_row", {})
+student_level = student_row.get("Level", "A1").upper()
 
-# --- Level schedules (resilient) ---
+# --- Cache level schedules with TTL for periodic refresh ---
 @st.cache_data(ttl=86400)
 def load_level_schedules():
-    def _safe(fn):
-        try:
-            return fn()
-        except Exception:
-            return []
     return {
-        "A1": _safe(get_a1_schedule),
-        "A2": _safe(get_a2_schedule),
-        "B1": _safe(get_b1_schedule),
-        "B2": _safe(get_b2_schedule),
-        "C1": _safe(get_c1_schedule),
+        "A1": get_a1_schedule(),
+        "A2": get_a2_schedule(),
+        "B1": get_b1_schedule(),
+        "B2": get_b2_schedule(),
+        "C1": get_c1_schedule(),
     }
 
-# --- Helpers (only define if not already provided upstream) ---
-if "render_assignment_reminder" not in globals():
-    def render_assignment_reminder():
-        st.markdown(
-            '''
-            <div style="
-                box-sizing: border-box;
-                width: 100%;
-                max-width: 600px;
-                padding: 16px;
-                background: #ffc107;
-                color: #000;
-                border-left: 6px solid #e0a800;
-                margin: 16px auto;
-                border-radius: 8px;
-                font-size: 1.1rem;
-                line-height: 1.4;
-                text-align: center;
-                overflow-wrap: break-word;
-                word-wrap: break-word;
-            ">
-                ⬆️ <strong>Your Assignment:</strong><br>
-                Complete the exercises in your <em>workbook</em> for this chapter.
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
+# --- Helpers ---
+def render_assignment_reminder():
+    st.markdown(
+        '''
+        <div style="
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 600px;
+            padding: 16px;
+            background: #ffc107;
+            color: #000;
+            border-left: 6px solid #e0a800;
+            margin: 16px auto;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            line-height: 1.4;
+            text-align: center;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        ">
+            ⬆️ <strong>Your Assignment:</strong><br>
+            Complete the exercises in your <em>workbook</em> for this chapter.
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
 
-if "render_link" not in globals():
-    def render_link(label, url):
-        from urllib.parse import urlparse
+def render_link(label, url):
+    st.markdown(f"- [{label}]({url})")
+
+@st.cache_data(ttl=86400)
+def build_wa_message(name, code, level, day, chapter, answer):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    return (
+        f"Learn Language Education Academy – Assignment Submission\n"
+        f"Name: {name}\n"
+        f"Code: {code}\n"
+        f"Level: {level}\n"
+        f"Day: {day}\n"
+        f"Chapter: {chapter}\n"
+        f"Date: {timestamp}\n"
+        f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
+    )
+
+SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
+
+def _slack_url() -> str:
+    # 1) Render env var  2) optional fallback to st.secrets.slack.webhook_url
+    url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+    if not url:
         try:
-            p = urlparse(str(url))
-            if p.scheme in ("http", "https") and p.netloc:
-                st.markdown(f"- [{label}]({url})")
-            else:
-                st.caption(f"({label} link unavailable)")
+            url = (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "").strip()
         except Exception:
-            st.caption(f"({label} link unavailable)")
+            url = ""
+    return url
 
-if "build_wa_message" not in globals():
-    @st.cache_data(ttl=86400)
-    def build_wa_message(name, code, level, day, chapter, answer):
-        from datetime import datetime as _dt
-        timestamp = _dt.now().strftime("%Y-%m-%d %H:%M")
-        body = (answer or "").strip() or "[See attached file/photo]"
-        return (
-            "Learn Language Education Academy – Assignment Submission\n"
-            f"Name: {name}\nCode: {code}\nLevel: {level}\nDay: {day}\n"
-            f"Chapter: {chapter}\nDate: {timestamp}\nAnswer: {body}"
-        )
+def notify_slack(text: str):
+    """
+    Returns (ok: bool, info: str). Uses one webhook for all events.
+    Set SLACK_DEBUG=1 in Render to see failure details in-app (admins only).
+    """
+    url = _slack_url()
+    if not url:
+        return False, "missing_webhook"
+    try:
+        resp = requests.post(url, json={"text": text}, timeout=6)
+        ok = 200 <= resp.status_code < 300
+        return ok, f"status={resp.status_code}"
+    except Exception as e:
+        return False, str(e)
+        
+def highlight_terms(text, terms):
+    if not text: return ""
+    for term in terms:
+        if not term.strip():
+            continue
+        pattern = re.compile(re.escape(term), re.IGNORECASE)
+        text = pattern.sub(f"<span style='background:yellow;border-radius:0.23em;'>{term}</span>", text)
+    return text
 
-if "SLACK_DEBUG" not in globals():
-    import os as _os
-    SLACK_DEBUG = (_os.getenv("SLACK_DEBUG", "0") == "1")
+def filter_matches(lesson, terms):
+    searchable = (
+        str(lesson.get('topic', '')).lower() +
+        str(lesson.get('chapter', '')).lower() +
+        str(lesson.get('goal', '')).lower() +
+        str(lesson.get('instruction', '')).lower() +
+        str(lesson.get('grammar_topic', '')).lower() +
+        str(lesson.get('day', '')).lower()
+    )
+    return any(term in searchable for term in terms)
+    
+def render_section(day_info, key, title, icon):
+    content = day_info.get(key)
+    if not content:
+        return
+    items = content if isinstance(content, list) else [content]
+    st.markdown(f"#### {icon} {title}")
+    for idx, part in enumerate(items):
+        if len(items) > 1:
+            st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
+        if part.get('video'):
+            st.video(part['video'])
+        if part.get('grammarbook_link'):
+            render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
+        if part.get('workbook_link'):
+            render_link("📒 Workbook (Assignment)", part['workbook_link'])
+            render_assignment_reminder()
+        extras = part.get('extra_resources')
+        if extras:
+            for ex in (extras if isinstance(extras, list) else [extras]):
+                render_link("🔗 Extra", ex)
 
-if "_slack_url" not in globals():
-    def _slack_url() -> str:
-        import os as _os
-        url = (_os.getenv("SLACK_WEBHOOK_URL") or "").strip()
-        if not url:
-            try:
-                url = (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "").strip()
-            except Exception:
-                url = ""
-        return url
 
-if "notify_slack" not in globals():
-    def notify_slack(text: str):
-        import requests as _req
-        url = _slack_url()
-        if not url:
-            return False, "missing_webhook"
-        try:
-            resp = _req.post(url, json={"text": text}, timeout=6)
-            ok = 200 <= resp.status_code < 300
-            return ok, f"status={resp.status_code}"
-        except Exception as e:
-            return False, str(e)
+def post_message(level, code, name, text, reply_to=None):
+    posts_ref = db.collection("class_board").document(level).collection("posts")
+    posts_ref.add({
+        "student_code": code,
+        "student_name": name,
+        "text": text.strip(),
+        "timestamp": datetime.utcnow(),
+        "reply_to": reply_to,
+    })
 
-if "highlight_terms" not in globals():
-    import html as _html, re as _re
-    def highlight_terms(text, terms):
-        if not text: return ""
-        esc = _html.escape(str(text))
-        terms = [t for t in (terms or []) if t.strip()]
-        if not terms:
-            return esc
-        pat = _re.compile("(" + "|".join(map(_re.escape, terms)) + ")", _re.IGNORECASE)
-        return pat.sub(lambda m: f"<span style='background:yellow;border-radius:.23em;'>{m.group(0)}</span>", esc)
+RESOURCE_LABELS = {
+    'video': '🎥 Video',
+    'grammarbook_link': '📘 Grammar',
+    'workbook_link': '📒 Workbook',
+    'extra_resources': '🔗 Extra'
+}
 
-if "filter_matches" not in globals():
-    def filter_matches(lesson, terms):
-        searchable = (
-            str(lesson.get('topic', '')).lower() +
-            str(lesson.get('chapter', '')).lower() +
-            str(lesson.get('goal', '')).lower() +
-            str(lesson.get('instruction', '')).lower() +
-            str(lesson.get('grammar_topic', '')).lower() +
-            str(lesson.get('day', '')).lower()
-        )
-        return any(term in searchable for term in (terms or []))
+# ---- Firestore Helpers ----
+def load_notes_from_db(student_code):
+    ref = db.collection("learning_notes").document(student_code)
+    doc = ref.get()
+    return doc.to_dict().get("notes", []) if doc.exists else []
 
-if "render_section" not in globals():
-    def render_section(day_info, key, title, icon):
-        content = day_info.get(key)
-        if not content:
-            return
-        items = content if isinstance(content, list) else [content]
-        st.markdown(f"#### {icon} {title}")
-        for idx, part in enumerate(items):
-            if len(items) > 1:
-                st.markdown(f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}")
-            src = part.get('video') or part.get('youtube_link')
-            if src:
-                st.video(src)
-                st.markdown(f"[▶️ Watch on YouTube]({src})")
-            if part.get('grammarbook_link'):
-                render_link("📘 Grammar Book (Notes)", part['grammarbook_link'])
-                st.caption("📘 contains notes; 📒 is your workbook assignment.")
-            if part.get('workbook_link'):
-                render_link("📒 Workbook (Assignment)", part['workbook_link'])
-                render_assignment_reminder()
-            extras = part.get('extra_resources')
-            if extras:
-                for ex in (extras if isinstance(extras, list) else [extras]):
-                    render_link("🔗 Extra", ex)
+def save_notes_to_db(student_code, notes):
+    ref = db.collection("learning_notes").document(student_code)
+    ref.set({"notes": notes}, merge=True)
+    
 
-if "post_message" not in globals():
-    def post_message(level, code, name, text, reply_to=None):
-        # assumes global `db` exists; fallback if missing
-        if "db" not in globals() or db is None:
-            try:
-                import firebase_admin
-                from firebase_admin import firestore as _fb
-                if not firebase_admin._apps:
-                    firebase_admin.initialize_app()
-                _db = _fb.client()
-            except Exception:
-                from google.cloud import firestore as _gcf
-                _db = _gcf.Client()
-            globals()["db"] = _db
-        posts_ref = db.collection("class_board").document(level).collection("posts")
-        posts_ref.add({
-            "student_code": code,
-            "student_name": name,
-            "text": str(text).strip(),
-            "timestamp": datetime.utcnow(),
-            "reply_to": reply_to,
-        })
-
-if "RESOURCE_LABELS" not in globals():
-    RESOURCE_LABELS = {
-        'video': '🎥 Video',
-        'grammarbook_link': '📘 Grammar',
-        'workbook_link': '📒 Workbook',
-        'extra_resources': '🔗 Extra'
-    }
-
-# Firestore Notes helpers (respect existing db)
-if "load_notes_from_db" not in globals():
-    def load_notes_from_db(student_code):
-        ref = db.collection("learning_notes").document(student_code)
-        doc = ref.get()
-        return (doc.to_dict() or {}).get("notes", []) if getattr(doc, "exists", False) else []
-
-if "save_notes_to_db" not in globals():
-    def save_notes_to_db(student_code, notes):
-        ref = db.collection("learning_notes").document(student_code)
-        ref.set({"notes": notes}, merge=True)
-
-# ============================== MY COURSE ==============================
 if tab == "My Course":
-    # read-once flags to avoid rerun loops
-    def _consume_flag(key: str) -> bool:
-        if st.session_state.get(key):
-            st.session_state.pop(key, None)
-            return True
-        return False
-
-    if _consume_flag("__go_classroom"):
+    # === HANDLE ALL SWITCHING *BEFORE* ANY WIDGET ===
+    # Jump flags set by buttons elsewhere
+    if st.session_state.get("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
-        st.rerun()
-    if _consume_flag("__go_notes") or _consume_flag("switch_to_notes"):
-        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["__go_classroom"]
         st.rerun()
 
+    if st.session_state.get("__go_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["__go_notes"]
+        st.rerun()
+
+    # Backward-compat: older code may still set this
+    if st.session_state.get("switch_to_notes"):
+        st.session_state["coursebook_subtab"] = "📒 Learning Notes"
+        del st.session_state["switch_to_notes"]
+        st.rerun()
+
+    # First run default
     if "coursebook_subtab" not in st.session_state:
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
 
+    # Header (render once)
     st.markdown(
         '''
         <div style="
@@ -3883,6 +3858,7 @@ if tab == "My Course":
     )
     st.divider()
 
+    # Subtabs (1: Classroom, 2: Course Book, 3: Learning Notes)
     cb_subtab = st.radio(
         "Select section:",
         ["🧑‍🏫 Classroom", "📘 Course Book", "📒 Learning Notes"],
@@ -3890,7 +3866,8 @@ if tab == "My Course":
         key="coursebook_subtab"
     )
 
-    # -------------------------- COURSE BOOK --------------------------
+
+    # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
         st.markdown(
             '''
@@ -3926,17 +3903,37 @@ if tab == "My Course":
             for _, d in matches:
                 title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
                 grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
-                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+                labels.append(
+                    f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
+                )
 
-            st.markdown("<span style='font-weight:700; font-size:1rem;'>Lessons:</span>", unsafe_allow_html=True)
-            sel = st.selectbox("", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
+            # Bold header for lessons dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Lessons:</span>",
+                unsafe_allow_html=True
+            )
+            sel = st.selectbox(
+                "",  # label hidden
+                list(range(len(matches))),
+                format_func=lambda i: labels[i],
+                key="course_search_sel"
+            )
             idx = matches[sel][0]
         else:
-            st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
-            idx = st.selectbox("", range(len(schedule)), format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}")
+            # Bold header for lesson/day dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>",
+                unsafe_allow_html=True
+            )
+            idx = st.selectbox(
+                "",  # label hidden
+                range(len(schedule)),
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+            )
 
         st.divider()
 
+        # Progress Bar
         total = len(schedule)
         done = idx + 1
         pct = int(done / total * 100) if total else 0
@@ -3944,21 +3941,27 @@ if tab == "My Course":
         st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
         st.divider()
 
+        # ===== COURSE BOOK INFO =====
         with st.expander("📚 Course Book & Study Recommendations", expanded=False):
+
+            # Recommended time
             LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
             rec_time = LEVEL_TIME.get(student_level, 20)
             st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
 
-            start_str = str(student_row.get("ContractStart", "") or "")
+            # Suggested end dates
+            start_str = student_row.get("ContractStart", "")
             start_date = None
             for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
                 try:
                     start_date = datetime.strptime(start_str, fmt).date()
                     break
-                except Exception:
+                except:
                     continue
 
-            if start_date and total:
+            if start_date:
+                total = total  # assuming this variable is already defined earlier in your code
+                # calculate weeks for different paces
                 weeks_three = (total + 2) // 3
                 weeks_two   = (total + 1) // 2
                 weeks_one   = total
@@ -3967,33 +3970,74 @@ if tab == "My Course":
                 end_two   = start_date + timedelta(weeks=weeks_two)
                 end_one   = start_date + timedelta(weeks=weeks_one)
 
-                _, content = st.columns([3, 7])
+                # spacer layout
+                spacer, content = st.columns([3, 7])
                 with content:
                     st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
                     st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
                     st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
             else:
-                _, content = st.columns([3, 7])
+                spacer, content = st.columns([3, 7])
                 with content:
-                    st.warning("❓ Start date missing/invalid or no lessons available.")
-
+                    st.warning("❓ Start date missing or invalid. Please update your contract start date.")
+#
         info = schedule[idx]
-
-        # Header + highlights
+        # ---- Fix for highlight and header ----
         lesson_title = f"Day {info['day']}: {info['topic']}"
-        st.markdown(f"### {highlight_terms(lesson_title, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
+        highlighted_title = highlight_terms(lesson_title, search_terms)
+        st.markdown(
+            f"### {highlighted_title} (Chapter {info['chapter']})",
+            unsafe_allow_html=True
+        )
         st.divider()
 
         if info.get("grammar_topic"):
-            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+            st.markdown(
+                f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}",
+                unsafe_allow_html=True
+            )
         if info.get("goal"):
             st.markdown(f"**🎯 Goal:**  {info['goal']}")
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
+        # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
+        def render_section(day_info, key, title, icon):
+            content = day_info.get(key)
+            if not content:
+                return
+            items = content if isinstance(content, list) else [content]
+            st.markdown(f"#### {icon} {title}")
+            for idx, part in enumerate(items):
+                if len(items) > 1:
+                    st.markdown(
+                        f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}"
+                    )
+                # --- Embed video and show link if available ---
+                if part.get('video'):
+                    st.video(part['video'])
+                    st.markdown(f"[▶️ Watch on YouTube]({part['video']})")
+                # --- Also support explicit youtube_link (if different from 'video') ---
+                elif part.get('youtube_link'):
+                    st.markdown(f"[▶️ Watch on YouTube]({part['youtube_link']})")
+                if part.get('grammarbook_link'):
+                    st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
+                    st.markdown(
+                        '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                        unsafe_allow_html=True
+                    )
+                if part.get('workbook_link'):
+                    st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
+                    render_assignment_reminder()
+                extras = part.get('extra_resources')
+                if extras:
+                    for ex in (extras if isinstance(extras, list) else [extras]):
+                        st.markdown(f"- [🔗 Extra]({ex})")
+
         render_section(info, "lesen_hören", "Lesen & Hören", "📚")
         render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
+        # ---- Show resource links for upper levels if needed ----
         if student_level in ["A2", "B1", "B2", "C1"]:
             for res, label in RESOURCE_LABELS.items():
                 val = info.get(res)
@@ -4003,8 +4047,12 @@ if tab == "My Course":
                         st.markdown(f"[▶️ Watch on YouTube]({val})")
                     else:
                         st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
-            st.caption("📘 contains notes; 📒 is your workbook assignment.")
+            st.markdown(
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                unsafe_allow_html=True
+            )
 
+        # --- Translation Tools ---
         with st.expander("🌐 Translation Tools", expanded=False):
             st.markdown("---")
             st.markdown(
@@ -4017,13 +4065,14 @@ if tab == "My Course":
 
         st.divider()
 
-        # Video of the Day
+        # --- Video of the Day ---
         with st.expander("🎬 Video of the Day for Your Level", expanded=False):
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
             if playlist_id:
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
-                    pick = date.today().toordinal() % len(video_list)
+                    today_idx = date.today().toordinal()
+                    pick = today_idx % len(video_list)
                     video = video_list[pick]
                     st.markdown(f"**{video['title']}**")
                     st.video(video['url'])
@@ -4034,8 +4083,10 @@ if tab == "My Course":
 
         st.divider()
 
-        # ---------------------- SUBMIT ASSIGNMENT ----------------------
+        # === SUBMIT ASSIGNMENT (Render env secret + context banner + submit + lock; NO AUTO-REFRESH) ===
         st.markdown("### ✅ Submit Your Assignment")
+
+        # Clear context banner so students see exactly where they are
         st.markdown(
             f"""
             <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
@@ -4051,53 +4102,41 @@ if tab == "My Course":
             unsafe_allow_html=True
         )
 
-        # Draft persistence
+        # Render env (Slack) — set on Render dashboard: SLACK_WEBHOOK_URL=...
+        import os, requests
+        from datetime import datetime
+
+        def get_slack_webhook() -> str:
+            return (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
+
+        # --- Draft persistence (save + load from Firestore) ---
         def save_draft_to_db(code, lesson_key, text):
             doc_ref = db.collection('draft_answers').document(code)
-            doc_ref.set({lesson_key: text, f"{lesson_key}__updated_at": datetime.utcnow()}, merge=True)
+            doc_ref.set(
+                {lesson_key: text, f"{lesson_key}__updated_at": datetime.utcnow()},
+                merge=True
+            )
 
         def load_draft_from_db(code, lesson_key) -> str:
             try:
                 doc = db.collection('draft_answers').document(code).get()
-                if getattr(doc, "exists", False):
+                if doc.exists:
                     data = doc.to_dict() or {}
                     return data.get(lesson_key, "")
             except Exception:
                 pass
             return ""
 
-        # Latest submission (to lock UI)
-        def fetch_latest(level, code, lesson_key):
-            posts_ref = db.collection("submissions").document(level).collection("posts")
-            try:
-                from google.cloud import firestore as _gcf
-                docs = posts_ref.where("student_code","==",code)\
-                                .where("lesson_key","==",lesson_key)\
-                                .order_by("updated_at", direction=_gcf.Query.DESCENDING)\
-                                .limit(1).stream()
-                for d in docs:
-                    return d.to_dict()
-            except Exception:
-                docs = posts_ref.where("student_code","==",code)\
-                                .where("lesson_key","==",lesson_key)\
-                                .stream()
-                items = [d.to_dict() for d in docs]
-                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
-                return items[0] if items else None
-            return None
-
         code = student_row.get('StudentCode', 'demo001')
-        lesson_key = f"draft_{info['chapter']}"
+        lesson_key = f"draft_{info['chapter']}"     # unique per chapter
         chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
         name = st.text_input("Name", value=student_row.get('Name', ''))
 
-        latest = fetch_latest(student_level, code, lesson_key)
+        # Persisted lock per lesson
         locked_key = f"{lesson_key}_locked"
-        locked = bool(st.session_state.get(locked_key))
-        if latest and latest.get("status") in {"submitted", "received", "graded"}:
-            locked = True
-            st.session_state[locked_key] = True
+        locked = st.session_state.get(locked_key, False)
 
+        # One-time hydration from Firestore so text survives refresh/restart
         if not st.session_state.get(f"{lesson_key}__hydrated", False):
             existing = load_draft_from_db(code, lesson_key)
             if existing and not st.session_state.get(lesson_key):
@@ -4105,10 +4144,11 @@ if tab == "My Course":
                 st.info("💾 Loaded your saved draft.")
             st.session_state[f"{lesson_key}__hydrated"] = True
 
+        # Answer Box (autosaves on change ONLY)
         st.subheader("✍️ Your Answer (Autosaves)")
         def autosave_draft():
-            text_val = st.session_state.get(lesson_key, "")
-            save_draft_to_db(code, lesson_key, text_val)
+            text = st.session_state.get(lesson_key, "")
+            save_draft_to_db(code, lesson_key, text)
             st.session_state[f"{lesson_key}_saved"] = True
             st.session_state[f"{lesson_key}_saved_at"] = datetime.utcnow()
 
@@ -4117,37 +4157,36 @@ if tab == "My Course":
             value=st.session_state.get(lesson_key, ""),
             height=500,
             key=lesson_key,
-            on_change=autosave_draft,
+            on_change=autosave_draft,  # saves when the field loses focus or the widget updates
             disabled=locked,
-            help="Draft autosaves when you click outside the box or the field updates."
+            help="Draft autosaves when you click outside the box or change focus."
         )
 
-        csave1, csave2 = st.columns([1,2])
-        with csave1:
+        cols_save = st.columns([1,2])
+        with cols_save[0]:
             if st.button("💾 Save Draft now", disabled=locked):
                 autosave_draft()
                 st.success("Draft saved.")
-        with csave2:
+        with cols_save[1]:
             ts = st.session_state.get(f"{lesson_key}_saved_at")
             if ts:
                 st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
 
+        # Instructions
         with st.expander("📌 How to Submit", expanded=False):
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
                 2) Tick the two confirmations below.  
                 3) Click **Confirm & Submit**.  
                 4) Your box will lock (read-only).  
                 _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-                """
-            )
+            """)
 
-        def _notify_submission(webhook_url: str, *, student_name: str, student_code: str,
-                               level: str, day: int, chapter: str, receipt: str, preview: str):
+        # Slack notify helper (uses Render env only)
+        def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
+                                    level: str, day: int, chapter: str, receipt: str, preview: str):
             if not webhook_url:
                 return
-            import requests as _req
             text = (
                 f"*New submission* • {student_name} ({student_code})\n"
                 f"*Level:* {level}  •  *Day:* {day}\n"
@@ -4156,12 +4195,13 @@ if tab == "My Course":
                 f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
             )
             try:
-                _req.post(webhook_url, json={"text": text}, timeout=6)
+                requests.post(webhook_url, json={"text": text}, timeout=6)
             except Exception:
-                pass
+                pass  # don't block student
 
+        # Firestore: create submission, return short ref for Slack (hidden from student)
         def submit_answer(code, name, level, day, chapter, lesson_key, answer):
-            if not (answer or "").strip():
+            if not answer or not answer.strip():
                 st.warning("Please type your answer before submitting.")
                 return False, None
             posts_ref = db.collection("submissions").document(level).collection("posts")
@@ -4181,8 +4221,10 @@ if tab == "My Course":
             }
             _, ref = posts_ref.add(payload)
             doc_id = ref.id
-            return True, f"{doc_id[:8].upper()}-{day}"
+            short_ref = f"{doc_id[:8].upper()}-{day}"
+            return True, short_ref
 
+        # Two-step confirm + Submit / Save to Notes / Ask a Question
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -4214,10 +4256,9 @@ if tab == "My Course":
                     st.success("Submitted! Your work has been sent to your tutor.")
                     st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
-                    from os import getenv as _getenv
-                    webhook = (_getenv("SLACK_WEBHOOK_URL") or "").strip()
+                    webhook = get_slack_webhook()
                     if webhook:
-                        _notify_submission(
+                        notify_slack_submission(
                             webhook_url=webhook,
                             student_name=name or "Student",
                             student_code=code,
@@ -4228,22 +4269,46 @@ if tab == "My Course":
                             preview=st.session_state.get(lesson_key, "")
                         )
 
+        # --- Column 2: Ask the Teacher (jump to Classroom Q&A) ---
         with col2:
             st.markdown("#### ❓ Ask the Teacher")
             if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
+                # set a jump flag; DON'T touch the radio key directly here
                 st.session_state["__go_classroom"] = True
                 st.rerun()
 
+        # --- Column 3: Add Notes (just jump to Notes tab) ---
         with col3:
             st.markdown("#### 📝 Add Notes")
             if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
+                # set a jump flag; no prefills
                 st.session_state["__go_notes"] = True
                 st.rerun()
+#
+
 
         st.divider()
 
-        # Status
-        latest = latest or fetch_latest(student_level, code, lesson_key)
+        # Submission status (latest only; no receipt shown)
+        def fetch_latest(level, code, lesson_key):
+            posts_ref = db.collection("submissions").document(level).collection("posts")
+            try:
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .order_by("updated_at", direction=firestore.Query.DESCENDING)\
+                                .limit(1).stream()
+                for d in docs:
+                    return d.to_dict()
+            except Exception:
+                docs = posts_ref.where("student_code","==",code)\
+                                .where("lesson_key","==",lesson_key)\
+                                .stream()
+                items = [d.to_dict() for d in docs]
+                items.sort(key=lambda x: x.get("updated_at"), reverse=True)
+                return items[0] if items else None
+            return None
+
+        latest = fetch_latest(student_level, code, lesson_key)
         if latest:
             ts = latest.get('updated_at')
             when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
@@ -4251,9 +4316,10 @@ if tab == "My Course":
             st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
         else:
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+#
 
-    # ---------------------------- CLASSROOM ----------------------------
     if cb_subtab == "🧑‍🏫 Classroom":
+        # --- Classroom banner (top of subtab) ---
         st.markdown(
             '''
             <div style="
@@ -4272,26 +4338,41 @@ if tab == "My Course":
         )
         st.divider()
 
-        # Ensure `db` exists (don’t duplicate if already set above)
-        if "db" not in globals() or db is None:
+        # ---------- DB (Firestore) bootstrap ----------
+        def _get_db():
+            # Use existing global if present
+            _existing = globals().get("db")
+            if _existing is not None:
+                return _existing
+            # Try Firebase Admin SDK first (firestore.client())
             try:
                 import firebase_admin
-                from firebase_admin import firestore as _fbfs
+                from firebase_admin import firestore as fbfs
                 if not firebase_admin._apps:
                     firebase_admin.initialize_app()
-                db = _fbfs.client()
+                return fbfs.client()
             except Exception:
-                from google.cloud import firestore as _gcf
-                db = _gcf.Client()
+                pass
+            # Fallback to Google Cloud Firestore (firestore.Client())
+            try:
+                from google.cloud import firestore as gcf
+                return gcf.Client()
+            except Exception:
+                st.error(
+                    "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
+                    icon="🛑",
+                )
+                raise
 
-        import math as _math, re as _re
+        db = _get_db()
+
 
         def _safe_str(v, default: str = "") -> str:
             if v is None:
                 return default
             if isinstance(v, float):
                 try:
-                    if _math.isnan(v):
+                    if math.isnan(v):
                         return default
                 except Exception:
                     pass
@@ -4315,24 +4396,27 @@ if tab == "My Course":
             pass
         IS_ADMIN = (student_code in ADMINS)
 
+        # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
         def _notify_slack(text: str):
             try:
                 fn = globals().get("notify_slack")
                 if callable(fn):
-                    fn(text)
-                    return
+                    try:
+                        fn(text)  # returns (ok, info) or None
+                        return
+                    except Exception:
+                        pass
+                url = (os.getenv("SLACK_WEBHOOK_URL") or
+                       (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
+                if url:
+                    try:
+                        requests.post(url, json={"text": text}, timeout=6)
+                    except Exception:
+                        pass
             except Exception:
                 pass
-            from os import getenv as _getenv
-            import requests as _req
-            url = (_getenv("SLACK_WEBHOOK_URL") or (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
-            if url:
-                try:
-                    _req.post(url, json={"text": text}, timeout=6)
-                except Exception:
-                    pass
 
-        # ---- Zoom header ----
+        # ===================== ZOOM HEADER =====================
         with st.container():
             st.markdown(
                 """
@@ -4370,9 +4454,12 @@ if tab == "My Course":
 
         st.divider()
 
-        def _norm_class_local(s: str) -> str:
-            return _re.sub(r"\s+", " ", (s or "").strip().lower())
+        # ===================== CLASS META (safe resolver) =====================
 
+        def _norm_class_local(s: str) -> str:
+            return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+        # Fallbacks you can edit; Firestore values (if any) will override these.
         CLASS_FALLBACKS_LOCAL = {
             _norm_class_local("A2 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
@@ -4402,6 +4489,7 @@ if tab == "My Course":
             },
         }
 
+        # Merge Firestore -> fallbacks
         _meta = {}
         try:
             doc = db.collection("classes").document(class_name).get()
@@ -4412,24 +4500,34 @@ if tab == "My Course":
         _fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
         _meta = {**_fb, **_meta}
 
-        tutors        = _meta.get("tutors", [])
+        tutors        = _meta.get("tutors", [])  # list of names or {name,email}
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
 
+        # ===================== TUTORS • CALENDAR • CONTACT (no image) =====================
+
+
+        # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
             if isinstance(t, dict):
                 return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
             return {"name": str(t or "").strip(), "email": ""}
 
-        _tutors = [d for d in map(_as_dict, tutors or []) if d["name"]]
+        _tutors_raw = tutors or []
+        _tutors = []
+        for t in _tutors_raw:
+            d = _as_dict(t)
+            if d["name"]:
+                _tutors.append(d)
+
         lead_tutor = _tutors[0] if _tutors else None
-        co_tutor   = _tutors[1] if len(_tutors) > 1 else None
+        co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
 
         def _tutor_line(d):
             if not d: return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
-        from urllib.parse import urlencode as _urlencode
+        # Private email (prefill subject/body)
         _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
         _body = (
             "Hello Tutor,\n\n"
@@ -4437,7 +4535,7 @@ if tab == "My Course":
             f"Class: {class_name}\n\n"
             "Message:\n"
         )
-        _mailto = f"mailto:{contact_email}?{_urlencode({'subject': _subj, 'body': _body})}"
+        _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
 
         t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
         t_cotutor = _tutor_line(co_tutor)
@@ -4486,8 +4584,12 @@ if tab == "My Course":
                 st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
 
         st.divider()
+#
 
-        # --------------------------- CLASS ROSTER ---------------------------
+
+
+
+        # ===================== CLASS ROSTER =====================
         st.markdown("### 👥 Class Members")
         try:
             df_students = load_student_data()
@@ -4510,9 +4612,10 @@ if tab == "My Course":
 
         st.divider()
 
-        # --------------------------- ANNOUNCEMENTS ---------------------------
+        # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
         st.markdown("### 📢 Announcements")
 
+        # Prefer cached helper if exists; else fallback to direct CSV
         try:
             df = fetch_announcements_csv()
         except Exception:
@@ -4524,15 +4627,12 @@ if tab == "My Course":
             except Exception:
                 df = pd.DataFrame()
 
-        import re as _re2, hashlib as _hashlib
-        from uuid import uuid4 as _uuid4
-        from urllib.parse import urlparse as _urlparse
-
-        URL_RE = _re2.compile(r"(https?://[^\s]+)")
+        # Helpers (links, parsing, ids)
+        URL_RE = re.compile(r"(https?://[^\s]+)")
 
         def _short_label_from_url(u: str) -> str:
             try:
-                p = _urlparse(u)
+                p = urllib.parse.urlparse(u)
                 host = (p.netloc or "").replace("www.", "")
                 path = (p.path or "").strip("/")
                 label = host if not path else f"{host}/{path}"
@@ -4541,7 +4641,7 @@ if tab == "My Course":
                 return u[:60] + ("…" if len(u) > 60 else "")
 
         def _guess_link_emoji_and_label(u: str):
-            lu = (u or "").lower()
+            lu = u.lower()
             if "zoom.us" in lu: return "🎦", None
             if "youtu" in lu:   return "▶️", None
             if lu.endswith(".pdf"): return "📄", None
@@ -4550,10 +4650,13 @@ if tab == "My Course":
             if "google.com" in lu: return "🔗", None
             return "🔗", None
 
+        # Normalize CSV into canonical columns
         if not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             lower_map = {c.lower(): c for c in df.columns}
-            def _col(name: str): return lower_map.get(name.lower())
+
+            def _col(name: str):
+                return lower_map.get(name.lower())
 
             for logical in ("announcement", "class", "date", "pinned"):
                 if _col(logical) is None:
@@ -4570,6 +4673,7 @@ if tab == "My Course":
                 if c not in df.columns:
                     df[c] = ""
 
+            # Optional Link/Links column
             link_key = lower_map.get("link") or lower_map.get("links")
             df["Links"] = [[] for _ in range(len(df))]
             if link_key:
@@ -4581,11 +4685,13 @@ if tab == "My Course":
                     return [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
                 df["Links"] = df[link_key].apply(_split_links)
 
+            # Normalize pinned
             def _norm_pinned(v) -> bool:
                 s = str(v).strip().lower()
                 return s in {"true", "yes", "1"}
             df["Pinned"] = df["Pinned"].apply(_norm_pinned)
 
+            # Parse dates
             def _parse_dt(x):
                 for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
                     try:
@@ -4598,6 +4704,7 @@ if tab == "My Course":
                     return pd.NaT
             df["__dt"] = df["Date"].apply(_parse_dt)
 
+            # Append auto-detected links
             def _append_detected_links(row):
                 txt = str(row.get("Announcement", "") or "")
                 found = URL_RE.findall(txt)
@@ -4609,14 +4716,16 @@ if tab == "My Course":
                 return merged
             df["Links"] = df.apply(_append_detected_links, axis=1)
 
+            # Stable ID
             def _ann_id(row):
                 try:
                     raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
-                    return _hashlib.sha1(raw).hexdigest()[:16]
+                    return hashlib.sha1(raw).hexdigest()[:16]
                 except Exception:
-                    return str(_uuid4()).replace("-", "")[:16]
+                    return str(uuid4()).replace("-", "")[:16]
             df["__id"] = df.apply(_ann_id, axis=1)
 
+        # Firestore reply helpers (with IDs for edit/delete)
         def _ann_reply_coll(ann_id: str):
             return (db.collection("class_announcements")
                      .document(class_name)
@@ -4648,6 +4757,7 @@ if tab == "My Course":
         def _delete_reply(ann_id: str, reply_id: str):
             _ann_reply_coll(ann_id).document(reply_id).delete()
 
+        # Controls + render
         if df.empty:
             st.info("No announcements yet.")
         else:
@@ -4664,13 +4774,14 @@ if tab == "My Course":
                         pass
                     st.rerun()
 
+            # Filter for this class
             df["__class_norm"] = (
                 df["Class"].astype(str)
                 .str.replace(r"\s+", " ", regex=True)
                 .str.strip()
                 .str.lower()
             )
-            class_norm = _re.sub(r"\s+", " ", class_name.strip().lower())
+            class_norm = re.sub(r"\s+", " ", class_name.strip().lower())
             view = df[df["__class_norm"] == class_norm].copy()
 
             if show_only_pinned:
@@ -4684,6 +4795,7 @@ if tab == "My Course":
             latest_df = view[view["Pinned"] == False]
 
             def render_announcement(row, is_pinned=False):
+                # teacher card
                 try:
                     ts_label = row.get("__dt").strftime("%d %b %H:%M")
                 except Exception:
@@ -4698,6 +4810,7 @@ if tab == "My Course":
                     unsafe_allow_html=True,
                 )
 
+                # links
                 links = row.get("Links") or []
                 if isinstance(links, str):
                     links = [links] if links.strip() else []
@@ -4708,6 +4821,7 @@ if tab == "My Course":
                         label = label or _short_label_from_url(u)
                         st.markdown(f"- {emoji} [{label}]({u})")
 
+                # replies
                 ann_id = row.get("__id")
                 replies = _load_replies_with_ids(ann_id)
                 if replies:
@@ -4732,6 +4846,7 @@ if tab == "My Course":
                             unsafe_allow_html=True,
                         )
 
+                        # edit/delete (own or admin)
                         can_edit = IS_ADMIN or (r.get("student_code") == student_code)
                         if can_edit:
                             c_ed, c_del = st.columns([1, 1])
@@ -4751,6 +4866,7 @@ if tab == "My Course":
                                     st.success("Reply deleted.")
                                     st.rerun()
 
+                            # inline editor
                             if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
                                 new_txt = st.text_area(
                                     "Edit reply",
@@ -4779,6 +4895,7 @@ if tab == "My Course":
                                         st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
                                         st.rerun()
 
+                # new reply (single click -> rerun)
                 with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
                     ta_key = f"ann_reply_box_{ann_id}"
                     flag_key = f"__clear_{ta_key}"
@@ -4809,6 +4926,7 @@ if tab == "My Course":
                         st.success("Reply sent!")
                         st.rerun()
 
+            # render all
             for _, row in pinned_df.iterrows():
                 render_announcement(row, is_pinned=True)
             for _, row in latest_df.iterrows():
@@ -4816,7 +4934,7 @@ if tab == "My Course":
 
         st.divider()
 
-        # ------------------------------ CLASS Q&A ------------------------------
+        # ===================== CLASS Q&A (POST / REPLY + EDIT/DELETE) =====================
         st.markdown("### 💬 Class Q&A")
 
         q_base = db.collection("class_qna").document(class_name).collection("questions")
@@ -4827,9 +4945,9 @@ if tab == "My Course":
             except Exception:
                 return ""
 
-        from uuid import uuid4 as _uuid_short
-
+        # Post a new question (single click -> rerun)
         with st.expander("➕ Ask a new question", expanded=False):
+            # clear form values on next run if flagged
             if st.session_state.get("__clear_q_form"):
                 st.session_state.pop("__clear_q_form", None)
                 st.session_state["q_topic"] = ""
@@ -4837,7 +4955,7 @@ if tab == "My Course":
             topic = st.text_input("Topic (optional)", key="q_topic")
             new_q = st.text_area("Your question", key="q_text", height=80)
             if st.button("Post Question", key="qna_post_question") and new_q.strip():
-                q_id = str(_uuid_short())[:8]
+                q_id = str(uuid4())[:8]
                 payload = {
                     "question": new_q.strip(),
                     "asked_by_name": student_name,
@@ -4854,10 +4972,12 @@ if tab == "My Course":
                     f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                     f"*Q:* {preview}"
                 )
+                # clear and rerun
                 st.session_state["__clear_q_form"] = True
                 st.success("Question posted!")
                 st.rerun()
 
+        # Controls
         colsa, colsb, colsc = st.columns([2, 1, 1])
         with colsa:
             q_search = st.text_input("Search questions (text or topic)…", key="q_search")
@@ -4867,21 +4987,26 @@ if tab == "My Course":
             if st.button("↻ Refresh", key="qna_refresh"):
                 st.rerun()
 
+        # Load questions (fresh each run)
         try:
-            from google.cloud import firestore as _gcf
-            q_docs = list(q_base.order_by("timestamp", direction=_gcf.Query.DESCENDING).stream())
+            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
         except Exception:
             q_docs = list(q_base.stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
             questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
 
+        # Filter & order
         if q_search.strip():
             ql = q_search.lower()
-            questions = [q for q in questions if ql in str(q.get("question","")).lower() or ql in str(q.get("topic","")).lower()]
+            questions = [
+                q for q in questions
+                if ql in str(q.get("question", "")).lower() or ql in str(q.get("topic", "")).lower()
+            ]
         if not show_latest:
             questions = list(reversed(questions))
 
+        # Render questions
         if not questions:
             st.info("No questions yet.")
         else:
@@ -4890,14 +5015,21 @@ if tab == "My Course":
                 ts = q.get("timestamp")
                 ts_label = _fmt_ts(ts)
 
-                topic_html = f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>" if q.get("topic") else ""
+                topic_html = (
+                    f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
+                    if q.get("topic") else ""
+                )
                 st.markdown(
                     f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
-                    f"<b>{q.get('asked_by_name','')}</b><span style='color:#aaa;'> • {ts_label}</span>"
-                    f"{topic_html}{q.get('question','')}</div>",
+                    f"<b>{q.get('asked_by_name','')}</b>"
+                    f"<span style='color:#aaa;'> • {ts_label}</span>"
+                    f"{topic_html}"
+                    f"{q.get('question','')}"
+                    f"</div>",
                     unsafe_allow_html=True
                 )
 
+                # Edit/Delete controls for the question
                 can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
                 if can_modify_q:
                     qc1, qc2, _ = st.columns([1, 1, 6])
@@ -4908,6 +5040,7 @@ if tab == "My Course":
                             st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
                     with qc2:
                         if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
+                            # delete replies first
                             try:
                                 r_ref = q_base.document(q_id).collection("replies")
                                 for rdoc in r_ref.stream():
@@ -4923,10 +5056,20 @@ if tab == "My Course":
                             st.success("Question deleted.")
                             st.rerun()
 
+                    # Inline edit form
                     if st.session_state.get(f"q_editing_{q_id}", False):
                         with st.form(f"q_edit_form_{q_id}"):
-                            new_topic = st.text_input("Edit topic (optional)", value=st.session_state.get(f"q_edit_topic_{q_id}", ""), key=f"q_edit_topic_input_{q_id}")
-                            new_text = st.text_area("Edit question", value=st.session_state.get(f"q_edit_text_{q_id}", ""), key=f"q_edit_text_input_{q_id}", height=100)
+                            new_topic = st.text_input(
+                                "Edit topic (optional)",
+                                value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
+                                key=f"q_edit_topic_input_{q_id}"
+                            )
+                            new_text = st.text_area(
+                                "Edit question",
+                                value=st.session_state.get(f"q_edit_text_{q_id}", ""),
+                                key=f"q_edit_text_input_{q_id}",
+                                height=100
+                            )
                             save_edit = st.form_submit_button("💾 Save")
                             cancel_edit = st.form_submit_button("❌ Cancel")
                         if save_edit and new_text.strip():
@@ -4948,7 +5091,7 @@ if tab == "My Course":
                             st.session_state[f"q_editing_{q_id}"] = False
                             st.rerun()
 
-                # Replies
+                # Load replies
                 r_ref = q_base.document(q_id).collection("replies")
                 try:
                     replies_docs = list(r_ref.order_by("timestamp").stream())
@@ -4968,6 +5111,7 @@ if tab == "My Course":
                             unsafe_allow_html=True
                         )
 
+                        # Edit/Delete for replies
                         can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
                         if can_modify_r:
                             rc1, rc2, _ = st.columns([1, 1, 6])
@@ -4988,7 +5132,12 @@ if tab == "My Course":
 
                             if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
                                 with st.form(f"r_edit_form_{q_id}_{rid}"):
-                                    new_rtext = st.text_area("Edit reply", value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""), key=f"r_edit_text_input_{q_id}_{rid}", height=80)
+                                    new_rtext = st.text_area(
+                                        "Edit reply",
+                                        value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
+                                        key=f"r_edit_text_input_{q_id}_{rid}",
+                                        height=80
+                                    )
                                     rsave = st.form_submit_button("💾 Save")
                                     rcancel = st.form_submit_button("❌ Cancel")
                                 if rsave and new_rtext.strip():
@@ -5009,13 +5158,17 @@ if tab == "My Course":
                                     st.session_state[f"r_editing_{q_id}_{rid}"] = False
                                     st.rerun()
 
-                # Quick reply
+                # Reply form (anyone can answer) — single click -> rerun
                 input_key = f"q_reply_box_{q_id}"
                 clear_key = f"__clear_{input_key}"
                 if st.session_state.get(clear_key):
                     st.session_state.pop(clear_key, None)
                     st.session_state[clear_key] = True
-                reply_text = st.text_input(f"Reply to Q{q_id}", key=input_key, placeholder="Write your reply…")
+                reply_text = st.text_input(
+                    f"Reply to Q{q_id}",
+                    key=input_key,
+                    placeholder="Write your reply…"
+                )
                 if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and reply_text.strip():
                     reply_payload = {
                         "reply_text": reply_text.strip(),
@@ -5024,7 +5177,7 @@ if tab == "My Course":
                         "timestamp": datetime.utcnow(),
                     }
                     r_ref = q_base.document(q_id).collection("replies")
-                    r_ref.document(str(_uuid_short())[:8]).set(reply_payload)
+                    r_ref.document(str(uuid4())[:8]).set(reply_payload)
                     prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
                     _notify_slack(
                         f"💬 *New Q&A reply* — {class_name}\n"
@@ -5035,8 +5188,13 @@ if tab == "My Course":
                     st.session_state[clear_key] = True
                     st.success("Reply sent!")
                     st.rerun()
+#
 
-    # --------------------------- LEARNING NOTES ---------------------------
+
+
+
+
+    # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
         st.markdown("""
             <div style="padding: 14px; background: #8d4de8; color: #fff; border-radius: 8px; 
@@ -5052,12 +5210,12 @@ if tab == "My Course":
             st.session_state[key_notes] = load_notes_from_db(student_code)
         notes = st.session_state[key_notes]
 
-        if _consume_flag("switch_to_edit_note"):
+        if st.session_state.get("switch_to_edit_note"):
             st.session_state["course_notes_radio"] = "➕ Add/Edit Note"
-            st.rerun()
-        if _consume_flag("switch_to_library"):
+            del st.session_state["switch_to_edit_note"]
+        elif st.session_state.get("switch_to_library"):
             st.session_state["course_notes_radio"] = "📚 My Notes Library"
-            st.rerun()
+            del st.session_state["switch_to_library"]
 
         notes_subtab = st.radio(
             "Notebook",
@@ -5067,6 +5225,7 @@ if tab == "My Course":
         )
 
         if notes_subtab == "➕ Add/Edit Note":
+            # >>>> New helper message for pre-filled note context <<<<
             editing = st.session_state.get("edit_note_idx", None) is not None
             if editing:
                 idx = st.session_state["edit_note_idx"]
@@ -5104,7 +5263,7 @@ if tab == "My Course":
                 if editing:
                     notes[idx] = note
                     for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                        st.session_state.pop(k, None)
+                        if k in st.session_state: del st.session_state[k]
                     st.success("Note updated!")
                 else:
                     notes.insert(0, note)
@@ -5116,7 +5275,7 @@ if tab == "My Course":
 
             if cancel_btn:
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
-                    st.session_state.pop(k, None)
+                    if k in st.session_state: del st.session_state[k]
                 st.session_state["switch_to_library"] = True
                 st.rerun()
 
@@ -5128,25 +5287,31 @@ if tab == "My Course":
             else:
                 search_term = st.text_input("🔎 Search your notes…", "")
                 if search_term.strip():
-                    filtered = [n for n in notes if any(
-                        search_term.lower() in (n.get(k,"").lower()) for k in ("title","tag","text")
-                    )]
+                    filtered = []
+                    st.markdown('<div style="height:10px"></div>', unsafe_allow_html=True)
+                    for n in notes:
+                        if (search_term.lower() in n.get("title","").lower() or 
+                            search_term.lower() in n.get("tag","").lower() or 
+                            search_term.lower() in n.get("text","").lower()):
+                            filtered.append(n)
                     notes_to_show = filtered
                     if not filtered:
                         st.warning("No matching notes found!")
                 else:
                     notes_to_show = notes
 
-                # TXT (all)
+                # --- Download Buttons (TXT, PDF, DOCX) FOR ALL NOTES ---
                 all_notes = []
                 for n in notes_to_show:
                     note_text = f"Title: {n.get('title','')}\n"
-                    if n.get('tag'): note_text += f"Tag: {n['tag']}\n"
+                    if n.get('tag'):
+                        note_text += f"Tag: {n['tag']}\n"
                     note_text += n.get('text','') + "\n"
                     note_text += f"Date: {n.get('updated', n.get('created',''))}\n"
                     note_text += "-"*32 + "\n"
                     all_notes.append(note_text)
                 txt_data = "\n".join(all_notes)
+
                 st.download_button(
                     label="⬇️ Download All Notes (TXT)",
                     data=txt_data.encode("utf-8"),
@@ -5154,18 +5319,14 @@ if tab == "My Course":
                     mime="text/plain"
                 )
 
-                # PDF (all)
-                from fpdf import FPDF as _FPDF
-                class PDF(_FPDF):
+                # --- PDF Download (all notes, Unicode/emoji ready!) ---
+                class PDF(FPDF):
                     def header(self):
                         self.set_font('DejaVu', '', 16)
                         self.cell(0, 12, "My Learning Notes", align="C", ln=1)
                         self.ln(5)
                 pdf = PDF()
-                try:
-                    pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
-                except Exception:
-                    pass
+                pdf.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 pdf.set_font("DejaVu", '', 13)
@@ -5175,23 +5336,26 @@ if tab == "My Course":
                     pdf.cell(0, 8, f"{idx+1}. {note.get('title','')} - {note.get('created', note.get('updated',''))}", ln=1)
                 pdf.ln(5)
                 for n in notes_to_show:
-                    pdf.set_font("DejaVu", '', 13); pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
+                    pdf.set_font("DejaVu", '', 13)
+                    pdf.cell(0, 10, f"Title: {n.get('title','')}", ln=1)
                     pdf.set_font("DejaVu", '', 11)
-                    if n.get("tag"): pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
+                    if n.get("tag"):
+                        pdf.cell(0, 8, f"Tag: {n['tag']}", ln=1)
                     pdf.set_font("DejaVu", '', 12)
-                    for line in (n.get('text','') or '').split("\n"):
+                    for line in n.get('text','').split("\n"):
                         pdf.multi_cell(0, 7, line)
                     pdf.ln(1)
                     pdf.set_font("DejaVu", '', 11)
                     pdf.cell(0, 8, f"Date: {n.get('updated', n.get('created',''))}", ln=1)
-                    pdf.ln(5); pdf.set_font("DejaVu", '', 10)
-                    pdf.cell(0, 4, '-' * 55, ln=1); pdf.ln(8)
-                import tempfile as _tmp, os as _os2
-                with _tmp.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    pdf.ln(5)
+                    pdf.set_font("DejaVu", '', 10)
+                    pdf.cell(0, 4, '-' * 55, ln=1)
+                    pdf.ln(8)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                     pdf.output(tmp_pdf.name)
                     tmp_pdf.seek(0)
                     pdf_bytes = tmp_pdf.read()
-                _os2.remove(tmp_pdf.name)
+                os.remove(tmp_pdf.name)
                 st.download_button(
                     label="⬇️ Download All Notes (PDF)",
                     data=pdf_bytes,
@@ -5199,10 +5363,9 @@ if tab == "My Course":
                     mime="application/pdf"
                 )
 
-                # DOCX (all)
-                from docx import Document as _Document
+                # --- DOCX Download (all notes) ---
                 def export_notes_to_docx(notes, student_code="student"):
-                    doc = _Document()
+                    doc = Document()
                     doc.add_heading("My Learning Notes", 0)
                     doc.add_heading("Table of Contents", level=1)
                     for idx, note in enumerate(notes):
@@ -5210,13 +5373,15 @@ if tab == "My Course":
                     doc.add_page_break()
                     for note in notes:
                         doc.add_heading(note.get('title','(No Title)'), level=1)
-                        if note.get("tag"): doc.add_paragraph(f"Tag: {note.get('tag','')}")
+                        if note.get("tag"):
+                            doc.add_paragraph(f"Tag: {note.get('tag','')}")
                         doc.add_paragraph(note.get('text', ''))
-                        doc.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
-                        doc.add_paragraph('-' * 40); doc.add_paragraph("")
-                    import tempfile as _tmp2
-                    with _tmp2.NamedTemporaryFile(delete=False, suffix=".docx") as f:
-                        doc.save(f.name); return f.name
+                        doc.add_paragraph(f"Date: {note.get('created', note.get('updated',''))}")
+                        doc.add_paragraph('-' * 40)
+                        doc.add_paragraph("")
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
+                        doc.save(f.name)
+                        return f.name
                 docx_path = export_notes_to_docx(notes_to_show, student_code)
                 with open(docx_path, "rb") as f:
                     st.download_button(
@@ -5225,8 +5390,7 @@ if tab == "My Course":
                         file_name=f"{student_code}_notes.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
-                import os as _os3
-                _os3.remove(docx_path)
+                os.remove(docx_path)
 
                 st.markdown("---")
                 pinned_notes = [n for n in notes_to_show if n.get("pinned")]
@@ -5240,14 +5404,17 @@ if tab == "My Course":
                     if note.get("tag"):
                         st.caption(f"🏷️ Tag: {note['tag']}")
                     st.markdown(
-                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note.get('text','')}</div>",
+                        f"<div style='margin-top:-5px; margin-bottom:6px; font-size:1.08rem; line-height:1.7;'>{note['text']}</div>",
                         unsafe_allow_html=True)
                     st.caption(f"🕒 {note.get('updated',note.get('created',''))}")
 
-                    dl_cols = st.columns([1,1,1])
-                    with dl_cols[0]:
+                    # --- Per-Note Download Buttons (TXT, PDF, DOCX) ---
+                    download_cols = st.columns([1,1,1])
+                    with download_cols[0]:
+                        # TXT per note
                         txt_note = f"Title: {note.get('title','')}\n"
-                        if note.get('tag'): txt_note += f"Tag: {note['tag']}\n"
+                        if note.get('tag'):
+                            txt_note += f"Tag: {note['tag']}\n"
                         txt_note += note.get('text', '') + "\n"
                         txt_note += f"Date: {note.get('updated', note.get('created',''))}\n"
                         st.download_button(
@@ -5257,23 +5424,23 @@ if tab == "My Course":
                             mime="text/plain",
                             key=f"download_txt_{i}"
                         )
-                    with dl_cols[1]:
-                        from fpdf import FPDF as _FPDF2
-                        class SingleNotePDF(_FPDF2):
+                    with download_cols[1]:
+                        # PDF per note (Unicode/emoji ready!)
+                        class SingleNotePDF(FPDF):
                             def header(self):
                                 self.set_font('DejaVu', '', 13)
-                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C'); self.ln(2)
+                                self.cell(0, 10, note.get('title','Note'), ln=True, align='C')
+                                self.ln(2)
                         pdf_note = SingleNotePDF()
-                        try:
-                            pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
-                        except Exception:
-                            pass
+                        pdf_note.add_font('DejaVu', '', './font/DejaVuSans.ttf', uni=True)
                         pdf_note.add_page()
                         pdf_note.set_font("DejaVu", '', 12)
-                        if note.get("tag"): pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
-                        for line in (note.get('text','') or '').split("\n"):
+                        if note.get("tag"):
+                            pdf_note.cell(0, 8, f"Tag: {note.get('tag','')}", ln=1)
+                        for line in note.get('text','').split("\n"):
                             pdf_note.multi_cell(0, 7, line)
-                        pdf_note.ln(1); pdf_note.set_font("DejaVu", '', 11)
+                        pdf_note.ln(1)
+                        pdf_note.set_font("DejaVu", '', 11)
                         pdf_note.cell(0, 8, f"Date: {note.get('updated', note.get('created',''))}", ln=1)
                         pdf_bytes_single = pdf_note.output(dest="S").encode("latin1", "replace")
                         st.download_button(
@@ -5283,15 +5450,14 @@ if tab == "My Course":
                             mime="application/pdf",
                             key=f"download_pdf_{i}"
                         )
-                    with dl_cols[2]:
-                        from docx import Document as _DocSingle
-                        import io as _io
-                        doc_single = _DocSingle()
+                    with download_cols[2]:
+                        # DOCX per note
+                        doc_single = Document()
                         doc_single.add_heading(note.get('title','(No Title)'), level=1)
-                        if note.get("tag"): doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
+                        if note.get("tag"):
+                            doc_single.add_paragraph(f"Tag: {note.get('tag','')}")
                         doc_single.add_paragraph(note.get('text', ''))
-                        doc_single.add_paragraph(f"Date: {note.get('updated', note.get('created',''))}")
-                        single_docx_io = _io.BytesIO()
+                        doc
                         doc_single.save(single_docx_io)
                         st.download_button(
                             label="⬇️ DOCX",
@@ -5305,8 +5471,8 @@ if tab == "My Course":
                     with cols[0]:
                         if st.button("✏️ Edit", key=f"edit_{i}"):
                             st.session_state["edit_note_idx"] = i
-                            st.session_state["edit_note_title"] = note.get("title","")
-                            st.session_state["edit_note_text"] = note.get("text","")
+                            st.session_state["edit_note_title"] = note["title"]
+                            st.session_state["edit_note_text"] = note["text"]
                             st.session_state["edit_note_tag"] = note.get("tag", "")
                             st.session_state["switch_to_edit_note"] = True
                             st.rerun()
