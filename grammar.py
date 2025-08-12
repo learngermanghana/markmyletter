@@ -8301,67 +8301,68 @@ if tab == "Vocab Trainer":
                     st.session_state[k] = defaults[k]
                 st.rerun()
 
-    elif selected_tab == "Delif Dictionary":
+    elif tab == "Delif Dictionary":
         st.header("Delif Dictionary")
-        st.write("Search for any word or browse entries. Each entry also lists related example sentences from your Sentence Bank.")
+        st.write("Search any word. Entries include example sentences pulled from your Sentence Bank.")
 
-        # Load dictionary from file (persistent)
-        if "dictionary" not in st.session_state:
-            try:
-                st.session_state["dictionary"] = load_data("dictionary.pkl")
-            except FileNotFoundError:
-                st.session_state["dictionary"] = {}
+        # In-memory store for dictionary entries
+        if "delif_dict" not in st.session_state:
+            st.session_state["delif_dict"] = {}
 
-        # Merge sentence bank tokens into dictionary
-        def _merge_sentence_bank():
-            for level, sentences in SENTENCE_BANK.items():
-                for sentence in sentences:
-                    for token in sentence.split():
-                        token_clean = token.strip(".,!?;:").lower()
-                        if token_clean:
-                            if token_clean not in st.session_state["dictionary"]:
-                                st.session_state["dictionary"][token_clean] = {
-                                    "definition": "",
-                                    "examples": []
-                                }
-                            if sentence not in st.session_state["dictionary"][token_clean]["examples"]:
-                                st.session_state["dictionary"][token_clean]["examples"].append(sentence)
-            save_data("dictionary.pkl", st.session_state["dictionary"])
+        # ---- Merge Sentence Bank tokens into dictionary (safe to call every render) ----
+        def _merge_from_sentence_bank():
+            for level, items in SENTENCE_BANK.items():
+                for item in items:
+                    # Prefer target sentence; fallback to joined tokens
+                    target_sentence = item.get("target_de") or " ".join(item.get("tokens", []))
+                    tokens = [t for t in item.get("tokens", []) if t not in [",", ".", "!", "?", ":", ";"]]
+                    for tok in tokens:
+                        key = str(tok).strip().lower()
+                        if not key:
+                            continue
+                        entry = st.session_state["delif_dict"].setdefault(
+                            key, {"definition": "", "examples": []}
+                        )
+                        if target_sentence and target_sentence not in entry["examples"]:
+                            entry["examples"].append(target_sentence)
 
-        _merge_sentence_bank()
+        _merge_from_sentence_bank()
 
-        # Search bar
-        search_term = st.text_input("Search term").strip().lower()
-        if search_term:
-            if search_term in st.session_state["dictionary"]:
-                entry = st.session_state["dictionary"][search_term]
-                st.subheader(search_term.capitalize())
+        # ---- Search ----
+        q = st.text_input("Search term").strip().lower()
+        if q:
+            entry = st.session_state["delif_dict"].get(q)
+            if entry:
+                st.subheader(q.capitalize())
                 st.write(f"**Definition:** {entry['definition'] or 'No definition yet'}")
-                st.write("**Examples:**")
-                for ex in entry["examples"]:
-                    st.write(f"- {ex}")
+                if entry["examples"]:
+                    st.write("**Examples:**")
+                    for ex in entry["examples"][:12]:
+                        st.write(f"- {ex}")
+                else:
+                    st.caption("No example sentences yet.")
             else:
-                st.warning(f"'{search_term}' not found in dictionary.")
+                st.warning(f"'{q}' not found in dictionary.")
 
-        # Add / edit dictionary entries
+        # ---- Add / Edit Entry ----
         st.subheader("Add or Edit Entry")
-        new_word = st.text_input("Word").strip().lower()
-        new_definition = st.text_area("Definition")
+        new_word = st.text_input("Word (lowercase is fine)").strip().lower()
+        new_definition = st.text_area("Definition (English or German)")
         if st.button("Save Entry"):
             if new_word:
-                if new_word not in st.session_state["dictionary"]:
-                    st.session_state["dictionary"][new_word] = {"definition": "", "examples": []}
-                st.session_state["dictionary"][new_word]["definition"] = new_definition
-                save_data("dictionary.pkl", st.session_state["dictionary"])
-                st.success(f"Entry for '{new_word}' saved.")
+                entry = st.session_state["delif_dict"].setdefault(
+                    new_word, {"definition": "", "examples": []}
+                )
+                entry["definition"] = new_definition
+                st.success(f"Saved entry for '{new_word}'.")
             else:
-                st.error("Please enter a word.")
+                st.error("Please enter a word before saving.")
 
-        # List all entries
+        # ---- Browse all entries (optional) ----
         if st.checkbox("Show all dictionary entries"):
-            for word, data in sorted(st.session_state["dictionary"].items()):
-                st.write(f"**{word.capitalize()}**: {data['definition'] or 'No definition'}")
-#
+            for word in sorted(st.session_state["delif_dict"].keys()):
+                definition = st.session_state["delif_dict"][word]["definition"] or "No definition"
+                st.write(f"**{word}**: {definition}")
 
 
 
