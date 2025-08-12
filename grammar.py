@@ -7536,193 +7536,285 @@ SENTENCE_BANK = {
     ]
 }
 
+
+# If you initialize Firestore elsewhere, expose it here.
+# This helper prevents NameError if db isn't ready.
+def _get_db():
+    try:
+        return db  # provided by your app elsewhere
+    except NameError:
+        return None
+
+
 # ================================
-# Resume-only PROGRESS helpers (Firestore)
+# HELPERS: Level loading (Google Sheet)
 # ================================
-def _progress_doc(student_code):
-    _db = _get_db()
-    return None if _db is None else _db.collection("practice_progress").document(student_code)
+@st.cache_data
+def load_student_levels():
+    """
+    Load the roster with a 'Level' column.
+    Expected columns (case-insensitive): student_code, level
+    We normalize headers and try common alternatives for student code and level.
+    """
+    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    df = pd.read_csv(csv_url)
+    # normalize headers
+    df.columns = [c.strip().lower() for c in df.columns]
 
-def load_progress(student_code):
-    doc = _progress_doc(student_code)
-    if doc is None:
-        return {"vocab": {"completed_by_level": {}}, "sb": {}}
-    snap = doc.get()
-    return snap.to_dict() if snap.exists else {"vocab": {"completed_by_level": {}}, "sb": {}}
+    # try to align student_code column
+    code_col_candidates = ["student_code", "studentcode", "code", "student id", "id"]
+    level_col_candidates = ["level", "klasse", "stufe"]
+    code_col = next((c for c in code_col_candidates if c in df.columns), None)
+    level_col = next((c for c in level_col_candidates if c in df.columns), None)
 
-def _save_vocab_map(student_code, vocab_map):
-    doc = _progress_doc(student_code)
-    if doc is not None:
-        # write complete vocab map to avoid dropping nested fields
-        doc.set({"vocab": vocab_map}, merge=True)
+    if code_col is None or level_col is None:
+        st.error(
+            f"Roster is missing required columns. "
+            f"Found: {list(df.columns)}; need one of {code_col_candidates} and one of {level_col_candidates}."
+        )
+        # still return something so callers don't crash
+        df["__dummy_code__"] = "demo001"
+        df["__dummy_level__"] = "A1"
+        return df.rename(columns={"__dummy_code__": "student_code", "__dummy_level__": "level"})
 
-def _save_sb_map(student_code, sb_map):
-    doc = _progress_doc(student_code)
-    if doc is not None:
-        doc.set({"sb": sb_map}, merge=True)
+    # rename to canonical names
+    df = df.rename(columns={code_col: "student_code", level_col: "level"})
+    return df
 
-# ---------- Vocab checkpoints ----------
-def get_vt_checkpoint(student_code):
-    p = load_progress(student_code)
-    return p.get("vocab", {})
-
-def save_vt_checkpoint(student_code, *, level, vt_list, vt_index, vt_score, vt_total, completed_by_level=None):
-    from datetime import datetime
-    p = load_progress(student_code)
-    vocab = dict(p.get("vocab", {}))
-    if completed_by_level is None:
-        completed_by_level = vocab.get("completed_by_level", {})
-    vocab.update({
-        "level": level,
-        "vt_list": vt_list,            # list of [German, English]
-        "vt_index": int(vt_index),
-        "vt_score": int(vt_score),
-        "vt_total": int(vt_total),
-        "completed_by_level": completed_by_level,
-        "updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    })
-    _save_vocab_map(student_code, vocab)
-
-def clear_vt_checkpoint(student_code):
-    from datetime import datetime
-    p = load_progress(student_code)
-    keep_completed = p.get("vocab", {}).get("completed_by_level", {})
-    vocab = {
-        "level": p.get("vocab", {}).get("level"),
-        "vt_list": [],
-        "vt_index": 0,
-        "vt_score": 0,
-        "vt_total": 0,
-        "completed_by_level": keep_completed,
-        "updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    }
-    _save_vocab_map(student_code, vocab)
-
-def add_completed_word(student_code, level, word):
-    p = load_progress(student_code)
-    vocab = dict(p.get("vocab", {}))
-    m = dict(vocab.get("completed_by_level", {}))
-    s = set(m.get(level, []))
-    if word not in s:
-        s.add(word)
-        m[level] = sorted(s)
-        vocab["completed_by_level"] = m
-        _save_vocab_map(student_code, vocab)
-
-# ---------- Sentence Builder checkpoints ----------
-def get_sb_checkpoint(student_code):
-    p = load_progress(student_code)
-    return p.get("sb", {})
-
-def save_sb_checkpoint(student_code, *, level, current, shuffled, selected_idx, score, total, pool_remaining_targets):
-    from datetime import datetime
-    sb_map = {
-        "level": level,
-        "current": {
-            "target_de": current.get("target_de", ""),
-            "tokens_shuffled": shuffled,
-            "selected_idx": selected_idx,
-            "prompt_en": current.get("prompt_en", ""),
-            "hint_en": current.get("hint_en", ""),
-            "grammar_tag": current.get("grammar_tag", "")
-        },
-        "pool_remaining_targets": pool_remaining_targets,
-        "score": int(score),
-        "total": int(total),
-        "updated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    }
-    _save_sb_map(student_code, sb_map)
-
-def clear_sb_checkpoint(student_code):
-    _save_sb_map(student_code, {})
-
-
-# Ensure expected globals exist (no duplication if you already defined them)
-try:
-    SENTENCE_BANK
-except NameError:
-    SENTENCE_BANK = {"A1": [], "A2": [], "B1": [], "B2": [], "C1": []}
-
-try:
-    VOCAB_LISTS
-except NameError:
-    VOCAB_LISTS = {}
-
-# Fallback for roster + level resolver
-try:
-    get_student_level
-except NameError:
-    @st.cache_data
-    def load_student_levels():
-        """Minimal roster loader used by the fallback get_student_level."""
-        try:
-            sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-            csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-            df = pd.read_csv(csv_url)
-            df.columns = [c.strip().lower() for c in df.columns]
-            code_col_candidates  = ["student_code", "studentcode", "code", "student id", "id"]
-            level_col_candidates = ["level", "klasse", "stufe"]
-            code_col  = next((c for c in code_col_candidates  if c in df.columns), None)
-            level_col = next((c for c in level_col_candidates if c in df.columns), None)
-            if code_col and level_col:
-                return df.rename(columns={code_col: "student_code", level_col: "level"})
-        except Exception:
-            pass
-        return pd.DataFrame([{"student_code":"demo001","level":"A1"}])
-
-    def get_student_level(student_code: str, default: str = "A1") -> str:
-        try:
-            df = load_student_levels()
-            sc = str(student_code).strip().lower()
-            row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
-            if not row.empty:
-                return str(row.iloc[0]["level"]).upper().strip()
-        except Exception:
-            pass
+def get_student_level(student_code: str, default: str = "A1") -> str:
+    """
+    Return student's Level (A1..C1) from the roster for this student_code.
+    Case-insensitive match on student_code.
+    """
+    try:
+        df = load_student_levels()
+        # ensure columns exist after normalization/rename
+        if "student_code" not in df.columns or "level" not in df.columns:
+            return default
+        sc = str(student_code).strip().lower()
+        row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
+        if not row.empty:
+            return str(row.iloc[0]["level"]).upper().strip()
+        return default
+    except Exception as e:
+        st.warning(f"Could not load level from roster ({e}). Using default {default}.")
         return default
 
-# Simple UI + checker fallbacks
-try:
-    render_message
-except NameError:
-    def render_message(role, msg):
-        st.write(f"**{('Herr Felix 👨‍🏫' if role=='assistant' else 'You')}:** {msg}")
 
-try:
-    def _clean_text(text):  # helper used by is_correct_answer fallback
-        return str(text).replace("the ", "").replace(",", "").replace(".", "").strip().lower()
-    is_correct_answer
-except NameError:
+def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
+    """Check if an attempt with this session_id already exists for the student."""
+    if not session_id:
+        return False
+    _db = _get_db()
+    if _db is None:
+        return False
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return False
+
+    data = doc.to_dict() or {}
+    history = data.get("history", [])
+    return any(h.get("session_id") == session_id for h in history)
+
+
+def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
+    """
+    Save one vocab practice attempt to Firestore.
+    Duplicate-safe using session_id.
+    """
+    _db = _get_db()
+    if _db is None:
+        st.warning("Firestore not initialized; skipping stats save.")
+        return
+
+    if not session_id:
+        session_id = str(uuid4())
+
+    if vocab_attempt_exists(student_code, session_id):
+        return
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    history = data.get("history", [])
+
+    attempt = {
+        "level": level,
+        "total": int(total) if total is not None else 0,
+        "correct": int(correct) if correct is not None else 0,
+        "practiced_words": list(practiced_words or []),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "session_id": session_id,
+    }
+
+    history.append(attempt)
+    completed = {w for a in history for w in a.get("practiced_words", [])}
+
+    doc_ref.set({
+        "history":           history,
+        "last_practiced":    attempt["timestamp"],
+        "completed_words":   sorted(completed),
+        "total_sessions":    len(history),
+    }, merge=True)
+
+
+def get_vocab_stats(student_code):
+    """Load vocab practice stats from Firestore (or defaults)."""
+    _db = _get_db()
+    if _db is None:
+        return {
+            "history":           [],
+            "last_practiced":    None,
+            "completed_words":   [],
+            "total_sessions":    0,
+        }
+
+    doc_ref = _db.collection("vocab_stats").document(student_code)
+    doc = doc_ref.get()
+    if doc.exists:
+        data = doc.to_dict() or {}
+        # Ensure we don't return "best"
+        return {
+            "history": data.get("history", []),
+            "last_practiced": data.get("last_practiced"),
+            "completed_words": data.get("completed_words", []),
+            "total_sessions": data.get("total_sessions", 0),
+        }
+
+    return {
+        "history":           [],
+        "last_practiced":    None,
+        "completed_words":   [],
+        "total_sessions":    0,
+    }
+
+
+# ================================
+# HELPERS: Writing (Sentence Builder) persistence
+# ================================
+def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
+    """Append a sentence-builder attempt to Firestore."""
+    _db = _get_db()
+    if _db is None:
+        st.warning("Firestore not initialized; skipping sentence stats save.")
+        return
+
+    doc_ref = _db.collection("sentence_builder_stats").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    history = data.get("history", [])
+    history.append({
+        "level": level,
+        "target": target_sentence,
+        "chosen": chosen_sentence,
+        "correct": bool(correct),
+        "tip": tip,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    })
+    doc_ref.set({
+        "history": history,
+        "last_played": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "total_sessions": len(history),
+    }, merge=True)
+
+def get_sentence_progress(student_code: str, level: str):
+    """
+    Returns (correct_unique_count, total_items_for_level)
+    based on history in 'sentence_builder_stats'.
+    """
+    _db = _get_db()
+    correct_set = set()
+    if _db is not None:
+        ref = _db.collection("sentence_builder_stats").document(student_code)
+        doc = ref.get()
+        if doc.exists:
+            data = doc.to_dict()
+            for h in data.get("history", []):
+                if h.get("level") == level and h.get("correct"):
+                    correct_set.add(h.get("target"))
+    total_items = len(SENTENCE_BANK.get(level, []))
+    return len(correct_set), total_items
+
+
+# ================================
+# HELPERS: Vocab CSV (optional flashcards list)
+# ================================
+@st.cache_data
+def load_vocab_lists():
+    """
+    Optional CSV for flashcards: columns Level, German, English
+    """
+    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"  # Vocab sheet
+    csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
+    try:
+        df = pd.read_csv(csv_url)
+    except Exception as e:
+        st.error(f"Could not fetch vocab CSV: {e}")
+        return {}
+    df.columns = df.columns.str.strip()
+    missing = [c for c in ("Level","German","English") if c not in df.columns]
+    if missing:
+        st.error(f"Missing column(s) in your vocab sheet: {missing}")
+        return {}
+    df = df[["Level","German","English"]].dropna()
+    lists = {}
+    for lvl, grp in df.groupby("Level"):
+        lists[lvl] = list(zip(grp["German"], grp["English"]))
+    return lists
+
+VOCAB_LISTS = load_vocab_lists()
+
+
+# ================================
+# SMALL UI + CHECK HELPERS
+# ================================
+def render_message(role, msg):
+    align   = "left"   if role=="assistant" else "right"
+    bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
+    bordcol = "#CCCCCC"
+    label   = "Herr Felix 👨‍🏫" if role=="assistant" else "You"
+    style = (
+        f"padding:14px; border-radius:12px; max-width:96vw; "
+        f"margin:7px 0; text-align:{align}; background:{bgcolor}; "
+        f"border:1px solid {bordcol}; font-size:1.12em; word-break:break-word;"
+    )
+    st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
+
+def clean_text(text):
+    return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
+
+def is_correct_answer(user_input, answer):
     import re
-    def is_correct_answer(user_input, answer):
-        possible = [_clean_text(a) for a in re.split(r"[,/;]", str(answer))]
-        return _clean_text(user_input) in possible
+    # Clean both sides; accept comma/;/ slash-separated variants
+    possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
+    return clean_text(str(user_input)) in possible
 
-try:
-    normalize_join
-except NameError:
-    def normalize_join(tokens):
-        s = " ".join(tokens)
-        for p in [",", ".", "!", "?", ":", ";"]:
-            s = s.replace(f" {p}", p)
-        return s
-
+def normalize_join(tokens):
+    """Join tokens and fix spaces before punctuation for sentence builder."""
+    s = " ".join(tokens)
+    for p in [",", ".", "!", "?", ":", ";"]:
+        s = s.replace(f" {p}", p)
+    return s
 
 # ================================
-# TAB: Vocab Trainer (with Dictionary)
+# TAB: Vocab Trainer (locked by Level)
 # ================================
-try:
-    tab
-except NameError:
-    tab = "Vocab Trainer"
-
 if tab == "Vocab Trainer":
+    # --- Who is this? ---
     student_code = st.session_state.get("student_code", "demo001")
+
+    # --- Lock the level from your Sheet ---
     student_level_locked = get_student_level(
         student_code,
         default=(st.session_state.get("student_level", "A1"))
-    ) or "A1"
+    )
+    if not student_level_locked:
+        student_level_locked = "A1"
 
+    # Header
     st.markdown(
         """
         <div style="
@@ -7740,53 +7832,68 @@ if tab == "Vocab Trainer":
 
     subtab = st.radio(
         "Choose practice:",
-        ["Sentence Builder", "Vocab Practice", "Dictionary"],
+        ["Sentence Builder", "Vocab Practice"],  # Sentence Builder first, Vocab second
         horizontal=True,
         key="vocab_practice_subtab"
     )
 
     # ===========================
-    # SUBTAB: Sentence Builder (resume-only)
+    # SUBTAB: Sentence Builder (now first)
     # ===========================
     if subtab == "Sentence Builder":
         student_level = student_level_locked
-        st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}**.")
+        st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
-        # ---- session defaults ----
+        # --- Guide & Progress (collapsed) ---
+        with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
+            # Lifetime progress bar
+            done_unique, total_items = get_sentence_progress(student_code, student_level)
+            pct = int((done_unique / total_items) * 100) if total_items else 0
+            st.progress(pct)
+            st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
+
+            st.markdown(
+                """
+                <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
+                  ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.caption(
+                "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
+                "Next for a new one."
+            )
+            st.markdown(
+                "**What these numbers mean:**  \n"
+                "- **Score** = Correct sentences *this session*.  \n"
+                "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
+            )
+
+        # ---- session state defaults ----
         init_defaults = {
-            "sb_round": 0, "sb_pool": None, "sb_pool_level": None,
-            "sb_current": None, "sb_shuffled": [], "sb_selected_idx": [],
-            "sb_score": 0, "sb_total": 0, "sb_feedback": "", "sb_correct": None,
+            "sb_round": 0,
+            "sb_pool": None,
+            "sb_pool_level": None,
+            "sb_current": None,
+            "sb_shuffled": [],
+            "sb_selected_idx": [],
+            "sb_score": 0,
+            "sb_total": 0,
+            "sb_feedback": "",
+            "sb_correct": None,
         }
         for k, v in init_defaults.items():
-            st.session_state.setdefault(k, v)
-
-        # ---- offer resume if checkpoint matches level ----
-        sb_cp = get_sb_checkpoint(student_code)
-        if sb_cp and sb_cp.get("level") == student_level and st.session_state.sb_pool is None:
-            if st.button("⏯️ Resume previous Sentence Builder session"):
-                remaining_targets = sb_cp.get("pool_remaining_targets", [])
-                pool_all = [x for x in SENTENCE_BANK.get(student_level, []) if x.get("target_de") in set(remaining_targets)]
-                st.session_state.sb_pool_level = student_level
-                st.session_state.sb_pool = pool_all
-                st.session_state.sb_current = {
-                    "prompt_en": sb_cp.get("current", {}).get("prompt_en", ""),
-                    "target_de": sb_cp.get("current", {}).get("target_de", ""),
-                    "hint_en":   sb_cp.get("current", {}).get("hint_en", ""),
-                    "grammar_tag": sb_cp.get("current", {}).get("grammar_tag", ""),
-                    "tokens": sb_cp.get("current", {}).get("tokens_shuffled", []),
-                }
-                st.session_state.sb_shuffled = sb_cp.get("current", {}).get("tokens_shuffled", [])
-                st.session_state.sb_selected_idx = sb_cp.get("current", {}).get("selected_idx", [])
-                st.session_state.sb_score = int(sb_cp.get("score", 0))
-                st.session_state.sb_total = int(sb_cp.get("total", 0))
-                st.rerun()
+            if k not in st.session_state:
+                st.session_state[k] = v
 
         # ---- init / level change ----
         if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
             import random
             st.session_state.sb_pool_level = student_level
-            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
+            st.session_state.sb_pool = SENTENCE_BANK.get(
+                student_level, SENTENCE_BANK.get("A1", [])
+            ).copy()
             random.shuffle(st.session_state.sb_pool)
             st.session_state.sb_round = 0
             st.session_state.sb_score = 0
@@ -7799,38 +7906,37 @@ if tab == "Vocab Trainer":
 
         def new_sentence():
             import random
+            # Refill pool if empty
             if not st.session_state.sb_pool:
+                st.session_state.sb_pool = SENTENCE_BANK.get(
+                    student_level, SENTENCE_BANK.get("A1", [])
+                ).copy()
+                random.shuffle(st.session_state.sb_pool)
+            if st.session_state.sb_pool:
+                st.session_state.sb_current = st.session_state.sb_pool.pop()
+                # Expect keys: tokens (list), target_de (string), hint_en (string), prompt_en (string)
+                words = st.session_state.sb_current.get("tokens", [])[:]
+                random.shuffle(words)
+                st.session_state.sb_shuffled = words
+                st.session_state.sb_selected_idx = []
+                st.session_state.sb_feedback = ""
+                st.session_state.sb_correct = None
+                st.session_state.sb_round += 1
+            else:
                 st.warning("No sentences available for this level.")
-                return
-            st.session_state.sb_current = st.session_state.sb_pool.pop()
-            words = st.session_state.sb_current.get("tokens", [])[:]
-            random.shuffle(words)
-            st.session_state.sb_shuffled = words
-            st.session_state.sb_selected_idx = []
-            st.session_state.sb_feedback = ""
-            st.session_state.sb_correct = None
-            st.session_state.sb_round += 1
-            # save checkpoint
-            pool_targets = [x.get("target_de", "") for x in st.session_state.sb_pool]
-            save_sb_checkpoint(
-                student_code,
-                level=student_level,
-                current=st.session_state.sb_current,
-                shuffled=st.session_state.sb_shuffled,
-                selected_idx=st.session_state.sb_selected_idx,
-                score=st.session_state.sb_score,
-                total=st.session_state.sb_total,
-                pool_remaining_targets=pool_targets
-            )
 
         if st.session_state.sb_current is None:
             new_sentence()
 
-        # ---- session target + metrics (local only) ----
+        # ---- Top metrics for session ----
         cols = st.columns([3, 2, 2])
         with cols[0]:
             st.session_state.setdefault("sb_target", 5)
-            _ = st.number_input("Number of sentences this session", min_value=1, max_value=20, key="sb_target")
+            _ = st.number_input(
+                "Number of sentences this session",
+                min_value=1, max_value=20,
+                key="sb_target"
+            )
         target = int(st.session_state.sb_target)
         with cols[1]:
             st.metric("Score (this session)", f"{st.session_state.sb_score}")
@@ -7839,28 +7945,33 @@ if tab == "Vocab Trainer":
 
         st.divider()
 
-        # ---- prompt + hint ----
+        # --- English prompt panel (what to translate) ---
         cur = st.session_state.sb_current or {}
-        if cur.get("prompt_en"):
+        prompt_en   = cur.get("prompt_en", "")
+        hint_en     = cur.get("hint_en", "")
+        grammar_tag = cur.get("grammar_tag", "")
+
+        if prompt_en:
             st.markdown(
                 f"""
                 <div style="box-sizing:border-box; padding:12px 14px; margin:6px 0 14px 0;
                             background:#f0f9ff; border:1px solid #bae6fd; border-left:6px solid #0ea5e9;
                             border-radius:10px;">
                   <div style="font-size:1.05rem;">
-                    🇬🇧 <b>Translate into German:</b> <span style="color:#0b4a6f">{cur.get('prompt_en')}</span>
+                    🇬🇧 <b>Translate into German:</b> <span style="color:#0b4a6f">{prompt_en}</span>
                   </div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
+            # Optional helper
             with st.expander("💡 Need a nudge? (Hint)"):
-                if cur.get("hint_en"):
-                    st.markdown(f"**Hint:** {cur.get('hint_en')}")
-                if cur.get("grammar_tag"):
-                    st.caption(f"Grammar: {cur.get('grammar_tag')}")
+                if hint_en:
+                    st.markdown(f"**Hint:** {hint_en}")
+                if grammar_tag:
+                    st.caption(f"Grammar: {grammar_tag}")
 
-        # ---- word buttons ----
+        # ---- Buttons for word choices ----
         st.markdown("#### 🧩 Click the words in order")
         if st.session_state.sb_shuffled:
             word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
@@ -7871,102 +7982,102 @@ if tab == "Vocab Trainer":
                 with col:
                     if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
                         st.session_state.sb_selected_idx.append(i)
-                        # save checkpoint on every click
-                        pool_targets = [x.get("target_de","") for x in st.session_state.sb_pool]
-                        save_sb_checkpoint(student_code, level=student_level,
-                            current=st.session_state.sb_current, shuffled=st.session_state.sb_shuffled,
-                            selected_idx=st.session_state.sb_selected_idx,
-                            score=st.session_state.sb_score, total=st.session_state.sb_total,
-                            pool_remaining_targets=pool_targets)
                         st.rerun()
 
-        # ---- preview ----
+        # ---- Preview ----
         chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
         st.markdown("#### ✨ Your sentence")
         st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
 
-        # ---- actions ----
+        # ---- Actions ----
         a, b, c = st.columns(3)
         with a:
             if st.button("🧹 Clear"):
                 st.session_state.sb_selected_idx = []
                 st.session_state.sb_feedback = ""
                 st.session_state.sb_correct = None
-                pool_targets = [x.get("target_de","") for x in st.session_state.sb_pool]
-                save_sb_checkpoint(student_code, level=student_level,
-                    current=st.session_state.sb_current, shuffled=st.session_state.sb_shuffled,
-                    selected_idx=st.session_state.sb_selected_idx,
-                    score=st.session_state.sb_score, total=st.session_state.sb_total,
-                    pool_remaining_targets=pool_targets)
                 st.rerun()
         with b:
             if st.button("✅ Check"):
+                # Map correct keys from your bank
                 target_sentence = st.session_state.sb_current.get("target_de", "").strip()
                 chosen_sentence = normalize_join(chosen_tokens).strip()
                 correct = (chosen_sentence.lower() == target_sentence.lower())
                 st.session_state.sb_correct = correct
                 st.session_state.sb_total += 1
-                st.session_state.sb_feedback = "✅ **Correct!** Great job!" if correct else (
-                    f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {st.session_state.sb_current.get('hint_en','')}"
-                )
-                pool_targets = [x.get("target_de","") for x in st.session_state.sb_pool]
-                save_sb_checkpoint(student_code, level=student_level,
-                    current=st.session_state.sb_current, shuffled=st.session_state.sb_shuffled,
-                    selected_idx=st.session_state.sb_selected_idx,
-                    score=st.session_state.sb_score + (1 if correct else 0),
-                    total=st.session_state.sb_total,
-                    pool_remaining_targets=pool_targets)
                 if correct:
                     st.session_state.sb_score += 1
+                    st.session_state.sb_feedback = "✅ **Correct!** Great job!"
+                else:
+                    tip = st.session_state.sb_current.get("hint_en", "")
+                    st.session_state.sb_feedback = (
+                        f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
+                    )
+                save_sentence_attempt(
+                    student_code=student_code,
+                    level=student_level,
+                    target_sentence=target_sentence,
+                    chosen_sentence=chosen_sentence,
+                    correct=correct,
+                    tip=st.session_state.sb_current.get("hint_en", ""),
+                )
                 st.rerun()
         with c:
             next_disabled = (st.session_state.sb_correct is None)
             if st.button("➡️ Next", disabled=next_disabled):
                 if st.session_state.sb_total >= st.session_state.sb_target:
                     st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
-                    clear_sb_checkpoint(student_code)  # finished → clear
                 new_sentence()
                 st.rerun()
 
+        # ---- Feedback box ----
         if st.session_state.sb_feedback:
-            (st.success if st.session_state.sb_correct else st.info)(st.session_state.sb_feedback)
+            if st.session_state.sb_correct:
+                st.success(st.session_state.sb_feedback)
+            else:
+                st.info(st.session_state.sb_feedback)
 
     # ===========================
-    # SUBTAB: Vocab Practice (flashcards, resume-only)
+    # SUBTAB: Vocab Practice (flashcards)
     # ===========================
     elif subtab == "Vocab Practice":
+        # init session vars
         defaults = {
-            "vt_history": [], "vt_list": [], "vt_index": 0, "vt_score": 0,
-            "vt_total": None, "vt_started": False
+            "vt_history": [],
+            "vt_list": [],
+            "vt_index": 0,
+            "vt_score": 0,
+            "vt_total": None,
+            "vt_saved": False,       # save-once guard
+            "vt_session_id": None,   # unique id per practice session
         }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
 
+        # --- Stats ---
+        with st.expander("📝 Your Vocab Stats", expanded=False):
+            stats = get_vocab_stats(student_code)
+            st.markdown(f"- **Sessions:** {stats['total_sessions']}")
+            st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
+            st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
+
+            if st.checkbox("Show Last 5 Sessions"):
+                for a in stats["history"][-5:][::-1]:
+                    st.markdown(
+                        f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
+                        f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
+                        unsafe_allow_html=True
+                    )
+
+        # lock level
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
-
-        # Resume option
-        vt_cp = get_vt_checkpoint(student_code)
-        can_resume = bool(vt_cp.get("vt_total")) and vt_cp.get("level") == level and not st.session_state.vt_started
-        if can_resume and st.button("⏯️ Resume previous Vocab session"):
-            lst = vt_cp.get("vt_list", [])
-            st.session_state.vt_list = [(g, e) for g, e in lst]
-            st.session_state.vt_total = int(vt_cp.get("vt_total", 0))
-            st.session_state.vt_index = int(vt_cp.get("vt_index", 0))
-            st.session_state.vt_score = int(vt_cp.get("vt_score", 0))
-            st.session_state.vt_history = [("assistant", f"Welcome back! Resuming {st.session_state.vt_total} words.")]
-            st.session_state.vt_started = True
-            st.rerun()
-
-        # Completed words (resume-only, by level)
-        completed_map = vt_cp.get("completed_by_level", {})
-        completed = set(completed_map.get(level, []))
+        completed = set(stats["completed_words"])
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
+        # reset button
         if st.button("🔁 Start New Practice", key="vt_reset"):
-            # clear current session (but keep completed_by_level)
-            clear_vt_checkpoint(student_code)
             for k in defaults:
                 st.session_state[k] = defaults[k]
             st.rerun()
@@ -7974,43 +8085,40 @@ if tab == "Vocab Trainer":
         mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
         session_vocab = (not_done if mode == "Only new words" else items).copy()
 
+        # pick count and start
         if st.session_state.vt_total is None:
             maxc = len(session_vocab)
             if maxc == 0:
                 st.success("🎉 All done! Switch to 'All words' to repeat.")
                 st.stop()
+
             count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
             if st.button("Start", key="vt_start"):
                 import random
+                from uuid import uuid4
                 random.shuffle(session_vocab)
                 st.session_state.vt_list = session_vocab[:count]
                 st.session_state.vt_total = count
                 st.session_state.vt_index = 0
                 st.session_state.vt_score = 0
                 st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
-                st.session_state.vt_started = True
-                # Save initial checkpoint
-                save_vt_checkpoint(
-                    student_code,
-                    level=level,
-                    vt_list=[[g, e] for g, e in st.session_state.vt_list],
-                    vt_index=0,
-                    vt_score=0,
-                    vt_total=count,
-                    completed_by_level=completed_map
-                )
+                st.session_state.vt_saved = False
+                st.session_state.vt_session_id = str(uuid4())
                 st.rerun()
 
+        # show chat/history
         if st.session_state.vt_history:
             st.markdown("### 🗨️ Practice Chat")
             for who, msg in st.session_state.vt_history:
                 render_message(who, msg)
 
+        # practice loop
         tot = st.session_state.vt_total
         idx = st.session_state.vt_index
-        if isinstance(tot, int) and idx is not None and idx < tot:
+        if isinstance(tot, int) and idx < tot:
             word, answer = st.session_state.vt_list[idx]
 
+            # audio
             if st.button("🔊 Play & Download", key=f"tts_{idx}"):
                 try:
                     from gtts import gTTS
@@ -8031,6 +8139,7 @@ if tab == "Vocab Trainer":
                 except Exception as e:
                     st.error(f"Could not generate audio (gTTS): {e}")
 
+            # bigger, bolder, clearer input
             st.markdown(
                 """
                 <style>
@@ -8044,88 +8153,70 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
 
-            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}", placeholder="Type your answer here...")
+            usr = st.text_input(
+                f"{word} = ?",
+                key=f"vt_input_{idx}",
+                placeholder="Type your answer here..."
+            )
+
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
                     st.session_state.vt_score += 1
                     fb = f"✅ Correct! '{word}' = '{answer}'"
-                    add_completed_word(student_code, level, word)
-                    # update completed_map locally too
-                    completed_map = get_vt_checkpoint(student_code).get("completed_by_level", {})
                 else:
                     fb = f"❌ Nope. '{word}' = '{answer}'"
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
-                # save checkpoint after each answer
-                save_vt_checkpoint(
-                    student_code,
-                    level=level,
-                    vt_list=[[g, e] for g, e in st.session_state.vt_list],
-                    vt_index=st.session_state.vt_index,
-                    vt_score=st.session_state.vt_score,
-                    vt_total=st.session_state.vt_total,
-                    completed_by_level=completed_map
-                )
                 st.rerun()
 
-        if isinstance(tot, int) and idx is not None and idx >= tot:
+        # done
+        if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
+            words = [w for w, _ in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-            # session finished → clear only the running session fields, keep completed_by_level
-            clear_vt_checkpoint(student_code)
+
+            # 🔒 Save exactly once per session, with Firestore duplicate check
+            if not st.session_state.get("vt_saved", False):
+                # Ensure we have a session id (covers rare cases where it wasn't set)
+                if not st.session_state.get("vt_session_id"):
+                    from uuid import uuid4
+                    st.session_state.vt_session_id = str(uuid4())
+
+                if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
+                    save_vocab_attempt(
+                        student_code=student_code,
+                        level=level,
+                        total=tot,
+                        correct=score,
+                        practiced_words=words,
+                        session_id=st.session_state.vt_session_id
+                    )
+
+                st.session_state.vt_saved = True
+                st.rerun()
+
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
+#
 
-    # ===========================
-    # SUBTAB: Dictionary (search/browse)
-    # ===========================
-    elif subtab == "Dictionary":
-        lvl = student_level_locked
-        all_levels = sorted(VOCAB_LISTS.keys()) or [lvl]
-        c1, c2 = st.columns([2, 3])
-        with c1:
-            lvl = st.selectbox("Level", options=all_levels, index=all_levels.index(lvl) if lvl in all_levels else 0, key="dict_level")
-        with c2:
-            q = st.text_input("Search (German or English)", key="dict_query", placeholder="e.g., kaufen / to buy")
 
-        pairs = VOCAB_LISTS.get(lvl, [])
-        df = pd.DataFrame(pairs, columns=["German", "English"])
-        if q:
-            ql = q.strip().lower()
-            df = df[df.apply(lambda r: ql in str(r["German"]).lower() or ql in str(r["English"]).lower(), axis=1)]
 
-        st.caption(f"{len(df)} entries at level {lvl}.")
-        st.dataframe(df, use_container_width=True, hide_index=True)
 
-        dcol1, dcol2, dcol3 = st.columns([2, 2, 3])
-        with dcol1:
-            if st.button("🔊 Pronounce (type a German word below)"):
-                pass
-        with dcol2:
-            if st.button("⬇️ Download CSV"):
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label=f"Download vocab_{lvl}.csv",
-                    data=csv,
-                    file_name=f"vocab_{lvl}.csv",
-                    mime="text/csv",
-                    key="dict_dl_btn"
-                )
-        with dcol3:
-            g_word = st.text_input("German word to pronounce", key="dict_tts_word", placeholder="z. B. kaufen")
-            if g_word and st.button("Play", key="dict_tts_play"):
-                try:
-                    from gtts import gTTS
-                    import tempfile
-                    t = gTTS(text=g_word, lang="de")
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-                        t.save(fp.name)
-                        st.audio(fp.name, format="audio/mp3")
-                except Exception as e:
-                    st.error(f"Audio error (gTTS): {e}")
+
+# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
+def bubble(role, text):
+    color = "#7b2ff2" if role == "assistant" else "#222"
+    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
+    name = "Herr Felix" if role == "assistant" else "You"
+    return f"""
+        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
+        border-radius:14px;max-width:98vw;font-size:1.09rem;">
+            <b>{name}:</b><br>{text}
+        </div>
+    """
 
 
 
