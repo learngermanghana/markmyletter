@@ -386,24 +386,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 
 
 # ================================================
-# FORCE WWW CANONICAL HOST (place very near top)
-# ================================================
-components.html("""
-<script>
-  (function(){
-    try {
-      var h = window.location.hostname;
-      if (h === "falowen.app") {
-        window.location.replace("https://www.falowen.app" + window.location.pathname + window.location.search);
-      }
-    } catch(e) {}
-  })();
-</script>
-""", height=0)
-
-
-# ================================================
-# STUDENT SHEET LOADING & SESSION SETUP
+# STUDENT SHEET LOADING & SESSION SETUP (with Firebase silent restore)
 # ================================================
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
@@ -484,27 +467,41 @@ def is_contract_expired(row):
 # 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
 # ============================================================
 
+from typing import Optional  # ensure available if you were using 3.9
+
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
+    """
+    Returns JS code to set a cookie. If 'domain' is the name of a JS variable (e.g., 'base'),
+    pass it as that identifier string and we'll emit it as a JS variable (not a quoted literal).
+    """
+    base = (
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value))} + '
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+    )
+    if domain:
+        # 'domain' is intended to be a JS variable identifier, not a string literal
+        base += f'c += "; Domain=" + {domain};\n'
+    base += "document.cookie = c;\n"
+    return base
+
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     """
-    Safari-friendly cookie: host-only, SameSite=Lax, Secure on HTTPS.
+    iOS/Safari friendly: set both host-only and base-domain cookies for student_code.
     Also mirrors to localStorage.
     """
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")  # True on Streamlit/Render
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 180  # 180 days
+    exp_str = _expire_str(expires)
 
-    # 1) Library cookie (server-visible)
+    # Library cookie (encrypted; host-only)
     try:
-        cookie_manager.set(
-            key, norm,
-            expires=expires,
-            secure=use_secure,
-            samesite="Lax",
-            path="/",
-        )
+        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
     except Exception:
         try:
@@ -513,22 +510,70 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
         except Exception:
             pass
 
-    # 2) JS cookie (host-only, NO Domain=) + Max-Age (helps Safari)
-    max_age = 60 * 60 * 24 * 180  # 180 days
-    encoded_val = _urllib.quote(norm)
-    exp_str = _expire_str(expires)
-    components.html(f"""
+    # JS cookies: host-only AND base-domain (e.g., .falowen.app)
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
+    script = f"""
     <script>
       (function(){{
         try {{
-          var c = "{getattr(cookie_manager,'prefix','') or ''}{key}={encoded_val}; Path=/; Max-Age={max_age}; Expires={exp_str}; SameSite=Lax";
-          {"c += '; Secure';" if (os.getenv("ENV", "prod") != "dev") else ""}
-          document.cookie = c;  // host-only (no Domain)
+          {host_js}
+          try {{
+            var h = window.location.hostname.split('.');
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
           try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
         }} catch(e) {{}}
       }})();
     </script>
-    """, height=0)
+    """
+    components.html(script, height=0)
+
+def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
+    """
+    Mirror the Firestore session token in cookies (host-only + base-domain) and localStorage.
+    """
+    key = "session_token"
+    val = (token or "").strip()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 30  # 30 days (Firestore TTL still authoritative)
+    exp_str = _expire_str(expires)
+
+    # Library cookie (host-only)
+    try:
+        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = val
+            cookie_manager.save()
+        except Exception:
+            pass
+
+    # JS cookies: host-only + base-domain
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = window.location.hostname.split('.');
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
 
 # 0a) UA/LS query-parameter bridge (no postMessage)
 components.html("""
@@ -552,6 +597,41 @@ components.html("""
      }catch(e){}
    })();
  })();
+</script>
+""", height=0)
+
+# 0a.5) Firebase Web SDK + silent restore -> ?ftok=
+components.html(f"""
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+(function(){{
+  try {{
+    var cfg = {{
+      apiKey: {json.dumps(st.secrets.get("FIREBASE_WEB_API_KEY",""))},
+      authDomain: {json.dumps(st.secrets.get("FIREBASE_AUTH_DOMAIN",""))},
+      projectId: {json.dumps(st.secrets.get("FIREBASE_PROJECT_ID",""))}
+    }};
+    if (!window.firebase) return;
+    if (!firebase.apps || !firebase.apps.length) {{ firebase.initializeApp(cfg); }}
+    var lastSent = "";
+    firebase.auth().onAuthStateChanged(function(user){{
+      try {{
+        if (!user) return;
+        user.getIdToken(false).then(function(idt){{
+          try {{
+            if (!idt || idt === lastSent) return;
+            lastSent = idt;
+            var url = new URL(window.location);
+            if (url.searchParams.get('ftok') === idt) return;
+            url.searchParams.set('ftok', idt);
+            window.location.replace(url.toString());
+          }} catch(e) {{}}
+        }}).catch(function(){{}});
+      }} catch(e) {{}}
+    }});
+  }} catch(e) {{}}
+}})();
 </script>
 """, height=0)
 
@@ -625,6 +705,69 @@ if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
+# NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session (AFTER cookie_manager exists)
+def handle_firebase_ftok():
+    ftok = qp_get().get("ftok")
+    if isinstance(ftok, list):
+        ftok = ftok[0]
+    ftok = (ftok or "").strip()
+    if not ftok:
+        return False
+
+    try:
+        from firebase_admin import auth as fb_auth
+        # If you want revocation checks, use: verify_id_token(ftok, check_revoked=True)
+        decoded = fb_auth.verify_id_token(ftok)
+        email = (decoded.get("email") or "").lower().strip()
+        if not email:
+            qp_clear_keys("ftok")
+            return False
+
+        df = load_student_data()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        match = df[df["Email"] == email]
+        if match.empty:
+            qp_clear_keys("ftok")
+            return False
+
+        row = match.iloc[0]
+        if is_contract_expired(row):
+            qp_clear_keys("ftok")
+            return False
+
+        ua_hash = st.session_state.get("__ua_hash", "")
+        sess_token = create_session_token(row["StudentCode"], row["Name"], ua_hash=ua_hash)
+
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": row.to_dict(),
+            "student_code": row["StudentCode"],
+            "student_name": row["Name"],
+            "session_token": sess_token,
+        })
+
+        # Persist both cookies + localStorage now that cookie_manager exists
+        set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        components.html(f"""
+        <script>
+          try {{
+            localStorage.setItem('student_code', {json.dumps(row["StudentCode"])});
+            localStorage.setItem('session_token', {json.dumps(sess_token)});
+          }} catch(e) {{}}
+        </script>
+        """, height=0)
+
+        qp_clear_keys("ftok")
+        st.rerun()
+        return True
+    except Exception:
+        qp_clear_keys("ftok")
+        return False
+
+# Run the silent-restore handler early (but AFTER cookie_manager init)
+handle_firebase_ftok()
+
 # 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
 params = qp_get()
 sc_param = params.get("student_code")
@@ -634,12 +777,10 @@ sc_param = (sc_param or "").strip().lower()
 
 if sc_param:
     if not st.session_state.get("__cookie_attempt"):
-        # First attempt: set cookie then rerun
         st.session_state["__cookie_attempt"] = sc_param
         set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
         st.rerun()
     else:
-        # Second pass: did the cookie stick? Clear URL param if yes.
         attempted = st.session_state.get("__cookie_attempt", "")
         have = (cookie_manager.get("student_code") or "").strip().lower()
         if have == attempted:
@@ -656,7 +797,8 @@ def _get_token_candidates():
     t = (t or "").strip()
     ls = (st.session_state.get("__ls_token") or "").strip()
     mem = (st.session_state.get("session_token") or "").strip()
-    out = [x for x in [mem, t, ls] if x]
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()  # NEW: cookie token
+    out = [x for x in [mem, t, ls, cookie_tok] if x]
     seen, uniq = set(), []
     for x in out:
         if x not in seen:
@@ -689,6 +831,8 @@ if not st.session_state.get("logged_in", False):
         # Refresh/rotate; persist new token client-side; scrub ?t=
         new_tok = refresh_or_rotate_session_token(tok) or tok
         st.session_state["session_token"] = new_tok
+
+        # Persist to LS and cookies
         components.html(f"""
         <script>
           try {{
@@ -698,10 +842,11 @@ if not st.session_state.get("logged_in", False):
           }} catch(e) {{}}
         </script>
         """, height=0)
+        set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))  # NEW
         restored = True
         break
 
-# Fallback: original cookie/param login using student_code
+# Fallback: original cookie/param login using student_code (no password)
 if (not restored) and (not st.session_state.get("logged_in", False)):
     code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
     effective_code = code_cookie or sc_param
@@ -726,7 +871,6 @@ if (not restored) and (not st.session_state.get("logged_in", False)):
                 # Expired: clear cookie + localStorage to avoid loops
                 set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
                 components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
-
 
 # --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
 def save_cookie_after_login(student_code: str) -> None:
@@ -763,6 +907,31 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     </script>
     """, height=0)
 
+# --- Keep-alive to keep iOS storage fresh + let server extend TTL --------------
+components.html("""
+<script>
+  (function(){
+    try {
+      let last=0;
+      function ping(){
+        const now = Date.now();
+        if (document.hidden) return;
+        if (now - last < 4*60*1000) return; // every ~4min
+        last = now;
+        try { localStorage.setItem('falowen_alive', String(now)); } catch(e){}
+        try {
+          const u = new URL(window.location);
+          u.hash = 'alive' + now;
+          history.replaceState({}, '', u);
+        } catch(e){}
+      }
+      document.addEventListener('visibilitychange', ping, {passive:true});
+      setInterval(ping, 60*1000);
+      ping();
+    } catch(e){}
+  })();
+</script>
+""", height=0)
 
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
 st.markdown("""
@@ -785,7 +954,6 @@ st.markdown("""
     border:1px solid #ebebf2; text-align:center;
   }
   .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  /* Higher-contrast chips for WCAG */
   .quick-links a {
     background: #e2e8f0;
     padding: 8px 16px;
@@ -825,14 +993,10 @@ st.markdown("""
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
 
-    # Wider but centered content so it doesn't feel isolated on desktop
     st.markdown("""
-    <style>
-      .page-wrap { max-width: 1100px; margin: 0 auto; }
-    </style>
+    <style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>
     """, unsafe_allow_html=True)
 
-    # Hero + features
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -855,7 +1019,6 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Support / Help section
     st.markdown("""
     <div class="page-wrap">
       <div class="help-contact-box" aria-label="Help and contact options">
@@ -949,7 +1112,6 @@ if not st.session_state.get("logged_in", False):
             if is_contract_expired(student_row):
                 st.error("Your contract has expired. Contact the office."); return False
 
-            # --- NEW: issue server-side session token
             ua_hash = st.session_state.get("__ua_hash", "")
             sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
 
@@ -960,9 +1122,9 @@ if not st.session_state.get("logged_in", False):
                 "student_name": student_row["Name"],
                 "session_token": sess_token,
             })
-            # Persist code cookie + token locally, scrub URL params
             set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
             _persist_session_client(sess_token, student_row["StudentCode"])
+            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
 
             qp_clear()
             st.success(f"Welcome, {student_row['Name']}!")
@@ -971,7 +1133,6 @@ if not st.session_state.get("logged_in", False):
             st.error(f"Google OAuth error: {e}")
         return False
 
-    # Handle OAuth return before rendering forms
     if handle_google_login():
         st.stop()
 
@@ -1028,7 +1189,6 @@ if not st.session_state.get("logged_in", False):
                         if not ok:
                             st.error("Incorrect password.")
                         else:
-                            # --- NEW: issue server-side session token
                             ua_hash = st.session_state.get("__ua_hash", "")
                             sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
 
@@ -1039,9 +1199,9 @@ if not st.session_state.get("logged_in", False):
                                 "student_name": student_row["Name"],
                                 "session_token": sess_token,
                             })
-                            # Persist code cookie + token locally, scrub URL params
                             set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
                             _persist_session_client(sess_token, student_row["StudentCode"])
+                            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
 
                             st.success(f"Welcome, {student_row['Name']}!")
                             st.rerun()
@@ -1081,12 +1241,31 @@ if not st.session_state.get("logged_in", False):
                         doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
                         st.success("Account created! Please log in on the Returning tab.")
 
+        # --- Request Access ---
+    with tab3:
+        st.markdown(
+            """
+            <div class="page-wrap" style="text-align:center; margin-top:20px;">
+                <p style="font-size:1.1em; color:#444;">
+                    If you don't have an account yet, please request access by filling out this form.
+                </p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                   target="_blank" rel="noopener">
+                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                        📝 Open Request Access Form
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+#
+
+
     # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
     st.markdown("""
     <style>
-      /* Hide fullscreen button on WebKit/Blink (Safari/Chrome/Edge) */
       .no-fs::-webkit-media-controls-fullscreen-button { display: none !important; }
-      /* Keep controls tidy */
       .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
     </style>
     """, unsafe_allow_html=True)
@@ -1105,10 +1284,8 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # ================= Extra homepage sections =================
     st.markdown("---")
 
-    # 1) How Falowen works (with non-clickable uniform images)
     LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
     COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
     RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
@@ -1141,7 +1318,6 @@ if not st.session_state.get("logged_in", False):
 
     st.markdown("---")
 
-    # 2) Mini FAQ
     with st.expander("How do I log in?"):
         st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
     with st.expander("Where do I see my scores?"):
@@ -1151,9 +1327,6 @@ if not st.session_state.get("logged_in", False):
     with st.expander("What if I open the wrong lesson?"):
         st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
 
-    st.markdown("---")
-
-    # Social row + footer
     st.markdown("""
     <div class="page-wrap" style="text-align:center; margin:24px 0;">
       <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
@@ -1170,16 +1343,13 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # Stop after public homepage so the logged-in UI below doesn’t render
     st.stop()
-
 
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 
 if st.button("Log out"):
-    # 0) Best-effort: destroy server-side session token
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
@@ -1187,41 +1357,37 @@ if st.button("Log out"):
     except Exception:
         pass
 
-    # 1) Expire the host-only cookie immediately (server + JS)
     try:
         set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+        set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
     except Exception:
         pass
 
-    # Also try library delete (if supported)
     try:
         cookie_manager.delete("student_code")
+        cookie_manager.delete("session_token")
         cookie_manager.save()
     except Exception:
         pass
 
     _prefix = getattr(cookie_manager, "prefix", "") or ""
-    _cookie_name_code = f"{_prefix}student_code"   # cookie set by EncryptedCookieManager
-    _cookie_name_tok  = "falowen_session"          # optional JS-set mirror for session token
+    _cookie_name_code = f"{_prefix}student_code"
+    _cookie_name_tok  = f"{_prefix}session_token"
     _secure_js = "true" if (os.getenv("ENV", "prod") != "dev") else "false"
 
-    # 2) Clear localStorage + URL params + cookies (host-only + legacy base-domain) and reload
     components.html(f"""
     <script>
       (function() {{
         try {{
-          // localStorage
           try {{
             localStorage.removeItem('student_code');
             localStorage.removeItem('session_token');
           }} catch (e) {{}}
 
-          // URL params (student_code + token bridge)
           const url = new URL(window.location);
-          ['student_code','t','ua','ls'].forEach(k => url.searchParams.delete(k));
+          ['student_code','t','ua','ls','ftok'].forEach(k => url.searchParams.delete(k));
           window.history.replaceState({{}}, '', url);
 
-          // Cookies: expire host-only + base-domain variants
           const isSecure = {_secure_js};
           const past = "Thu, 01 Jan 1970 00:00:00 GMT";
           const names = [{json.dumps(_cookie_name_code)}, {json.dumps(_cookie_name_tok)}];
@@ -1233,10 +1399,8 @@ if st.button("Log out"):
             document.cookie = s;
           }}
 
-          // Host-only (current)
           names.forEach(n => expireCookie(n));
 
-          // Base-domain (legacy cleanup)
           const host  = window.location.hostname;
           const parts = host.split('.');
           if (parts.length >= 2) {{
@@ -1244,14 +1408,12 @@ if st.button("Log out"):
             names.forEach(n => expireCookie(n, base));
           }}
 
-          // Reload
           window.location.replace(url.pathname + url.search);
         }} catch (e) {{}}
       }})();
     </script>
     """, height=0)
 
-    # 3) Clear Streamlit session state immediately
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1271,7 +1433,6 @@ if st.button("Log out"):
         pass
 
     st.stop()
-
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
