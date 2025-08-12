@@ -8186,6 +8186,68 @@ if tab == "Vocab Trainer":
                 definition = st.session_state["delif_dict"][word]["definition"] or "No definition"
                 st.write(f"**{word}**: {definition}")
 
+            # ===========================
+    # SUBTAB: Dictionary (Delif)
+    # ===========================
+    elif subtab == "Dictionary":
+        st.header("Delif Dictionary")
+        st.write("Search any word. Entries include example sentences pulled from your Sentence Bank.")
+
+        if "delif_dict" not in st.session_state:
+            st.session_state["delif_dict"] = {}
+
+        def _merge_from_sentence_bank():
+            for level, items in SENTENCE_BANK.items():
+                for item in items:
+                    target_sentence = item.get("target_de") or " ".join(item.get("tokens", []))
+                    tokens = [t for t in item.get("tokens", []) if t not in [",", ".", "!", "?", ":", ";"]]
+                    for tok in tokens:
+                        key = str(tok).strip().lower()
+                        if not key:
+                            continue
+                        entry = st.session_state["delif_dict"].setdefault(
+                            key, {"definition": "", "examples": []}
+                        )
+                        if target_sentence and target_sentence not in entry["examples"]:
+                            entry["examples"].append(target_sentence)
+
+        _merge_from_sentence_bank()
+
+        q = st.text_input("Search term").strip().lower()
+        if q:
+            entry = st.session_state["delif_dict"].get(q)
+            if entry:
+                st.subheader(q.capitalize())
+                st.write(f"**Definition:** {entry['definition'] or 'No definition yet'}")
+                if entry["examples"]:
+                    st.write("**Examples:**")
+                    for ex in entry["examples"][:12]:
+                        st.write(f"- {ex}")
+                else:
+                    st.caption("No example sentences yet.")
+            else:
+                st.warning(f"'{q}' not found in dictionary.")
+
+        st.subheader("Add or Edit Entry")
+        new_word = st.text_input("Word (lowercase is fine)").strip().lower()
+        new_definition = st.text_area("Definition (English or German)")
+        if st.button("Save Entry"):
+            if new_word:
+                entry = st.session_state["delif_dict"].setdefault(
+                    new_word, {"definition": "", "examples": []}
+                )
+                entry["definition"] = new_definition
+                st.success(f"Saved entry for '{new_word}'.")
+            else:
+                st.error("Please enter a word before saving.")
+
+        if st.checkbox("Show all dictionary entries"):
+            for word in sorted(st.session_state["delif_dict"].keys()):
+                definition = st.session_state["delif_dict"][word]["definition"] or "No definition"
+                st.write(f"**{word}**: {definition}")
+#
+
+
 
 # ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
 def bubble(role, text):
