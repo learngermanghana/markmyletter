@@ -1,18 +1,7 @@
 # ==== Standard Library ====
-import atexit
-import base64
-import difflib
-import hashlib
-import html as html_stdlib  # renamed stdlib html to avoid conflicts
-import io
-import json
-import os
-import random
-import math
-import re
-import sqlite3
-import tempfile
-import time
+import atexit, base64, difflib, hashlib
+import html as html_stdlib
+import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
@@ -35,18 +24,6 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-
-
-# ---- Debug (safe to leave near the top) ----
-with st.expander("🔍 Debug: View Local Storage"):
-    if st.button("Check LocalStorage"):
-        components.html("""
-        <script>
-          const items = {...localStorage};
-          document.body.innerHTML = "<pre>" + JSON.stringify(items, null, 2) + "</pre>";
-        </script>
-        """, height=500)
-
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -55,10 +32,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Compatibility alias ---
-html = st_html  # ensures any html(...) calls use the Streamlit component
+# PWA + iOS head tags (served from /static) — now safely after set_page_config
+components.html("""
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Falowen">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+""", height=0)
 
-# --- State bootstrap (idempotent; prevents double-click on first render) -------
+# --- Compatibility alias ---
+html = st_html
+
+# --- State bootstrap ---
 def _bootstrap_state():
     defaults = {
         "logged_in": False,
@@ -75,37 +63,21 @@ def _bootstrap_state():
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
-
 _bootstrap_state()
 
-# --- SEO: head tags (only on public/landing) ---
+# --- SEO (only on public/landing) ---
 if not st.session_state.get("logged_in", False):
     html("""
     <script>
-      // Page <title>
       document.title = "Falowen – Learn German with Learn Language Education Academy";
-
-      // Meta description
       const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
       let m = document.querySelector('meta[name="description"]');
-      if (!m) {
-        m = document.createElement('meta');
-        m.name = "description";
-        document.head.appendChild(m);
-      }
+      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
       m.setAttribute("content", desc);
-
-      // Canonical
       const canonicalHref = window.location.origin + "/";
       let link = document.querySelector('link[rel="canonical"]');
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = "canonical";
-        document.head.appendChild(link);
-      }
+      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
       link.href = canonicalHref;
-
-      // Open Graph (helps WhatsApp/FB previews)
       function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
         if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
         t.setAttribute('content', v);
@@ -114,32 +86,19 @@ if not st.session_state.get("logged_in", False):
       setOG("og:description", desc);
       setOG("og:type", "website");
       setOG("og:url", canonicalHref);
-
-      // JSON-LD
-      const ld = {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Falowen",
-        "alternateName": "Falowen by Learn Language Education Academy",
-        "url": canonicalHref
-      };
-      const s = document.createElement('script');
-      s.type = "application/ld+json";
-      s.text = JSON.stringify(ld);
-      document.head.appendChild(s);
+      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
 
-# ==== HIDE STREAMLIT FOOTER/MENU ====
-st.markdown(
-    """
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# ==== Hide Streamlit chrome ====
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
 
 # ==== FIREBASE ADMIN INIT & SESSION STORE ====
 try:
@@ -945,58 +904,31 @@ components.html("""
 </script>
 """, height=0)
 
-# --- Early client-side restore (no URL params; set cookie from localStorage) ---
-if not st.session_state.get("logged_in", False):
+# --- Early client-side restore gate (no infinite "restoring" state) ---
+has_cookie_tok = bool((cookie_manager.get("session_token") or "").strip())
+
+if (not st.session_state.get("logged_in", False)) and (not has_cookie_tok):
+    # If Safari nuked cookies but LS still has the token, bounce it into the URL (?ls=...)
     components.html(
         """
         <script>
-        (function(){
-          try{
-            var tok = localStorage.getItem('session_token') || '';
-            if (!tok) { return; }
-
-            // If cookie already present, don't touch or reload.
-            var hasCookie = document.cookie.indexOf('falowen_session_token=') !== -1
-                            || document.cookie.indexOf('session_token=') !== -1;
-            if (hasCookie) { return; }
-
-            var isSecure = (location.protocol === 'https:');
-            var maxAge = 60*60*24*30; // 30 days
-            var expires = new Date(Date.now() + maxAge*1000).toUTCString();
-
-            function setC(name, val, domain){
-              var s = name + '=' + encodeURIComponent(val)
-                      + '; Path=/; Max-Age=' + maxAge
-                      + '; Expires=' + expires
-                      + '; SameSite=Lax';
-              if (isSecure) s += '; Secure';
-              if (domain)   s += '; Domain=' + domain;
-              document.cookie = s;
-            }
-
-            // Set both host-only and base-domain variants; names must match server-side
-            var names = ['falowen_session_token','session_token'];
-            names.forEach(function(n){ setC(n, tok, null); });
-
-            var parts = location.hostname.split('.');
-            if (parts.length >= 2){
-              var base = '.' + parts.slice(-2).join('.');
-              names.forEach(function(n){ setC(n, tok, base); });
-            }
-
-            // Reload once so the server sees the cookie; guard against loops
-            if (!sessionStorage.getItem('restored_once')){
-              sessionStorage.setItem('restored_once', '1');
-              location.reload();
-            }
-          } catch(e){}
-        })();
+          (function(){
+            try {
+              var tok = localStorage.getItem('session_token') || '';
+              if (tok) {
+                var u = new URL(window.location);
+                if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
+                  u.searchParams.set('ls', tok);
+                  window.location.replace(u.toString());
+                }
+              }
+            } catch (e) {}
+          })();
         </script>
         """,
         height=0
     )
-    st.info("Restoring your session…")
-    st.stop()
+    # NOTE: no st.stop() here — if there's no LS token, we just render the normal homepage.
 
 
 
@@ -9849,7 +9781,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
