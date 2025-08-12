@@ -35,6 +35,18 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
+
+
+# ---- Debug (safe to leave near the top) ----
+with st.expander("🔍 Debug: View Local Storage"):
+    if st.button("Check LocalStorage"):
+        components.html("""
+        <script>
+          const items = {...localStorage};
+          document.body.innerHTML = "<pre>" + JSON.stringify(items, null, 2) + "</pre>";
+        </script>
+        """, height=500)
+
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -9837,6 +9849,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
