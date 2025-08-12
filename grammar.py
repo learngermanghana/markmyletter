@@ -8237,17 +8237,100 @@ if tab == "Vocab Trainer":
                 st.rerun()
 
     # ===========================
-    # SUBTAB: Dictionary (scroll + range + details)
+    # SUBTAB: Dictionary (details above table, scrollable)
     # ===========================
     elif subtab == "Dictionary":
-        import math
+        import io, json
 
         st.info(
-            "📖 Browse all words in your level (scroll the table) or search. "
-            "Pick any row for pronunciation, examples, and save."
+            "📖 Browse all words in your level. Start by picking a word above. "
+            "If IPA or examples are missing, I’ll fetch them with OpenAI."
         )
 
-        # --- Controls ---
+        # ---------- Helpers (local, minimal) ----------
+        def _fallback_df_from_vocab(levels):
+            rows = []
+            for lvl in levels:
+                for de, en in VOCAB_LISTS.get(lvl, []):
+                    rows.append({"Level": lvl, "German": de, "English": en, "IPA": ""})
+            return pd.DataFrame(rows)
+
+        def _merge_sentence_bank(df, levels):
+            # add unique tokens from SENTENCE_BANK targets (basic heuristics)
+            extra = []
+            for lvl in levels:
+                for item in SENTENCE_BANK.get(lvl, []):
+                    # take simple tokens that are single words (skip punctuation)
+                    for tok in item.get("tokens", []):
+                        t = str(tok).strip()
+                        if not t or any(p in t for p in [",", ".", "!", "?", ":", ";"]):
+                            continue
+                        # only add if not already present as exact German word
+                        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
+                            extra.append({"Level": lvl, "German": t, "English": "", "IPA": ""})
+            if extra:
+                df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
+                df = df.drop_duplicates(subset=["Level", "German"]).reset_index(drop=True)
+            return df
+
+        def _dict_tts_bytes_de(text: str) -> bytes:
+            try:
+                from gtts import gTTS
+                buf = io.BytesIO()
+                gTTS(text=text, lang="de").write_to_fp(buf)
+                buf.seek(0)
+                return buf.read()
+            except Exception as e:
+                st.warning(f"Pronunciation unavailable ({e}).")
+                return b""
+
+        def _openai_enrich(german: str, english: str, level: str):
+            """
+            Ask OpenAI for IPA + 2 example sentences (German + English).
+            Returns dict: {"ipa": "...", "examples": [{"de":"...","en":"..."}, ...]}
+            """
+            try:
+                lvl = level or "A1"
+                prompt = (
+                    "You are a precise German lexicographer.\n"
+                    f'Word: "{german}"\nEnglish gloss: "{english}"\nLevel: {lvl}\n\n'
+                    "Return compact JSON with keys: ipa (IPA for standard German), "
+                    "examples (array of 2 objects with keys de and en). "
+                    "Examples should fit the level and use the word naturally. "
+                    "No extra text, JSON only."
+                )
+                resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    temperature=0.2,
+                    messages=[
+                        {"role": "system", "content": "You return clean, minimal JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=220,
+                )
+                raw = resp.choices[0].message.content.strip()
+                # handle possible code fences
+                if raw.startswith("```"):
+                    raw = raw.strip("`")
+                    # remove possible json hint
+                    raw = raw.split("\n", 1)[-1]
+                    if raw.strip().startswith("{") is False:
+                        raw = raw.split("```", 1)[0]
+                data = json.loads(raw)
+                # sanity shape
+                ipa = str(data.get("ipa", "") or "")
+                examples = data.get("examples", []) or []
+                clean_examples = []
+                for ex in examples[:2]:
+                    clean_examples.append({
+                        "de": str(ex.get("de", "") or ""),
+                        "en": str(ex.get("en", "") or "")
+                    })
+                return {"ipa": ipa, "examples": clean_examples}
+            except Exception:
+                return {"ipa": "", "examples": []}
+
+        # ---------- Controls ----------
         source_mode = st.radio(
             "Data source",
             ["CSV only", "CSV + Sentence Bank"],
@@ -8260,29 +8343,33 @@ if tab == "Vocab Trainer":
             horizontal=True,
             key="dict_level_scope"
         )
-
-        # Which levels to show
         levels_to_include = (
             [student_level_locked] if level_scope == "Your level only"
             else ["A1", "A2", "B1", "B2", "C1"]
         )
 
-        # --- Build dataframe (tries your helper first, falls back to CSV) ---
+        # ---------- Build dictionary dataframe ----------
         try:
-            # expects your earlier helper
+            # if you already defined _build_dictionary_df elsewhere, use it
             df_dict = _build_dictionary_df(
                 levels=levels_to_include,
                 include_sentence_bank=(source_mode == "CSV + Sentence Bank")
             )
         except Exception:
-            # fallback: build from VOCAB_LISTS only
-            rows = []
-            for lvl in levels_to_include:
-                for de, en in VOCAB_LISTS.get(lvl, []):
-                    rows.append({"Level": lvl, "German": de, "English": en, "IPA": ""})
-            df_dict = pd.DataFrame(rows)
+            df_dict = _fallback_df_from_vocab(levels_to_include)
+            if source_mode == "CSV + Sentence Bank":
+                df_dict = _merge_sentence_bank(df_dict, levels_to_include)
 
-        # --- Search/filter ---
+        if df_dict.empty:
+            st.warning("No entries found for the selected source/level.")
+            st.stop()
+
+        # safe columns
+        for col in ["Level", "German", "English", "IPA"]:
+            if col not in df_dict.columns:
+                df_dict[col] = ""
+
+        # ---------- Search ----------
         q = st.text_input("🔎 Search German or English", key="dict_query").strip()
         if q:
             qlow = q.lower()
@@ -8294,58 +8381,89 @@ if tab == "Vocab Trainer":
         else:
             df_view = df_dict.copy()
 
-        # --- Scrollable table (shows full range) ---
-        st.caption(f"Showing {len(df_view)} / {len(df_dict)} words")
-        st.dataframe(
-            df_view[["Level", "German", "English", "IPA"]].sort_values(["Level", "German"]),
-            use_container_width=True,
-            height=420
+        df_view = df_view.sort_values(["Level", "German"]).reset_index(drop=True)
+
+        # ---------- Details FIRST (above table) ----------
+        # Build robust labels so duplicates (same German across levels) are selectable
+        labels = [f"{r.German} — {r.English or '…'} [{r.Level}]" for r in df_view.itertuples()]
+        sel = st.selectbox(
+            "Details — pick a word to view IPA, examples, and pronunciation:",
+            options=["— select a word —"] + labels,
+            index=0,
+            key="dict_pick"
         )
 
-        # --- Row details / actions ---
-        options = ["— select a word —"] + df_view["German"].tolist()
-        pick = st.selectbox("Details", options, key="dict_pick")
+        if "dict_cache" not in st.session_state:
+            st.session_state["dict_cache"] = {}  # key: (German, Level) -> {"ipa":..., "examples":[...]}
 
-        if pick and pick != "— select a word —":
-            row = df_view[df_view["German"] == pick].iloc[0]
+        if sel != "— select a word —":
+            idx = labels.index(sel)
+            row = df_view.iloc[idx]
             de = str(row["German"])
-            en = str(row["English"])
+            en = str(row["English"] or "")
+            lvl = str(row["Level"] or "")
             ipa = str(row.get("IPA", "") or "")
-            lvl = str(row.get("Level", ""))
+
+            cache_key = (de, lvl)
+            cached = st.session_state["dict_cache"].get(cache_key, {})
+
+            # Only call OpenAI if we lack IPA or examples
+            need_ipa = (ipa.strip() == "")
+            need_examples = not cached.get("examples")
+
+            if need_ipa or need_examples:
+                enrich = _openai_enrich(de, en, lvl)
+                # prefer sheet IPA if present; else use OpenAI’s
+                if need_ipa and enrich.get("ipa"):
+                    ipa = enrich["ipa"]
+                # update examples in cache
+                if need_examples and enrich.get("examples"):
+                    cached["examples"] = enrich["examples"]
+                st.session_state["dict_cache"][cache_key] = {"ipa": ipa, **cached}
+
+            # Final display data
+            examples = st.session_state["dict_cache"].get(cache_key, {}).get("examples", [])
+            if not examples:
+                # still empty? keep an empty list
+                examples = []
 
             st.markdown(f"### {de}")
-            st.markdown(f"**Meaning:** {en}")
+            if en:
+                st.markdown(f"**Meaning:** {en}")
             if ipa:
                 st.caption(f"**IPA:** /{ipa}/")
 
-            c1, c2, c3 = st.columns([1, 1, 3])
+            c1, c2 = st.columns([1, 4])
             with c1:
-                if st.button("🔊 Pronounce", key=f"say_{de}"):
-                    try:
-                        # your helper creates mp3 bytes (gTTS or similar)
-                        audio_bytes = _dict_tts_bytes_de(de)
+                if st.button("🔊 Pronounce", key=f"say_{de}_{lvl}"):
+                    audio_bytes = _dict_tts_bytes_de(de)
+                    if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3")
-                    except Exception as e:
-                        st.warning(f"Audio unavailable: {e}")
-            with c2:
-                if st.button("➕ Save to My List", key=f"save_{de}"):
-                    try:
-                        _add_to_custom_vocab(student_code, de, en, lvl)
-                        st.success("Added to your list.")
-                    except Exception as e:
-                        st.warning(f"Couldn't save: {e}")
 
-            with st.expander("📌 Example sentences"):
-                try:
-                    examples = _examples_for_word(de) or []
-                except Exception:
-                    examples = []
-                if examples:
-                    for ex in examples:
-                        st.markdown(f"- {ex}")
-                else:
-                    st.caption("No examples available for this word.")
+            with c2:
+                with st.expander("📌 Example sentences", expanded=True):
+                    if examples:
+                        for ex in examples[:2]:
+                            de_ex = ex.get("de", "").strip()
+                            en_ex = ex.get("en", "").strip()
+                            if de_ex:
+                                st.markdown(f"- **{de_ex}**")
+                                if en_ex:
+                                    st.caption(f"  ↳ {en_ex}")
+                    else:
+                        st.caption("No examples available.")
+
+            st.divider()
+
+        # ---------- Table (scrollable) ----------
+        st.caption(f"Showing {len(df_view)} / {len(df_dict)} entries")
+        st.dataframe(
+            df_view[["Level", "German", "English", "IPA"]],
+            use_container_width=True,
+            height=420
+        )
 #
+
 
 
 
