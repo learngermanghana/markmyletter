@@ -933,31 +933,58 @@ components.html("""
 </script>
 """, height=0)
 
-# --- Early client-side restore gate (no infinite "restoring" state) ---
-has_cookie_tok = bool((cookie_manager.get("session_token") or "").strip())
-
-if (not st.session_state.get("logged_in", False)) and (not has_cookie_tok):
-    # If Safari nuked cookies but LS still has the token, bounce it into the URL (?ls=...)
+# --- Early client-side restore (no URL params; set cookie from localStorage) ---
+if not st.session_state.get("logged_in", False):
     components.html(
         """
         <script>
-          (function(){
-            try {
-              var tok = localStorage.getItem('session_token') || '';
-              if (tok) {
-                var u = new URL(window.location);
-                if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
-                  u.searchParams.set('ls', tok);
-                  window.location.replace(u.toString());
-                }
-              }
-            } catch (e) {}
-          })();
+        (function(){
+          try{
+            var tok = localStorage.getItem('session_token') || '';
+            if (!tok) { return; }
+
+            // If cookie already present, don't touch or reload.
+            var hasCookie = document.cookie.indexOf('falowen_session_token=') !== -1
+                            || document.cookie.indexOf('session_token=') !== -1;
+            if (hasCookie) { return; }
+
+            var isSecure = (location.protocol === 'https:');
+            var maxAge = 60*60*24*30; // 30 days
+            var expires = new Date(Date.now() + maxAge*1000).toUTCString();
+
+            function setC(name, val, domain){
+              var s = name + '=' + encodeURIComponent(val)
+                      + '; Path=/; Max-Age=' + maxAge
+                      + '; Expires=' + expires
+                      + '; SameSite=Lax';
+              if (isSecure) s += '; Secure';
+              if (domain)   s += '; Domain=' + domain;
+              document.cookie = s;
+            }
+
+            // Set both host-only and base-domain variants; names must match server-side
+            var names = ['falowen_session_token','session_token'];
+            names.forEach(function(n){ setC(n, tok, null); });
+
+            var parts = location.hostname.split('.');
+            if (parts.length >= 2){
+              var base = '.' + parts.slice(-2).join('.');
+              names.forEach(function(n){ setC(n, tok, base); });
+            }
+
+            // Reload once so the server sees the cookie; guard against loops
+            if (!sessionStorage.getItem('restored_once')){
+              sessionStorage.setItem('restored_once', '1');
+              location.reload();
+            }
+          } catch(e){}
+        })();
         </script>
         """,
         height=0
     )
-    # NOTE: no st.stop() here — if there's no LS token, we just render the normal homepage.
+    st.info("Restoring your session…")
+    st.stop()
 
 
 
