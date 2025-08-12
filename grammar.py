@@ -989,32 +989,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Early client-side restore gate to prevent "flash-logout" on hard refresh ---
-if not st.session_state.get("logged_in", False):
-    components.html(
-        """
-        <script>
-          (function(){
-            try {
-              var tok = localStorage.getItem('session_token') || '';
-              // Only do a redirect if we have a token AND we aren't already passing it via URL
-              if (tok) {
-                var u = new URL(window.location);
-                if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
-                  u.searchParams.set('ls', tok);
-                  window.location.replace(u.toString());
-                }
-              }
-            } catch (e) {}
-          })();
-        </script>
-        """,
-        height=0
-    )
-    # Small message just in case the redirect takes a moment
-    st.info("Restoring your session…")
-    st.stop()
-
 
 # --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
