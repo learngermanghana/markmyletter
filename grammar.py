@@ -1508,32 +1508,19 @@ if st.session_state.get("logged_in"):
     # Greeting helper
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-      # -------------------- CONTRACT (compute only) --------------------
-    MONTHLY_RENEWAL = 1000  # ₵ per month
+    # -------------------- CONTRACT (compute only) --------------------
+    MONTHLY_RENEWAL = 1000
+    contract_end_str = student_row.get("ContractEnd", "")
+    today_dt = datetime.today()
+    contract_end = parse_contract_end(contract_end_str)
 
-    # Reuse your end-date parser for start as well
-    def parse_contract_start(s: str):
-        return parse_contract_end(s)
+    contract_title_extra = "• no date"
+    contract_notice_level = "info"
+    contract_msg = "Contract end date unavailable or in wrong format."
 
-    def _add_months(dt: datetime, n: int) -> datetime:
-        # uses pandas DateOffset (pd is already imported above)
-        return (pd.Timestamp(dt) + pd.DateOffset(months=n)).to_pydatetime()
-
-    contract_start_str = (student_row.get("ContractStart") or "").strip()
-    contract_end_str   = (student_row.get("ContractEnd") or "").strip()
-
-    today_dt       = datetime.today()
-    contract_start = parse_contract_start(contract_start_str)
-    contract_end   = parse_contract_end(contract_end_str)
-
-    # --- Contract end messaging (existing behavior) ---
-    contract_title_extra   = "• no date"
-    contract_notice_level  = "info"
-    contract_msg           = "Contract end date unavailable or in wrong format."
-    urgent_contract        = False
-
+    urgent_contract = False
     if contract_end:
-        days_left = (contract_end.date() - today_dt.date()).days
+        days_left = (contract_end - today_dt).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
         if 0 < days_left <= 30:
             contract_notice_level = "warning"
@@ -1555,79 +1542,6 @@ if st.session_state.get("logged_in"):
         else:
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
-
-    # --- Monthly payment schedule + “owes / days to pay” ---
-    # Rule: first payment is exactly 1 month after ContractStart, then monthly.
-    bal_raw = student_row.get("Balance", 0)
-    try:
-        current_balance = float(bal_raw if bal_raw not in (None, "", "nan", "NaN") else 0)
-    except Exception:
-        current_balance = 0.0
-
-    payment_status_level = "info"
-    payment_status_msg   = "No contract start date found, so we cannot compute your next payment."
-    next_due_date = None
-    days_to_due   = None
-
-    if contract_start:
-        # Find the first monthly boundary that is >= today
-        # Start at +1 month, then step forward until due >= today
-        m = 1
-        # tiny optimization: rough starting point
-        approx = max(1, int((today_dt - contract_start).days // 30))
-        m = max(1, approx)
-        while True:
-            candidate = _add_months(contract_start, m)
-            if candidate.date() >= today_dt.date():
-                next_due_date = candidate
-                break
-            m += 1
-
-        days_to_due = (next_due_date.date() - today_dt.date()).days
-
-        # Build payment status (combining balance + timing)
-        if current_balance > 0:
-            if days_to_due < 0:
-                overdue_days = abs(days_to_due)
-                payment_status_level = "error"
-                payment_status_msg = (
-                    f"💸 You currently owe **₵{current_balance:,.2f}**. "
-                    f"Your last monthly payment is **overdue by {overdue_days} day{'s' if overdue_days != 1 else ''}**."
-                )
-            elif days_to_due == 0:
-                payment_status_level = "warning"
-                payment_status_msg = (
-                    f"💸 You owe **₵{current_balance:,.2f}**. **Payment is due today** "
-                    f"({next_due_date.strftime('%d %b %Y')})."
-                )
-            else:
-                payment_status_level = "warning"
-                payment_status_msg = (
-                    f"💸 You owe **₵{current_balance:,.2f}**. "
-                    f"Please pay within **{days_to_due} day{'s' if days_to_due != 1 else ''}** "
-                    f"(due **{next_due_date.strftime('%d %b %Y')}**)."
-                )
-        else:
-            if days_to_due < 0:
-                payment_status_level = "info"
-                payment_status_msg = (
-                    f"✅ No outstanding balance. Your last cycle (before "
-                    f"{today_dt.strftime('%d %b %Y')}) appears settled."
-                )
-            elif days_to_due == 0:
-                payment_status_level = "success"
-                payment_status_msg = (
-                    f"✅ No outstanding balance. A new cycle starts **today** "
-                    f"({next_due_date.strftime('%d %b %Y')})."
-                )
-            else:
-                payment_status_level = "success"
-                payment_status_msg = (
-                    f"✅ No outstanding balance. Next cycle is due in **{days_to_due} day"
-                    f"{'s' if days_to_due != 1 else ''}** "
-                    f"(**{next_due_date.strftime('%d %b %Y')}**)."
-                )
-#
 
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
@@ -1716,7 +1630,6 @@ if st.session_state.get("logged_in"):
 
     # Contract & renewal (collapsed)
     with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
-        # End-date notice
         if contract_notice_level == "warning":
             st.warning(contract_msg)
         elif contract_notice_level == "error":
@@ -1724,33 +1637,10 @@ if st.session_state.get("logged_in"):
         else:
             st.info(contract_msg)
 
-        # Payment reminder/status
-        if payment_status_level == "error":
-            st.error(payment_status_msg)
-        elif payment_status_level == "warning":
-            st.warning(payment_status_msg)
-        elif payment_status_level == "success":
-            st.success(payment_status_msg)
-        else:
-            st.info(payment_status_msg)
-
-        # Always show a small summary row (start / next due / end)
-        summary_bits = []
-        if contract_start:
-            summary_bits.append(f"**Start:** {contract_start.strftime('%d %b %Y')}")
-        if next_due_date:
-            summary_bits.append(f"**Next monthly due:** {next_due_date.strftime('%d %b %Y')}")
-        if contract_end:
-            summary_bits.append(f"**End:** {contract_end.strftime('%d %b %Y')}")
-
-        if summary_bits:
-            st.markdown(" • ".join(summary_bits))
-
         st.info(
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
         )
-#
 
     # Assignment streak & weekly goal (collapsed)
     with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
@@ -2005,13 +1895,6 @@ if tab == "Dashboard":
             "start_date": "2025-08-07",
             "end_date": "2025-11-07",
             "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
-        },
-        "B2 Munich Klasse": {
-            "days": ["Thursday", "Friday"],
-            "time": "Fri: 2pm–3:30pm, Saturday: 9am - 10:30pm, Wed: 2:00pm–3:00pm",
-            "start_date": "2025-08-08",
-            "end_date": "2025-11-08",
-            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
         },
     }
 
@@ -2734,8 +2617,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Nominalization of Verbs",
-            "video": "https://youtu.be/CXFd8jG7xCE",
-            "youtube_link": "https://youtu.be/CXFd8jG7xCE",
+            "video": "",
+            "youtube_link": "",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
         },
@@ -4629,11 +4512,6 @@ if tab == "My Course":
             _norm_class_local("A1 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/ye4Xbe2K6LiWPtBR8",
-                "contact_email": "learngermanghana@gmail.com",
-            },
-            _norm_class_local("B2 Munich Klasse"): {
-                "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/mescM6n2d7UHW5Bx8",
                 "contact_email": "learngermanghana@gmail.com",
             },
         }
