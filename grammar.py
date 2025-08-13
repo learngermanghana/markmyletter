@@ -380,8 +380,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-
-
 # ==== STUDENT SHEET LOADING ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
@@ -608,11 +606,11 @@ if not st.session_state.get("logged_in", False):
 st.markdown("""
 <style>
   .hero {
-    background: #fff; border-radius: 12px; padding: 24px; margin: 24px auto; max-width: 800px;
+    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.05);
   }
   .help-contact-box {
-    background: #fff; border-radius: 14px; padding: 20px; margin: 16px auto; max-width: 500px;
+    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
   }
   .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
@@ -621,22 +619,16 @@ st.markdown("""
     color:#0f172a; border:1px solid #cbd5e1;
   }
   .quick-links a:hover { background:#cbd5e1; }
-
-  .stButton > button {
-    background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8;
-  }
+  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
   .stButton > button:hover { background:#1d4ed8; }
-
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
     outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
   }
   input, textarea { color:#0f172a !important; }
-
-  @media (max-width:600px){
-    .hero, .help-contact-box { padding:16px 4vw; }
-  }
+  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # --- 3) Public Homepage (hero first, then meta/SEO) ---------------------------
@@ -9427,6 +9419,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
