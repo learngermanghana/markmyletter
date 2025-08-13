@@ -602,7 +602,8 @@ if not st.session_state.get("logged_in", False):
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
 
-# --- 2) Global CSS ---
+
+# --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
 <style>
   .hero {
@@ -625,11 +626,10 @@ st.markdown("""
     outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
   }
   input, textarea { color:#0f172a !important; }
+  .page-wrap { max-width: 1100px; margin: 0 auto; }
   @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
 </style>
 """, unsafe_allow_html=True)
-
-
 
 # --- 3) Public Homepage (hero first, then meta/SEO) ---------------------------
 if not st.session_state.get("logged_in", False):
@@ -687,17 +687,6 @@ if not st.session_state.get("logged_in", False):
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     # --- Google OAuth (Optional) ---
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
@@ -928,6 +917,19 @@ if not st.session_state.get("logged_in", False):
             """,
             unsafe_allow_html=True
         )
+
+    
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="help-contact-box" aria-label="Help and contact options">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     # --- Autoplay Video Demo ---
     st.markdown("""
@@ -9419,6 +9421,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
