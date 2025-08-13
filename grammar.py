@@ -5652,48 +5652,60 @@ if tab == "My Course":
 
 
 # =========================== MY RESULTS & RESOURCES ===========================
+
 # Safe utilities (define only if missing to avoid duplicates)
 if "html_stdlib" not in globals():
     import html as html_stdlib
-if "urllib" not in globals():
-    import urllib
+if "re" not in globals():
+    import re
+if "urlparse" not in globals():
+    from urllib.parse import urlparse as urlparse
+
 if "linkify_html" not in globals():
-    def linkify_html(text):
+    def linkify_html(text: str) -> str:
         """Escape HTML and convert URLs in plain text to anchor tags."""
         s = "" if text is None or (isinstance(text, float) and pd.isna(text)) else str(text)
         s = html_stdlib.escape(s)
-        s = re.sub(r'(https?://[^\s<]+)', r'<a href="\1" target="_blank" rel="noopener">\1</a>', s)
+        s = re.sub(r'(https?://[^\s<]+)',
+                   r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>', s)
         return s
+
 if "_clean_link" not in globals():
     def _clean_link(val) -> str:
         """Return a clean string or '' if empty/NaN/common placeholders."""
-        if val is None: return ""
-        if isinstance(val, float) and pd.isna(val): return ""
+        if val is None:
+            return ""
+        if isinstance(val, float) and pd.isna(val):
+            return ""
         s = str(val).strip()
         return "" if s.lower() in {"", "nan", "none", "null", "0"} else s
+
 if "_is_http_url" not in globals():
     def _is_http_url(s: str) -> bool:
         try:
-            u = urllib.parse.urlparse(str(s))
+            u = urlparse(str(s))
             return u.scheme in ("http", "https") and bool(u.netloc)
         except Exception:
             return False
 
 # Reuse the app’s schedules provider if available (no duplicate calls)
 def _get_level_schedules():
-    if "load_level_schedules" in globals() and callable(load_level_schedules):
-        return load_level_schedules()
-    # Fallback (won’t run if you’ve got load_level_schedules)
-    def _safe(fn):
-        try: return fn()
-        except Exception: return []
-    return {
-        "A1": _safe(get_a1_schedule),
-        "A2": _safe(get_a2_schedule),
-        "B1": _safe(get_b1_schedule),
-        "B2": _safe(get_b2_schedule),
-        "C1": _safe(get_c1_schedule),
-    }
+    if "load_level_schedules" in globals() and callable(globals()["load_level_schedules"]):
+        return globals()["load_level_schedules"]()
+
+    out = {}
+    name_map = {"A1":"get_a1_schedule", "A2":"get_a2_schedule",
+                "B1":"get_b1_schedule", "B2":"get_b2_schedule", "C1":"get_c1_schedule"}
+    for lvl, fname in name_map.items():
+        fn = globals().get(fname)
+        if callable(fn):
+            try:
+                out[lvl] = fn()
+            except Exception:
+                out[lvl] = []
+        else:
+            out[lvl] = []
+    return out
 
 # Plain/emoji score label once; reuse everywhere
 if "score_label_fmt" not in globals():
@@ -5744,9 +5756,7 @@ def fetch_scores(csv_url: str):
         if src in df.columns and dst not in df.columns:
             df = df.rename(columns={src: dst})
     required = ["student_code", "name", "assignment", "score", "date", "level"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        # Return empty with diagnostic columns so UI can error cleanly
+    if any(c not in df.columns for c in required):
         return pd.DataFrame(columns=required)
     df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
     return df
