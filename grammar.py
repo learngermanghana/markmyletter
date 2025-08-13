@@ -47,20 +47,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Top spacing + chrome
 st.markdown("""
 <style>
-/* 1) Remove Streamlit's default top padding */
+/* Remove Streamlit's top padding */
 [data-testid="stAppViewContainer"] > .main .block-container {
   padding-top: 0 !important;
 }
 
-/* 2) Nuke spacing on the very first rendered element (often components.html) */
+/* First block (often your head-inject) — no margins/padding */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
+
+/* Force head components.html iframe to take no space */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
   display: block;
   height: 0 !important;
@@ -71,22 +74,31 @@ st.markdown("""
   overflow: hidden !important;
 }
 
-/* 3) Prevent heading margin collapse inside the hero and keep it flush to the top */
-.hero {
-  margin-top: 0 !important;
-  padding-top: 6px !important;   /* small padding prevents h1 margin collapsing upward */
-  display: flow-root;            /* also prevents margin-collapsing */
-}
+/* Keep hero flush */
+.hero { margin-top: 0 !important; padding-top: 6px !important; display: flow-root; }
 .hero h1:first-child { margin-top: 0 !important; }
 
-/* Safety: ensure the first block never reintroduces a top margin */
-section.main > div:first-child,
-.block-container > div:first-child { margin-top: 0 !important; }
-
-/* If you wrap content in .page-wrap, keep it tight too */
-.page-wrap { margin-top: 0 !important; }
+/* Hide default Streamlit chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
+
+# Meta tags helper (no trailing height arg on st.markdown; use it on components.html only)
+BASE = st.secrets.get("PUBLIC_BASE_URL", "")
+_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
+_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+
+def _inject_meta_tags():
+    components.html(f"""
+      <link rel="manifest" href="{_manifest}">
+      <link rel="apple-touch-icon" href="{_icon180}">
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-title" content="Falowen">
+      <meta name="apple-mobile-web-app-status-bar-style" content="black">
+      <meta name="theme-color" content="#000000">
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    """, height=0)
 
 
 # --- Compatibility alias ---
@@ -9397,6 +9409,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
