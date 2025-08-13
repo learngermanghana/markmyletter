@@ -37,22 +37,36 @@ st.set_page_config(
 st.markdown("""
 <style>
 /* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0 !important; }
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
 
-/* First block — no margins/padding */
+/* First block — keep a little space below it */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important; margin-bottom: 0 !important;
-  padding-top: 0 !important; padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 24px !important;  /* was 0 — this creates separation */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 /* If the first block is an iframe, force it to 0 height (harmless if not) */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block; height: 0 !important; min-height: 0 !important;
-  margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important;
+  display: block;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
 }
 
-/* Keep hero flush */
-.hero { margin-top: 0 !important; padding-top: 6px !important; display: flow-root; }
+/* Keep hero flush at the very top, but with spacing below */
+.hero {
+  margin-top: 0 !important;
+  margin-bottom: 24px !important;  /* ensures gap before “Need help/access?” */
+  padding-top: 6px !important;
+  display: flow-root;
+}
 .hero h1:first-child { margin-top: 0 !important; }
 
 /* Hide default Streamlit chrome */
@@ -60,6 +74,7 @@ st.markdown("""
 footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
+
 
 # Meta tags helper (use AFTER the hero)
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
@@ -680,7 +695,6 @@ if not st.session_state.get("logged_in", False):
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
     st.markdown("""
     <div class="page-wrap">
@@ -9413,6 +9427,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
