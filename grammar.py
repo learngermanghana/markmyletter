@@ -25,25 +25,11 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# (Optional) PWA + iOS head tags — ensure these URLs exist for your domain
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-components.html(f"""
-<link rel="manifest" href="{_manifest}">
-<link rel="apple-touch-icon" href="{_icon180}">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Falowen">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#000000">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-""", height=0)
-
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
-    layout="wide",              # pick wide or centered, but do it once here
+    layout="wide",
     initial_sidebar_state="expanded"
 )
 
@@ -51,27 +37,18 @@ st.set_page_config(
 st.markdown("""
 <style>
 /* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
+[data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0 !important; }
 
-/* First block (often your head-inject) — no margins/padding */
+/* First block — no margins/padding */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  margin-top: 0 !important; margin-bottom: 0 !important;
+  padding-top: 0 !important; padding-bottom: 0 !important;
 }
 
-/* Force head components.html iframe to take no space */
+/* If the first block is an iframe, force it to 0 height (harmless if not) */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
+  display: block; height: 0 !important; min-height: 0 !important;
+  margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important;
 }
 
 /* Keep hero flush */
@@ -84,7 +61,7 @@ footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
-# Meta tags helper (no trailing height arg on st.markdown; use it on components.html only)
+# Meta tags helper (use AFTER the hero)
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
 _icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
@@ -100,9 +77,9 @@ def _inject_meta_tags():
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     """, height=0)
 
-
-# --- Compatibility alias ---
+# Compatibility alias
 html = st_html
+
 
 # --- State bootstrap ---
 def _bootstrap_state():
@@ -611,7 +588,6 @@ if not st.session_state.get("logged_in", False):
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
 
-
 # --- 2) Global CSS ---
 st.markdown("""
 <style>
@@ -629,23 +605,31 @@ st.markdown("""
     color:#0f172a; border:1px solid #cbd5e1;
   }
   .quick-links a:hover { background:#cbd5e1; }
-  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
+
+  .stButton > button {
+    background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8;
+  }
   .stButton > button:hover { background:#1d4ed8; }
+
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
     outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
   }
   input, textarea { color:#0f172a !important; }
-  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
+
+  @media (max-width:600px){
+    .hero, .help-contact-box { padding:16px 4vw; }
+  }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3) Public Homepage --------------------------------------------------------
+
+# --- 3) Public Homepage (hero first, then meta/SEO) ---------------------------
 if not st.session_state.get("logged_in", False):
 
-    st.markdown("""
-    <style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>
-    """, unsafe_allow_html=True)
+    # Optional container width helper (safe if you already defined it in global CSS)
+    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
+    # HERO FIRST — this is the first visible element on the page
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -668,16 +652,33 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="help-contact-box" aria-label="Help and contact options">
-        <b>❓ Need help or access?</b><br>
-        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-        &nbsp;|&nbsp;
-        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Inject PWA/meta link tags AFTER the hero (zero-height iframe)
+    _inject_meta_tags()
+
+    # Inject SEO head tags AFTER the hero (zero-height iframe)
+    html("""
+    <script>
+      document.title = "Falowen – Learn German with Learn Language Education Academy";
+      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
+      let m = document.querySelector('meta[name="description"]');
+      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
+      m.setAttribute("content", desc);
+      const canonicalHref = window.location.origin + "/";
+      let link = document.querySelector('link[rel="canonical"]');
+      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
+      link.href = canonicalHref;
+      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
+        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
+        t.setAttribute('content', v);
+      }
+      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
+      setOG("og:description", desc);
+      setOG("og:type", "website");
+      setOG("og:url", canonicalHref);
+      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
+    </script>
+    """, height=0)
 
 
     st.markdown("""
@@ -1008,6 +1009,8 @@ if not st.session_state.get("logged_in", False):
 
 # --- Logged In UI ---
 st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+
+_inject_meta_tags()
 
 if st.button("Log out"):
     try:
@@ -9409,6 +9412,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
