@@ -1,11 +1,22 @@
 # ==== Standard Library ====
-import atexit, base64, difflib, hashlib
+import atexit
+import base64
+import difflib
+import hashlib
 import html as html_stdlib
-import io, json, os, random, math, re, sqlite3, tempfile, time
+import io
+import json
+import math
+import os
+import random
+import re
+import sqlite3
+import tempfile
+import time
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
-from typing import Optional, Any, Dict, List  # <-- added
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -25,16 +36,17 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# ---- Streamlit page config MUST be first Streamlit call ----
+# ---- Streamlit page config MUST be the first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# PWA + iOS head tags (served from /static) — now safely after set_page_config
-components.html("""
+# ---- PWA & iOS head tags (after set_page_config) ----
+components.html(
+    """
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -42,13 +54,26 @@ components.html("""
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="theme-color" content="#000000">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-""", height=0)
+""",
+    height=0,
+)
 
-# --- Compatibility alias ---
+# --- Convenience alias for inline HTML ---
 html = st_html
 
-# --- State bootstrap ---
-def _bootstrap_state():
+# --- Minimal chrome (hide default Streamlit menu/footer) ---
+st.markdown(
+    """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# --- Session State Bootstrap ---
+def _bootstrap_state() -> None:
     defaults = {
         "logged_in": False,
         "student_row": None,
@@ -64,42 +89,38 @@ def _bootstrap_state():
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
+
 _bootstrap_state()
 
-# --- SEO (only on public/landing) ---
+# --- SEO (only on the public/landing page) ---
 if not st.session_state.get("logged_in", False):
-    html("""
-    <script>
-      document.title = "Falowen – Learn German with Learn Language Education Academy";
-      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
-      let m = document.querySelector('meta[name="description"]');
-      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
-      m.setAttribute("content", desc);
-      const canonicalHref = window.location.origin + "/";
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
-      link.href = canonicalHref;
-      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
-        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
-        t.setAttribute('content', v);
-      }
-      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
-      setOG("og:description", desc);
-      setOG("og:type", "website");
-      setOG("og:url", canonicalHref);
-      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
-      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
-    </script>
-    """, height=0)
-
-# ==== Hide Streamlit chrome ====
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
-
+    html(
+        """
+<script>
+  document.title = "Falowen – Learn German with Learn Language Education Academy";
+  const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
+  let m = document.querySelector('meta[name="description"]');
+  if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
+  m.setAttribute("content", desc);
+  const canonicalHref = window.location.origin + "/";
+  let link = document.querySelector('link[rel="canonical"]');
+  if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
+  link.href = canonicalHref;
+  function setOG(p, v){
+    let t = document.querySelector(`meta[property="${p}"]`);
+    if(!t){ t = document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
+    t.setAttribute('content', v);
+  }
+  setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
+  setOG("og:description", desc);
+  setOG("og:type", "website");
+  setOG("og:url", canonicalHref);
+  const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+  const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
+</script>
+""",
+        height=0,
+    )
 
 # ==== FIREBASE ADMIN INIT & SESSION STORE ====
 try:
@@ -113,7 +134,6 @@ except Exception as e:
     st.stop()
 
 # ---- Firestore sessions (server-side auth state) ----
-# Enable a TTL policy on `expires_at` in Firebase Console for auto-cleanup.
 SESSIONS_COL = "sessions"
 SESSION_TTL_MIN = 60 * 24 * 14         # 14 days
 SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7 # 7 days
@@ -159,7 +179,6 @@ def refresh_or_rotate_session_token(token: str) -> str:
         now = time.time()
         # Extend TTL
         ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
-
         # Rotate if old
         if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
             new_token = _rand_token()
@@ -194,9 +213,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ==== DB CONNECTION & INITIALIZATION ====
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect(
-            "vocab_progress.db", check_same_thread=False
-        )
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
@@ -270,6 +287,7 @@ def init_db():
             )
         """)
     conn.commit()
+
 init_db()
 
 # ==== CONSTANTS ====
@@ -277,18 +295,15 @@ FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
 
-def get_sprechen_usage(student_code):
+def get_sprechen_usage(student_code: str) -> int:
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
+    c.execute("SELECT count FROM sprechen_usage WHERE student_code=? AND date=?", (student_code, today))
     row = c.fetchone()
     return row[0] if row else 0
 
-def inc_sprechen_usage(student_code):
+def inc_sprechen_usage(student_code: str) -> None:
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
@@ -299,31 +314,24 @@ def inc_sprechen_usage(student_code):
         ON CONFLICT(student_code, date)
         DO UPDATE SET count = count + 1
         """,
-        (student_code, today)
+        (student_code, today),
     )
     conn.commit()
 
-def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+def has_sprechen_quota(student_code: str, limit: int = FALOWEN_DAILY_LIMIT) -> bool:
     return get_sprechen_usage(student_code) < limit
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
-
-# Prefer secrets for keys; fallback to existing value
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
 YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
-    ],
+    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
     "A2": [
         "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
         "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
         "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
     ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
+    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
     "B2": [
         "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
         "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
@@ -331,15 +339,10 @@ YOUTUBE_PLAYLIST_IDS = {
     ],
 }
 
-@st.cache_data(ttl=43200)
-def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
+@st.cache_data(ttl=43_200)
+def fetch_youtube_playlist_videos(playlist_id: str, api_key: str = YOUTUBE_API_KEY) -> List[Dict[str, str]]:
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
+    params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
     videos, next_page = [], ""
     while True:
         if next_page:
@@ -355,6 +358,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
         if not next_page:
             break
     return videos
+
 
 # ================================================
 # STUDENT SHEET LOADING & SESSION SETUP (with Firebase silent restore)
@@ -19990,6 +19994,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
