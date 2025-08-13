@@ -401,16 +401,20 @@ def is_contract_expired(row):
 
 # ==== Query param helpers (stable) ====
 def qp_get():
-    return st.experimental_get_query_params()
+    # returns a dict-like object
+    return st.query_params
 
 def qp_clear():
-    st.experimental_set_query_params()
+    # clears all query params from the URL
+    st.query_params.clear()
 
 def qp_clear_keys(*keys):
-    qp = st.experimental_get_query_params()
+    # remove only the specified keys
     for k in keys:
-        qp.pop(k, None)
-    st.experimental_set_query_params(**qp)
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
 
 # ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
@@ -550,6 +554,7 @@ if not st.session_state.get("logged_in", False):
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
+
 
 # --- 2) Global CSS ---
 st.markdown("""
@@ -9042,6 +9047,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
