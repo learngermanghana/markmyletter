@@ -5,6 +5,7 @@ import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
+from typing import Optional, Any, Dict, List  # <-- added
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -19989,6 +19990,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
