@@ -1164,6 +1164,7 @@ def load_full_vocab_sheet():
     df["Level"] = df["Level"].str.upper().str.strip()
     return df
 
+
 def get_vocab_of_the_day(df, level):
     level = level.upper().strip()
     subset = df[df["Level"] == level]
@@ -1173,7 +1174,11 @@ def get_vocab_of_the_day(df, level):
     today_ordinal = _date.today().toordinal()
     idx = today_ordinal % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
-    return {"german": row.get("German", ""), "english": row.get("English", ""), "example": row.get("Example", "") if "Example" in row else ""}
+    return {
+        "german": row.get("German", ""),
+        "english": row.get("English", ""),
+        "example": row.get("Example", "") if "Example" in row else ""
+    }
 
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
@@ -9581,6 +9586,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
