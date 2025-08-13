@@ -933,47 +933,96 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-
-    # --- Autoplay Video Demo ---
+    # --- Centered Video (pick a frame style by changing the class) ---
     st.markdown("""
-    <div class="page-wrap" style="margin-left: 4rem; display:flex; justify-content:flex-start; margin-top:16px; margin-bottom:24px;">
-      <div class="video-shell" aria-hidden="true">
-        <video
-          width="350"
-          autoplay
-          muted
-          loop
-          playsinline
-          tabindex="-1"
-          oncontextmenu="return false;"
-          draggable="false"
-          style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
-          <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-          Sorry, your browser doesn't support embedded videos.
-        </video>
+    <div class="page-wrap">
+      <div class="video-wrap">
+        <div class="video-shell style-gradient">
+          <video
+            width="360"
+            autoplay
+            muted
+            loop
+            playsinline
+            tabindex="-1"
+            oncontextmenu="return false;"
+            draggable="false"
+            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
+            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+            Sorry, your browser doesn't support embedded videos.
+          </video>
+        </div>
       </div>
     </div>
 
     <style>
+      /* Layout */
+      .video-wrap{
+        display:flex; justify-content:center; align-items:center;
+        margin: 12px 0 24px;
+      }
       .video-shell{
-        position: relative;
-        border-radius: 14px;
-        padding: 2px; /* frame thickness */
-        background: linear-gradient(135deg,#e5ecff,#f7f9ff);
-        box-shadow: 0 6px 20px rgba(0,0,0,.08);
+        position:relative; border-radius:16px; padding:4px;
       }
       .video-shell > video{
-        display:block;
-        border-radius:12px;
+        display:block; width:min(360px, 92vw); border-radius:12px; margin:0;
         box-shadow: 0 4px 12px rgba(0,0,0,.08);
-        margin:0;
       }
+
+      /* 1) Soft gradient frame (default) */
+      .video-shell.style-gradient{
+        background: linear-gradient(135deg,#e8eeff,#f6f9ff);
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+
+      /* 2) Glow pulse */
+      .video-shell.style-glow{
+        background:#0b1220;
+        box-shadow: 0 0 0 2px #1d4ed8, 0 0 18px #1d4ed8;
+        animation: glowPulse 3.8s ease-in-out infinite;
+      }
+      @keyframes glowPulse{
+        0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; }
+        50%{    box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; }
+      }
+
+      /* 3) Glassmorphism */
+      .video-shell.style-glass{
+        background: rgba(255,255,255,.25);
+        border: 1px solid rgba(255,255,255,.35);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 10px 30px rgba(0,0,0,.10);
+      }
+
+      /* 4) Animated dashes */
+      .video-shell.style-dash{
+        padding:6px; border-radius:18px;
+        background:
+          repeating-linear-gradient(90deg,#1d4ed8 0 24px,#93c5fd 24px 48px);
+        background-size: 48px 100%;
+        animation: dashMove 6s linear infinite;
+      }
+      @keyframes dashMove { to { background-position: 48px 0; } }
+
+      /* 5) Shimmer frame */
+      .video-shell.style-shimmer{
+        background: linear-gradient(120deg,#e5e7eb, #f8fafc, #e5e7eb);
+        background-size: 200% 200%;
+        animation: shimmer 6s linear infinite;
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+      @keyframes shimmer{ 0%{background-position:0% 50%;} 100%{background-position:100% 50%;} }
+
+      /* Mobile nudge */
       @media (max-width:600px){
-        .page-wrap[style*="margin-left"]{ margin-left:1rem !important; }
+        .video-wrap{ margin: 8px 0 16px; }
       }
     </style>
     """, unsafe_allow_html=True)
+    #
 #
+
 
     # Quick Links
     st.markdown("""
