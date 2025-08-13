@@ -1,95 +1,108 @@
 # ==== Standard Library ====
-import atexit, base64, difflib, hashlib
-import html as html_stdlib
-import io, json, os, random, math, re, sqlite3, tempfile, time
-import urllib.parse as _urllib
-from datetime import date, datetime, timedelta, timezone
-from uuid import uuid4
+import os                  # OS file ops
+import random              # Randomization
+import difflib             # Optional: For fuzzy matching
+import sqlite3             # Optional: Local DB (not needed if using Firestore only)
+import atexit              # Optional: Exit hooks
+import json                # JSON ops
+import re                  # Regex
+from datetime import date, datetime, timedelta
+import time                # Timing
+import io                  # IO streams
+import bcrypt
+import tempfile            # Temp file creation
+import urllib.parse        # URL encoding/decoding
 
 # ==== Third-Party Packages ====
-import bcrypt
-import firebase_admin
-import matplotlib.pyplot as plt
-import pandas as pd
-import requests
-import streamlit as st
-import streamlit.components.v1 as components
-from bs4 import BeautifulSoup
-from docx import Document
-from firebase_admin import credentials, firestore
-from fpdf import FPDF
-from gtts import gTTS
-from openai import OpenAI
-from streamlit.components.v1 import html as st_html
-from streamlit_cookies_manager import EncryptedCookieManager
-from streamlit_quill import st_quill
+import pandas as pd                        # Data handling
+import streamlit as st                     # App framework
+import matplotlib.pyplot as plt            # Charts/plots
+import requests                            # HTTP requests (for Google Sheets, etc)
+from openai import OpenAI                  # OpenAI API client
+import firebase_admin                      # Firebase app
+from firebase_admin import credentials, firestore    # Firestore DB
+from fpdf import FPDF                      # PDF export
+from streamlit_cookies_manager import EncryptedCookieManager   # Cookie/session handling
+from docx import Document                  # Optional: DOCX notes download
+from gtts import gTTS                      # Text-to-speech for vocab audio
+from streamlit_quill import st_quill            # WYSIWYG note editor
+from bs4 import BeautifulSoup                   # HTML parsing/clean export for TXT/PDF/DOCX
 
-# ---- Streamlit page config MUST be first Streamlit call ----
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# If you ever add fuzzy matching, you can use:
+# from thefuzz import fuzz, process      # Uncomment if using fuzzy answer checking
+
+
+# ==== HIDE STREAMLIT FOOTER/MENU ====
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
-# PWA + iOS head tags (served from /static) — now safely after set_page_config
-components.html("""
-<link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Falowen">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#000000">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-""", height=0)
+# ==== FIREBASE ADMIN INIT ====
+if not firebase_admin._apps:
+    # Convert SecretDict to plain dict for Certificate()
+    cred_dict = dict(st.secrets["firebase"])
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-# --- Compatibility alias ---
-html = st_html
+# ==== OPENAI CLIENT SETUP ====
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
+    st.stop()
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- State bootstrap ---
-def _bootstrap_state():
-    defaults = {
-        "logged_in": False,
-        "student_row": None,
-        "student_code": "",
-        "student_name": "",
-        "session_token": "",
-        "cookie_synced": False,
-        "__last_refresh": 0.0,
-        "__ua_hash": "",
-        "__ls_token": "",
-        "_oauth_state": "",
-        "_oauth_code_redeemed": "",
+
+YOUTUBE_PLAYLIST_IDS = {
+    "A1": [
+        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",   # Playlist 1 for A1
+    ],
+    "A2": [
+        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
+        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc&index=5",
+        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
+    ],
+    "B1": [
+        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
+        "PLB92CD6B288E5DB61",
+    ],
+    # etc.
+}
+
+
+@st.cache_data(ttl=3600*12)  # cache for 12 hours
+def fetch_youtube_playlist_videos(playlist_id, api_key):
+    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
+    params = {
+        "part": "snippet",
+        "playlistId": playlist_id,
+        "maxResults": 50,
+        "key": api_key,
     }
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
-_bootstrap_state()
+    videos = []
+    next_page = ""
+    while True:
+        if next_page:
+            params["pageToken"] = next_page
+        response = requests.get(base_url, params=params)
+        data = response.json()
+        for item in data.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            url = f"https://www.youtube.com/watch?v={vid}"
+            title = item["snippet"]["title"]
+            videos.append({"title": title, "url": url})
+        next_page = data.get("nextPageToken")
+        if not next_page:
+            break
+    return videos
 
-# --- SEO (only on public/landing) ---
-if not st.session_state.get("logged_in", False):
-    html("""
-    <script>
-      document.title = "Falowen – Learn German with Learn Language Education Academy";
-      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
-      let m = document.querySelector('meta[name="description"]');
-      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
-      m.setAttribute("content", desc);
-      const canonicalHref = window.location.origin + "/";
-      let link = document.querySelector('link[rel="canonical"]');
-      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
-      link.href = canonicalHref;
-      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
-        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
-        t.setAttribute('content', v);
-      }
-      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
-      setOG("og:description", desc);
-      setOG("og:type", "website");
-      setOG("og:url", canonicalHref);
-      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
-      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
-    </script>
-    """, height=0)
 
 # ==== Hide Streamlit chrome ====
 st.markdown("""
@@ -305,55 +318,6 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
-# ==== YOUTUBE PLAYLIST HELPERS ====
-
-# Prefer secrets for keys; fallback to existing value
-YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": [
-        "PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b",
-    ],
-    "A2": [
-        "PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY",
-        "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc",
-        "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c",
-    ],
-    "B1": [
-        "PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-",
-        "PLB92CD6B288E5DB61",
-    ],
-    "B2": [
-        "PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C",
-        "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0",
-        "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY",
-    ],
-}
-
-@st.cache_data(ttl=43200)
-def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {
-        "part": "snippet",
-        "playlistId": playlist_id,
-        "maxResults": 50,
-        "key": api_key,
-    }
-    videos, next_page = [], ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params, timeout=12)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            url = f"https://www.youtube.com/watch?v={vid}"
-            title = item["snippet"]["title"]
-            videos.append({"title": title, "url": url})
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
 
 
 # ================================================
@@ -9489,6 +9453,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
