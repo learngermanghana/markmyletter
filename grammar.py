@@ -63,7 +63,7 @@ st.markdown("""
 /* Keep hero flush at the very top, but with spacing below */
 .hero {
   margin-top: 0 !important;
-  margin-bottom: 24px !important;  /* ensures gap before “Need help/access?” */
+  margin-bottom: 12px !important;  /* ensures gap before “Need help/access?” */
   padding-top: 6px !important;
   display: flow-root;
 }
@@ -9427,6 +9427,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
