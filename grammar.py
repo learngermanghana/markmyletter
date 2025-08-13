@@ -9143,6 +9143,9 @@ if tab == "Schreiben Trainer":
                     "- Encourage the student. If the improvement is significant, say so.\n"
                     "1. If student dont improve after the third try, end the chat politely and tell the student to try again tomorrow. Dont continue to give the feedback after third try.\n"
                     "2. Always explain your feeback in English for them to understand. You can still highlight their german phrases. But your correction should be english\n"
+                    "3. For A1 and A2 students, make sure a sentence is not more than 7 words."
+                    "4. For A1 and A2 students, break their phrases down for them when they use relative clauses."
+                    "5. For A1 and A2 students, only recommend connectors such as deshalb, weil, ich mochte wissen,und,oder."
                     "- Give a revised score out of 25 (Score: X/25)."
                 )
                 with st.spinner("👨‍🏫 Herr Felix is comparing your improvement..."):
@@ -9651,6 +9654,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
