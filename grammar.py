@@ -25,34 +25,6 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# ---- Streamlit page config MUST be first Streamlit call ----
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",              # pick wide or centered, but do it once here
-    initial_sidebar_state="expanded"
-)
-
-# Kill the huge default top padding so the hero sits at the very top
-st.markdown("""
-<style>
-/* Current Streamlit wrapper */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0.5rem !important;
-}
-/* Fallbacks for older builds */
-.main .block-container { padding-top: 0.5rem !important; }
-#root > .block-container { padding-top: 0.5rem !important; }
-/* Make sure the first rendered element doesn't add margin */
-section.main > div:first-child, .block-container > div:first-child { margin-top: 0 !important; }
-/* Your hero block won't re-add a gap */
-.hero { margin-top: 8px !important; }
-</style>
-""", unsafe_allow_html=True)
-
-
-
-
 # (Optional) PWA + iOS head tags — ensure these URLs exist for your domain
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
@@ -66,6 +38,45 @@ components.html(f"""
 <meta name="theme-color" content="#000000">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 """, height=0)
+
+# ---- Streamlit page config MUST be first Streamlit call ----
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",              # pick wide or centered, but do it once here
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("""
+<style>
+/* Remove Streamlit's default top padding */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
+
+/* Kill BOTH top & bottom spacing on the very first rendered element
+   (your components.html shim) */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* Also neutralize spacing inside the first components.html iframe wrapper */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
+  display: block;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+
+/* Ensure the hero doesn't reintroduce a gap */
+.hero { margin-top: 0 !important; }
+</style>
+""", unsafe_allow_html=True)
 
 # --- Compatibility alias ---
 html = st_html
