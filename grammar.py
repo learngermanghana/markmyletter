@@ -33,6 +33,28 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Tighten top whitespace so the hero appears at the top
+st.markdown("""
+<style>
+/* Streamlit's main content wrapper */
+.main .block-container { 
+  padding-top: 0.75rem !important;   /* default can feel huge; shrink it */
+}
+
+/* If your theme uses a different wrapper, keep this fallback too */
+#root > .block-container {
+  padding-top: 0.75rem !important;
+}
+
+/* Optional: remove extra top gap some builds add above the first block */
+section.main > div:first-child { margin-top: 0 !important; }
+
+/* Make sure the hero itself doesn’t re-introduce a big gap */
+.hero { margin-top: 8px !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
 # (Optional) PWA + iOS head tags — ensure these URLs exist for your domain
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
 _manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
@@ -9343,6 +9365,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
