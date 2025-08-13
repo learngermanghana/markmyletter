@@ -1164,16 +1164,86 @@ def load_full_vocab_sheet():
     df["Level"] = df["Level"].str.upper().str.strip()
     return df
 
-def get_vocab_of_the_day(df, level):
-    level = level.upper().strip()
-    subset = df[df["Level"] == level]
+# ---- ROBUST VOCAB LOADER + SAFE PICKER ----
+@st.cache_data(ttl=43200)
+def load_full_vocab_sheet():
+    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    try:
+        df = pd.read_csv(csv_url, dtype=str)
+    except Exception:
+        # Network/privacy/etc. Return an empty, well-formed frame so downstream code never crashes.
+        st.error("Could not load vocab sheet.")
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
+
+    # Normalize headers (strip spaces, lowercase)
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Try to map common variants to our canonical names
+    def _match(colnames, *candidates):
+        s = set(colnames)
+        for cand in candidates:
+            if cand in s:
+                return cand
+        # fallback: fuzzy-ish startswith
+        for c in colnames:
+            if any(c.startswith(x) for x in candidates):
+                return c
+        return None
+
+    col_level   = _match(df.columns, "level")
+    col_german  = _match(df.columns, "german", "de", "word", "wort")
+    col_english = _match(df.columns, "english", "en", "meaning", "translation")
+    col_example = _match(df.columns, "example", "sentence", "usage")
+
+    # If required columns missing, return empty shaped frame
+    if not (col_level and col_german and col_english):
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
+
+    # Rename to canonical names
+    rename_map = {
+        col_level: "level",
+        col_german: "german",
+        col_english: "english",
+    }
+    if col_example:
+        rename_map[col_example] = "example"
+    df = df.rename(columns=rename_map)
+
+    # Keep only the columns we care about
+    if "example" not in df.columns:
+        df["example"] = ""
+
+    # Clean & normalize
+    for c in ["level", "german", "english", "example"]:
+        df[c] = df[c].astype(str).str.strip()
+
+    df = df[df["level"].notna() & (df["level"] != "")]
+    df["level"] = df["level"].str.upper()
+
+    return df[["level", "german", "english", "example"]]
+
+
+def get_vocab_of_the_day(df: pd.DataFrame, level: str):
+    # Defensive guards so this never throws
+    if df is None or df.empty:
+        return None
+    if not {"level", "german", "english", "example"}.issubset(df.columns):
+        return None
+
+    lvl = (level or "").upper().strip()
+    subset = df[df["level"] == lvl]
     if subset.empty:
         return None
+
     from datetime import date as _date
-    today_ordinal = _date.today().toordinal()
-    idx = today_ordinal % len(subset)
+    idx = _date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
-    return {"german": row.get("German", ""), "english": row.get("English", ""), "example": row.get("Example", "") if "Example" in row else ""}
+    return {
+        "german": row.get("german", ""),
+        "english": row.get("english", ""),
+        "example": row.get("example", ""),
+    }
 
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
