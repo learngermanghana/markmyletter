@@ -580,7 +580,6 @@ components.html("""
  })();
 </script>
 """, height=0)
-
 # 0a.5) Firebase Web SDK + silent restore -> ?ftok=
 components.html(f"""
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -595,14 +594,24 @@ components.html(f"""
     }};
     if (!window.firebase) return;
     if (!firebase.apps || !firebase.apps.length) {{ firebase.initializeApp(cfg); }}
+
     var lastSent = "";
+    // simple throttle to avoid rapid re-writes
+    var lastAt = 0;
+    function shouldSend(idt) {{
+      var now = Date.now();
+      if (idt === lastSent) return false;
+      if (now - lastAt < 1500) return false;
+      lastAt = now; lastSent = idt;
+      return true;
+    }}
+
     firebase.auth().onAuthStateChanged(function(user){{
       try {{
         if (!user) return;
         user.getIdToken(false).then(function(idt){{
           try {{
-            if (!idt || idt === lastSent) return;
-            lastSent = idt;
+            if (!idt || !shouldSend(idt)) return;
             var url = new URL(window.location.href);
             if (url.searchParams.get('ftok') === idt) return;
             url.searchParams.set('ftok', idt);
@@ -671,20 +680,29 @@ def _ingest_ua_ls_from_query():
     if ua or ls:
         qp_clear_keys("ua", "ls")
     return changed
+
 _ingest_ua_ls_from_query()
 
 # Defensive scrub in case a shared link includes bridge params
 qp_clear_keys("t", "ua", "ls")
 
-# 0d) Init cookie manager once
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+# 0d) Init cookie manager once (singleton to avoid duplicate component keys)
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET", "")
 if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
-    st.stop()
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+    st.warning("COOKIE_SECRET missing; continuing without persistent cookies (dev fallback).")
+    COOKIE_SECRET = "dev-fallback-not-secure"
+
+if "_cookie_manager" not in st.session_state:
+    st.session_state["_cookie_manager"] = EncryptedCookieManager(
+        prefix="falowen_",
+        password=COOKIE_SECRET,
+    )
+cookie_manager = st.session_state["_cookie_manager"]
+
 if not cookie_manager.ready():
-    st.warning("Cookies not ready; please refresh.")
-    st.stop()
+    st.info("Preparing cookies… If this persists, refresh the page.")
+    # Do NOT st.stop(); allow the public UI to render without cookies
+
 
 # NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session (AFTER cookie_manager exists)
 def handle_firebase_ftok():
