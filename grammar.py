@@ -23,3 +23,12 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
+# ---- Streamlit page config MUST be first Streamlit call ----
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
