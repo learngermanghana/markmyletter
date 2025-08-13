@@ -36,23 +36,30 @@ st.set_page_config(
 # Tighten top whitespace so the hero appears at the top
 st.markdown("""
 <style>
-/* Streamlit's main content wrapper */
-.main .block-container { 
-  padding-top: 0.75rem !important;   /* default can feel huge; shrink it */
+/* Newer Streamlit wrapper */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0.5rem !important;
 }
 
-/* If your theme uses a different wrapper, keep this fallback too */
+/* Fallbacks for older builds */
+.main .block-container {
+  padding-top: 0.5rem !important;
+}
 #root > .block-container {
-  padding-top: 0.75rem !important;
+  padding-top: 0.5rem !important;
 }
 
-/* Optional: remove extra top gap some builds add above the first block */
-section.main > div:first-child { margin-top: 0 !important; }
+/* Remove any top margin the first rendered element might add */
+section.main > div:first-child,
+.block-container > div:first-child {
+  margin-top: 0 !important;
+}
 
-/* Make sure the hero itself doesn’t re-introduce a big gap */
+/* Ensure your hero doesn’t reintroduce a gap */
 .hero { margin-top: 8px !important; }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # (Optional) PWA + iOS head tags — ensure these URLs exist for your domain
@@ -9365,6 +9372,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
