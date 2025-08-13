@@ -3816,10 +3816,6 @@ def load_level_schedules():
     }
 
 # --- Helpers ---
-
-import urllib.parse
-
-
 def render_assignment_reminder():
     st.markdown(
         '''
@@ -3846,25 +3842,45 @@ def render_assignment_reminder():
         unsafe_allow_html=True
     )
 
-def _fix_url(u: str) -> str:
-    u = (u or "").strip()
+# Normalize + encode URLs to prevent “address doesn’t look right”
+def _normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    u = str(url).strip()
     if not u:
         return ""
-    # Add scheme if missing
-    if not u.lower().startswith(("http://", "https://")):
-        u = "https://" + u
-    # Encode spaces and unsafe chars but keep URL structure
-    parts = urllib.parse.urlsplit(u)
-    path  = urllib.parse.quote(parts.path, safe="/-_.~")
-    query = urllib.parse.quote_plus(parts.query, safe="=&")
-    frag  = urllib.parse.quote(parts.fragment, safe="")
-    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path, query, frag))
+
+    lower = u.lower()
+    # Allow common non-HTTP schemes untouched
+    allowed = ("http://", "https://", "mailto:", "tel:", "sms:",
+               "whatsapp://", "tg://", "ftp://")
+    if not lower.startswith(allowed):
+        # Bare domain or www.: assume https
+        if lower.startswith("www.") or "://" not in lower:
+            u = "https://" + u
+
+    # Percent-encode path/query/fragment while preserving structure
+    try:
+        from urllib.parse import urlsplit, urlunsplit, quote, quote_plus
+        parts = urlsplit(u)
+        if parts.scheme in ("http", "https", "ftp"):
+            path  = quote(parts.path or "", safe="/-_.~")
+            query = quote_plus(parts.query or "", safe="=&")
+            frag  = quote(parts.fragment or "", safe="")
+            u = urlunsplit((parts.scheme, parts.netloc, path, query, frag))
+    except Exception:
+        # On any parsing error, just return original
+        pass
+    return u
 
 def render_link(label, url):
-    safe = _fix_url(url)
-    if safe:
-        st.markdown(f"- [{label}]({safe})")
-
+    safe = _normalize_url(url)
+    if not safe:
+        return  # skip empty/invalid URLs quietly
+    lbl = (label or "Link").strip()
+    # Escape square brackets so Markdown doesn’t break
+    lbl = lbl.replace("[", "\\[").replace("]", "\\]")
+    st.markdown(f"- [{lbl}]({safe})")
 
 @st.cache_data(ttl=86400)
 def build_wa_message(name, code, level, day, chapter, answer):
@@ -3877,7 +3893,7 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Day: {day}\n"
         f"Chapter: {chapter}\n"
         f"Date: {timestamp}\n"
-        f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
+        f"Answer: {str(answer).strip() if str(answer).strip() else '[See attached file/photo]'}"
     )
 
 SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
@@ -3906,13 +3922,14 @@ def notify_slack(text: str):
         return ok, f"status={resp.status_code}"
     except Exception as e:
         return False, str(e)
-        
+
 def highlight_terms(text, terms):
-    if not text: return ""
+    if not text:
+        return ""
     for term in terms:
-        if not term.strip():
+        if not str(term).strip():
             continue
-        pattern = re.compile(re.escape(term), re.IGNORECASE)
+        pattern = re.compile(re.escape(str(term)), re.IGNORECASE)
         text = pattern.sub(f"<span style='background:yellow;border-radius:0.23em;'>{term}</span>", text)
     return text
 
@@ -3925,8 +3942,8 @@ def filter_matches(lesson, terms):
         str(lesson.get('grammar_topic', '')).lower() +
         str(lesson.get('day', '')).lower()
     )
-    return any(term in searchable for term in terms)
-    
+    return any((t or '').lower() in searchable for t in terms)
+
 def render_section(day_info, key, title, icon):
     content = day_info.get(key)
     if not content:
@@ -3950,8 +3967,8 @@ def render_section(day_info, key, title, icon):
         extras = part.get('extra_resources')
         if extras:
             for ex in (extras if isinstance(extras, list) else [extras]):
-                render_link("🔗 Extra", ex)
-
+                url = ex.get('url') if isinstance(ex, dict) else ex
+                render_link("🔗 Extra", url)
 
 def post_message(level, code, name, text, reply_to=None):
     posts_ref = db.collection("class_board").document(level).collection("posts")
@@ -3962,6 +3979,7 @@ def post_message(level, code, name, text, reply_to=None):
         "timestamp": datetime.utcnow(),
         "reply_to": reply_to,
     })
+
 
 RESOURCE_LABELS = {
     'video': '🎥 Video',
@@ -9910,6 +9928,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
