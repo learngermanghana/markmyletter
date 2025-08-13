@@ -44,7 +44,7 @@ st.markdown("""
 /* First block — keep a little space below it */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
   margin-top: 0 !important;
-  margin-bottom: 24px !important;  /* was 0 — this creates separation */
+  margin-bottom: 12px !important;  /* was 0 — this creates separation */
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
@@ -9427,6 +9427,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
