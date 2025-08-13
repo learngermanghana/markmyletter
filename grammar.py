@@ -578,10 +578,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3) Public Homepage (Login / OAuth) ---
+# --- 3) Public Homepage --------------------------------------------------------
 if not st.session_state.get("logged_in", False):
 
-    st.markdown("<style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>", unsafe_allow_html=True)
+    st.markdown("""
+    <style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>
+    """, unsafe_allow_html=True)
 
     st.markdown("""
     <div class="page-wrap">
@@ -616,18 +618,17 @@ if not st.session_state.get("logged_in", False):
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Google OAuth (no Firebase; normal cookies) ---
-    GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID")
-    GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET")
-    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI")  # must match console exactly
+    # --- Google OAuth (Optional) ---
+    GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
+    GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
+    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
 
     def _qp_first(val):
         if isinstance(val, list): return val[0]
         return val
 
     def do_google_oauth():
-        import secrets
-        from urllib.parse import urlencode
+        import secrets, urllib.parse
         st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
         params = {
             "client_id": GOOGLE_CLIENT_ID,
@@ -639,16 +640,16 @@ if not st.session_state.get("logged_in", False):
             "include_granted_scopes": "true",
             "access_type": "online",
         }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params, doseq=True)
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
         st.markdown(
-            f"""<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                    <a href="{auth_url}">
+            """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+                    <a href="{url}">
                         <button aria-label="Sign in with Google"
                                 style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
                             Sign in with Google
                         </button>
                     </a>
-               </div>""",
+               </div>""".replace("{url}", auth_url),
             unsafe_allow_html=True
         )
 
@@ -671,7 +672,7 @@ if not st.session_state.get("logged_in", False):
             "grant_type": "authorization_code"
         }
         try:
-            resp = requests.post(token_url, data=data, timeout=12)
+            resp = requests.post(token_url, data=data, timeout=10)
             if not resp.ok:
                 st.error(f"Google login failed: {resp.status_code} {resp.text}"); return False
             tokens = resp.json()
@@ -9041,6 +9042,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
