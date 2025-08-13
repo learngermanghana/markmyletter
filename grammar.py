@@ -1691,8 +1691,8 @@ if tab == "Dashboard":
         "B2 Munich Klasse": {
             "days": ["Friday", "Saturday"],
             "time": "Fri: 2pm-3:30pm, Sat: 9;30am-10am",
-            "start_date": "2025-08-08"
-            "start_date": "2025-10-08"
+            "start_date": "2025-08-08",
+            "start_date": "2025-10-08",
             "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
         },
     }
@@ -9581,6 +9581,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
