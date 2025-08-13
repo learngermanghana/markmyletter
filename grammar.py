@@ -6817,1893 +6817,1131 @@ if tab == "Exams Mode & Custom Chat":
 # End
 # =========================================
 
-# =========================================
-# Vocab
-# =========================================
-
-# sentence_bank.py
-SENTENCE_BANK = {
-    "A1": [
-        {
-            "prompt_en": "I go jogging every morning.",
-            "target_de": "Ich gehe jeden Morgen joggen.",
-            "tokens": ["Ich", "gehe", "jeden", "Morgen", "joggen", "."],
-            "distractors": ["oft", "im", "Park", "später"],
-            "hint_en": "Verb in 2nd position; time can follow subject.",
-            "grammar_tag": "Verb-2; TMP",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Do you have siblings?",
-            "target_de": "Hast du Geschwister?",
-            "tokens": ["Hast", "du", "Geschwister", "?"],
-            "distractors": ["die", "hast", "ist", "Wo"],
-            "hint_en": "Yes/No question: verb first.",
-            "grammar_tag": "Ja/Nein-Frage",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We are going to the supermarket today.",
-            "target_de": "Wir gehen heute zum Supermarkt.",
-            "tokens": ["Wir", "gehen", "heute", "zum", "Supermarkt", "."],
-            "distractors": ["ins", "gehen", "morgen"],
-            "hint_en": "Verb 2nd, time after subject, place after time.",
-            "grammar_tag": "TMP",
-            "weight": 1
-        },
-        {
-            "prompt_en": "My name is Anna.",
-            "target_de": "Ich heiße Anna.",
-            "tokens": ["Ich", "heiße", "Anna", "."],
-            "distractors": ["bin", "Name", "habe"],
-            "hint_en": "Introduce yourself with ‘heißen’.",
-            "grammar_tag": "Vorstellung",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We live in Berlin.",
-            "target_de": "Wir wohnen in Berlin.",
-            "tokens": ["Wir", "wohnen", "in", "Berlin", "."],
-            "distractors": ["nach", "wohne", "im"],
-            "hint_en": "‘wohnen’ + in + city.",
-            "grammar_tag": "Präpositionen",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I would like a coffee, please.",
-            "target_de": "Ich möchte einen Kaffee, bitte.",
-            "tokens": ["Ich", "möchte", "einen", "Kaffee", ",", "bitte", "."],
-            "distractors": ["haben", "die", "mochte"],
-            "hint_en": "möchte + Akkusativ.",
-            "grammar_tag": "Bestellung",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The bus arrives at 8 o'clock.",
-            "target_de": "Der Bus kommt um acht Uhr an.",
-            "tokens": ["Der", "Bus", "kommt", "um", "acht", "Uhr", "an", "."],
-            "distractors": ["an", "fahren", "achtzehn"],
-            "hint_en": "Separable verb ‘ankommen’.",
-            "grammar_tag": "Trennbare Verben",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Where is the toilet?",
-            "target_de": "Wo ist die Toilette?",
-            "tokens": ["Wo", "ist", "die", "Toilette", "?"],
-            "distractors": ["wann", "wer", "woher"],
-            "hint_en": "W-Question: verb in 2nd position.",
-            "grammar_tag": "Fragen",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I am learning German.",
-            "target_de": "Ich lerne Deutsch.",
-            "tokens": ["Ich", "lerne", "Deutsch", "."],
-            "distractors": ["lernen", "lernst", "sprichst"],
-            "hint_en": "Simple present tense, verb 2nd.",
-            "grammar_tag": "Präsens",
-            "weight": 1
-        },
-        {
-            "prompt_en": "She works in a school.",
-            "target_de": "Sie arbeitet in einer Schule.",
-            "tokens": ["Sie", "arbeitet", "in", "einer", "Schule", "."],
-            "distractors": ["im", "arbeiten", "ein"],
-            "hint_en": "in + Dativ for location.",
-            "grammar_tag": "Präpositionen + Dativ",
-            "weight": 1
-        },
-        {
-            "prompt_en": "What is your phone number?",
-            "target_de": "Wie ist deine Telefonnummer?",
-            "tokens": ["Wie", "ist", "deine", "Telefonnummer", "?"],
-            "distractors": ["Wo", "Wann", "Wer"],
-            "hint_en": "Use ‘Wie ist…?’ to ask for numbers.",
-            "grammar_tag": "Fragen",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I like pizza.",
-            "target_de": "Ich mag Pizza.",
-            "tokens": ["Ich", "mag", "Pizza", "."],
-            "distractors": ["möchte", "liebe", "esse"],
-            "hint_en": "Use ‘mögen’ to talk about likes.",
-            "grammar_tag": "Modalverb mögen",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Can you repeat that, please?",
-            "target_de": "Kannst du das bitte wiederholen?",
-            "tokens": ["Kannst", "du", "das", "bitte", "wiederholen", "?"],
-            "distractors": ["kannst", "wiederhole", "du"],
-            "hint_en": "Yes/No question: modal verb first.",
-            "grammar_tag": "Modalverben; Frage",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The bakery is next to the bank.",
-            "target_de": "Die Bäckerei ist neben der Bank.",
-            "tokens": ["Die", "Bäckerei", "ist", "neben", "der", "Bank", "."],
-            "distractors": ["neben", "dem", "Bank"],
-            "hint_en": "neben + Dativ (location).",
-            "grammar_tag": "Wechselpräposition (Dativ)",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I don’t understand.",
-            "target_de": "Ich verstehe nicht.",
-            "tokens": ["Ich", "verstehe", "nicht", "."],
-            "distractors": ["kein", "keine", "nichts"],
-            "hint_en": "Use ‘nicht’ to negate the verb.",
-            "grammar_tag": "Negation",
-            "weight": 1
-        },
-        {
-            "prompt_en": "At what time does the class start?",
-            "target_de": "Um wie viel Uhr beginnt der Kurs?",
-            "tokens": ["Um", "wie", "viel", "Uhr", "beginnt", "der", "Kurs", "?"],
-            "distractors": ["Wann", "beginnen", "Kurs"],
-            "hint_en": "Asking for time with ‘Um wie viel Uhr…’.",
-            "grammar_tag": "Fragen; Zeit",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I’m sorry, I’m late.",
-            "target_de": "Entschuldigung, ich bin spät.",
-            "tokens": ["Entschuldigung", ",", "ich", "bin", "spät", "."],
-            "distractors": ["später", "habe", "ist"],
-            "hint_en": "Fixed apology phrase.",
-            "grammar_tag": "Redemittel",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We need two tickets.",
-            "target_de": "Wir brauchen zwei Tickets.",
-            "tokens": ["Wir", "brauchen", "zwei", "Tickets", "."],
-            "distractors": ["brauche", "Ticket", "zweite"],
-            "hint_en": "Plural nouns without article in general count.",
-            "grammar_tag": "Akkusativ; Plural",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He is from Spain.",
-            "target_de": "Er kommt aus Spanien.",
-            "tokens": ["Er", "kommt", "aus", "Spanien", "."],
-            "distractors": ["von", "Spanischem", "Spanier"],
-            "hint_en": "aus + Land for origin.",
-            "grammar_tag": "Präpositionen",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The window is open.",
-            "target_de": "Das Fenster ist offen.",
-            "tokens": ["Das", "Fenster", "ist", "offen", "."],
-            "distractors": ["auf", "öffnen", "macht"],
-            "hint_en": "Simple statement with ‘sein’.",
-            "grammar_tag": "Präsens sein",
-            "weight": 1
-        }
-    ],
-
-    "A2": [
-        {
-            "prompt_en": "I am staying at home because I am sick.",
-            "target_de": "Ich bleibe heute zu Hause, weil ich krank bin.",
-            "tokens": ["Ich", "bleibe", "heute", "zu", "Hause", ",", "weil", "ich", "krank", "bin", "."],
-            "distractors": ["deshalb", "werde", "morgen"],
-            "hint_en": "‘weil’ sends the verb to the end.",
-            "grammar_tag": "weil",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Tomorrow I will visit my friend.",
-            "target_de": "Morgen besuche ich meinen Freund.",
-            "tokens": ["Morgen", "besuche", "ich", "meinen", "Freund", "."],
-            "distractors": ["werde", "besuchen", "Freunde"],
-            "hint_en": "Time first → inversion (verb before subject).",
-            "grammar_tag": "Inversion",
-            "weight": 1
-        },
-        {
-            "prompt_en": "She is reading a book and drinking tea.",
-            "target_de": "Sie liest ein Buch und trinkt Tee.",
-            "tokens": ["Sie", "liest", "ein", "Buch", "und", "trinkt", "Tee", "."],
-            "distractors": ["oder", "Bücher", "trinken"],
-            "hint_en": "Coordinate clauses with ‘und’.",
-            "grammar_tag": "Konjunktionen",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He has to go to the doctor.",
-            "target_de": "Er muss zum Arzt gehen.",
-            "tokens": ["Er", "muss", "zum", "Arzt", "gehen", "."],
-            "distractors": ["geht", "gehen", "ins"],
-            "hint_en": "Modal verb + infinitive at the end.",
-            "grammar_tag": "Modalverben",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We are interested in the new film.",
-            "target_de": "Wir interessieren uns für den neuen Film.",
-            "tokens": ["Wir", "interessieren", "uns", "für", "den", "neuen", "Film", "."],
-            "distractors": ["an", "im", "alte"],
-            "hint_en": "sich interessieren für + Akkusativ.",
-            "grammar_tag": "Reflexiv + Präposition",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It’s raining, therefore we’re staying inside.",
-            "target_de": "Es regnet, deshalb bleiben wir drinnen.",
-            "tokens": ["Es", "regnet", ",", "deshalb", "bleiben", "wir", "drinnen", "."],
-            "distractors": ["weil", "obwohl", "damit"],
-            "hint_en": "‘deshalb’ = connector; main clause word order.",
-            "grammar_tag": "Folge: deshalb",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I’m trying to learn more German.",
-            "target_de": "Ich versuche, mehr Deutsch zu lernen.",
-            "tokens": ["Ich", "versuche", ",", "mehr", "Deutsch", "zu", "lernen", "."],
-            "distractors": ["lernen", "zum", "Deutsch"],
-            "hint_en": "zu + Infinitiv construction.",
-            "grammar_tag": "zu-Infinitiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "When I have time, I cook.",
-            "target_de": "Wenn ich Zeit habe, koche ich.",
-            "tokens": ["Wenn", "ich", "Zeit", "habe", ",", "koche", "ich", "."],
-            "distractors": ["Weil", "Dann", "habe"],
-            "hint_en": "Subordinate clause first → inversion in main clause.",
-            "grammar_tag": "Temporalsatz wenn",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I have already finished my homework.",
-            "target_de": "Ich habe meine Hausaufgaben schon fertig gemacht.",
-            "tokens": ["Ich", "habe", "meine", "Hausaufgaben", "schon", "fertig", "gemacht", "."],
-            "distractors": ["bin", "gemacht", "machen"],
-            "hint_en": "Perfekt with ‘haben’.",
-            "grammar_tag": "Perfekt",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We moved to a bigger apartment.",
-            "target_de": "Wir sind in eine größere Wohnung umgezogen.",
-            "tokens": ["Wir", "sind", "in", "eine", "größere", "Wohnung", "umgezogen", "."],
-            "distractors": ["haben", "umgezogen", "umziehen"],
-            "hint_en": "Perfekt with ‘sein’ (movement change).",
-            "grammar_tag": "Perfekt mit sein",
-            "weight": 1
-        },
-        {
-            "prompt_en": "First we eat, then we go for a walk.",
-            "target_de": "Zuerst essen wir, dann gehen wir spazieren.",
-            "tokens": ["Zuerst", "essen", "wir", ",", "dann", "gehen", "wir", "spazieren", "."],
-            "distractors": ["weil", "obwohl", "spazierengehen"],
-            "hint_en": "Sequencing with adverbs; verb 2nd each clause.",
-            "grammar_tag": "Satzadverbien",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I don’t have any time today.",
-            "target_de": "Ich habe heute keine Zeit.",
-            "tokens": ["Ich", "habe", "heute", "keine", "Zeit", "."],
-            "distractors": ["nicht", "kein", "Zeiten"],
-            "hint_en": "Use ‘kein/keine’ to negate nouns.",
-            "grammar_tag": "Negation mit kein",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We’re looking forward to the weekend.",
-            "target_de": "Wir freuen uns auf das Wochenende.",
-            "tokens": ["Wir", "freuen", "uns", "auf", "das", "Wochenende", "."],
-            "distractors": ["für", "am", "im"],
-            "hint_en": "sich freuen auf + Akkusativ.",
-            "grammar_tag": "Reflexiv + Präp.",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Could you help me, please?",
-            "target_de": "Könnten Sie mir bitte helfen?",
-            "tokens": ["Könnten", "Sie", "mir", "bitte", "helfen", "?"],
-            "distractors": ["Kannst", "hilfst", "Hilfe"],
-            "hint_en": "Polite request with Konjunktiv II of ‘können’.",
-            "grammar_tag": "Höflichkeit",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I have been living here for two years.",
-            "target_de": "Ich wohne seit zwei Jahren hier.",
-            "tokens": ["Ich", "wohne", "seit", "zwei", "Jahren", "hier", "."],
-            "distractors": ["für", "vor", "Jahre"],
-            "hint_en": "seit + Dativ for duration up to now.",
-            "grammar_tag": "Zeitangabe seit",
-            "weight": 1
-        },
-        {
-            "prompt_en": "As soon as I finish work, I call you.",
-            "target_de": "Sobald ich mit der Arbeit fertig bin, rufe ich dich an.",
-            "tokens": ["Sobald", "ich", "mit", "der", "Arbeit", "fertig", "bin", ",", "rufe", "ich", "dich", "an", "."],
-            "distractors": ["weil", "deshalb", "rufen"],
-            "hint_en": "Subordinate clause first; separable verb ‘anrufen’.",
-            "grammar_tag": "Temporalsatz sobald; trennbar",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I don’t know if he is at home.",
-            "target_de": "Ich weiß nicht, ob er zu Hause ist.",
-            "tokens": ["Ich", "weiß", "nicht", ",", "ob", "er", "zu", "Hause", "ist", "."],
-            "distractors": ["dass", "weil", "wann"],
-            "hint_en": "Indirect yes/no question with ‘ob’.",
-            "grammar_tag": "Nebensatz ob",
-            "weight": 1
-        },
-        {
-            "prompt_en": "My sister is taller than me.",
-            "target_de": "Meine Schwester ist größer als ich.",
-            "tokens": ["Meine", "Schwester", "ist", "größer", "als", "ich", "."],
-            "distractors": ["wie", "groß", "am"],
-            "hint_en": "Comparative with ‘als’.",
-            "grammar_tag": "Komparativ",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I need to pick up the package.",
-            "target_de": "Ich muss das Paket abholen.",
-            "tokens": ["Ich", "muss", "das", "Paket", "abholen", "."],
-            "distractors": ["hole", "ab", "abgeholt"],
-            "hint_en": "Modal + separable verb (infinitive at the end).",
-            "grammar_tag": "Modal + trennbar",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He likes playing football the most.",
-            "target_de": "Am liebsten spielt er Fußball.",
-            "tokens": ["Am", "liebsten", "spielt", "er", "Fußball", "."],
-            "distractors": ["Lieblings", "am", "liebe"],
-            "hint_en": "Superlative of ‘gern’: gern → lieber → am liebsten.",
-            "grammar_tag": "Steigerung gern",
-            "weight": 1
-        }
-    ],
-
-    "B1": [
-        {
-            "prompt_en": "I know that you are coming tomorrow.",
-            "target_de": "Ich weiß, dass du morgen kommst.",
-            "tokens": ["Ich", "weiß", ",", "dass", "du", "morgen", "kommst", "."],
-            "distractors": ["kommst", "dann", "sein"],
-            "hint_en": "‘dass’ clause: verb at the end.",
-            "grammar_tag": "dass",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Although it was raining, we went out.",
-            "target_de": "Obwohl es geregnet hat, sind wir ausgegangen.",
-            "tokens": ["Obwohl", "es", "geregnet", "hat", ",", "sind", "wir", "ausgegangen", "."],
-            "distractors": ["Weil", "Deshalb", "ob"],
-            "hint_en": "Concessive clause with ‘obwohl’; Perfekt.",
-            "grammar_tag": "Obwohl; Perfekt",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Could you tell me where the station is?",
-            "target_de": "Könnten Sie mir sagen, wo der Bahnhof ist?",
-            "tokens": ["Könnten", "Sie", "mir", "sagen", ",", "wo", "der", "Bahnhof", "ist", "?"],
-            "distractors": ["wann", "wer", "wie"],
-            "hint_en": "Indirect question: verb at the end.",
-            "grammar_tag": "Indirekte Frage",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He said that he would come later.",
-            "target_de": "Er hat gesagt, dass er später kommen würde.",
-            "tokens": ["Er", "hat", "gesagt", ",", "dass", "er", "später", "kommen", "würde", "."],
-            "distractors": ["wird", "kommt", "kam"],
-            "hint_en": "Reported speech with ‘würde’.",
-            "grammar_tag": "Indirekte Rede (würde)",
-            "weight": 1
-        },
-        {
-            "prompt_en": "If I had more time, I would travel more.",
-            "target_de": "Wenn ich mehr Zeit hätte, würde ich mehr reisen.",
-            "tokens": ["Wenn", "ich", "mehr", "Zeit", "hätte", ",", "würde", "ich", "mehr", "reisen", "."],
-            "distractors": ["habe", "werde", "würden"],
-            "hint_en": "Irrealis with Konjunktiv II.",
-            "grammar_tag": "Konjunktiv II Konditional",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The book that I am reading is exciting.",
-            "target_de": "Das Buch, das ich lese, ist spannend.",
-            "tokens": ["Das", "Buch", ",", "das", "ich", "lese", ",", "ist", "spannend", "."],
-            "distractors": ["welche", "was", "dem"],
-            "hint_en": "Relative clause with ‘das’.",
-            "grammar_tag": "Relativsatz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I’m used to getting up early.",
-            "target_de": "Ich bin daran gewöhnt, früh aufzustehen.",
-            "tokens": ["Ich", "bin", "daran", "gewöhnt", ",", "früh", "aufzustehen", "."],
-            "distractors": ["gewohnt", "aufstehen", "früher"],
-            "hint_en": "Adjective + zu-Infinitiv; fixed phrase.",
-            "grammar_tag": "zu-Infinitiv; Redemittel",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The film was not as good as expected.",
-            "target_de": "Der Film war nicht so gut, wie erwartet.",
-            "tokens": ["Der", "Film", "war", "nicht", "so", "gut", ",", "wie", "erwartet", "."],
-            "distractors": ["als", "besser", "am"],
-            "hint_en": "so … wie for comparison of equality.",
-            "grammar_tag": "Vergleich so…wie",
-            "weight": 1
-        },
-        {
-            "prompt_en": "While he was cooking, I set the table.",
-            "target_de": "Während er kochte, deckte ich den Tisch.",
-            "tokens": ["Während", "er", "kochte", ",", "deckte", "ich", "den", "Tisch", "."],
-            "distractors": ["Wenn", "Als", "Nachdem"],
-            "hint_en": "Temporal clause with ‘während’ (Präteritum).",
-            "grammar_tag": "Temporalsatz während",
-            "weight": 1
-        },
-        {
-            "prompt_en": "After we arrived, we called our parents.",
-            "target_de": "Nachdem wir angekommen waren, haben wir unsere Eltern angerufen.",
-            "tokens": ["Nachdem", "wir", "angekommen", "waren", ",", "haben", "wir", "unsere", "Eltern", "angerufen", "."],
-            "distractors": ["Nachdem", "ist", "rufen"],
-            "hint_en": "Plusquamperfekt in the subordinate clause.",
-            "grammar_tag": "Nachdem; Plusquamperfekt",
-            "weight": 1
-        },
-        {
-            "prompt_en": "You should do more sport.",
-            "target_de": "Du solltest mehr Sport machen.",
-            "tokens": ["Du", "solltest", "mehr", "Sport", "machen", "."],
-            "distractors": ["sollst", "Sporten", "machst"],
-            "hint_en": "Advice with Konjunktiv II of ‘sollen’.",
-            "grammar_tag": "Ratschlag",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The meeting was postponed because the boss was ill.",
-            "target_de": "Die Besprechung wurde verschoben, weil der Chef krank war.",
-            "tokens": ["Die", "Besprechung", "wurde", "verschoben", ",", "weil", "der", "Chef", "krank", "war", "."],
-            "distractors": ["ist", "hat", "verschob"],
-            "hint_en": "Passive in Präteritum + ‘weil’.",
-            "grammar_tag": "Passiv Präteritum; weil",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I’m looking for a job that offers flexibility.",
-            "target_de": "Ich suche eine Stelle, die Flexibilität bietet.",
-            "tokens": ["Ich", "suche", "eine", "Stelle", ",", "die", "Flexibilität", "bietet", "."],
-            "distractors": ["welche", "bieten", "anbietet"],
-            "hint_en": "Relative clause with ‘die’.",
-            "grammar_tag": "Relativsatz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It depends on the weather.",
-            "target_de": "Es hängt vom Wetter ab.",
-            "tokens": ["Es", "hängt", "vom", "Wetter", "ab", "."],
-            "distractors": ["von", "Wetter", "ist"],
-            "hint_en": "Verb-preposition phrase with separable verb.",
-            "grammar_tag": "Verb + Präp.; trennbar",
-            "weight": 1
-        },
-        {
-            "prompt_en": "As far as I know, the store is closed.",
-            "target_de": "Soweit ich weiß, ist das Geschäft geschlossen.",
-            "tokens": ["Soweit", "ich", "weiß", ",", "ist", "das", "Geschäft", "geschlossen", "."],
-            "distractors": ["Sofern", "Soviel", "war"],
-            "hint_en": "Fixed phrase ‘Soweit ich weiß’.",
-            "grammar_tag": "Redemittel",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He apologized for the mistake.",
-            "target_de": "Er hat sich für den Fehler entschuldigt.",
-            "tokens": ["Er", "hat", "sich", "für", "den", "Fehler", "entschuldigt", "."],
-            "distractors": ["entschuldigte", "entschuldigen", "bei"],
-            "hint_en": "sich entschuldigen für + Akk.",
-            "grammar_tag": "Reflexiv + Präp.",
-            "weight": 1
-        },
-        {
-            "prompt_en": "If the train is late, we will take a taxi.",
-            "target_de": "Falls der Zug verspätet ist, nehmen wir ein Taxi.",
-            "tokens": ["Falls", "der", "Zug", "verspätet", "ist", ",", "nehmen", "wir", "ein", "Taxi", "."],
-            "distractors": ["Wenn", "würden", "nahm"],
-            "hint_en": "Conditional with ‘falls’.",
-            "grammar_tag": "Konditionalsatz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I ended up buying the cheaper one.",
-            "target_de": "Am Ende habe ich das günstigere gekauft.",
-            "tokens": ["Am", "Ende", "habe", "ich", "das", "günstigere", "gekauft", "."],
-            "distractors": ["Endlich", "gekauft", "kaufe"],
-            "hint_en": "Idiomatic time adverb + Perfekt.",
-            "grammar_tag": "Zeitangabe; Perfekt",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The more I practice, the better I get.",
-            "target_de": "Je mehr ich übe, desto besser werde ich.",
-            "tokens": ["Je", "mehr", "ich", "übe", ",", "desto", "besser", "werde", "ich", "."],
-            "distractors": ["umso", "je", "bester"],
-            "hint_en": "Comparative correlative ‘je … desto’.",
-            "grammar_tag": "Je…desto",
-            "weight": 1
-        },
-        {
-            "prompt_en": "I didn’t expect that.",
-            "target_de": "Damit habe ich nicht gerechnet.",
-            "tokens": ["Damit", "habe", "ich", "nicht", "gerechnet", "."],
-            "distractors": ["Dafür", "Darauf", "rechnete"],
-            "hint_en": "Fixed verb-preposition phrase.",
-            "grammar_tag": "Redemittel; Verb + Präp.",
-            "weight": 1
-        }
-    ],
-
-    "B2": [
-        {
-            "prompt_en": "The car that I bought is red.",
-            "target_de": "Das Auto, das ich gekauft habe, ist rot.",
-            "tokens": ["Das", "Auto", ",", "das", "ich", "gekauft", "habe", ",", "ist", "rot", "."],
-            "distractors": ["welche", "hatte", "mehr"],
-            "hint_en": "Relative clause: verb at the end of the clause.",
-            "grammar_tag": "Relativsatz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It is assumed that prices will rise.",
-            "target_de": "Es wird angenommen, dass die Preise steigen werden.",
-            "tokens": ["Es", "wird", "angenommen", ",", "dass", "die", "Preise", "steigen", "werden", "."],
-            "distractors": ["steigen", "gestiegen", "wurden"],
-            "hint_en": "Impersonal passive + ‘dass’.",
-            "grammar_tag": "Passiv unpersönlich",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Despite the rain, the concert took place.",
-            "target_de": "Trotz des Regens hat das Konzert stattgefunden.",
-            "tokens": ["Trotz", "des", "Regens", "hat", "das", "Konzert", "stattgefunden", "."],
-            "distractors": ["Obwohl", "wegen", "stattfindet"],
-            "hint_en": "Genitive with ‘trotz’.",
-            "grammar_tag": "Präp. mit Genitiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He explained the problem in a way that everyone understood it.",
-            "target_de": "Er erklärte das Problem so, dass es alle verstanden.",
-            "tokens": ["Er", "erklärte", "das", "Problem", "so", ",", "dass", "es", "alle", "verstanden", "."],
-            "distractors": ["damit", "weil", "obwohl"],
-            "hint_en": "Consecutive clause ‘so … dass’.",
-            "grammar_tag": "Konsekutivsatz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "If I had known that earlier, I would have reacted differently.",
-            "target_de": "Hätte ich das früher gewusst, hätte ich anders reagiert.",
-            "tokens": ["Hätte", "ich", "das", "früher", "gewusst", ",", "hätte", "ich", "anders", "reagiert", "."],
-            "distractors": ["Wenn", "würde", "gewollt"],
-            "hint_en": "Inversion with omitted ‘wenn’; Konjunktiv II Vergangenheit.",
-            "grammar_tag": "Konditionalsatz; Konjunktiv II",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The project was completed within the agreed time frame.",
-            "target_de": "Das Projekt wurde innerhalb des vereinbarten Zeitrahmens abgeschlossen.",
-            "tokens": ["Das", "Projekt", "wurde", "innerhalb", "des", "vereinbarten", "Zeitrahmens", "abgeschlossen", "."],
-            "distractors": ["im", "zwischen", "Zeit"],
-            "hint_en": "Nominal style + Genitive after preposition.",
-            "grammar_tag": "Nominalstil; Genitiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The article deals with the topic of climate change.",
-            "target_de": "Der Artikel setzt sich mit dem Thema Klimawandel auseinander.",
-            "tokens": ["Der", "Artikel", "setzt", "sich", "mit", "dem", "Thema", "Klimawandel", "auseinander", "."],
-            "distractors": ["über", "an", "darüber"],
-            "hint_en": "Fixed reflexive verb + Präposition.",
-            "grammar_tag": "Verb + Präp.",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He denied having made a mistake.",
-            "target_de": "Er bestritt, einen Fehler gemacht zu haben.",
-            "tokens": ["Er", "bestritt", ",", "einen", "Fehler", "gemacht", "zu", "haben", "."],
-            "distractors": ["dass", "zu", "machen"],
-            "hint_en": "zu-Infinitiv (Perfekt) after certain verbs.",
-            "grammar_tag": "zu-Infinitiv Perfekt",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The results, which were published yesterday, are surprising.",
-            "target_de": "Die Ergebnisse, die gestern veröffentlicht wurden, sind überraschend.",
-            "tokens": ["Die", "Ergebnisse", ",", "die", "gestern", "veröffentlicht", "wurden", ",", "sind", "überraschend", "."],
-            "distractors": ["welche", "worden", "waren"],
-            "hint_en": "Relative clause + passive.",
-            "grammar_tag": "Relativsatz; Passiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "In contrast to last year, sales have increased.",
-            "target_de": "Im Gegensatz zum letzten Jahr sind die Umsätze gestiegen.",
-            "tokens": ["Im", "Gegensatz", "zum", "letzten", "Jahr", "sind", "die", "Umsätze", "gestiegen", "."],
-            "distractors": ["Gegenteil", "zum", "wurden"],
-            "hint_en": "Fixed prepositional phrase.",
-            "grammar_tag": "Feste Wendung",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It is questionable whether the plan will work.",
-            "target_de": "Es ist fraglich, ob der Plan funktionieren wird.",
-            "tokens": ["Es", "ist", "fraglich", ",", "ob", "der", "Plan", "funktionieren", "wird", "."],
-            "distractors": ["dass", "wenn", "würde"],
-            "hint_en": "‘ob’ clause expressing doubt.",
-            "grammar_tag": "Indirekte Frage ob",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The more complex the task, the more time we need.",
-            "target_de": "Je komplexer die Aufgabe ist, desto mehr Zeit brauchen wir.",
-            "tokens": ["Je", "komplexer", "die", "Aufgabe", "ist", ",", "desto", "mehr", "Zeit", "brauchen", "wir", "."],
-            "distractors": ["umso", "je", "braucht"],
-            "hint_en": "‘je … desto’ with adjective in comparative.",
-            "grammar_tag": "Je…desto",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Contrary to expectations, the meeting was short.",
-            "target_de": "Entgegen den Erwartungen war die Besprechung kurz.",
-            "tokens": ["Entgegen", "den", "Erwartungen", "war", "die", "Besprechung", "kurz", "."],
-            "distractors": ["Gegen", "Entgegen", "Erwartung"],
-            "hint_en": "Preposition ‘entgegen’ takes Dative (plural).",
-            "grammar_tag": "Präp. Dativ",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He acted as if nothing had happened.",
-            "target_de": "Er verhielt sich, als ob nichts passiert wäre.",
-            "tokens": ["Er", "verhielt", "sich", ",", "als", "ob", "nichts", "passiert", "wäre", "."],
-            "distractors": ["war", "sei", "würde"],
-            "hint_en": "‘als ob’ + Konjunktiv II (past).",
-            "grammar_tag": "Vergleichssatz als ob",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It was not until yesterday that I received the email.",
-            "target_de": "Erst gestern habe ich die E-Mail bekommen.",
-            "tokens": ["Erst", "gestern", "habe", "ich", "die", "E-Mail", "bekommen", "."],
-            "distractors": ["Nur", "erst", "bekam"],
-            "hint_en": "Focus with ‘erst’ + inversion.",
-            "grammar_tag": "Fokus; Inversion",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Given the circumstances, the decision is understandable.",
-            "target_de": "Angesichts der Umstände ist die Entscheidung nachvollziehbar.",
-            "tokens": ["Angesichts", " der", " Umstände", " ist", " die", " Entscheidung", " nachvollziehbar", "."],
-            "distractors": ["Wegen", "Trotz", "Angesicht"],
-            "hint_en": "Genitive preposition ‘angesichts’.",
-            "grammar_tag": "Präp. Genitiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He is considered a reliable employee.",
-            "target_de": "Er gilt als zuverlässiger Mitarbeiter.",
-            "tokens": ["Er", "gilt", "als", "zuverlässiger", "Mitarbeiter", "."],
-            "distractors": ["giltet", "wie", "zuverlässig"],
-            "hint_en": "Verb ‘gelten als’.",
-            "grammar_tag": "Verb + als",
-            "weight": 1
-        },
-        {
-            "prompt_en": "We must ensure that all data is protected.",
-            "target_de": "Wir müssen sicherstellen, dass alle Daten geschützt sind.",
-            "tokens": ["Wir", "müssen", "sicherstellen", ",", "dass", "alle", "Daten", "geschützt", "sind", "."],
-            "distractors": ["werden", "wurden", "schützen"],
-            "hint_en": "Verb + ‘dass’-Satz.",
-            "grammar_tag": "dass-Satz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Instead of complaining, we should look for solutions.",
-            "target_de": "Anstatt zu jammern, sollten wir nach Lösungen suchen.",
-            "tokens": ["Anstatt", "zu", "jammern", ",", "sollten", "wir", "nach", "Lösungen", "suchen", "."],
-            "distractors": ["stattdessen", "für", "sucht"],
-            "hint_en": "‘anstatt zu’ + Infinitiv.",
-            "grammar_tag": "Infinitivgruppe",
-            "weight": 1
-        }
-    ],
-
-    "C1": [
-        {
-            "prompt_en": "Had he prepared better, the outcome would have been different.",
-            "target_de": "Hätte er sich besser vorbereitet, wäre das Ergebnis anders ausgefallen.",
-            "tokens": ["Hätte", "er", "sich", "besser", "vorbereitet", ",", "wäre", "das", "Ergebnis", "anders", "ausgefallen", "."],
-            "distractors": ["Wenn", "hatte", "würde"],
-            "hint_en": "Omitted ‘wenn’; Konjunktiv II Vergangenheit.",
-            "grammar_tag": "Irrealis; Konjunktiv II",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The measures, some of which are controversial, were approved.",
-            "target_de": "Die Maßnahmen, von denen einige umstritten sind, wurden verabschiedet.",
-            "tokens": ["Die", "Maßnahmen", ",", "von", "denen", "einige", "umstritten", "sind", ",", "wurden", "verabschiedet", "."],
-            "distractors": ["die", "welche", "worden"],
-            "hint_en": "Prepositional relative clause.",
-            "grammar_tag": "Relativsatz mit Präp.",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Considering the latest findings, a reassessment seems necessary.",
-            "target_de": "In Anbetracht der neuesten Erkenntnisse erscheint eine Neubewertung notwendig.",
-            "tokens": ["In", "Anbetracht", "der", "neuesten", "Erkenntnisse", "erscheint", "eine", "Neubewertung", "notwendig", "."],
-            "distractors": ["Aufgrund", "Anbetracht", "scheint"],
-            "hint_en": "Genitive prepositional phrase; formal register.",
-            "grammar_tag": "Nominalstil; Genitiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It is to be feared that the situation will escalate.",
-            "target_de": "Es ist zu befürchten, dass sich die Lage zuspitzen wird.",
-            "tokens": ["Es", "ist", "zu", "befürchten", ",", "dass", "sich", "die", "Lage", "zuspitzen", "wird", "."],
-            "distractors": ["befürchtet", "zu", "zuspitzt"],
-            "hint_en": "zu-Infinitiv + ‘dass’.",
-            "grammar_tag": "zu-Infinitiv; dass",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Contrary to what was assumed, the figures are inaccurate.",
-            "target_de": "Entgegen der Annahme erweisen sich die Zahlen als ungenau.",
-            "tokens": ["Entgegen", "der", "Annahme", "erweisen", "sich", "die", "Zahlen", "als", "ungenau", "."],
-            "distractors": ["Gegen", "Annähme", "ungenaue"],
-            "hint_en": "‘sich erweisen als’ + Prädikativ.",
-            "grammar_tag": "Verb + als",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Only by investing more can we maintain our competitiveness.",
-            "target_de": "Nur durch höhere Investitionen können wir unsere Wettbewerbsfähigkeit erhalten.",
-            "tokens": ["Nur", "durch", "höhere", "Investitionen", "können", "wir", "unsere", "Wettbewerbsfähigkeit", "erhalten", "."],
-            "distractors": ["könnten", "erhält", "bei"],
-            "hint_en": "Fronted adverbial → inversion.",
-            "grammar_tag": "Inversion; Fokus",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He failed to recognize the risks associated with the plan.",
-            "target_de": "Er versäumte, die mit dem Plan verbundenen Risiken zu erkennen.",
-            "tokens": ["Er", "versäumte", ",", "die", "mit", "dem", "Plan", "verbundenen", "Risiken", "zu", "erkennen", "."],
-            "distractors": ["verbundene", "Risiko", "erkennt"],
-            "hint_en": "Participle attribute + zu-Infinitiv.",
-            "grammar_tag": "Partizipialattribut",
-            "weight": 1
-        },
-        {
-            "prompt_en": "As was to be expected, the negotiations dragged on.",
-            "target_de": "Wie zu erwarten war, zogen sich die Verhandlungen in die Länge.",
-            "tokens": ["Wie", "zu", "erwarten", "war", ",", "zogen", "sich", "die", "Verhandlungen", "in", "die", "Länge", "."],
-            "distractors": ["Wie", "erwartet", "wurden"],
-            "hint_en": "Fixed impersonal construction.",
-            "grammar_tag": "Feste Wendung",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Even if the proposal is revised, fundamental issues remain.",
-            "target_de": "Selbst wenn der Vorschlag überarbeitet wird, bleiben grundlegende Probleme bestehen.",
-            "tokens": ["Selbst", "wenn", "der", "Vorschlag", "überarbeitet", "wird", ",", "bleiben", "grundlegende", "Probleme", "bestehen", "."],
-            "distractors": ["obwohl", "wären", "bleibt"],
-            "hint_en": "Concessive conditional ‘selbst wenn’.",
-            "grammar_tag": "Konzessivsatz",
-            "weight": 1
-        },
-        {
-            "prompt_en": "What is crucial is not the speed but the accuracy.",
-            "target_de": "Entscheidend ist nicht die Geschwindigkeit, sondern die Genauigkeit.",
-            "tokens": ["Entscheidend", "ist", "nicht", "die", "Geschwindigkeit", ",", "sondern", "die", "Genauigkeit", "."],
-            "distractors": ["aber", "doch", "genau"],
-            "hint_en": "Cleft-like emphasis; ‘sondern’ after negation.",
-            "grammar_tag": "Fokus; sondern",
-            "weight": 1
-        },
-        {
-            "prompt_en": "He is said to have influenced the decision.",
-            "target_de": "Er soll die Entscheidung beeinflusst haben.",
-            "tokens": ["Er", "soll", "die", "Entscheidung", "beeinflusst", "haben", "."],
-            "distractors": ["sollte", "hat", "wurde"],
-            "hint_en": "Modalverb ‘sollen’ for report/rumor.",
-            "grammar_tag": "Indirektheit",
-            "weight": 1
-        },
-        {
-            "prompt_en": "The more attention is paid to details, the fewer errors occur.",
-            "target_de": "Je mehr auf Details geachtet wird, desto weniger Fehler treten auf.",
-            "tokens": ["Je", "mehr", "auf", "Details", "geachtet", "wird", ",", "desto", "weniger", "Fehler", "treten", "auf", "."],
-            "distractors": ["je", "weniger", "tritt"],
-            "hint_en": "Impersonal passive + je/desto.",
-            "grammar_tag": "Passiv; Je…desto",
-            "weight": 1
-        },
-        {
-            "prompt_en": "This is a development whose consequences are still unforeseeable.",
-            "target_de": "Dies ist eine Entwicklung, deren Folgen noch unabsehbar sind.",
-            "tokens": ["Dies", "ist", "eine", "Entwicklung", ",", "deren", "Folgen", "noch", "unabsehbar", "sind", "."],
-            "distractors": ["deren", "welcher", "denen"],
-            "hint_en": "Genitive relative pronoun ‘deren’.",
-            "grammar_tag": "Relativpronomen Genitiv",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Not only did the team miss the deadline, but costs also exploded.",
-            "target_de": "Nicht nur verpasste das Team die Frist, sondern auch die Kosten explodierten.",
-            "tokens": ["Nicht", "nur", "verpasste", "das", "Team", "die", "Frist", ",", "sondern", "auch", "die", "Kosten", "explodierten", "."],
-            "distractors": ["aber", "sondern", "explodiert"],
-            "hint_en": "‘Nicht nur … sondern auch’ with inversion.",
-            "grammar_tag": "Korrelative Konjunktion",
-            "weight": 1
-        },
-        {
-            "prompt_en": "There is reason to assume that demand will decrease.",
-            "target_de": "Es gibt Anlass zu der Annahme, dass die Nachfrage zurückgehen wird.",
-            "tokens": ["Es", "gibt", "Anlass", "zu", "der", "Annahme", ",", "dass", "die", "Nachfrage", "zurückgehen", "wird", "."],
-            "distractors": ["zum", "gehen", "würde"],
-            "hint_en": "Nominal phrase + ‘dass’.",
-            "grammar_tag": "Nominalstil",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Far from being perfect, the plan nevertheless offers a basis for discussion.",
-            "target_de": "Weit davon entfernt, perfekt zu sein, bietet der Plan dennoch eine Diskussionsgrundlage.",
-            "tokens": ["Weit", "davon", "entfernt", ",", "perfekt", "zu", "sein", ",", "bietet", "der", "Plan", "dennoch", "eine", "Diskussionsgrundlage", "."],
-            "distractors": ["obwohl", "perfekt", "ist"],
-            "hint_en": "Participial preface + main clause.",
-            "grammar_tag": "Partizipialkonstruktion",
-            "weight": 1
-        },
-        {
-            "prompt_en": "Whether the project will be funded remains to be seen.",
-            "target_de": "Ob das Projekt finanziert wird, bleibt abzuwarten.",
-            "tokens": ["Ob", "das", "Projekt", "finanziert", "wird", ",", "bleibt", "abzuwarten", "."],
-            "distractors": ["dass", "zu", "abwarten"],
-            "hint_en": "Impersonal construction with ‘bleibt abzuwarten’.",
-            "grammar_tag": "Unpersönliche Form",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It is precisely here that the difficulties arise.",
-            "target_de": "Gerade hier ergeben sich die Schwierigkeiten.",
-            "tokens": ["Gerade", "hier", "ergeben", "sich", "die", "Schwierigkeiten", "."],
-            "distractors": ["ergeben", "gibt", "sich"],
-            "hint_en": "Focus adverb ‘gerade’.",
-            "grammar_tag": "Fokus",
-            "weight": 1
-        },
-        {
-            "prompt_en": "No sooner had we started than problems emerged.",
-            "target_de": "Kaum hatten wir begonnen, traten schon Probleme auf.",
-            "tokens": ["Kaum", "hatten", "wir", "begonnen", ",", "traten", "schon", "Probleme", "auf", "."],
-            "distractors": ["Kaum", "beginnen", "aufgetreten"],
-            "hint_en": "‘Kaum …, da/als’ pattern; here without ‘da’.",
-            "grammar_tag": "Temporale Inversion",
-            "weight": 1
-        },
-        {
-            "prompt_en": "It remains unclear to what extent the rule applies.",
-            "target_de": "Unklar bleibt, inwiefern die Regel gilt.",
-            "tokens": ["Unklar", "bleibt", ",", "inwiefern", "die", "Regel", "gilt", "."],
-            "distractors": ["wiefern", "obwohl", "giltet"],
-            "hint_en": "Fronted predicate + indirect question.",
-            "grammar_tag": "Inversion; Indirekte Frage",
-            "weight": 1
-        }
-    ]
-}
-
-# =========================================
-# Vocab
-# =========================================
-
-# (Removed duplicate SENTENCE_BANK redefinition — it was overwriting the full bank)
-
-# If you initialize Firestore elsewhere, expose it here.
-# This helper prevents NameError if db isn't ready.
-def _get_db():
-    try:
-        return db  # provided by your app elsewhere
-    except NameError:
-        return None
-
-
 # ================================
-# HELPERS: Level loading (Google Sheet)
+# 5a. EXAMS MODE & CUSTOM CHAT TAB (block start, pdf helper, prompt builders)
 # ================================
-@st.cache_data
-def load_student_levels():
-    """
-    Load the roster with a 'Level' column.
-    Expected columns (case-insensitive): student_code, level
-    We normalize headers and try common alternatives for student code and level.
-    """
-    sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    df = pd.read_csv(csv_url)
-    # normalize headers
-    df.columns = [c.strip().lower() for c in df.columns]
 
-    # try to align student_code column
-    code_col_candidates = ["student_code", "studentcode", "code", "student id", "id"]
-    level_col_candidates = ["level", "klasse", "stufe"]
-    code_col = next((c for c in code_col_candidates if c in df.columns), None)
-    level_col = next((c for c in level_col_candidates if c in df.columns), None)
-
-    if code_col is None or level_col is None:
-        st.error(
-            f"Roster is missing required columns. "
-            f"Found: {list(df.columns)}; need one of {code_col_candidates} and one of {level_col_candidates}."
+def save_exam_progress(student_code, progress_items):
+    doc_ref = db.collection("exam_progress").document(student_code)
+    doc = doc_ref.get()
+    data = doc.to_dict() if doc.exists else {}
+    all_progress = data.get("completed", [])
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    for item in progress_items:
+        # Only add if not already present (avoid duplicates)
+        already = any(
+            p["level"] == item["level"] and
+            p["teil"] == item["teil"] and
+            p["topic"] == item["topic"]
+            for p in all_progress
         )
-        # still return something so callers don't crash
-        df["__dummy_code__"] = "demo001"
-        df["__dummy_level__"] = "A1"
-        return df.rename(columns={"__dummy_code__": "student_code", "__dummy_level__": "level"})
+        if not already:
+            all_progress.append({
+                "level": item["level"],
+                "teil": item["teil"],
+                "topic": item["topic"],
+                "date": now
+            })
+    doc_ref.set({"completed": all_progress}, merge=True)
 
-    # rename to canonical names
-    df = df.rename(columns={code_col: "student_code", level_col: "level"})
+def back_step(to_stage=1):
+    # Clear relevant session state values depending on the step
+    if to_stage == 1:
+        keys_to_clear = [
+            "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
+            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "_falowen_loaded"
+        ]
+    elif to_stage == 2:
+        keys_to_clear = [
+            "falowen_level", "falowen_teil", "falowen_messages",
+            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "_falowen_loaded"
+        ]
+    elif to_stage == 3:
+        keys_to_clear = [
+            "falowen_teil", "falowen_messages",
+            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+            "remaining_topics", "used_topics", "_falowen_loaded"
+        ]
+    else:
+        keys_to_clear = []
+    for k in keys_to_clear:
+        st.session_state[k] = None
+    st.session_state["falowen_stage"] = to_stage
+    st.rerun()
+
+
+# --- CONFIG ---
+exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
+exam_sheet_name = "exam_topics"   # <-- update if your tab is named differently
+exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
+
+@st.cache_data
+def load_exam_topics():
+    df = pd.read_csv(exam_csv_url)
+    # Fill missing columns for Teil 3 if you only have a prompt
+    for col in ['Level', 'Teil', 'Topic', 'Keyword']:
+        if col not in df.columns:
+            df[col] = ""
     return df
 
-def get_student_level(student_code: str, default: str = "A1") -> str:
-    """
-    Return student's Level (A1..C1) from the roster for this student_code.
-    Case-insensitive match on student_code.
-    """
-    try:
-        df = load_student_levels()
-        # ensure columns exist after normalization/rename
-        if "student_code" not in df.columns or "level" not in df.columns:
-            return default
-        sc = str(student_code).strip().lower()
-        row = df[df["student_code"].astype(str).str.strip().str.lower() == sc]
-        if not row.empty:
-            return str(row.iloc[0]["level"]).upper().strip()
-        return default
-    except Exception as e:
-        st.warning(f"Could not load level from roster ({e}). Using default {default}.")
-        return default
+df_exam = load_exam_topics()
+
+bubble_user = (
+    "background:#1976d2; color:#fff; border-radius:18px 18px 2px 18px;"
+    "padding:10px 16px; margin:5px 0 5px auto; max-width:90vw; display:inline-block; font-size:1.12em;"
+    "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
+)
+bubble_assistant = (
+    "background:#faf9e4; color:#2d2d2d; border-radius:18px 18px 18px 2px;"
+    "padding:10px 16px; margin:5px auto 5px 0; max-width:90vw; display:inline-block; font-size:1.12em;"
+    "box-shadow:0 2px 8px rgba(0,0,0,0.09); word-break:break-word;"
+)
+highlight_words = [
+    "Fehler", "Tipp", "Achtung", "gut", "korrekt", "super", "nochmals", "Bitte", "Vergessen Sie nicht"
+]
+
+def highlight_keywords(text, words):
+    for w in words:
+        text = text.replace(w, f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{w}</span>")
+    return text
+
+if tab == "Exams Mode & Custom Chat":
+    # --- UNIQUE LOGIN & SESSION ISOLATION BLOCK (inserted at the top) ---
+    if "student_code" not in st.session_state or not st.session_state["student_code"]:
+        code = st.text_input("Enter your Student Code to continue:", key="login_code")
+        if st.button("Login"):
+            st.session_state["student_code"] = code.strip()
+            st.session_state["last_logged_code"] = code.strip()
+            st.rerun()
+        st.stop()
+    else:
+        code = st.session_state["student_code"]
+        last_code = st.session_state.get("last_logged_code", None)
+        if last_code != code:
+            # Clear all chat-related session state for new login
+            for k in [
+                "falowen_messages", "falowen_stage", "falowen_teil", "falowen_mode",
+                "custom_topic_intro_done", "falowen_turn_count",
+                "falowen_exam_topic", "falowen_exam_keyword", "remaining_topics", "used_topics",
+                "_falowen_loaded", "falowen_practiced_topics"
+            ]:
+                if k in st.session_state: del st.session_state[k]
+            st.session_state["last_logged_code"] = code
+            st.rerun()
+
+    # --- PROGRESS TRACKING: PRACTICED TOPICS (unique per login) ---
+    if "falowen_practiced_topics" not in st.session_state:
+        st.session_state["falowen_practiced_topics"] = []
+
+    # 🗣️ Compact tab header
+    st.markdown(
+        '''
+        <div style="
+            padding: 8px 12px;
+            background: #28a745;
+            color: #fff;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.3rem;
+        ">
+            🗣️ Exam Simulator & Custom Chat
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.divider()
+
+    # Exam Sample Images (use only inside chat logic, not here globally!)
+    image_map = {
+        ("A1", "Teil 1"): {
+            "url": "https://i.imgur.com/sKQDrpx.png",
+            "caption": "Sample – A1 Teil 1"
+        },
+        ("A1", "Teil 2"): {
+            "url": "https://i.imgur.com/xTTIUME.png",
+            "caption": "Sample – A1 Teil 2"
+        },
+        ("A1", "Teil 3"): {
+            "url": "https://i.imgur.com/MxBUCR8.png",
+            "caption": "Sample – A1 Teil 3"
+        },
+        ("A2", "Teil 1"): {
+            "url": "https://i.imgur.com/gmmu7Sn.png",
+            "caption": "Sample – A2 Teil 1"
+        },
+        ("A2", "Teil 2"): {
+            "url": "https://i.imgur.com/m6eBJu7.png",
+            "caption": "Sample – A2 Teil 2"
+        },
+        ("A2", "Teil 3"): {
+            "url": "https://i.imgur.com/1uDLrCY.png",
+            "caption": "Sample – A2 Teil 3"
+        },
+    }
 
 
-def vocab_attempt_exists(student_code: str, session_id: str) -> bool:
-    """Check if an attempt with this session_id already exists for the student."""
-    if not session_id:
-        return False
-    _db = _get_db()
-    if _db is None:
-        return False
-
-    doc_ref = _db.collection("vocab_stats").document(student_code)
-    doc = doc_ref.get()
-    if not doc.exists:
-        return False
-
-    data = doc.to_dict() or {}
-    history = data.get("history", [])
-    return any(h.get("session_id") == session_id for h in history)
+    # Display image only for selected level/teil and at the start of chat
+    level = st.session_state.get("falowen_level")
+    teil = st.session_state.get("falowen_teil")
+    msgs = st.session_state.get("falowen_messages", [])
+    # Show image if no chat yet, or only the 1st assistant instruction
+    if level and teil and (not msgs or (len(msgs) == 1 and msgs[0].get("role") == "assistant")):
+        for (map_level, map_teil), v in image_map.items():
+            if level == map_level and map_teil in teil:
+                st.image(v["url"], width=380, caption=v["caption"])
 
 
-def save_vocab_attempt(student_code, level, total, correct, practiced_words, session_id=None):
-    """
-    Save one vocab practice attempt to Firestore.
-    Duplicate-safe using session_id.
-    """
-    _db = _get_db()
-    if _db is None:
-        st.warning("Firestore not initialized; skipping stats save.")
-        return
+    # ---- PDF Helper ----
+    def falowen_download_pdf(messages, filename):
+        from fpdf import FPDF
+        import os
+        def safe_latin1(text):
+            return text.encode("latin1", "replace").decode("latin1")
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        chat_text = ""
+        for m in messages:
+            role = "Herr Felix" if m["role"] == "assistant" else "Student"
+            safe_msg = safe_latin1(m["content"])
+            chat_text += f"{role}: {safe_msg}\n\n"
+        pdf.multi_cell(0, 10, chat_text)
+        pdf_output = f"{filename}.pdf"
+        pdf.output(pdf_output)
+        with open(pdf_output, "rb") as f:
+            pdf_bytes = f.read()
+        os.remove(pdf_output)
+        return pdf_bytes
 
-    if not session_id:
-        session_id = str(uuid4())
+    # ---- PROMPT BUILDERS (ALL LOGIC) ----
+    def build_a1_exam_intro():
+        return (
+            "**A1 – Teil 1: Basic Introduction**\n\n"
+            "In the A1 exam's first part, you will be asked to introduce yourself. "
+            "Typical information includes: your **Name, Land, Wohnort, Sprachen, Beruf, Hobby**.\n\n"
+            "After your introduction, you will be asked 3 basic questions such as:\n"
+            "- Haben Sie Geschwister?\n"
+            "- Wie alt ist deine Mutter?\n"
+            "- Bist du verheiratet?\n\n"
+            "You might also be asked to spell your name (**Buchstabieren**). "
+            "Please introduce yourself now using all the keywords above."
+        )
 
-    if vocab_attempt_exists(student_code, session_id):
-        return
+    def build_exam_instruction(level, teil):
+        if level == "A1":
+            if "Teil 1" in teil:
+                return build_a1_exam_intro()
+            elif "Teil 2" in teil:
+                return (
+                    "**A1 – Teil 2: Question and Answer**\n\n"
+                    "You will get a topic and a keyword. Your job: ask a question using the keyword, "
+                    "then answer it yourself. Example: Thema: Geschäft – Keyword: schließen → "
+                    "Wann schließt das Geschäft?\nLet's try one. Type 'Yes' in the chatbox so we start?"
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**A1 – Teil 3: Making a Request**\n\n"
+                    "You'll receive a prompt (e.g. 'Radio anmachen'). Write a polite request or imperative. "
+                    "Example: Können Sie bitte das Radio anmachen?\nReady?"
+                    "Type Yes in the chatbox so we start?"
+                )
+        if level == "A2":
+            if "Teil 1" in teil:
+                return (
+                    "**A2 – Teil 1: Fragen zu Schlüsselwörtern**\n\n"
+                    "You'll get a topic (e.g. 'Wohnort'). Ask a question, then answer it yourself. "
+                    "When you're ready, type 'Begin'."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**A2 – Teil 2: Über das Thema sprechen**\n\n"
+                    "Talk about the topic in 3–4 sentences. I'll correct and give tips. Start when ready."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**A2 – Teil 3: Gemeinsam planen**\n\n"
+                    "Let's plan something together. Respond and make suggestions. Start when ready."
+                )
+        if level == "B1":
+            if "Teil 1" in teil:
+                return (
+                    "**B1 – Teil 1: Gemeinsam planen**\n\n"
+                    "We'll plan an activity together (e.g., a trip or party). Give your ideas and answer questions."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**B1 – Teil 2: Präsentation**\n\n"
+                    "Give a short presentation on the topic (about 2 minutes). I'll ask follow-up questions."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**B1 – Teil 3: Feedback & Fragen stellen**\n\n"
+                    "Answer questions about your presentation. I'll give you feedback on your language and structure."
+                )
+        if level == "B2":
+            if "Teil 1" in teil:
+                return (
+                    "**B2 – Teil 1: Diskussion**\n\n"
+                    "We'll discuss a topic. Express your opinion and justify it."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**B2 – Teil 2: Präsentation**\n\n"
+                    "Present a topic in detail. I'll challenge your points and help you improve."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**B2 – Teil 3: Argumentation**\n\n"
+                    "Argue your perspective. I'll give feedback and counterpoints."
+                )
+        if level == "C1":
+            if "Teil 1" in teil:
+                return (
+                    "**C1 – Teil 1: Vortrag**\n\n"
+                    "Bitte halte einen kurzen Vortrag zum Thema. Ich werde anschließend Fragen stellen und deine Sprache bewerten."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "**C1 – Teil 2: Diskussion**\n\n"
+                    "Diskutiere mit mir über das gewählte Thema. Ich werde kritische Nachfragen stellen."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "**C1 – Teil 3: Bewertung**\n\n"
+                    "Bewerte deine eigene Präsentation. Was würdest du beim nächsten Mal besser machen?"
+                )
+        return ""
 
-    doc_ref = _db.collection("vocab_stats").document(student_code)
+    def build_exam_system_prompt(level, teil):
+        if level == "A1":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a supportive A1 German examiner. "
+                    "Ask the student to introduce themselves using the keywords (Name, Land, Wohnort, Sprachen, Beruf, Hobby). "
+                    "Check if all info is given, correct any errors (explain in English), and give the right way to say things in German. "
+                    "1. Always explain errors and suggestion in English only. Only next question should be German. They are just A1 student "
+                    "After their intro, ask these three questions one by one: "
+                    "'Haben Sie Geschwister?', 'Wie alt ist deine Mutter?', 'Bist du verheiratet?'. "
+                    "Correct their answers (explain in English). At the end, mention they may be asked to spell their name ('Buchstabieren') and wish them luck."
+                    "Give them a score out of 25 and let them know if they passed or not"
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, an A1 examiner. Randomly give the student a Thema and Keyword from the official list. "
+                    "Let them know you have 52 cards available and here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
+                    "Tell them to ask a question with the keyword and answer it themselves, then correct their German (explain errors in English, show the correct version), and move to the next topic."
+                     "1.After every input, let them know if they passed or not and explain why you said so"
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, an A1 examiner. Give the student a prompt (e.g. 'Radio anmachen'). "
+                    "Let them know you have 20 cards available and you here to help them prepare for the exams. Let them know they can relax and continue another time when tired. Explain in English "
+                    "Ask them to write a polite request or imperative and answer themseves like their partners will do. Check if it's correct and polite, explain errors in English, and provide the right German version. Then give the next prompt."
+                    " They respond using Ja gerne or In ordnung. They can also answer using Ja, Ich kann and the question of the verb at the end (e.g 'Ich kann das Radio anmachen'). "
+                )
+        if level == "A2":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a Goethe A2 examiner. Give a topic from the A2 list. "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
+                    "Ask the student to ask and answer a question on it. Always correct their German (explain errors in English), show the correct version, and encourage."
+                    "Ask one question at a time"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, an A2 examiner. Give a topic. Student gives a short monologue. Correct errors (in English), give suggestions, and follow up with one question."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks "
+                    "2. Use phrases like your next recommended question to ask for the next question"
+                    "Pick 3 random keywords from the topic and ask the student 3 questions only per keyword. One question based on one keyword"
+                    "When student make mistakes and explaining, use English and simple German to explain the mistake and make correction"
+                    "After the third questions, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them understand"
+                    
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, an A2 examiner. Plan something together (e.g., going to the cinema). Check student's suggestions, correct errors, and keep the conversation going."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "Alert students to be able to plan something with you for you to agree with exact 5 prompts"
+                    "After the last prompt, mark the student out of 25 marks and tell the student whether they passed or not. Explain in English for them to understand"
+                )
+        if level == "B1":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a Goethe B1 supportive examiner. You and the student plan an activity together. "
+                    "Always give feedback in both German and English, correct mistakes, suggest improvements, and keep it realistic."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. Give short answers that encourages the student to also type back"
+                    "2. After student input, let the student know you will ask just 5 questions and after give a score out of 25 marks. Explain in English for them to understand. "
+                    "3. Ask only 5 questions and try and end the conversation"
+                    "4. Give score after every presentation whether they passed or not"
+                    "5. Use phrases like your next recommended question to ask for the next question"
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, a Goethe B1 examiner. Student gives a presentation. Give constructive feedback in German and English, ask for more details, and highlight strengths and weaknesses."
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them how to pass the exams."
+                    "1. After student input, let the student know you will ask just 3 questions and after give a score out of 25 marks. Explain in English for them to understand. "
+                    "2. Ask only 3 questions and one question at a time"
+                    "3. Dont make your reply too long and complicated but friendly"
+                    "4. After your third question, mark and give the student their scores"
+                    "5. Use phrases like your next recommended question to ask for the next question"
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, a Goethe B1 examiner. Student answers questions about their presentation. "
+                    "Always let the student know that you are to help them pass their exams so they should sit for some minutes and be consistent. Teach them to pass the exams. Tell them to ask questions if they dont understand and ask for translations of words. You can help than they going to search for words "
+                    "Give exam-style feedback (in German and English), correct language, and motivate."
+                    "1. Ask only 3 questions and one question at a time"
+                    "2. Dont make your reply too long and complicated but friendly"
+                    "3. After your third question, mark and give the student their scores out of 25 marks. Explain in English for them to understand"
+                    "4. Use phrases like your next recommended question to ask for the next question"
+                )
+        if level == "B2":
+            if "Teil 1" in teil:
+                return (
+                    "You are Herr Felix, a B2 examiner. Discuss a topic with the student. Challenge their points. Correct errors (mostly in German, but use English if it's a big mistake), and always provide the correct form."
+                )
+            elif "Teil 2" in teil:
+                return (
+                    "You are Herr Felix, a B2 examiner. Listen to the student's presentation. Give high-level feedback (mostly in German), ask probing questions, and always highlight advanced vocabulary and connectors."
+                )
+            elif "Teil 3" in teil:
+                return (
+                    "You are Herr Felix, a B2 examiner. Argue your perspective. Give detailed, advanced corrections (mostly German, use English if truly needed). Encourage native-like answers."
+                )
+        if level == "C1":
+            if "Teil 1" in teil or "Teil 2" in teil or "Teil 3" in teil:
+                return (
+                    "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
+                    "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
+                )
+        return ""
+#
+    def build_custom_chat_prompt(level):
+        if level == "C1":
+            return (
+                "You are supportive German C1 Teacher. Speak both english and German "
+                "Ask student one question at a time"
+                "Suggest useful phrases student can use to begin their phrases"
+                "Check if student is writing on C1 Level"
+                "When there is error, correct for the student and teach them how to say it correctly"
+                "Stay on one topic and always ask next question. After 5 intelligent questions only on a topic, give the student their performance and scores and suggestions to improve"
+                "Help student progress from B2 to C1 with your support and guidance"
+            )
+        if level in ["A1", "A2", "B1", "B2"]:
+            correction_lang = "in English" if level in ["A1", "A2"] else "half in English and half in German"
+            return (
+                f"You are Herr Felix, a supportive and innovative German teacher. "
+                f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
+                f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
+                f"Promise them that if they answer all 7 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
+                f"Pick 3 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
+                f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
+                f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
+                f"1. Explain difficult words when level is A1,A2,B1,B2. "
+                f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 7 questions in total). "
+                f"After your sixth question, ask the student to also ask you one question so you can wrap up. "
+                f"After the student answers all questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+                f"Also give them 50 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
+                f"All feedback and corrections should be {correction_lang}. "
+                f"Encourage the student and keep the chat motivating. "
+            )
+        return ""
+
+
+# ---- SESSION STATE DEFAULTS ----
+    default_state = {
+        "falowen_stage": 1,
+        "falowen_mode": None,
+        "falowen_level": None,
+        "falowen_teil": None,
+        "falowen_messages": [],
+        "falowen_turn_count": 0,
+        "custom_topic_intro_done": False,
+        "custom_chat_level": None,
+        "falowen_exam_topic": None,
+        "falowen_exam_keyword": None,
+    }
+    for key, val in default_state.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+    # ---- STAGE 1: Mode Selection ----
+    if st.session_state["falowen_stage"] == 1:
+        st.subheader("Step 1: Choose Practice Mode")
+
+        st.info(
+            """
+            **Which mode should you choose?**
+
+            - 📝 **Exam Mode**:  
+                Practice for your official Goethe exam!  
+                - Includes **Speaking** (Sprechen) with a live chat examiner  
+                - PLUS quick access to real **Reading (Lesen)** and **Listening (Hören)** past exams  
+                - See official exam instructions and practice with authentic topics
+
+            - 💬 **Custom Chat**:  
+                Chat about any topic!  
+                - Great for practicing presentations, your own ideas, or general German conversation  
+                - No exam restrictions—learn at your own pace
+
+            - 🎤 **Pronunciation & Speaking Checker**:  
+                Record or upload a short audio, get instant feedback on your pronunciation, fluency, and speaking.  
+                - Perfect for practicing real answers and getting AI-based scoring & tips!
+            """,
+            icon="ℹ️"
+        )
+
+        # Mode selection radio
+        mode = st.radio(
+            "How would you like to practice?",
+            [
+                "Geführte Prüfungssimulation (Exam Mode)",
+                "Eigenes Thema/Frage (Custom Chat)",
+                "Pronunciation & Speaking Checker"
+            ],
+            key="falowen_mode_center"
+        )
+
+        # Next button logic
+        if st.button("Next ➡️", key="falowen_next_mode"):
+            st.session_state["falowen_mode"] = mode
+            # Skip level/teil selection if in Pronunciation mode, jump to special stage
+            if mode == "Pronunciation & Speaking Checker":
+                st.session_state["falowen_stage"] = 99
+            else:
+                st.session_state["falowen_stage"] = 2
+            st.session_state["falowen_level"] = None
+            st.session_state["falowen_teil"] = None
+            st.session_state["falowen_messages"] = []
+            st.session_state["custom_topic_intro_done"] = False
+            st.rerun()
+
+
+    # ---- STAGE 2: Level Selection ----
+    if st.session_state["falowen_stage"] == 2:
+        # If Pronunciation & Speaking Checker, skip this stage!
+        if st.session_state["falowen_mode"] == "Pronunciation & Speaking Checker":
+            st.session_state["falowen_stage"] = 99
+            st.rerun()
+
+        st.subheader("Step 2: Choose Your Level")
+        level = st.radio(
+            "Select your level:",
+            ["A1", "A2", "B1", "B2", "C1"],
+            key="falowen_level_center"
+        )
+
+        # ← Back and Next → in two columns
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("⬅️ Back", key="falowen_back1"):
+                # Back from Level → Mode selection
+                st.session_state["falowen_stage"] = 1
+                st.session_state["falowen_messages"] = []
+                st.session_state["_falowen_loaded"] = False
+                st.rerun()
+        with col2:
+            if st.button("Next ➡️", key="falowen_next_level"):
+                st.session_state["falowen_level"] = level
+                if st.session_state["falowen_mode"] == "Geführte Prüfungssimulation (Exam Mode)":
+                    st.session_state["falowen_stage"] = 3
+                else:
+                    st.session_state["falowen_stage"] = 4
+                st.session_state["falowen_teil"] = None
+                st.session_state["falowen_messages"] = []
+                st.session_state["custom_topic_intro_done"] = False
+                st.rerun()
+
+        st.stop()
+        
+    # ---- STAGE 3: Choose Exam Part ----
+    if st.session_state["falowen_stage"] == 3:
+        st.subheader("Step 3: Choose Exam Part")
+
+        # 1) exam‑part options per level
+        teil_options = {
+            "A1": [
+                "Teil 1 – Basic Introduction",
+                "Teil 2 – Question and Answer",
+                "Teil 3 – Making A Request",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "A2": [
+                "Teil 1 – Fragen zu Schlüsselwörtern",
+                "Teil 2 – Über das Thema sprechen",
+                "Teil 3 – Gemeinsam planen",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "B1": [
+                "Teil 1 – Gemeinsam planen (Dialogue)",
+                "Teil 2 – Präsentation (Monologue)",
+                "Teil 3 – Feedback & Fragen stellen",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "B2": [
+                "Teil 1 – Diskussion",
+                "Teil 2 – Präsentation",
+                "Teil 3 – Argumentation",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ],
+            "C1": [
+                "Teil 1 – Vortrag",
+                "Teil 2 – Diskussion",
+                "Teil 3 – Bewertung",
+                "Lesen – Past Exam Reading",
+                "Hören – Past Exam Listening"
+            ]
+        }
+        level = st.session_state["falowen_level"]
+        teil = st.radio(
+            "Which exam part?",
+            teil_options[level],
+            key="falowen_teil_center"
+        )
+
+        # 2) If Lesen/Hören, show links + Back
+        if "Lesen" in teil or "Hören" in teil:
+            if "Lesen" in teil:
+                st.markdown(
+                    """
+                    <div style="background:#e1f5fe;border-radius:10px;
+                                padding:1.1em 1.4em;margin:1.2em 0;">
+                      <span style="font-size:1.18em;color:#0277bd;">
+                        <b>📖 Past Exam: Lesen (Reading)</b>
+                      </span><br><br>
+                    """,
+                    unsafe_allow_html=True
+                )
+                for label, url in lesen_links.get(level, []):
+                    st.markdown(
+                        f'<a href="{url}" target="_blank" '
+                        f'style="font-size:1.10em;color:#1976d2;font-weight:600">'
+                        f'👉 {label}</a><br>',
+                        unsafe_allow_html=True
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            if "Hören" in teil:
+                st.markdown(
+                    """
+                    <div style="background:#ede7f6;border-radius:10px;
+                                padding:1.1em 1.4em;margin:1.2em 0;">
+                      <span style="font-size:1.18em;color:#512da8;">
+                        <b>🎧 Past Exam: Hören (Listening)</b>
+                      </span><br><br>
+                    """,
+                    unsafe_allow_html=True
+                )
+                for label, url in hoeren_links.get(level, []):
+                    st.markdown(
+                        f'<a href="{url}" target="_blank" '
+                        f'style="font-size:1.10em;color:#5e35b1;font-weight:600">'
+                        f'👉 {label}</a><br>',
+                        unsafe_allow_html=True
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # Back button
+            if st.button("⬅️ Back", key="lesen_hoeren_back"):
+                st.session_state["falowen_stage"] = 2
+                st.session_state["falowen_messages"] = []
+                st.rerun()
+
+        else:
+            # 3) Topic-picker / search UI
+            teil_number = teil.split()[1]
+            topic_col   = "Topic/Prompt"
+            keyword_col = "Keyword/Subtopic"
+            exam_topics = df_exam[
+                (df_exam["Level"] == level) &
+                (df_exam["Teil"]  == f"Teil {teil_number}")
+            ] if teil_number else pd.DataFrame()
+
+            if not exam_topics.empty:
+                topic_vals   = exam_topics[topic_col].astype(str).str.strip()
+                keyword_vals = exam_topics[keyword_col].astype(str).str.strip()
+                topics_list  = [
+                    f"{t} – {k}" if k else t
+                    for t, k in zip(topic_vals, keyword_vals) if t
+                ]
+            else:
+                topics_list = []
+
+            search = st.text_input("🔍 Search topic or keyword...", "")
+            filtered = (
+                [t for t in topics_list if search.lower() in t.lower()]
+                if search else topics_list
+            )
+
+            if filtered:
+                st.markdown("**Preview: Available Topics**")
+                for t in filtered[:6]:
+                    st.markdown(f"- {t}")
+                if len(filtered) > 6:
+                    with st.expander(f"See all {len(filtered)} topics"):
+                        col1, col2 = st.columns(2)
+                        for i, t in enumerate(filtered):
+                            with (col1 if i % 2 == 0 else col2):
+                                st.markdown(f"- {t}")
+
+                st.write("**Pick your topic or select random:**")
+                choice = st.selectbox("", ["(random)"] + filtered, key="topic_picker")
+                chosen = random.choice(filtered) if choice == "(random)" else choice
+
+                if " – " in chosen:
+                    topic, keyword = chosen.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"]   = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"]   = chosen
+                    st.session_state["falowen_exam_keyword"] = None
+
+                tp = st.session_state["falowen_exam_topic"]
+                kw = st.session_state["falowen_exam_keyword"]
+                if tp:
+                    st.success(f"**Your exam topic is:** {tp}" + (f" – {kw}" if kw else ""))
+            else:
+                st.info("No topics found. Try a different search.")
+
+            # Back + Start Practice
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                if st.button("⬅️ Back", key="falowen_back_part"):
+                    st.session_state["falowen_stage"]    = 2
+                    st.session_state["falowen_messages"] = []
+                    st.rerun()
+            with col2:
+                if st.button("Start Practice", key="falowen_start_practice"):
+                    st.session_state["falowen_teil"]            = teil
+                    st.session_state["falowen_stage"]           = 4
+                    st.session_state["falowen_messages"]        = []
+                    st.session_state["custom_topic_intro_done"] = False
+                    st.session_state["remaining_topics"]        = filtered.copy()
+                    random.shuffle(st.session_state["remaining_topics"])
+                    st.session_state["used_topics"]             = []
+                    st.rerun()
+
+
+    # ==========================
+    # FIRESTORE CHAT HELPERS
+    # ==========================
+    def save_falowen_chat(student_code, mode, level, teil, messages):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        chats = data.get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        chats[chat_key] = messages
+        doc_ref.set({"chats": chats}, merge=True)
+
+    def load_falowen_chat(student_code, mode, level, teil):
+        doc_ref = db.collection("falowen_chats").document(student_code)
+        doc = doc_ref.get()
+        if not doc.exists:
+            return []
+        chats = doc.to_dict().get("chats", {})
+        chat_key = f"{mode}_{level}_{teil or 'custom'}"
+        return chats.get(chat_key, [])
+
+    # ---- STAGE 4: MAIN CHAT ----
+    if st.session_state.get("falowen_stage") == 4:
+        import re
+
+        level = st.session_state.get("falowen_level")
+        teil = st.session_state.get("falowen_teil")
+        mode = st.session_state.get("falowen_mode")
+        is_exam = mode == "Geführte Prüfungssimulation (Exam Mode)"
+        is_custom_chat = mode == "Eigenes Thema/Frage (Custom Chat)"
+        student_code = st.session_state.get("student_code", "demo")
+
+        # Show sample image before chat starts
+        if (
+            is_exam
+            and level
+            and teil
+            and not st.session_state.get("falowen_messages")
+        ):
+            teil_short = ""
+            if "Teil 1" in teil:
+                teil_short = "Teil 1"
+            elif "Teil 2" in teil:
+                teil_short = "Teil 2"
+            elif "Teil 3" in teil:
+                teil_short = "Teil 3"
+            img_key = (level, teil_short)
+            if img_key in image_map:
+                img = image_map[img_key]
+                st.image(img["url"], width=380, caption=img["caption"])
+
+        # Load chat from db once
+        if not st.session_state.get("_falowen_loaded"):
+            loaded = load_falowen_chat(student_code, mode, level, teil)
+            if loaded:
+                st.session_state["falowen_messages"] = loaded
+            st.session_state["_falowen_loaded"] = True
+
+        # Helper for safe message format
+        def ensure_message_format(msg):
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                return msg
+            if isinstance(msg, (list, tuple)) and len(msg) == 2:
+                return {"role": msg[0], "content": msg[1]}
+            if isinstance(msg, str):
+                return {"role": "user", "content": msg}
+            return None
+
+        # Render chat
+        msgs = [ensure_message_format(m) for m in st.session_state["falowen_messages"]]
+        st.session_state["falowen_messages"] = [m for m in msgs if m]
+
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                with st.chat_message("user"):
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        unsafe_allow_html=True
+                    )
+
+        # PDF + TXT download
+        if st.session_state["falowen_messages"]:
+            teil_str = str(teil) if teil else "chat"
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}"
+            )
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
+                mime="application/pdf"
+            )
+            chat_as_text = "\n".join([
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in st.session_state["falowen_messages"]
+            ])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
+                mime="text/plain"
+            )
+
+        # Session buttons
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("Restart Chat"):
+                reset_chat()
+        with col2:
+            if st.button("Back"):
+                back_step()
+        with col3:
+            if st.button("Change Level"):
+                change_level()
+
+        # Initial instruction
+        if not st.session_state["falowen_messages"]:
+            instruction = build_exam_instruction(level, teil) if is_exam else (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+            )
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
+
+        # Build system prompt including topic/context
+        if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
+            base_prompt = build_exam_system_prompt(level, teil)
+            topic = st.session_state.get("falowen_exam_topic")
+            if topic:
+                system_prompt = f"{base_prompt} Thema: {topic}."
+            else:
+                system_prompt = base_prompt
+        else:
+            system_prompt = build_custom_chat_prompt(level)
+
+        # Chat input & assistant response
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        if user_input:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            inc_sprechen_usage(student_code)
+
+            with st.chat_message("user"):
+                st.markdown(
+                    f"<div style='display:flex;justify-content:flex-end;'>"
+                    f"<div style='{bubble_user}'>🗣️ {user_input}</div></div>",
+                    unsafe_allow_html=True
+                )
+
+            with st.chat_message(
+                "assistant",
+                avatar="https://i.imgur.com/aypyUjM_d.jpeg?maxwidth=520&shape=thumb&fidelity=high"
+            ):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600
+                        )
+                        ai_reply = resp.choices[0].message.content.strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
+                st.markdown(
+                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
+                    unsafe_allow_html=True
+                )
+
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            save_falowen_chat(student_code, mode, level, teil, st.session_state["falowen_messages"])
+
+        # End session button & summary
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
+
+    # ---- STAGE 5: SHOW SUMMARY ----
+    if st.session_state.get("falowen_stage") == 5:
+        st.success("🎉 Practice Session Complete!")
+        st.markdown("#### Your Exam Summary")
+        # Example: Show all chat (or generate summary, scores, etc.)
+        if st.session_state.get("falowen_messages"):
+            for msg in st.session_state["falowen_messages"]:
+                who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
+                st.markdown(f"**{who}:** {msg['content']}")
+
+        # Download options (PDF/TXT)
+        if st.session_state.get("falowen_messages"):
+            teil_str = str(st.session_state.get('falowen_teil', '')) if st.session_state.get('falowen_teil', '') else "chat"
+            pdf_bytes = falowen_download_pdf(
+                st.session_state["falowen_messages"],
+                f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}"
+            )
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.pdf",
+                mime="application/pdf"
+            )
+            chat_as_text = "\n".join([
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in st.session_state["falowen_messages"]
+            ])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{st.session_state.get('falowen_level','')}_{teil_str.replace(' ','_')}.txt",
+                mime="text/plain"
+            )
+
+        # --- Navigation buttons ---
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Restart Practice"):
+                # Reset everything
+                for key in ["falowen_stage", "falowen_mode", "falowen_level", "falowen_teil", "falowen_messages",
+                            "custom_topic_intro_done", "falowen_exam_topic", "falowen_exam_keyword",
+                            "remaining_topics", "used_topics", "_falowen_loaded"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+        with col2:
+            if st.button("⬅️ Back to Exam Menu"):
+                st.session_state["falowen_stage"] = 2  # or 3, depending on your flow
+                st.rerun()
+
+
+
+
+            
+    # ---- STAGE 99: Pronunciation & Speaking Checker ----
+    if st.session_state.get("falowen_stage") == 99:
+        import datetime
+
+        # ====== DAILY LIMIT ENFORCEMENT BLOCK (AT THE TOP) ======
+        today_str = datetime.date.today().isoformat()
+        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
+        doc = uploads_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        last_date = data.get("date")
+        count = data.get("count", 0)
+        if last_date != today_str:
+            count = 0
+        if count >= 3:
+            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            st.stop()
+        # =======================================================
+
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.info(
+            """
+            Record or upload your speaking sample below (max 60 seconds).  
+            You’ll see what I understood, plus feedback on pronunciation, grammar, and fluency.
+            """
+        )
+
+        # Upload (or record via phone/Vocaroo and upload) with 60 s limit
+        audio_file = st.file_uploader("Upload a WAV/MP3 file (≤ 60 sec)", type=["wav", "mp3"])
+        if audio_file:
+            st.audio(audio_file)
+
+            # Transcribe with Whisper
+            try:
+                transcript_resp = client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1"
+                )
+                transcript_text = transcript_resp.text
+            except Exception as e:
+                st.error(f"Sorry, could not process audio: {e}")
+                st.stop()
+
+            # Show what the AI heard
+            st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+
+            # Now run a chat-completion to evaluate
+            eval_prompt = (
+                "You are a German tutor. The student said:\n"
+                f"\"{transcript_text}\"\n\n"
+                "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
+                "and then give three concise tips per category. "
+                "Format as:\n"
+                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+            )
+
+            with st.spinner("Evaluating your sample..."):
+                eval_resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful German tutor."},
+                        {"role": "user", "content": eval_prompt}
+                    ],
+                    temperature=0.2
+                )
+            st.markdown(eval_resp.choices[0].message.content)
+
+            # After successful upload/evaluation, increment usage count
+            uploads_ref.set({"count": count + 1, "date": today_str})
+
+            st.info("💡 Tip: To get ideas and practice your topic before recording, use Custom Chat first.")
+            if st.button("🔄 Try Another"):
+                st.rerun()
+
+        else:
+            st.info("No audio uploaded yet. You can record on your phone or at www.vocaroo.com and then upload.")
+
+        if st.button("⬅️ Back to Main Menu"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+
+# =========================================
+# End
+# =========================================
+
+# =========================================
+# FIRESTORE STATS HELPERS
+# =========================================
+
+def save_vocab_attempt(student_code, level, total, correct, practiced_words):
+    """Save one vocab practice attempt to Firestore."""
+    doc_ref = db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     data = doc.to_dict() if doc.exists else {}
     history = data.get("history", [])
 
     attempt = {
         "level": level,
-        "total": int(total) if total is not None else 0,
-        "correct": int(correct) if correct is not None else 0,
-        "practiced_words": list(practiced_words or []),
+        "total": total,
+        "correct": correct,
+        "practiced_words": practiced_words,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "session_id": session_id,
     }
-
     history.append(attempt)
-    completed = {w for a in history for w in a.get("practiced_words", [])}
+    best = max((a["correct"] for a in history), default=0)
+    completed = set(sum((a["practiced_words"] for a in history), []))
 
     doc_ref.set({
         "history":           history,
+        "best":              best,
         "last_practiced":    attempt["timestamp"],
-        "completed_words":   sorted(completed),
+        "completed_words":   list(completed),
         "total_sessions":    len(history),
-    }, merge=True)
-
+    })
 
 def get_vocab_stats(student_code):
     """Load vocab practice stats from Firestore (or defaults)."""
-    _db = _get_db()
-    if _db is None:
-        return {
-            "history":           [],
-            "last_practiced":    None,
-            "completed_words":   [],
-            "total_sessions":    0,
-        }
-
-    doc_ref = _db.collection("vocab_stats").document(student_code)
+    doc_ref = db.collection("vocab_stats").document(student_code)
     doc = doc_ref.get()
     if doc.exists:
-        data = doc.to_dict() or {}
-        # Ensure we don't return "best"
-        return {
-            "history": data.get("history", []),
-            "last_practiced": data.get("last_practiced"),
-            "completed_words": data.get("completed_words", []),
-            "total_sessions": data.get("total_sessions", 0),
-        }
-
+        return doc.to_dict()
     return {
         "history":           [],
+        "best":              0,
         "last_practiced":    None,
         "completed_words":   [],
         "total_sessions":    0,
     }
 
+# =========================================
+# VOCAB TRAINER TAB (A1–C1)
+# =========================================
 
-# ================================
-# HELPERS: Writing (Sentence Builder) persistence
-# ================================
-def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
-    """Append a sentence-builder attempt to Firestore."""
-    _db = _get_db()
-    if _db is None:
-        st.warning("Firestore not initialized; skipping sentence stats save.")
-        return
+# Your Google Sheet → CSV
+sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
 
-    doc_ref = _db.collection("sentence_builder_stats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    history = data.get("history", [])
-    history.append({
-        "level": level,
-        "target": target_sentence,
-        "chosen": chosen_sentence,
-        "correct": bool(correct),
-        "tip": tip,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    })
-    doc_ref.set({
-        "history": history,
-        "last_played": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "total_sessions": len(history),
-    }, merge=True)
+# Play German audio
+def play_word_audio(word, lang="de"):
+    from gtts import gTTS
+    import tempfile
+    tts = gTTS(text=word, lang=lang)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        tts.save(fp.name)
+        st.audio(fp.name, format="audio/mp3")
 
-def get_sentence_progress(student_code: str, level: str):
-    """
-    Returns (correct_unique_count, total_items_for_level)
-    based on history in 'sentence_builder_stats'.
-    """
-    _db = _get_db()
-    correct_set = set()
-    if _db is not None:
-        ref = _db.collection("sentence_builder_stats").document(student_code)
-        doc = ref.get()
-        if doc.exists:
-            data = doc.to_dict()
-            for h in data.get("history", []):
-                if h.get("level") == level and h.get("correct"):
-                    correct_set.add(h.get("target"))
-    total_items = len(SENTENCE_BANK.get(level, []))
-    return len(correct_set), total_items
-
-
-# ================================
-# HELPERS: Vocab CSV (optional flashcards list)
-# ================================
-@st.cache_data
-def load_vocab_lists():
-    """
-    Optional CSV for flashcards: columns Level, German, English
-    """
-    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"  # Vocab sheet
-    csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
-    try:
-        df = pd.read_csv(csv_url)
-    except Exception as e:
-        st.error(f"Could not fetch vocab CSV: {e}")
-        return {}
-    df.columns = df.columns.str.strip()
-    missing = [c for c in ("Level","German","English") if c not in df.columns]
-    if missing:
-        st.error(f"Missing column(s) in your vocab sheet: {missing}")
-        return {}
-    df = df[["Level","German","English"]].dropna()
-    lists = {}
-    for lvl, grp in df.groupby("Level"):
-        lists[lvl] = list(zip(grp["German"], grp["English"]))
-    return lists
-
-VOCAB_LISTS = load_vocab_lists()
-
-
-# ================================
-# SMALL UI + CHECK HELPERS
-# ================================
+# Chat bubble renderer
 def render_message(role, msg):
     align   = "left"   if role=="assistant" else "right"
     bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
     bordcol = "#CCCCCC"
-    label   = "Herr Felix 👨‍🏫" if role=="assistant" else "You"
-    style = (
-        f"padding:14px; border-radius:12px; max-width:96vw; "
-        f"margin:7px 0; text-align:{align}; background:{bgcolor}; "
-        f"border:1px solid {bordcol}; font-size:1.12em; word-break:break-word;"
-    )
-    st.markdown(f"<div style='{style}'><b>{label}:</b> {msg}</div>", unsafe_allow_html=True)
-
-def clean_text(text):
-    return text.replace("the ", "").replace(",", "").replace(".", "").strip().lower()
-
-def is_correct_answer(user_input, answer):
-    import re
-    # Clean both sides; accept comma/;/ slash-separated variants
-    possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
-    return clean_text(str(user_input)) in possible
-
-def normalize_join(tokens):
-    """Join tokens and fix spaces before punctuation for sentence builder."""
-    s = " ".join(tokens)
-    for p in [",", ".", "!", "?", ":", ";"]:
-        s = s.replace(f" {p}", p)
-    return s
-
-# ---------- Dictionary helpers ----------
-def _flatten_vocab_entries(vocab_lists: dict):
-    rows = []
-    for lvl, pairs in (vocab_lists or {}).items():
-        for de, en in pairs:
-            rows.append({
-                "level":   str(lvl).upper().strip(),
-                "german":  str(de).strip(),
-                "english": str(en).strip()
-            })
-    return rows
-
-@st.cache_data(show_spinner=False)
-def _dict_tts_bytes_de(word: str, slow: bool = False):
-    """Return MP3 bytes for a German word (cached)."""
-    try:
-        from gtts import gTTS
-        import io
-        t = gTTS(text=word, lang="de", slow=bool(slow))
-        buf = io.BytesIO()
-        t.write_to_fp(buf)
-        buf.seek(0)
-        return buf.read()
-    except Exception:
-        return None
-
-# ================================
-# TAB: Vocab Trainer (locked by Level)
-# ================================
-if tab == "Vocab Trainer":
-    # --- Who is this? ---
-    student_code = st.session_state.get("student_code", "demo001")
-
-    # --- Lock the level from your Sheet ---
-    student_level_locked = get_student_level(
-        student_code,
-        default=(st.session_state.get("student_level", "A1"))
-    )
-    if not student_level_locked:
-        student_level_locked = "A1"
-
-    # Header
-    st.markdown(
-        """
-        <div style="
-            padding:8px 12px; background:#6f42c1; color:#fff;
-            border-radius:6px; text-align:center; margin-bottom:8px;
-            font-size:1.3rem;">
-        📚 Vocab Trainer
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown(f"**Practicing Level:** `{student_level_locked}` (from your profile)")
-    st.caption("Your level is loaded automatically from the school list. Ask your tutor if this looks wrong.")
-    st.divider()
-
-    subtab = st.radio(
-        "Choose practice:",
-        ["Sentence Builder", "Vocab Practice", "Dictionary"],
-        horizontal=True,
-        key="vocab_practice_subtab"
-    )
-
-    # ===========================
-    # SUBTAB: Sentence Builder
-    # ===========================
-    if subtab == "Sentence Builder":
-        student_level = student_level_locked
-        st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
-
-        # --- Guide & Progress (collapsed) ---
-        with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
-            done_unique, total_items = get_sentence_progress(student_code, student_level)
-            pct = int((done_unique / total_items) * 100) if total_items else 0
-            st.progress(pct)
-            st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
-            st.markdown(
-                """
-                <div style="padding:10px 14px; background:#7b2ff2; color:#fff; border-radius:8px; text-align:center;">
-                  ✍️ <b>Sentence Builder</b> — Click the words in the correct order!
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            st.caption(
-                "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
-                "Next for a new one."
-            )
-            st.markdown(
-                "**What these numbers mean:**  \n"
-                "- **Score** = Correct sentences *this session*.  \n"
-                "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
-            )
-
-        # ---- Session state defaults ----
-        init_defaults = {
-            "sb_round": 0,
-            "sb_pool": None,
-            "sb_pool_level": None,
-            "sb_current": None,
-            "sb_shuffled": [],
-            "sb_selected_idx": [],
-            "sb_score": 0,
-            "sb_total": 0,
-            "sb_feedback": "",
-            "sb_correct": None,
-        }
-        for k, v in init_defaults.items():
-            if k not in st.session_state:
-                st.session_state[k] = v
-
-        # ---- Init / Level change ----
-        if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
-            import random
-            st.session_state.sb_pool_level = student_level
-            st.session_state.sb_pool = SENTENCE_BANK.get(
-                student_level, SENTENCE_BANK.get("A1", [])
-            ).copy()
-            random.shuffle(st.session_state.sb_pool)
-            st.session_state.sb_round = 0
-            st.session_state.sb_score = 0
-            st.session_state.sb_total = 0
-            st.session_state.sb_feedback = ""
-            st.session_state.sb_correct = None
-            st.session_state.sb_current = None
-            st.session_state.sb_selected_idx = []
-            st.session_state.sb_shuffled = []
-
-        def new_sentence():
-            import random
-            # Refill pool if empty
-            if not st.session_state.sb_pool:
-                st.session_state.sb_pool = SENTENCE_BANK.get(
-                    student_level, SENTENCE_BANK.get("A1", [])
-                ).copy()
-                random.shuffle(st.session_state.sb_pool)
-            if st.session_state.sb_pool:
-                st.session_state.sb_current = st.session_state.sb_pool.pop()
-                words = st.session_state.sb_current.get("tokens", [])[:]
-                random.shuffle(words)
-                st.session_state.sb_shuffled = words
-                st.session_state.sb_selected_idx = []
-                st.session_state.sb_feedback = ""
-                st.session_state.sb_correct = None
-                st.session_state.sb_round += 1
-            else:
-                st.warning("No sentences available for this level.")
-
-        if st.session_state.sb_current is None:
-            new_sentence()
-
-        # ---- Top metrics for session ----
-        cols = st.columns([3, 2, 2])
-        with cols[0]:
-            st.session_state.setdefault("sb_target", 5)
-            _ = st.number_input(
-                "Number of sentences this session",
-                min_value=1, max_value=20,
-                key="sb_target"
-            )
-        target = int(st.session_state.sb_target)
-        with cols[1]:
-            st.metric("Score (this session)", f"{st.session_state.sb_score}")
-        with cols[2]:
-            st.metric("Progress (this session)", f"{st.session_state.sb_total}/{target}")
-
-        st.divider()
-
-        # --- English prompt panel ---
-        cur = st.session_state.sb_current or {}
-        prompt_en = cur.get("prompt_en", "")
-        hint_en = cur.get("hint_en", "")
-        grammar_tag = cur.get("grammar_tag", "")
-
-        if prompt_en:
-            st.markdown(
-                f"""
-                <div style="box-sizing:border-box; padding:12px 14px; margin:6px 0 14px 0;
-                            background:#f0f9ff; border:1px solid #bae6fd; border-left:6px solid #0ea5e9;
-                            border-radius:10px;">
-                  <div style="font-size:1.05rem;">
-                    🇬🇧 <b>Translate into German:</b> <span style="color:#0b4a6f">{prompt_en}</span>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            with st.expander("💡 Need a nudge? (Hint)"):
-                if hint_en:
-                    st.markdown(f"**Hint:** {hint_en}")
-                if grammar_tag:
-                    st.caption(f"Grammar: {grammar_tag}")
-
-        # ---- Word buttons ----
-        st.markdown("#### 🧩 Click the words in order")
-        if st.session_state.sb_shuffled:
-            word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
-            for i, w in enumerate(st.session_state.sb_shuffled):
-                selected = i in st.session_state.sb_selected_idx
-                btn_label = f"✅ {w}" if selected else w
-                col = word_cols[i % len(word_cols)]
-                with col:
-                    if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
-                        st.session_state.sb_selected_idx.append(i)
-                        st.rerun()
-
-        # ---- Preview ----
-        chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
-        st.markdown("#### ✨ Your sentence")
-        st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
-
-        # ---- Actions ----
-        a, b, c = st.columns(3)
-        with a:
-            if st.button("🧹 Clear"):
-                st.session_state.sb_selected_idx = []
-                st.session_state.sb_feedback = ""
-                st.session_state.sb_correct = None
-                st.rerun()
-        with b:
-            if st.button("✅ Check"):
-                target_sentence = st.session_state.sb_current.get("target_de", "").strip()
-                chosen_sentence = normalize_join(chosen_tokens).strip()
-                correct = (chosen_sentence.lower() == target_sentence.lower())
-                st.session_state.sb_correct = correct
-                st.session_state.sb_total += 1
-                if correct:
-                    st.session_state.sb_score += 1
-                    st.session_state.sb_feedback = "✅ **Correct!** Great job!"
-                else:
-                    tip = st.session_state.sb_current.get("hint_en", "")
-                    st.session_state.sb_feedback = (
-                        f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
-                    )
-                save_sentence_attempt(
-                    student_code=student_code,
-                    level=student_level,
-                    target_sentence=target_sentence,
-                    chosen_sentence=chosen_sentence,
-                    correct=correct,
-                    tip=st.session_state.sb_current.get("hint_en", ""),
-                )
-                st.rerun()
-        with c:
-            next_disabled = (st.session_state.sb_correct is None)
-            if st.button("➡️ Next", disabled=next_disabled):
-                if st.session_state.sb_total >= st.session_state.sb_target:
-                    st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
-                new_sentence()
-                st.rerun()
-
-        # ---- Feedback box ----
-        if st.session_state.sb_feedback:
-            if st.session_state.sb_correct:
-                st.success(st.session_state.sb_feedback)
-            else:
-                st.info(st.session_state.sb_feedback)
-
-    # ===========================
-    # SUBTAB: Vocab Practice (flashcards)
-    # ===========================
-    elif subtab == "Vocab Practice":
-        # init session vars
-        defaults = {
-            "vt_history": [],
-            "vt_list": [],
-            "vt_index": 0,
-            "vt_score": 0,
-            "vt_total": None,
-            "vt_saved": False,
-            "vt_session_id": None,
-        }
-        for k, v in defaults.items():
-            st.session_state.setdefault(k, v)
-
-        # --- Stats ---
-        with st.expander("📝 Your Vocab Stats", expanded=False):
-            stats = get_vocab_stats(student_code)
-            st.markdown(f"- **Sessions:** {stats['total_sessions']}")
-            st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
-            st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-
-            if st.checkbox("Show Last 5 Sessions"):
-                for a in stats["history"][-5:][::-1]:
-                    st.markdown(
-                        f"- {a['timestamp']} | {a['correct']}/{a['total']} | {a['level']}<br>"
-                        f"<span style='font-size:0.9em;'>Words: {', '.join(a['practiced_words'])}</span>",
-                        unsafe_allow_html=True
-                    )
-
-        # lock level
-        level = student_level_locked
-        items = VOCAB_LISTS.get(level, [])
-        # re-use stats outside the expander
-        if 'stats' not in locals():
-            stats = get_vocab_stats(student_code)
-        completed = set(stats["completed_words"])
-        not_done = [p for p in items if p[0] not in completed]
-        st.info(f"{len(not_done)} words NOT yet done at {level}.")
-
-        # reset button
-        if st.button("🔁 Start New Practice", key="vt_reset"):
-            for k in defaults:
-                st.session_state[k] = defaults[k]
-            st.rerun()
-
-        mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
-        session_vocab = (not_done if mode == "Only new words" else items).copy()
-
-        # pick count and start
-        if st.session_state.vt_total is None:
-            maxc = len(session_vocab)
-            if maxc == 0:
-                st.success("🎉 All done! Switch to 'All words' to repeat.")
-                st.stop()
-
-            count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
-            if st.button("Start", key="vt_start"):
-                import random
-                from uuid import uuid4
-                random.shuffle(session_vocab)
-                st.session_state.vt_list = session_vocab[:count]
-                st.session_state.vt_total = count
-                st.session_state.vt_index = 0
-                st.session_state.vt_score = 0
-                st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
-                st.session_state.vt_saved = False
-                st.session_state.vt_session_id = str(uuid4())
-                st.rerun()
-
-        # show chat/history
-        if st.session_state.vt_history:
-            st.markdown("### 🗨️ Practice Chat")
-            for who, msg in st.session_state.vt_history:
-                render_message(who, msg)
-
-        # practice loop
-        tot = st.session_state.vt_total
-        idx = st.session_state.vt_index
-        if isinstance(tot, int) and idx < tot:
-            word, answer = st.session_state.vt_list[idx]
-
-            # audio
-            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-                try:
-                    from gtts import gTTS
-                    import tempfile
-                    t = gTTS(text=word, lang="de")
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-                        t.save(fp.name)
-                        st.audio(fp.name, format="audio/mp3")
-                        fp.seek(0)
-                        blob = fp.read()
-                    st.download_button(
-                        f"⬇️ {word}.mp3",
-                        data=blob,
-                        file_name=f"{word}.mp3",
-                        mime="audio/mp3",
-                        key=f"tts_dl_{idx}"
-                    )
-                except Exception as e:
-                    st.error(f"Could not generate audio (gTTS): {e}")
-
-            # bigger, bolder, clearer input
-            st.markdown(
-                """
-                <style>
-                div[data-baseweb="input"] input {
-                    font-size: 18px !important;
-                    font-weight: 600 !important;
-                    color: black !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-
-            usr = st.text_input(
-                f"{word} = ?",
-                key=f"vt_input_{idx}",
-                placeholder="Type your answer here..."
-            )
-
-            if usr and st.button("Check", key=f"vt_check_{idx}"):
-                st.session_state.vt_history.append(("user", usr))
-                if is_correct_answer(usr, answer):
-                    st.session_state.vt_score += 1
-                    fb = f"✅ Correct! '{word}' = '{answer}'"
-                else:
-                    fb = f"❌ Nope. '{word}' = '{answer}'"
-                st.session_state.vt_history.append(("assistant", fb))
-                st.session_state.vt_index += 1
-                st.rerun()
-
-        # done
-        if isinstance(tot, int) and idx >= tot:
-            score = st.session_state.vt_score
-            words = [w for w, _ in (st.session_state.vt_list or [])]
-            st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-
-            # Save exactly once per session, duplicate-safe
-            if not st.session_state.get("vt_saved", False):
-                if not st.session_state.get("vt_session_id"):
-                    from uuid import uuid4
-                    st.session_state.vt_session_id = str(uuid4())
-                if not vocab_attempt_exists(student_code, st.session_state.vt_session_id):
-                    save_vocab_attempt(
-                        student_code=student_code,
-                        level=level,
-                        total=tot,
-                        correct=score,
-                        practiced_words=words,
-                        session_id=st.session_state.vt_session_id
-                    )
-                st.session_state.vt_saved = True
-                st.rerun()
-
-            if st.button("Practice Again", key="vt_again"):
-                for k in defaults:
-                    st.session_state[k] = defaults[k]
-                st.rerun()
-
-    # ===========================
-    # SUBTAB: Dictionary (simple, sticky search, mobile-friendly)
-    # ===========================
-    elif subtab == "Dictionary":
-        import io, json, difflib
-
-        # ---------- Helpers ----------
-        def _fallback_df(levels):
-            rows = []
-            for lvl in levels:
-                for de, en in VOCAB_LISTS.get(lvl, []):
-                    rows.append({"Level": lvl, "German": de, "English": en, "Pronunciation": ""})
-            return pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Level","German","English","Pronunciation"])
-
-        def _merge_sentence_bank(df, levels):
-            extra = []
-            for lvl in levels:
-                for item in SENTENCE_BANK.get(lvl, []):
-                    for tok in item.get("tokens", []):
-                        t = str(tok).strip()
-                        if not t or t in [",", ".", "!", "?", ":", ";"]:
-                            continue
-                        if not ((df["German"] == t) & (df["Level"] == lvl)).any():
-                            extra.append({"Level": lvl, "German": t, "English": "", "Pronunciation": ""})
-            if extra:
-                df = pd.concat([df, pd.DataFrame(extra)], ignore_index=True)
-                df = df.drop_duplicates(subset=["Level","German"]).reset_index(drop=True)
-            return df
-
-        def _tts_bytes_de(text: str) -> bytes:
-            try:
-                from gtts import gTTS
-                buf = io.BytesIO()
-                gTTS(text=text, lang="de").write_to_fp(buf)
-                buf.seek(0)
-                return buf.read()
-            except Exception:
-                return b""
-
-        def _json_from_text(raw: str) -> dict:
-            txt = (raw or "").strip()
-            if txt.startswith("```"):
-                txt = txt.strip("`")
-                if "\n" in txt:
-                    txt = txt.split("\n", 1)[1]
-                if "```" in txt:
-                    txt = txt.split("```", 1)[0]
-            try:
-                return json.loads(txt)
-            except Exception:
-                return {}
-
-        def _enrich_word(german: str, english_hint: str, level: str):
-            """Fill Pronunciation + English + 2 examples if missing (quiet background call)."""
-            try:
-                prompt = (
-                    "You are a precise German lexicographer.\n"
-                    f'Word: "{german}"\n'
-                    f'Known English hint (may be empty): "{english_hint}"\n'
-                    f'Level: {level}\n\n'
-                    "Return compact JSON with keys: ipa, english, examples (2 items with keys de and en)."
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    temperature=0.2,
-                    max_tokens=220,
-                    messages=[
-                        {"role": "system", "content": "Return strict JSON only."},
-                        {"role": "user", "content": prompt},
-                    ],
-                )
-                data = _json_from_text(resp.choices[0].message.content)
-                ipa = str(data.get("ipa", "") or "")
-                eng = str(data.get("english", "") or english_hint or "")
-                exs = data.get("examples", []) or []
-                clean = []
-                for ex in exs[:2]:
-                    clean.append({
-                        "de": str(ex.get("de", "") or ""),
-                        "en": str(ex.get("en", "") or "")
-                    })
-                return {"pron": ipa, "english": eng, "examples": clean}
-            except Exception:
-                return {"pron": "", "english": english_hint or "", "examples": []}
-
-        # diacritic/umlaut normalization so "ae" finds "ä", etc.
-        _map = {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}
-        def _norm(s: str) -> str:
-            s = (s or "").strip().lower()
-            for k,v in _map.items():
-                s = s.replace(k, v)
-            return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
-
-        # ---------- Build data (CSV + Sentence Bank) ----------
-        levels = [student_level_locked]
-        df_dict = _fallback_df(levels)
-        df_dict = _merge_sentence_bank(df_dict, levels)
-        for c in ["Level","German","English","Pronunciation"]:
-            if c not in df_dict.columns:
-                df_dict[c] = ""
-        df_dict["g_norm"] = df_dict["German"].astype(str).map(_norm)
-        df_dict["e_norm"] = df_dict["English"].astype(str).map(_norm)
-        df_dict = df_dict.sort_values(["German"]).reset_index(drop=True)
-
-        # ---------- Mobile-friendly sticky search ----------
-        st.markdown(
-            """
-            <style>
-              .sticky-search { position: sticky; top: 0; z-index: 999; background: white; padding: 8px 0 10px 0; }
-              input[type="text"] { font-size: 18px !important; }
-              .chip { display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid #e5e7eb; margin-right:6px; margin-bottom:6px; }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        with st.container():
-            st.markdown('<div class="sticky-search">', unsafe_allow_html=True)
-            cols = st.columns([6, 3, 3])
-            with cols[0]:
-                q = st.text_input("🔎 Search (German or English)", key="dict_q", placeholder="e.g., Wochenende, bakery, spielen")
-            with cols[1]:
-                search_in = st.selectbox("Field", ["Both", "German", "English"], index=0, key="dict_field")
-            with cols[2]:
-                match_mode = st.selectbox("Match", ["Contains", "Starts with", "Exact"], index=0, key="dict_mode")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        # ---------- Filter (and add enrichment when empty) ----------
-        df_view = df_dict.copy()
-        suggestions = []
-        top_row = None
-
-        if q:
-            qn = _norm(q)
-
-            # masks by field
-            g_contains = df_view["g_norm"].str.contains(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
-            g_starts   = df_view["g_norm"].str.startswith(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
-            g_exact    = df_view["g_norm"].eq(qn) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
-
-            e_contains = df_view["e_norm"].str.contains(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
-            e_starts   = df_view["e_norm"].str.startswith(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
-            e_exact    = df_view["e_norm"].eq(qn) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
-
-            if match_mode == "Contains":
-                mask = g_contains | e_contains
-            elif match_mode == "Starts with":
-                mask = g_starts | e_starts
-            else:
-                mask = g_exact | e_exact
-
-            if mask.any():
-                df_view = df_view[mask].copy().reset_index(drop=True)
-                # prefer exact > starts > contains
-                exact_mask  = (g_exact | e_exact)
-                starts_mask = (g_starts | e_starts)
-                if exact_mask.any():
-                    top_row = df_view[exact_mask].iloc[0]
-                elif starts_mask.any():
-                    top_row = df_view[starts_mask].iloc[0]
-                else:
-                    top_row = df_view.iloc[0]
-            else:
-                # no local match → show fuzzy suggestions + enrich the query so learners still get value
-                vocab_all = df_view["German"].astype(str).unique().tolist()
-                suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
-
-                enrich = _enrich_word(q, "", student_level_locked)
-                new_row = {
-                    "Level": student_level_locked,
-                    "German": q.capitalize() if q.islower() else q,
-                    "English": enrich.get("english", ""),
-                    "Pronunciation": enrich.get("pron", ""),
-                    "g_norm": _norm(q),
-                    "e_norm": _norm(enrich.get("english","")),
-                }
-                df_view = pd.concat([df_view, pd.DataFrame([new_row])], ignore_index=True)
-                top_row = pd.Series(new_row)
-                st.session_state.setdefault("dict_cache", {})
-                st.session_state["dict_cache"][(new_row["German"], student_level_locked)] = {
-                    "pron": new_row["Pronunciation"],
-                    "english": new_row["English"],
-                    "examples": enrich.get("examples", []),
-                }
-        else:
-            # no query → show first word (nice landing state) if available
-            if not df_view.empty:
-                top_row = df_view.iloc[0]
-
-        # ---------- Details (always ABOVE) ----------
-        if "dict_cache" not in st.session_state:
-            st.session_state["dict_cache"] = {}
-
-        if top_row is not None and len(top_row) > 0:
-            de  = str(top_row["German"])
-            en  = str(top_row.get("English", "") or "")
-            lvl = str(top_row.get("Level", student_level_locked))
-            pron = str(top_row.get("Pronunciation", "") or "")
-
-            cache_key = (de, lvl)
-            cached = st.session_state["dict_cache"].get(cache_key, {})
-
-            # Backfill pronunciation/english/examples if missing
-            if not pron or not cached.get("examples"):
-                enrich = _enrich_word(de, en, lvl)
-                if not pron and enrich.get("pron"):
-                    pron = enrich["pron"]
-                if not en and enrich.get("english"):
-                    en = enrich["english"]
-                if enrich.get("examples"):
-                    cached["examples"] = enrich["examples"]
-                st.session_state["dict_cache"][cache_key] = {
-                    "pron": pron, "english": en, "examples": cached.get("examples", [])
-                }
-
-            examples = st.session_state["dict_cache"].get(cache_key, {}).get("examples", [])
-
-            st.markdown(f"### {de}")
-            if en:
-                st.markdown(f"**Meaning:** {en}")
-            if pron:
-                st.caption(f"**Pronunciation:** /{pron}/")
-
-            audio_bytes = _tts_bytes_de(de)
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                if st.button("🔊 Pronounce", key=f"say_{de}_{lvl}"):
-                    if audio_bytes:
-                        st.audio(audio_bytes, format="audio/mp3")
-            with c2:
-                if audio_bytes:
-                    st.download_button(
-                        "⬇️ Download MP3",
-                        data=audio_bytes,
-                        file_name=f"{de}.mp3",
-                        mime="audio/mpeg",
-                        key=f"dl_{de}_{lvl}"
-                    )
-                else:
-                    st.caption("Audio currently unavailable.")
-
-            with st.expander("📌 Examples", expanded=True):
-                if examples:
-                    for ex in examples[:2]:
-                        de_ex = (ex.get("de", "") or "").strip()
-                        en_ex = (ex.get("en", "") or "").strip()
-                        if de_ex:
-                            st.markdown(f"- **{de_ex}**")
-                            if en_ex:
-                                st.caption(f"  ↳ {en_ex}")
-                else:
-                    st.caption("No examples yet.")
-
-        # ---------- Did you mean (chips) ----------
-        if q and suggestions:
-            st.markdown("**Did you mean:**")
-            bcols = st.columns(min(5, len(suggestions)))
-            for i, s in enumerate(suggestions[:5]):
-                with bcols[i]:
-                    if st.button(s, key=f"sugg_{i}"):
-                        st.session_state["dict_q"] = s
-                        st.rerun()
-
-        # ---------- Scrollable table INSIDE an expander (clean page) ----------
-        with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
-            df_show = df_view[["German","English","Pronunciation"]].copy()
-            st.dataframe(df_show, use_container_width=True, height=420)
-#
-
-                
-
-# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
-def bubble(role, text):
-    color = "#7b2ff2" if role == "assistant" else "#222"
-    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-    name = "Herr Felix" if role == "assistant" else "You"
-    return f"""
-        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
-        border-radius:14px;max-width:98vw;font-size:1.09rem;">
-            <b>{name}:</b><br>{text}
-        </div>
-    """
-
-
+    label   = "Herr Felix
 
 # ===== Schreiben =====
 
@@ -9747,6 +8985,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
