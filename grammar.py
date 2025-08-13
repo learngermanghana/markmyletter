@@ -29,7 +29,7 @@ from streamlit_quill import st_quill
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
-    layout="wide",              # pick wide or centered, but do it once here
+    layout="centered",              # pick wide or centered, but do it once here
     initial_sidebar_state="expanded"
 )
 
@@ -9363,6 +9363,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
