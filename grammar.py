@@ -3816,6 +3816,10 @@ def load_level_schedules():
     }
 
 # --- Helpers ---
+
+import urllib.parse
+
+
 def render_assignment_reminder():
     st.markdown(
         '''
@@ -3842,8 +3846,25 @@ def render_assignment_reminder():
         unsafe_allow_html=True
     )
 
+def _fix_url(u: str) -> str:
+    u = (u or "").strip()
+    if not u:
+        return ""
+    # Add scheme if missing
+    if not u.lower().startswith(("http://", "https://")):
+        u = "https://" + u
+    # Encode spaces and unsafe chars but keep URL structure
+    parts = urllib.parse.urlsplit(u)
+    path  = urllib.parse.quote(parts.path, safe="/-_.~")
+    query = urllib.parse.quote_plus(parts.query, safe="=&")
+    frag  = urllib.parse.quote(parts.fragment, safe="")
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path, query, frag))
+
 def render_link(label, url):
-    st.markdown(f"- [{label}]({url})")
+    safe = _fix_url(url)
+    if safe:
+        st.markdown(f"- [{label}]({safe})")
+
 
 @st.cache_data(ttl=86400)
 def build_wa_message(name, code, level, day, chapter, answer):
@@ -9889,6 +9910,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
