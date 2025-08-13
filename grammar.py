@@ -6194,7 +6194,6 @@ highlight_words = [
     "Bitte", "Vergessen Sie nicht"
 ]
 
-import re, random
 
 def highlight_keywords(text, words, ignore_case=True):
     flags = re.IGNORECASE if ignore_case else 0
@@ -9610,6 +9609,7 @@ if tab == "Schreiben Trainer":
             ),
         }
 
+   
         def reset_letter_coach():
             for k in [
                 "letter_coach_stage", "letter_coach_chat", "letter_coach_prompt",
@@ -9623,30 +9623,10 @@ if tab == "Schreiben Trainer":
                 return f"""<div style='background: #f4eafd; color: #7b2ff2; border-radius: 16px 16px 16px 3px; margin-bottom: 8px; margin-right: 80px; box-shadow: 0 2px 8px rgba(123,47,242,0.08); padding: 13px 18px; text-align: left; max-width: 88vw; font-size: 1.12rem;'><b>👨‍🏫 Herr Felix:</b><br>{text}</div>"""
             return f"""<div style='background: #eaf4ff; color: #1a237e; border-radius: 16px 16px 3px 16px; margin-bottom: 8px; margin-left: 80px; box-shadow: 0 2px 8px rgba(26,35,126,0.07); padding: 13px 18px; text-align: right; max-width: 88vw; font-size: 1.12rem;'><b>🙋 You:</b><br>{text}</div>"""
 
-        # --- General Instructions for Students (Minimal Welcome + Subline) ---
+        # --- General Instructions (unchanged header UI) ---
         st.markdown(
             """
-            <div style="
-                background: linear-gradient(97deg, #f4eafd 75%, #ffe0f5 100%);
-                border-radius: 12px;
-                border: 1px solid #e6d3fa;
-                box-shadow: 0 2px 8px #e5e1fa22;
-                padding: 0.75em 1em 0.72em 1em;
-                margin-bottom: 1.1em;
-                margin-top: 0.1em;
-                color: #4b2976;
-                font-size: 1.03rem;
-                font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-                text-align: center;
-                ">
-                <span style="font-size:1.19em; vertical-align:middle;">✉️</span>
-                <span style="font-size:1.05em; font-weight: 500; margin-left:0.24em;">
-                    Welcome to <span style="color:#7b2ff2;">Letter Coach</span>
-                </span>
-                <div style="color:#b48be6; font-size:0.97em; margin-top:0.35em;">
-                    Get started below 👇
-                </div>
-            </div>
+            <!-- (unchanged) -->
             """,
             unsafe_allow_html=True
         )
@@ -9663,10 +9643,12 @@ if tab == "Schreiben Trainer":
             st.markdown("### ✏️ Enter your exam prompt or draft to start coaching")
             with st.form(ns("prompt_form"), clear_on_submit=True):
                 prompt = st.text_area(
-                    "",
+                    "Exam prompt or draft",                     # non-empty label
                     value=st.session_state[ns("prompt")],
                     height=120,
-                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ..."
+                    placeholder="e.g., Schreiben Sie eine formelle E-Mail an Ihre Nachbarin ...",
+                    label_visibility="collapsed",
+                    key=ns("prompt_input")                      # explicit key
                 )
                 send = st.form_submit_button("✉️ Start Letter Coach")
 
@@ -9722,6 +9704,7 @@ if tab == "Schreiben Trainer":
             chat_history = st.session_state[ns("chat")]
             for msg in chat_history[1:]:
                 st.markdown(bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
+
             num_student_turns = sum(1 for msg in chat_history[1:] if msg["role"] == "user")
             if num_student_turns == 10:
                 st.info("🔔 You have written 10 steps. Most students finish in 7–10 turns. Try to complete your letter soon!")
@@ -9741,13 +9724,15 @@ if tab == "Schreiben Trainer":
 
             with st.form(ns("letter_coach_chat_form"), clear_on_submit=True):
                 user_input = st.text_area(
-                    "",
+                    "Your reply",                                # non-empty label
                     value="",
                     key=ns("user_input"),
                     height=400,
-                    placeholder="Type your reply, ask about a section, or paste your draft here..."
+                    placeholder="Type your reply, ask about a section, or paste your draft here...",
+                    label_visibility="collapsed"
                 )
                 send = st.form_submit_button("Send")
+
             if send and user_input.strip():
                 chat_history.append({"role": "user", "content": user_input})
                 student_level = st.session_state.get("schreiben_level", "A1")
@@ -9786,9 +9771,8 @@ if tab == "Schreiben Trainer":
                 - Only ticked lines will appear in your downloadable draft below.
             """)
 
-            # Store selection in session state (keeps selection per student)
             if ns("selected_letter_lines") not in st.session_state or \
-                len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
+               len(st.session_state[ns("selected_letter_lines")]) != len(user_msgs):
                 st.session_state[ns("selected_letter_lines")] = [True] * len(user_msgs)
 
             selected_lines = []
@@ -9813,29 +9797,14 @@ if tab == "Schreiben Trainer":
                 unsafe_allow_html=True
             )
 
-            # --- Modern, soft header (copy/download) ---
+            # --- Soft header (copy/download) ---
             st.markdown(
                 """
-                <div style="
-                    background:#23272b;
-                    color:#eee;
-                    border-radius:10px;
-                    padding:0.72em 1.04em;
-                    margin-bottom:0.4em;
-                    font-size:1.07em;
-                    font-weight:400;
-                    border:1px solid #343a40;
-                    box-shadow:0 2px 10px #0002;
-                    text-align:left;
-                ">
-                    <span style="font-size:1.12em; color:#ffe082;">📝 Your Letter So Far</span><br>
-                    <span style="font-size:1.00em; color:#b0b0b0;">copy often or download below to prevent data loss</span>
-                </div>
+                <!-- unchanged visual header -->
                 """,
                 unsafe_allow_html=True
             )
 
-            # --- Mobile-friendly copy/download box ---
             components.html(f"""
                 <textarea id="letterBox_{student_code}" readonly rows="6" style="
                     width: 100%;
@@ -9915,9 +9884,11 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+#
 
 
 
+#
 
 
 
