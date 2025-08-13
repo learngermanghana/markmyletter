@@ -7875,6 +7875,12 @@ if tab == "Exams Mode & Custom Chat":
 # End
 # =========================================
 
+
+
+# =========================================
+# End
+# =========================================
+
 # =========================================
 # FIRESTORE STATS HELPERS
 # =========================================
@@ -7941,215 +7947,7 @@ def render_message(role, msg):
     align   = "left"   if role=="assistant" else "right"
     bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
     bordcol = "#CCCCCC"
-    label   = "Herr Felix
-
-# ===== Schreiben =====
-
-db = firestore.client()
-
-# -- Feedback HTML Highlight Helper --
-highlight_words = ["correct", "should", "mistake", "improve", "tip"]
-
-def highlight_feedback(text: str) -> str:
-    # 1) Highlight “[correct]…[/correct]” spans in green
-    text = re.sub(
-        r"\[correct\](.+?)\[/correct\]",
-        r"<span style="
-        r"'background-color:#d4edda;"
-        r"color:#155724;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"font-weight:600;'"
-        r">\1</span>",
-        text,
-        flags=re.DOTALL
-    )
-
-    # 2) Highlight “[wrong]…[/wrong]” spans in red with strikethrough
-    text = re.sub(
-        r"\[wrong\](.+?)\[/wrong\]",
-        r"<span style="
-        r"'background-color:#f8d7da;"
-        r"color:#721c24;"
-        r"border-radius:4px;"
-        r"padding:2px 6px;"
-        r"margin:0 2px;"
-        r"text-decoration:line-through;"
-        r"font-weight:600;'"
-        r">\1</span>",
-        text,
-        flags=re.DOTALL
-    )
-
-    # 3) Bold keywords
-    def repl_kw(m):
-        return f"<strong style='color:#d63384'>{m.group(1)}</strong>"
-    pattern = r"\b(" + "|".join(map(re.escape, highlight_words)) + r")\b"
-    text = re.sub(pattern, repl_kw, text, flags=re.IGNORECASE)
-
-    # 4) Restyle the final breakdown block as a simple, transparent list
-    def _format_breakdown(m):
-        lines = [line.strip() for line in m.group(0).splitlines() if line.strip()]
-        items = "".join(f"<li style='margin-bottom:4px'>{line}</li>" for line in lines)
-        return (
-            "<ul style='margin:8px 0 12px 1em;"
-            "padding:0;"
-            "list-style:disc inside;"
-            "font-size:0.95em;'>"
-            f"{items}"
-            "</ul>"
-        )
-
-    text = re.sub(
-        r"(Grammar:.*?\nVocabulary:.*?\nSpelling:.*?\nStructure:.*)",
-        _format_breakdown,
-        text,
-        flags=re.DOTALL
-    )
-
-    return text
-
-# -- Firestore-only: Usage Limit (Daily Mark My Letter) --
-def get_schreiben_usage(student_code):
-    today = str(date.today())
-    doc = db.collection("schreiben_usage").document(f"{student_code}_{today}").get()
-    return doc.to_dict().get("count", 0) if doc.exists else 0
-
-def inc_schreiben_usage(student_code):
-    today = str(date.today())
-    doc_ref = db.collection("schreiben_usage").document(f"{student_code}_{today}")
-    doc = doc_ref.get()
-    if doc.exists:
-        doc_ref.update({"count": firestore.Increment(1)})
-    else:
-        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
-
-# -- Firestore-only: Submission + Full letter (Saves for feedback & stats) --
-def save_submission(student_code: str, score: int, passed: bool, timestamp, level: str, letter: str):
-    payload = {
-        "student_code": student_code,
-        "score": score,
-        "passed": passed,
-        "date": firestore.SERVER_TIMESTAMP,  # Always use server time
-        "level": level,
-        "assignment": "Schreiben Trainer",
-        "letter": letter,
-    }
-    db.collection("schreiben_submissions").add(payload)
-
-# -- Firestore-only: Recalculate All Schreiben Stats (called after every submission) --
-def update_schreiben_stats(student_code: str):
-    """
-    Recalculates stats for a student after every submission.
-    """
-    submissions = db.collection("schreiben_submissions").where(
-        "student_code", "==", student_code
-    ).stream()
-
-    total = 0
-    passed = 0
-    scores = []
-    last_letter = ""
-    last_attempt = None
-
-    for doc in submissions:
-        data = doc.to_dict()
-        total += 1
-        score = data.get("score", 0)
-        scores.append(score)
-        if data.get("passed"):
-            passed += 1
-        last_letter = data.get("letter", "") or last_letter
-        last_attempt = data.get("date", last_attempt)
-
-    pass_rate = (passed / total * 100) if total > 0 else 0
-    best_score = max(scores) if scores else 0
-    average_score = sum(scores) / total if scores else 0
-
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    stats_ref.set({
-        "total": total,
-        "passed": passed,
-        "pass_rate": pass_rate,
-        "best_score": best_score,
-        "average_score": average_score,
-        "last_attempt": last_attempt,
-        "last_letter": last_letter,
-        "attempts": scores
-    }, merge=True)
-
-# -- Firestore-only: Fetch stats for display (for status panel etc) --
-def get_schreiben_stats(student_code: str):
-    stats_ref = db.collection("schreiben_stats").document(student_code)
-    doc = stats_ref.get()
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        return {
-            "total": 0, "passed": 0, "average_score": 0, "best_score": 0,
-            "pass_rate": 0, "last_attempt": None, "attempts": [], "last_letter": ""
-        }
-
-# -- Firestore-only: Usage Limit (Daily Letter Coach) --
-def get_letter_coach_usage(student_code):
-    today = str(date.today())
-    doc = db.collection("letter_coach_usage").document(f"{student_code}_{today}").get()
-    return doc.to_dict().get("count", 0) if doc.exists else 0
-
-def inc_letter_coach_usage(student_code):
-    today = str(date.today())
-    doc_ref = db.collection("letter_coach_usage").document(f"{student_code}_{today}")
-    doc = doc_ref.get()
-    if doc.exists:
-        doc_ref.update({"count": firestore.Increment(1)})
-    else:
-        doc_ref.set({"student_code": student_code, "date": today, "count": 1})
-
-# -- Firestore: Save/load Letter Coach progress --
-def save_letter_coach_progress(student_code, level, prompt, chat):
-    doc_ref = db.collection("letter_coach_progress").document(student_code)
-    doc_ref.set({
-        "student_code": student_code,
-        "level": level,
-        "prompt": prompt,
-        "chat": chat,
-        "date": firestore.SERVER_TIMESTAMP
-    })
-
-def load_letter_coach_progress(student_code):
-    doc = db.collection("letter_coach_progress").document(student_code).get()
-    if doc.exists:
-        data = doc.to_dict()
-        return data.get("prompt", ""), data.get("chat", [])
-    else:
-        return "", []
-
-
-# --- Helper: Get level from Google Sheet (public CSV) ---
-
-SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
-
-@st.cache_data(ttl=300)
-def load_sheet():
-    return pd.read_csv(SHEET_URL)
-
-def get_level_from_code(student_code):
-    df = load_sheet()
-    student_code = str(student_code).strip().lower()
-    # Make sure 'StudentCode' column exists and is lowercase
-    if "StudentCode" not in df.columns:
-        df.columns = [c.strip() for c in df.columns]
-    if "StudentCode" in df.columns:
-        matches = df[df["StudentCode"].astype(str).str.strip().str.lower() == student_code]
-        if not matches.empty:
-            # Handles NaN, empty cells
-            level = matches.iloc[0]["Level"]
-            return str(level).strip().upper() if pd.notna(level) else "A1"
-    return "A1"
-
-
-
+    label   = "Herr Felix"
 
 #Maincode for me
 
@@ -8985,6 +8783,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
