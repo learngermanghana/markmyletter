@@ -29,36 +29,27 @@ from streamlit_quill import st_quill
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
     page_icon="👋",
-    layout="wide",
+    layout="wide",              # pick wide or centered, but do it once here
     initial_sidebar_state="expanded"
 )
 
-# Tighten top whitespace so the hero appears at the top
+# Kill the huge default top padding so the hero sits at the very top
 st.markdown("""
 <style>
-/* Newer Streamlit wrapper */
+/* Current Streamlit wrapper */
 [data-testid="stAppViewContainer"] > .main .block-container {
   padding-top: 0.5rem !important;
 }
-
 /* Fallbacks for older builds */
-.main .block-container {
-  padding-top: 0.5rem !important;
-}
-#root > .block-container {
-  padding-top: 0.5rem !important;
-}
-
-/* Remove any top margin the first rendered element might add */
-section.main > div:first-child,
-.block-container > div:first-child {
-  margin-top: 0 !important;
-}
-
-/* Ensure your hero doesn’t reintroduce a gap */
+.main .block-container { padding-top: 0.5rem !important; }
+#root > .block-container { padding-top: 0.5rem !important; }
+/* Make sure the first rendered element doesn't add margin */
+section.main > div:first-child, .block-container > div:first-child { margin-top: 0 !important; }
+/* Your hero block won't re-add a gap */
 .hero { margin-top: 8px !important; }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 
@@ -9372,6 +9363,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
