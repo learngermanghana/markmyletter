@@ -76,22 +76,6 @@ footer { visibility: hidden; }
 """, unsafe_allow_html=True)
 
 
-# Meta tags helper (use AFTER the hero)
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-
-def _inject_meta_tags():
-    components.html(f"""
-      <link rel="manifest" href="{_manifest}">
-      <link rel="apple-touch-icon" href="{_icon180}">
-      <meta name="apple-mobile-web-app-capable" content="yes">
-      <meta name="apple-mobile-web-app-title" content="Falowen">
-      <meta name="apple-mobile-web-app-status-bar-style" content="black">
-      <meta name="theme-color" content="#000000">
-      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    """, height=0)
-
 # Compatibility alias
 html = st_html
 
@@ -9421,6 +9405,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
