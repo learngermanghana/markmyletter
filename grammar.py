@@ -605,34 +605,52 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3) Public Homepage --------------------------------------------------------
+# --- PUBLIC HOMEPAGE ---
 if not st.session_state.get("logged_in", False):
 
+    # 1) HERO FIRST (top of page)
     st.markdown("""
-    <style>.page-wrap { max-width: 1100px; margin: 0 auto; }</style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
-          Falowen is your all-in-one German learning platform, powered by
-          <b>Learn Language Education Academy</b>, with courses and vocabulary from
-          <b>A1 to C1</b> levels and live tutor support.
-        </p>
-        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-        </ul>
-      </div>
+    <div class="hero" style="
+      background:#fff; border-radius:12px; padding:24px; margin:8px auto 22px; max-width:900px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.05);
+    ">
+      <h1 style="text-align:center; color:#25317e; margin:0 0 10px;">👋 Welcome to <strong>Falowen</strong></h1>
+      <p style="text-align:center; font-size:1.05em; color:#555; margin:0 0 14px;">
+        Falowen is your all-in-one German learning platform, powered by
+        <b>Learn Language Education Academy</b>, with courses and vocabulary from
+        <b>A1 to C1</b> levels and live tutor support.
+      </p>
+      <ul style="max-width:720px; margin:0 auto; color:#444; font-size:1em; line-height:1.55;">
+        <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+        <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+        <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+        <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+        <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+        <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+        <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+      </ul>
     </div>
     """, unsafe_allow_html=True)
+
+    # 2) YOUR OLD HEADER BELOW THE HERO
+    st.markdown("""
+    <div style='display:flex; align-items:center; justify-content:space-between; margin:10px 0 22px; width:100%;'>
+      <span style='font-size:2.2rem; flex:0 0 auto;'>🇬🇭</span>
+      <div style='flex:1; text-align:center;'>
+          <span style='font-size:2.1rem; font-weight:bold; color:#17617a; letter-spacing:2px;'>Falowen App</span><br>
+          <span style='font-size:1.08rem; color:#ff9900; font-weight:600;'>Learn Language Education Academy</span><br>
+          <span style='font-size:1.05rem; color:#268049; font-weight:400;'>
+              Your All-in-One German Learning Platform for Speaking, Writing, Exams, and Vocabulary
+          </span><br>
+          <span style='font-size:1.01rem; color:#1976d2; font-weight:500;'>
+              Website: <a href='https://www.learngermanghana.com' target='_blank' style='color:#1565c0; text-decoration:none;'>www.learngermanghana.com</a>
+          </span><br>
+          <span style='font-size:0.98rem; color:#666; font-weight:500;'>Competent German Tutors Team</span>
+      </div>
+      <span style='font-size:2.2rem; flex:0 0 auto;'>🇩🇪</span>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     st.markdown("""
     <div class="page-wrap">
@@ -9363,6 +9381,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
