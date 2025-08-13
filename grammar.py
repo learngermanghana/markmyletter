@@ -386,7 +386,9 @@ def load_student_data():
         s = df[col]
         df[col] = s.where(s.isna(), s.str.strip())
 
-    # Keep only rows with a ContractEnd value
+    # Keep only rows with a ContractEnd value (guard if column missing)
+    if "ContractEnd" not in df.columns:
+        df["ContractEnd"] = ""
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
     # Robust parse (MM/DD/YYYY, DD/MM/YYYY, ISO, fallback)
@@ -404,13 +406,19 @@ def load_student_data():
     # Normalize identifiers for later lookups
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    else:
+        df["StudentCode"] = ""
     if "Email" in df.columns:
         df["Email"] = df["Email"].str.lower().str.strip()
+    else:
+        df["Email"] = ""
 
     # Keep most recent per student
-    df = (df.sort_values("ContractEnd_dt", ascending=False)
-            .drop_duplicates(subset=["StudentCode"], keep="first")
-            .drop(columns=["ContractEnd_dt"]))
+    df = (
+        df.sort_values("ContractEnd_dt", ascending=False)
+          .drop_duplicates(subset=["StudentCode"], keep="first")
+          .drop(columns=["ContractEnd_dt"])
+    )
     return df
 
 
@@ -452,13 +460,13 @@ def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, se
     """
     base = (
         f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value))} + '
-        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
-        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\\n'
     )
     if domain:
         # 'domain' is intended to be a JS variable identifier, not a string literal
-        base += f'c += "; Domain=" + {domain};\n'
-    base += "document.cookie = c;\n"
+        base += f'c += "; Domain=" + {domain};\\n'
+    base += "document.cookie = c;\\n"
     return base
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
@@ -553,7 +561,7 @@ components.html("""
 <script>
  (function(){
    async function sha256Hex(s){
-     const enc = new TextEncoder(); const data = enc.encode(s;
+     const enc = new TextEncoder(); const data = enc.encode(s);
      const buf = await crypto.subtle.digest('SHA-256', data);
      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
    }
@@ -986,6 +994,7 @@ st.markdown("""
   }
 </style>
 """, unsafe_allow_html=True)
+
 
 
 # --- 3) Public Homepage --------------------------------------------------------
