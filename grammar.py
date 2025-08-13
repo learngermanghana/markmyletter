@@ -936,13 +936,44 @@ if not st.session_state.get("logged_in", False):
 
     # --- Autoplay Video Demo ---
     st.markdown("""
-    <div style="display:flex; justify-content:center; margin: 24px 0;">
-      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-        Sorry, your browser doesn't support embedded videos.
-      </video>
+    <div class="page-wrap" style="margin-left: 4rem; display:flex; justify-content:flex-start; margin-top:16px; margin-bottom:24px;">
+      <div class="video-shell" aria-hidden="true">
+        <video
+          width="350"
+          autoplay
+          muted
+          loop
+          playsinline
+          tabindex="-1"
+          oncontextmenu="return false;"
+          draggable="false"
+          style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
+          <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+          Sorry, your browser doesn't support embedded videos.
+        </video>
+      </div>
     </div>
+
+    <style>
+      .video-shell{
+        position: relative;
+        border-radius: 14px;
+        padding: 2px; /* frame thickness */
+        background: linear-gradient(135deg,#e5ecff,#f7f9ff);
+        box-shadow: 0 6px 20px rgba(0,0,0,.08);
+      }
+      .video-shell > video{
+        display:block;
+        border-radius:12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.08);
+        margin:0;
+      }
+      @media (max-width:600px){
+        .page-wrap[style*="margin-left"]{ margin-left:1rem !important; }
+      }
+    </style>
     """, unsafe_allow_html=True)
+#
 
     # Quick Links
     st.markdown("""
@@ -9424,6 +9455,9 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
+
+
 
 
 
