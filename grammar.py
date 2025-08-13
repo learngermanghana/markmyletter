@@ -1261,12 +1261,14 @@ if not st.session_state.get("logged_in", False):
 #
 
 
-    # --- Autoplay Video Demo (inline, no fullscreen) -----------------------------
+    # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
-    <style>
-      .no-fs::-webkit-media-controls-fullscreen-button { display: none !important; }
-      .no-fs::-webkit-media-controls-enclosure { overflow: hidden; }
-    </style>
+    <div style="display:flex; justify-content:center; margin: 24px 0;">
+      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
+        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+        Sorry, your browser doesn't support embedded videos.
+      </video>
+    </div>
     """, unsafe_allow_html=True)
 
     # Quick Links (high-contrast)
@@ -1506,19 +1508,32 @@ if st.session_state.get("logged_in"):
     # Greeting helper
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # -------------------- CONTRACT (compute only) --------------------
-    MONTHLY_RENEWAL = 1000
-    contract_end_str = student_row.get("ContractEnd", "")
-    today_dt = datetime.today()
-    contract_end = parse_contract_end(contract_end_str)
+      # -------------------- CONTRACT (compute only) --------------------
+    MONTHLY_RENEWAL = 1000  # ₵ per month
 
-    contract_title_extra = "• no date"
-    contract_notice_level = "info"
-    contract_msg = "Contract end date unavailable or in wrong format."
+    # Reuse your end-date parser for start as well
+    def parse_contract_start(s: str):
+        return parse_contract_end(s)
 
-    urgent_contract = False
+    def _add_months(dt: datetime, n: int) -> datetime:
+        # uses pandas DateOffset (pd is already imported above)
+        return (pd.Timestamp(dt) + pd.DateOffset(months=n)).to_pydatetime()
+
+    contract_start_str = (student_row.get("ContractStart") or "").strip()
+    contract_end_str   = (student_row.get("ContractEnd") or "").strip()
+
+    today_dt       = datetime.today()
+    contract_start = parse_contract_start(contract_start_str)
+    contract_end   = parse_contract_end(contract_end_str)
+
+    # --- Contract end messaging (existing behavior) ---
+    contract_title_extra   = "• no date"
+    contract_notice_level  = "info"
+    contract_msg           = "Contract end date unavailable or in wrong format."
+    urgent_contract        = False
+
     if contract_end:
-        days_left = (contract_end - today_dt).days
+        days_left = (contract_end.date() - today_dt.date()).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
         if 0 < days_left <= 30:
             contract_notice_level = "warning"
@@ -1540,6 +1555,79 @@ if st.session_state.get("logged_in"):
         else:
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
+
+    # --- Monthly payment schedule + “owes / days to pay” ---
+    # Rule: first payment is exactly 1 month after ContractStart, then monthly.
+    bal_raw = student_row.get("Balance", 0)
+    try:
+        current_balance = float(bal_raw if bal_raw not in (None, "", "nan", "NaN") else 0)
+    except Exception:
+        current_balance = 0.0
+
+    payment_status_level = "info"
+    payment_status_msg   = "No contract start date found, so we cannot compute your next payment."
+    next_due_date = None
+    days_to_due   = None
+
+    if contract_start:
+        # Find the first monthly boundary that is >= today
+        # Start at +1 month, then step forward until due >= today
+        m = 1
+        # tiny optimization: rough starting point
+        approx = max(1, int((today_dt - contract_start).days // 30))
+        m = max(1, approx)
+        while True:
+            candidate = _add_months(contract_start, m)
+            if candidate.date() >= today_dt.date():
+                next_due_date = candidate
+                break
+            m += 1
+
+        days_to_due = (next_due_date.date() - today_dt.date()).days
+
+        # Build payment status (combining balance + timing)
+        if current_balance > 0:
+            if days_to_due < 0:
+                overdue_days = abs(days_to_due)
+                payment_status_level = "error"
+                payment_status_msg = (
+                    f"💸 You currently owe **₵{current_balance:,.2f}**. "
+                    f"Your last monthly payment is **overdue by {overdue_days} day{'s' if overdue_days != 1 else ''}**."
+                )
+            elif days_to_due == 0:
+                payment_status_level = "warning"
+                payment_status_msg = (
+                    f"💸 You owe **₵{current_balance:,.2f}**. **Payment is due today** "
+                    f"({next_due_date.strftime('%d %b %Y')})."
+                )
+            else:
+                payment_status_level = "warning"
+                payment_status_msg = (
+                    f"💸 You owe **₵{current_balance:,.2f}**. "
+                    f"Please pay within **{days_to_due} day{'s' if days_to_due != 1 else ''}** "
+                    f"(due **{next_due_date.strftime('%d %b %Y')}**)."
+                )
+        else:
+            if days_to_due < 0:
+                payment_status_level = "info"
+                payment_status_msg = (
+                    f"✅ No outstanding balance. Your last cycle (before "
+                    f"{today_dt.strftime('%d %b %Y')}) appears settled."
+                )
+            elif days_to_due == 0:
+                payment_status_level = "success"
+                payment_status_msg = (
+                    f"✅ No outstanding balance. A new cycle starts **today** "
+                    f"({next_due_date.strftime('%d %b %Y')})."
+                )
+            else:
+                payment_status_level = "success"
+                payment_status_msg = (
+                    f"✅ No outstanding balance. Next cycle is due in **{days_to_due} day"
+                    f"{'s' if days_to_due != 1 else ''}** "
+                    f"(**{next_due_date.strftime('%d %b %Y')}**)."
+                )
+#
 
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
@@ -1628,6 +1716,7 @@ if st.session_state.get("logged_in"):
 
     # Contract & renewal (collapsed)
     with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
+        # End-date notice
         if contract_notice_level == "warning":
             st.warning(contract_msg)
         elif contract_notice_level == "error":
@@ -1635,10 +1724,33 @@ if st.session_state.get("logged_in"):
         else:
             st.info(contract_msg)
 
+        # Payment reminder/status
+        if payment_status_level == "error":
+            st.error(payment_status_msg)
+        elif payment_status_level == "warning":
+            st.warning(payment_status_msg)
+        elif payment_status_level == "success":
+            st.success(payment_status_msg)
+        else:
+            st.info(payment_status_msg)
+
+        # Always show a small summary row (start / next due / end)
+        summary_bits = []
+        if contract_start:
+            summary_bits.append(f"**Start:** {contract_start.strftime('%d %b %Y')}")
+        if next_due_date:
+            summary_bits.append(f"**Next monthly due:** {next_due_date.strftime('%d %b %Y')}")
+        if contract_end:
+            summary_bits.append(f"**End:** {contract_end.strftime('%d %b %Y')}")
+
+        if summary_bits:
+            st.markdown(" • ".join(summary_bits))
+
         st.info(
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
         )
+#
 
     # Assignment streak & weekly goal (collapsed)
     with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
@@ -1893,6 +2005,13 @@ if tab == "Dashboard":
             "start_date": "2025-08-07",
             "end_date": "2025-11-07",
             "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+        },
+        "B2 Munich Klasse": {
+            "days": ["Thursday", "Friday"],
+            "time": "Fri: 2pm–3:30pm, Saturday: 9am - 10:30pm, Wed: 2:00pm–3:00pm",
+            "start_date": "2025-08-08",
+            "end_date": "2025-11-08",
+            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
         },
     }
 
@@ -2615,8 +2734,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Nominalization of Verbs",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/CXFd8jG7xCE",
+            "youtube_link": "https://youtu.be/CXFd8jG7xCE",
             "grammarbook_link": "https://drive.google.com/file/d/14qE_XJr3mTNr6PF5aa0aCqauh9ngYTJ8/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1RaXTZQ9jHaJYwKrP728zevDSQHFKeR0E/view?usp=sharing"
         },
@@ -2876,8 +2995,8 @@ def get_a2_schedule():
             "goal": "Talk about your route to school or work.",
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/c4TpUe3teBE",
+            "youtube_link": "https://youtu.be/c4TpUe3teBE",
             "grammarbook_link": "https://drive.google.com/file/d/1XbWKmc5P7ZAR-OqFce744xqCe7PQguXo/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1Ialg19GIE_KKHiLBDMm1aHbrzfNdb7L_/view?usp=sharing"
         },
@@ -3374,9 +3493,9 @@ def get_b2_schedule():
             "goal": "Sprechen Sie über Berufe, Lebensläufe und Vorstellungsgespräche.",
             "instruction": "Schauen Sie das Video, wiederholen Sie die Grammatik und bearbeiten Sie das Arbeitsbuch.",
             "video": "",
-            "grammarbook_link": "",
-            "workbook_link": "",
-            "grammar_topic": "Partizip I & II als Adjektive"
+            "grammarbook_link": "https://drive.google.com/file/d/1_xVoBqbwCSCs0Xps2Rlx92Ho43Pcbreu/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1tEKd5Umb-imLpPYrmFfNQyjf4oe2weBp/view?usp=sharing",
+            "grammar_topic": "Konjunktiv I"
         },
         {
             "day": 5,
@@ -4498,7 +4617,7 @@ if tab == "My Course":
             },
             _norm_class_local("A2 Munich Klasse"): {
                 "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=MnFxZHZmYXYxZGUwODg3b2FuaWdodWRkYTBfMjAyNTA4MDRUMTkzMDAwWiBsZWFybmdlcm1hbmdoYW5hQG0&tmsrc=learngermanghana%40gmail.com&scp=ALL",
+                "calendar_url": "https://calendar.app.google/hAQSZeDwKfm9aLTC8",
                 "contact_email": "learngermanghana@gmail.com",
                 "image_url": "https://i.imgur.com/7uJRrbr.png",
             },
@@ -4509,7 +4628,12 @@ if tab == "My Course":
             },
             _norm_class_local("A1 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/t4tbqAqF478XA9bD6",
+                "calendar_url": "https://calendar.app.google/ye4Xbe2K6LiWPtBR8",
+                "contact_email": "learngermanghana@gmail.com",
+            },
+            _norm_class_local("B2 Munich Klasse"): {
+                "tutors": ["Felix Asadu"],
+                "calendar_url": "https://calendar.app.google/mescM6n2d7UHW5Bx8",
                 "contact_email": "learngermanghana@gmail.com",
             },
         }
@@ -6337,15 +6461,15 @@ def build_custom_chat_prompt(level):
             f"You are Herr Felix, a supportive and innovative German teacher. "
             f"1. Congratulate the student in English for the topic and give interesting tips on the topic. Always let the student know how the session is going to go in English. It shouldnt just be questions but teach them also. The total number of questios,what they should expect,what they would achieve at the end of the session. Let them know they can ask questions or ask for translation if they dont understand anything. You are ready to always help "
             f"2. If student input looks like a letter question instead of a topic for discussion, then prompt them that you are trained to only help them with their speaking so they should rather paste their letter question in the ideas generator in the schreiben tab. "
-            f"Promise them that if they answer all 8 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
-            f"Pick 4 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
-            f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just ask the question and don't let student know this is the keyword you are using. "
+            f"Promise them that if they answer all 6 questions, you use their own words to build a presentation of 60 words for them. They record it as mp3 or wav on their phones and upload at the Pronunciation & Speaking Checker tab under the Exams Mode & Custom Chat. They only have to be consistent "
+            f"Pick 3 useful keywords related to the student's topic and use them as the focus for conversation. Give students ideas and how to build their points for the conversation in English. "
+            f"For each keyword, ask the student up to 2 creative, diverse and interesting questions in German only based on student language level, one at a time, not all at once. Just askd the question and don't let student know this is the keyword you are using. "
             f"After each student answer, give feedback and a suggestion to extend their answer if it's too short. Feedback in English and suggestion in German. "
             f" Explain difficult words when level is A1,A2,B1,B2. "
             f"IMPORTANT: If a student asks 3 grammar questions in a row without trying to answer your conversation questions, respond warmly but firmly: remind them to check their course book using the search button for grammar explanations. Explain that reading their book will help them become more independent and confident as a learner. Kindly pause grammar explanations until they have checked the book and tried the conversation questions. Stay positive, but firm about using the resources. If they still have a specific question after reading, gladly help. "
-            f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 8 questions in total). "
+            f"After keyword questions, continue with other random follow-up questions that reflect student selected level about the topic in German (until you reach 6 questions in total). "
             f"Never ask more than 2 questions about the same keyword. "
-            f"After the student answers 8 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
+            f"After the student answers 6 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
             f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
             f"All feedback and corrections should be {correction_lang}. "
             f"Encourage the student and keep the chat motivating. "
