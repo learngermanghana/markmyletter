@@ -132,6 +132,7 @@ st.markdown("""
 footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
+_bootstrap_state()
 
 # ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
 try:
@@ -9412,6 +9413,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
