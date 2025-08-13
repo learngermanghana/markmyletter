@@ -355,6 +355,580 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
+# ================================================
+# STUDENT SHEET LOADING & SESSION SETUP (with Firebase silent restore)
+# ================================================
+GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
+
+@st.cache_data(ttl=300)  # refresh every 5 minutes
+def load_student_data():
+    try:
+        resp = requests.get(GOOGLE_SHEET_CSV, timeout=10)
+        resp.raise_for_status()
+        df = pd.read_csv(
+            io.StringIO(resp.text),
+            dtype=str,
+            keep_default_na=True,
+            na_values=["", " ", "nan", "NaN", "None"]
+        )
+    except Exception:
+        st.error("❌ Could not load student data.")
+        st.stop()
+
+    # Normalize headers and trim cells while preserving NaN
+    df.columns = df.columns.str.strip().str.replace(" ", "")
+    for col in df.columns:
+        s = df[col]
+        df[col] = s.where(s.isna(), s.str.strip())
+
+    # Keep only rows with a ContractEnd value
+    df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
+
+    # Robust parse (MM/DD/YYYY, DD/MM/YYYY, ISO, fallback)
+    def _parse_contract_end(s: str):
+        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+            try:
+                return pd.to_datetime(s, format=fmt, errors="raise")
+            except Exception:
+                continue
+        return pd.to_datetime(s, errors="coerce")
+
+    df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
+    df = df[df["ContractEnd_dt"].notna()]
+
+    # Normalize identifiers for later lookups
+    if "StudentCode" in df.columns:
+        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    if "Email" in df.columns:
+        df["Email"] = df["Email"].str.lower().str.strip()
+
+    # Keep most recent per student
+    df = (df.sort_values("ContractEnd_dt", ascending=False)
+            .drop_duplicates(subset=["StudentCode"], keep="first")
+            .drop(columns=["ContractEnd_dt"]))
+    return df
+
+
+def is_contract_expired(row):
+    expiry_str = str(row.get("ContractEnd", "") or "").strip()
+    if not expiry_str or expiry_str.lower() == "nan":
+        return True
+
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
+        except ValueError:
+            continue
+
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+
+    # Use UTC date to avoid local skew/DST issues
+    today = datetime.utcnow().date()
+    return expiry_date.date() < today
+
+
+# ============================================================
+# 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
+# ============================================================
+
+from typing import Optional  # ensure available if you were using 3.9
+
+def _expire_str(dt: datetime) -> str:
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
+    """
+    Returns JS code to set a cookie. If 'domain' is the name of a JS variable (e.g., 'base'),
+    pass it as that identifier string and we'll emit it as a JS variable (not a quoted literal).
+    """
+    base = (
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value))} + '
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+    )
+    if domain:
+        # 'domain' is intended to be a JS variable identifier, not a string literal
+        base += f'c += "; Domain=" + {domain};\n'
+    base += "document.cookie = c;\n"
+    return base
+
+def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
+    """
+    iOS/Safari friendly: set both host-only and base-domain cookies for student_code.
+    Also mirrors to localStorage.
+    """
+    key = "student_code"
+    norm = (value or "").strip().lower()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 180  # 180 days
+    exp_str = _expire_str(expires)
+
+    # Library cookie (encrypted; host-only)
+    try:
+        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = norm
+            cookie_manager.save()
+        except Exception:
+            pass
+
+    # JS cookies: host-only AND base-domain (e.g., .falowen.app)
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = window.location.hostname.split('.');
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
+
+def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
+    """
+    Mirror the Firestore session token in cookies (host-only + base-domain) and localStorage.
+    """
+    key = "session_token"
+    val = (token or "").strip()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 30  # 30 days (Firestore TTL still authoritative)
+    exp_str = _expire_str(expires)
+
+    # Library cookie (host-only)
+    try:
+        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = val
+            cookie_manager.save()
+        except Exception:
+            pass
+
+    # JS cookies: host-only + base-domain
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = window.location.hostname.split('.');
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
+
+# 0a) UA/LS query-parameter bridge (no postMessage)
+components.html("""
+<script>
+ (function(){
+   async function sha256Hex(s){
+     const enc = new TextEncoder(); const data = enc.encode(s);
+     const buf = await crypto.subtle.digest('SHA-256', data);
+     return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+   }
+   (async function(){
+     try{
+       const ua = navigator.userAgent||''; const lang = navigator.language||'';
+       const h  = await sha256Hex(ua + '|' + lang);
+       const ls = localStorage.getItem('session_token')||'';
+       const url = new URL(window.location);
+       let mut = false;
+       if (!url.searchParams.get('ua')) { url.searchParams.set('ua', h); mut = true; }
+       if (ls && !url.searchParams.get('ls')) { url.searchParams.set('ls', ls); mut = true; }
+       if (mut) window.location.replace(url.toString());
+     }catch(e){}
+   })();
+ })();
+</script>
+""", height=0)
+
+# 0a.5) Firebase Web SDK + silent restore -> ?ftok=
+components.html(f"""
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+(function(){{
+  try {{
+    var cfg = {{
+      apiKey: {json.dumps(st.secrets.get("FIREBASE_WEB_API_KEY",""))},
+      authDomain: {json.dumps(st.secrets.get("FIREBASE_AUTH_DOMAIN",""))},
+      projectId: {json.dumps(st.secrets.get("FIREBASE_PROJECT_ID",""))}
+    }};
+    if (!window.firebase) return;
+    if (!firebase.apps || !firebase.apps.length) {{ firebase.initializeApp(cfg); }}
+    var lastSent = "";
+    firebase.auth().onAuthStateChanged(function(user){{
+      try {{
+        if (!user) return;
+        user.getIdToken(false).then(function(idt){{
+          try {{
+            if (!idt || idt === lastSent) return;
+            lastSent = idt;
+            var url = new URL(window.location);
+            if (url.searchParams.get('ftok') === idt) return;
+            url.searchParams.set('ftok', idt);
+            window.location.replace(url.toString());
+          }} catch(e) {{}}
+        }}).catch(function(){{}});
+      }} catch(e) {{}}
+    }});
+  }} catch(e) {{}}
+}})();
+</script>
+""", height=0)
+
+# 0b) Query param helpers
+def qp_get():
+    try:
+        return st.query_params
+    except Exception:
+        return st.experimental_get_query_params()
+
+def qp_clear():
+    try:
+        st.query_params.clear()
+    except Exception:
+        try:
+            st.experimental_set_query_params()
+        except Exception:
+            pass
+
+def qp_clear_keys(*keys):
+    try:
+        qp = st.query_params
+        for k in keys:
+            if k in qp:
+                del qp[k]
+    except Exception:
+        try:
+            st.experimental_set_query_params(**{k: [] for k in keys})
+        except Exception:
+            pass
+    # scrub in browser history
+    components.html("""
+    <script>
+      (function(){
+        try{
+          const u = new URL(window.location);
+          %s
+          window.history.replaceState({}, '', u);
+        }catch(e){}
+      })();
+    </script>
+    """ % "\n".join([f"if(u.searchParams.has('{k}')) u.searchParams.delete('{k}');" for k in keys]), height=0)
+
+# 0c) Ingest UA/LS bridge into session_state then scrub
+def _ingest_ua_ls_from_query():
+    qp = qp_get()
+    def _get1(k):
+        v = qp.get(k)
+        if isinstance(v, list): v = v[0]
+        return (v or "").strip()
+    ua = _get1("ua")
+    ls = _get1("ls")
+    changed = False
+    if ua and ua != st.session_state.get("__ua_hash"): st.session_state["__ua_hash"] = ua; changed = True
+    if ls and ls != st.session_state.get("__ls_token"): st.session_state["__ls_token"] = ls; changed = True
+    if ua or ls:
+        qp_clear_keys("ua", "ls")
+    return changed
+_ingest_ua_ls_from_query()
+
+# Defensive scrub in case a shared link includes bridge params
+qp_clear_keys("t", "ua", "ls")
+
+# 0d) Init cookie manager once
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
+    st.stop()
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+if not cookie_manager.ready():
+    st.warning("Cookies not ready; please refresh.")
+    st.stop()
+
+# NEW: verify ?ftok=<Firebase ID token> and re-mint Firestore session (AFTER cookie_manager exists)
+def handle_firebase_ftok():
+    ftok = qp_get().get("ftok")
+    if isinstance(ftok, list):
+        ftok = ftok[0]
+    ftok = (ftok or "").strip()
+    if not ftok:
+        return False
+
+    try:
+        from firebase_admin import auth as fb_auth
+        # If you want revocation checks, use: verify_id_token(ftok, check_revoked=True)
+        decoded = fb_auth.verify_id_token(ftok)
+        email = (decoded.get("email") or "").lower().strip()
+        if not email:
+            qp_clear_keys("ftok")
+            return False
+
+        df = load_student_data()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        match = df[df["Email"] == email]
+        if match.empty:
+            qp_clear_keys("ftok")
+            return False
+
+        row = match.iloc[0]
+        if is_contract_expired(row):
+            qp_clear_keys("ftok")
+            return False
+
+        ua_hash = st.session_state.get("__ua_hash", "")
+        sess_token = create_session_token(row["StudentCode"], row["Name"], ua_hash=ua_hash)
+
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": row.to_dict(),
+            "student_code": row["StudentCode"],
+            "student_name": row["Name"],
+            "session_token": sess_token,
+        })
+
+        # Persist both cookies + localStorage now that cookie_manager exists
+        set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        components.html(f"""
+        <script>
+          try {{
+            localStorage.setItem('student_code', {json.dumps(row["StudentCode"])});
+            localStorage.setItem('session_token', {json.dumps(sess_token)});
+          }} catch(e) {{}}
+        </script>
+        """, height=0)
+
+        qp_clear_keys("ftok")
+        st.rerun()
+        return True
+    except Exception:
+        qp_clear_keys("ftok")
+        return False
+
+# Run the silent-restore handler early (but AFTER cookie_manager init)
+handle_firebase_ftok()
+
+# 0e) Handshake: set cookie from ?student_code=, then only clear the param after we confirm cookie exists
+params = qp_get()
+sc_param = params.get("student_code")
+if isinstance(sc_param, list):
+    sc_param = sc_param[0]
+sc_param = (sc_param or "").strip().lower()
+
+if sc_param:
+    if not st.session_state.get("__cookie_attempt"):
+        st.session_state["__cookie_attempt"] = sc_param
+        set_student_code_cookie(cookie_manager, sc_param, expires=datetime.utcnow() + timedelta(days=180))
+        st.rerun()
+    else:
+        attempted = st.session_state.get("__cookie_attempt", "")
+        have = (cookie_manager.get("student_code") or "").strip().lower()
+        if have == attempted:
+            qp_clear_keys("student_code")
+            st.session_state.pop("__cookie_attempt", None)
+else:
+    st.session_state.pop("__cookie_attempt", None)
+
+# 0f) Restore login (PREFER SERVER TOKEN), else fallback to student_code
+def _get_token_candidates():
+    qp = qp_get()
+    t = qp.get("t")
+    if isinstance(t, list): t = t[0]
+    t = (t or "").strip()
+    ls = (st.session_state.get("__ls_token") or "").strip()
+    mem = (st.session_state.get("session_token") or "").strip()
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()  # NEW: cookie token
+    out = [x for x in [mem, t, ls, cookie_tok] if x]
+    seen, uniq = set(), []
+    for x in out:
+        if x not in seen:
+            uniq.append(x); seen.add(x)
+    return uniq
+
+restored = False
+if not st.session_state.get("logged_in", False):
+    for tok in _get_token_candidates():
+        data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
+        if not data:
+            continue
+        # Roster/contract guard
+        try:
+            df_students = load_student_data()
+            found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+        except Exception:
+            found = pd.DataFrame()
+        if found.empty or is_contract_expired(found.iloc[0]):
+            continue
+
+        row = found.iloc[0]
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": row.to_dict(),
+            "student_code": row["StudentCode"],
+            "student_name": row["Name"],
+            "session_token": tok,
+        })
+        # Refresh/rotate; persist new token client-side; scrub ?t=
+        new_tok = refresh_or_rotate_session_token(tok) or tok
+        st.session_state["session_token"] = new_tok
+
+        # Persist to LS and cookies
+        components.html(f"""
+        <script>
+          try {{
+            localStorage.setItem('session_token', {json.dumps(new_tok)});
+            const u = new URL(window.location);
+            if (u.searchParams.has('t')) {{ u.searchParams.delete('t'); window.history.replaceState({{}}, '', u); }}
+          }} catch(e) {{}}
+        </script>
+        """, height=0)
+        set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))  # NEW
+        restored = True
+        break
+
+# Fallback: original cookie/param login using student_code (no password)
+if (not restored) and (not st.session_state.get("logged_in", False)):
+    code_cookie = (cookie_manager.get("student_code") or "").strip().lower()
+    effective_code = code_cookie or sc_param
+
+    if effective_code:
+        try:
+            df_students = load_student_data()
+            found = df_students[df_students["StudentCode"].str.lower().str.strip() == effective_code]
+        except Exception:
+            found = pd.DataFrame()
+
+        if not found.empty:
+            student_row = found.iloc[0]
+            if not is_contract_expired(student_row):
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": student_row.to_dict(),
+                    "student_code": student_row["StudentCode"],
+                    "student_name": student_row["Name"]
+                })
+            else:
+                # Expired: clear cookie + localStorage to avoid loops
+                set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+                components.html("<script>try{localStorage.removeItem('student_code');}catch(e){}</script>", height=0)
+
+# --- Helper: persist login to cookie + localStorage (kept for back-compat) ----
+def save_cookie_after_login(student_code: str) -> None:
+    value = str(student_code or "").strip().lower()
+    try:
+        _cm  = globals().get("cookie_manager")
+        _set = globals().get("set_student_code_cookie")
+        if _cm and _set:
+            _set(_cm, value, expires=datetime.utcnow() + timedelta(days=180))
+    except Exception:
+        pass
+    components.html(
+        """
+        <script>
+          try { localStorage.setItem('student_code', __VAL__); } catch (e) {}
+        </script>
+        """.replace("__VAL__", json.dumps(value)),
+        height=0
+    )
+
+# --- NEW: persist session token client-side + scrub URL params -----------------
+def _persist_session_client(token: str, student_code: str = "") -> None:
+    components.html(f"""
+    <script>
+      try {{
+        localStorage.setItem('session_token', {json.dumps(token)});
+        if ({json.dumps(student_code)} !== "") {{
+          localStorage.setItem('student_code', {json.dumps(student_code)});
+        }}
+        const u = new URL(window.location);
+        ['t','ua','ls'].forEach(k => u.searchParams.delete(k));
+        window.history.replaceState({{}}, '', u);
+      }} catch(e) {{}}
+    </script>
+    """, height=0)
+
+# --- Keep-alive to keep iOS storage fresh + let server extend TTL --------------
+components.html("""
+<script>
+  (function(){
+    try {
+      let last=0;
+      function ping(){
+        const now = Date.now();
+        if (document.hidden) return;
+        if (now - last < 4*60*1000) return; // every ~4min
+        last = now;
+        try { localStorage.setItem('falowen_alive', String(now)); } catch(e){}
+        try {
+          const u = new URL(window.location);
+          u.hash = 'alive' + now;
+          history.replaceState({}, '', u);
+        } catch(e){}
+      }
+      document.addEventListener('visibilitychange', ping, {passive:true});
+      setInterval(ping, 60*1000);
+      ping();
+    } catch(e){}
+  })();
+</script>
+""", height=0)
+
+# --- Early client-side restore gate (no infinite "restoring" state) ---
+has_cookie_tok = bool((cookie_manager.get("session_token") or "").strip())
+
+if (not st.session_state.get("logged_in", False)) and (not has_cookie_tok):
+    # If Safari nuked cookies but LS still has the token, bounce it into the URL (?ls=...)
+    components.html(
+        """
+        <script>
+          (function(){
+            try {
+              var tok = localStorage.getItem('session_token') || '';
+              if (tok) {
+                var u = new URL(window.location);
+                if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
+                  u.searchParams.set('ls', tok);
+                  window.location.replace(u.toString());
+                }
+              }
+            } catch (e) {}
+          })();
+        </script>
+        """,
+        height=0
+    )
+    # NOTE: no st.stop() here — if there's no LS token, we just render the normal homepage.
+
 
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
 st.markdown("""
@@ -19419,6 +19993,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
