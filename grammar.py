@@ -32,16 +32,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# PWA + iOS head tags (served from /static) — now safely after set_page_config
-components.html("""
-<link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Falowen">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="theme-color" content="#000000">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-""", height=0)
 
 # ================================================
 # STUDENT SHEET LOADING & SESSION SETUP (with Firebase silent restore)
@@ -1121,3 +1111,4 @@ if st.button("Log out"):
         pass
 
     st.stop()
+
