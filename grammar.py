@@ -356,9 +356,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     return videos
 
 
-
-
-
 # --- 2) Global CSS (higher contrast + focus states) ----------------------------
 st.markdown("""
 <style>
@@ -460,6 +457,42 @@ if not st.session_state.get("logged_in", False):
     GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
     GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
     REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+
+    # --- Query param helpers (new & old Streamlit) ---
+    def qp_get():
+        try:
+            if hasattr(st, "query_params"):
+                qp = dict(st.query_params)
+                return {k: (v if isinstance(v, list) else [v]) for k, v in qp.items()}
+            return st.experimental_get_query_params()
+        except Exception:
+            return {}
+
+    def _qp_set(params: dict):
+        if hasattr(st, "query_params"):
+            try:
+                st.query_params.clear()
+                for k, v in params.items():
+                    st.query_params[k] = v
+                return
+            except Exception:
+                pass
+        try:
+            st.experimental_set_query_params(**params)
+        except Exception:
+            pass
+
+    def qp_clear(keys=None):
+        try:
+            if keys:
+                current = qp_get()
+                for k in keys:
+                    current.pop(k, None)
+                _qp_set(current)
+            else:
+                _qp_set({})
+        except Exception:
+            pass
 
     def _qp_first(val):
         if isinstance(val, list): return val[0]
@@ -685,8 +718,6 @@ if not st.session_state.get("logged_in", False):
             """,
             unsafe_allow_html=True
         )
-#
-
 
     # --- Autoplay Video Demo (insert before Quick Links/footer) ---
     st.markdown("""
@@ -807,22 +838,15 @@ if st.button("Log out"):
     <script>
       (function() {{
         try {{
-          // Clear localStorage
           try {{
             localStorage.removeItem('student_code');
             localStorage.removeItem('session_token');
           }} catch (e) {{}}
 
-          // Build URL from a string (fixes browsers that reject Location objects)
           const url = new URL(window.location.href);
-
-          // Strip known query params
           ['student_code','t','ua','ls','ftok'].forEach(k => url.searchParams.delete(k));
-
-          // Update history with a string URL
           window.history.replaceState({{}}, '', url.toString());
 
-          // Expire cookies (both host & base domain)
           const isSecure = {_secure_js};
           const past = "Thu, 01 Jan 1970 00:00:00 GMT";
           const names = [{json.dumps(_cookie_name_code)}, {json.dumps(_cookie_name_tok)}];
@@ -843,7 +867,6 @@ if st.button("Log out"):
             names.forEach(n => expireCookie(n, base));
           }}
 
-          // Reload with cleaned path+search
           window.location.replace(url.pathname + url.search);
         }} catch (e) {{}}
       }})();
@@ -19396,6 +19419,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
