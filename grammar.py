@@ -49,34 +49,45 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Remove Streamlit's default top padding */
+/* 1) Remove Streamlit's default top padding */
 [data-testid="stAppViewContainer"] > .main .block-container {
   padding-top: 0 !important;
 }
 
-/* Kill BOTH top & bottom spacing on the very first rendered element
-   (your components.html shim) */
+/* 2) Nuke spacing on the very first rendered element (often components.html) */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
-
-/* Also neutralize spacing inside the first components.html iframe wrapper */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
   display: block;
   height: 0 !important;
+  min-height: 0 !important;
   margin: 0 !important;
   padding: 0 !important;
-  overflow: hidden !important;
   border: 0 !important;
+  overflow: hidden !important;
 }
 
-/* Ensure the hero doesn't reintroduce a gap */
-.hero { margin-top: 0 !important; }
+/* 3) Prevent heading margin collapse inside the hero and keep it flush to the top */
+.hero {
+  margin-top: 0 !important;
+  padding-top: 6px !important;   /* small padding prevents h1 margin collapsing upward */
+  display: flow-root;            /* also prevents margin-collapsing */
+}
+.hero h1:first-child { margin-top: 0 !important; }
+
+/* Safety: ensure the first block never reintroduces a top margin */
+section.main > div:first-child,
+.block-container > div:first-child { margin-top: 0 !important; }
+
+/* If you wrap content in .page-wrap, keep it tight too */
+.page-wrap { margin-top: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
+
 
 # --- Compatibility alias ---
 html = st_html
@@ -9386,6 +9397,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
