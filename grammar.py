@@ -910,15 +910,95 @@ def login_page():
     """, unsafe_allow_html=True)
 
 
-    # --- Autoplay Video Demo ---
+    # --- Centered Video (pick a frame style by changing the class) ---
     st.markdown("""
-    <div style="display:flex; justify-content:center; margin: 24px 0;">
-      <video width="350" autoplay muted loop controls style="border-radius: 12px; box-shadow: 0 4px 12px #0002;">
-        <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
-        Sorry, your browser doesn't support embedded videos.
-      </video>
+    <div class="page-wrap">
+      <div class="video-wrap">
+        <div class="video-shell style-gradient">
+          <video
+            width="360"
+            autoplay
+            muted
+            loop
+            playsinline
+            tabindex="-1"
+            oncontextmenu="return false;"
+            draggable="false"
+            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
+            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+            Sorry, your browser doesn't support embedded videos.
+          </video>
+        </div>
+      </div>
     </div>
+
+    <style>
+      /* Layout */
+      .video-wrap{
+        display:flex; justify-content:center; align-items:center;
+        margin: 12px 0 24px;
+      }
+      .video-shell{
+        position:relative; border-radius:16px; padding:4px;
+      }
+      .video-shell > video{
+        display:block; width:min(360px, 92vw); border-radius:12px; margin:0;
+        box-shadow: 0 4px 12px rgba(0,0,0,.08);
+      }
+
+      /* 1) Soft gradient frame (default) */
+      .video-shell.style-gradient{
+        background: linear-gradient(135deg,#e8eeff,#f6f9ff);
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+
+      /* 2) Glow pulse */
+      .video-shell.style-glow{
+        background:#0b1220;
+        box-shadow: 0 0 0 2px #1d4ed8, 0 0 18px #1d4ed8;
+        animation: glowPulse 3.8s ease-in-out infinite;
+      }
+      @keyframes glowPulse{
+        0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; }
+        50%{    box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; }
+      }
+
+      /* 3) Glassmorphism */
+      .video-shell.style-glass{
+        background: rgba(255,255,255,.25);
+        border: 1px solid rgba(255,255,255,.35);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 10px 30px rgba(0,0,0,.10);
+      }
+
+      /* 4) Animated dashes */
+      .video-shell.style-dash{
+        padding:6px; border-radius:18px;
+        background:
+          repeating-linear-gradient(90deg,#1d4ed8 0 24px,#93c5fd 24px 48px);
+        background-size: 48px 100%;
+        animation: dashMove 6s linear infinite;
+      }
+      @keyframes dashMove { to { background-position: 48px 0; } }
+
+      /* 5) Shimmer frame */
+      .video-shell.style-shimmer{
+        background: linear-gradient(120deg,#e5e7eb, #f8fafc, #e5e7eb);
+        background-size: 200% 200%;
+        animation: shimmer 6s linear infinite;
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+      @keyframes shimmer{ 0%{background-position:0% 50%;} 100%{background-position:100% 50%;} }
+
+      /* Mobile nudge */
+      @media (max-width:600px){
+        .video-wrap{ margin: 8px 0 16px; }
+      }
+    </style>
     """, unsafe_allow_html=True)
+    #
+#
 
     # Quick Links
     st.markdown("""
@@ -1057,7 +1137,6 @@ if st.button("Log out"):
     st.stop()
 
 
-    
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_assignment_scores():
@@ -1071,7 +1150,7 @@ def load_assignment_scores():
 
 @st.cache_data
 def load_full_vocab_sheet():
-    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    SHEET_ID = "1I1yAnqzSh3DPjwWRhcdRSfzNSPsi7o4r5Taj9Y36NU".replace("WRhcd","WRh9c")  # guard typo
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     try:
         df = pd.read_csv(csv_url, dtype=str)
@@ -1094,11 +1173,7 @@ def get_vocab_of_the_day(df, level):
     today_ordinal = _date.today().toordinal()
     idx = today_ordinal % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
-    return {
-        "german": row.get("German", ""),
-        "english": row.get("English", ""),
-        "example": row.get("Example", "") if "Example" in row else ""
-    }
+    return {"german": row.get("German", ""), "english": row.get("English", ""), "example": row.get("Example", "") if "Example" in row else ""}
 
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
@@ -1117,6 +1192,26 @@ def load_reviews():
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
+
+# ---- Payment date helpers ----
+from calendar import monthrange
+
+def parse_contract_start(date_str: str):
+    # Reuse the same parsers as ContractEnd
+    return parse_contract_end(date_str)
+
+def add_months(dt: datetime, n: int) -> datetime:
+    y = dt.year + (dt.month - 1 + n) // 12
+    m = (dt.month - 1 + n) % 12 + 1
+    d = min(dt.day, monthrange(y, m)[1])
+    return dt.replace(year=y, month=m, day=d)
+
+def months_between(start_dt: datetime, end_dt: datetime) -> int:
+    months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
+    if end_dt.day < start_dt.day:
+        months -= 1
+    return months
+
 
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
@@ -1139,8 +1234,8 @@ if st.session_state.get("logged_in"):
     contract_title_extra = "• no date"
     contract_notice_level = "info"
     contract_msg = "Contract end date unavailable or in wrong format."
-
     urgent_contract = False
+
     if contract_end:
         days_left = (contract_end - today_dt).days
         contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
@@ -1165,11 +1260,55 @@ if st.session_state.get("logged_in"):
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
+    # -------------------- PAYMENT / DUES (1 month after Contract Start) --------------------
+    _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
+    start_str = ""
+    for k in _start_keys:
+        v = str(student_row.get(k, "") or "").strip()
+        if v:
+            start_str = v
+            break
+
+    payment_title_extra = "• no start date"
+    payment_notice_level = "info"
+    payment_msg = "We couldn't read your contract start date."
+    owes = False
+    first_due = None
+    amount_due = MONTHLY_RENEWAL
+    overdue_days = 0
+
+    if start_str:
+        contract_start = parse_contract_start(start_str)
+        if contract_start:
+            first_due = add_months(contract_start, 1)
+            delta_days = (first_due.date() - today_dt.date()).days
+            payment_title_extra = f"• due {first_due:%d %b %Y}"
+
+            if delta_days > 1:
+                payment_msg = f"💳 Next payment due in **{delta_days} days** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            elif delta_days == 1:
+                payment_msg = f"💳 Payment due **tomorrow** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            elif delta_days == 0:
+                payment_notice_level = "warning"
+                payment_msg = f"💳 Payment due **today** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            else:
+                owes = True
+                overdue_days = -delta_days
+                months_late = max(1, months_between(first_due, today_dt))
+                amount_due = MONTHLY_RENEWAL * months_late
+                payment_notice_level = "error"
+                payment_title_extra = f"• overdue {overdue_days}d"
+                payment_msg = (
+                    f"💸 **Overdue by {overdue_days} days.** "
+                    f"Estimated amount due: **₵{amount_due:,}** (₵{MONTHLY_RENEWAL:,}/month). "
+                    f"First due: {first_due:%d %b %Y}."
+                )
+        else:
+            payment_msg = "We couldn't parse your contract start date format."
+
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(
-        df_assign["date"], format="%Y-%m-%d", errors="coerce"
-    ).dt.date
+    df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
     from datetime import timedelta, date
@@ -1187,27 +1326,27 @@ if st.session_state.get("logged_in"):
     WEEKLY_GOAL = 3
     goal_left = max(0, WEEKLY_GOAL - assignment_count)
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
+    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)
 
-    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)  # urgent if weekend is here
-
-
-    # -------------------- BELL STATIC LOGIC --------------------
-    bell_color = "#333"  # Static, non-urgent color
-
+    # -------------------- BELL --------------------
+    bell_color = "#333"
     st.markdown(f"""
         <div style="display:flex;align-items:center;gap:10px;
                     font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
                     padding:6px 10px;background:#fdf6e3;border-radius:8px;">
-            <span style="font-size:1.3em;display:inline-block;
-                         transform-origin: top center;
-                         color:{bell_color};">🔔</span> Your Notifications
+            <span style="font-size:1.3em;display:inline-block;color:{bell_color};">🔔</span> Your Notifications
         </div>
     """, unsafe_allow_html=True)
 
-    # -------------------- SINGLE BADGE ROW (keep only this one) --------------------
-    st.markdown("""
+    # -------------------- BADGES --------------------
+    pay_bg = "#fee2e2" if owes else ("#fff7ed" if payment_notice_level=="warning" else "#eef7f1")
+    pay_fg = "#991b1b" if owes else ("#7c2d12" if payment_notice_level=="warning" else "#1e7a3b")
+    pay_text = "💸 Payment: OVERDUE" if owes else ("💳 Payment: due soon" if payment_notice_level=="warning" else "💳 Payment")
+
+    st.markdown(f"""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
+          <span style="background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;">{pay_text}</span>
           <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
           <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
           <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
@@ -1221,13 +1360,11 @@ if st.session_state.get("logged_in"):
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
 
     # -------------------- LEADERBOARD (compute only) --------------------
-    import random
-    MIN_ASSIGNMENTS = 3
-
-    user_level = student_row.get('Level', '').upper() if 'student_row' in locals() or 'student_row' in globals() else ''
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
+    MIN_ASSIGNMENTS = 3
+    user_level = student_row.get('Level', '').upper() if student_row else ''
     df_level = (
         df_assign[df_assign['level'] == user_level]
         .groupby(['studentcode', 'name'], as_index=False)
@@ -1239,14 +1376,9 @@ if st.session_state.get("logged_in"):
 
     your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
     total_students = len(df_level)
-
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total_possible = totals.get(user_level, 0)
-
-    leaderboard_title_extra = "• not ranked"
-    if not your_row.empty:
-        rank_val = int(your_row.iloc[0]['Rank'])
-        leaderboard_title_extra = f"• rank #{rank_val} / {total_students}"
+    leaderboard_title_extra = "• not ranked" if your_row.empty else f"• rank #{int(your_row.iloc[0]['Rank'])} / {total_students}"
 
     # ==================== COLLAPSIBLE NOTIFICATIONS ====================
 
@@ -1263,6 +1395,44 @@ if st.session_state.get("logged_in"):
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
         )
+
+    # Payments (collapsed) + ALWAYS-VISIBLE summary right under it
+    with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
+        if payment_notice_level == "error":
+            st.error(payment_msg)
+        elif payment_notice_level == "warning":
+            st.warning(payment_msg)
+        else:
+            st.info(payment_msg)
+
+    # ---- Always-visible Payment Status strip (sits directly under the expander) ----
+    if owes:
+        bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸"
+        summary_line = f"Overdue by {overdue_days} days — est. **₵{amount_due:,}** due (₵{MONTHLY_RENEWAL:,}/month)."
+    elif first_due is None:
+        bg, border, fg, icon = "#f1f5f9", "#cbd5e1", "#334155", "ℹ️"
+        summary_line = "Contract start date missing — we can’t compute your first payment."
+    else:
+        delta = (first_due.date() - today_dt.date()).days
+        if delta <= 1:
+            bg, border, fg, icon = "#fff7ed", "#f59e0b", "#7c2d12", "⏳"
+            due_phrase = "today" if delta == 0 else "tomorrow"
+            summary_line = f"Payment due **{due_phrase}** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
+        else:
+            bg, border, fg, icon = "#ecfdf5", "#10b981", "#065f46", "✅"
+            summary_line = f"Next payment in **{delta} days** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
+
+    st.markdown(f"""
+        <div style="
+            margin:8px 0 16px 0; padding:10px 12px;
+            background:{bg}; border:1px solid {border}; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.15em">{icon}</span>
+                <div style="color:{fg}; font-weight:600">{summary_line}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
 
     # Assignment streak & weekly goal (collapsed)
     with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
@@ -1517,6 +1687,13 @@ if tab == "Dashboard":
             "start_date": "2025-08-07",
             "end_date": "2025-11-07",
             "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+        },
+        "B2 Munich Klasse": {
+            "days": ["Friday", "Saturday"],
+            "time": "Fri: 2pm-3:30pm, Sat: 9;30am-10am",
+            "start_date": "2025-08-08"
+            "start_date": "2025-10-08"
+            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
         },
     }
 
@@ -9404,5 +9581,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
