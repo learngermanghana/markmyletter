@@ -103,7 +103,66 @@ def fetch_youtube_playlist_videos(playlist_id, api_key):
             break
     return videos
 
+# PWA + iOS head tags (served from /static) — now safely after set_page_config
+components.html("""
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icons/falowen-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Falowen">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+""", height=0)
 
+# --- Compatibility alias ---
+html = st_html
+
+# --- State bootstrap ---
+def _bootstrap_state():
+    defaults = {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "__ls_token": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+_bootstrap_state()
+
+# --- SEO (only on public/landing) ---
+if not st.session_state.get("logged_in", False):
+    html("""
+    <script>
+      document.title = "Falowen – Learn German with Learn Language Education Academy";
+      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
+      let m = document.querySelector('meta[name="description"]');
+      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
+      m.setAttribute("content", desc);
+      const canonicalHref = window.location.origin + "/";
+      let link = document.querySelector('link[rel="canonical"]');
+      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
+      link.href = canonicalHref;
+      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
+        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
+        t.setAttribute('content', v);
+      }
+      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
+      setOG("og:description", desc);
+      setOG("og:type", "website");
+      setOG("og:url", canonicalHref);
+      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
+    </script>
+    """, height=0)
+
+# ==== Hide Streamlit chrome ====
 # ==== Hide Streamlit chrome ====
 st.markdown("""
 <style>
@@ -9453,6 +9512,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
