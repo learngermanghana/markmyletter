@@ -437,8 +437,6 @@ def is_contract_expired(row):
 # 0) Cookie + localStorage “SSO” (+ UA/LS bridge & token-first restore)
 # ============================================================
 
-from typing import Optional  # ensure available if you were using 3.9
-
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
@@ -550,7 +548,7 @@ components.html("""
 <script>
  (function(){
    async function sha256Hex(s){
-     const enc = new TextEncoder(); const data = enc.encode(s);
+     const enc = new TextEncoder(); const data = enc.encode(s;
      const buf = await crypto.subtle.digest('SHA-256', data);
      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
    }
@@ -559,7 +557,7 @@ components.html("""
        const ua = navigator.userAgent||''; const lang = navigator.language||'';
        const h  = await sha256Hex(ua + '|' + lang);
        const ls = localStorage.getItem('session_token')||'';
-       const url = new URL(window.location);
+       const url = new URL(window.location.href);
        let mut = false;
        if (!url.searchParams.get('ua')) { url.searchParams.set('ua', h); mut = true; }
        if (ls && !url.searchParams.get('ls')) { url.searchParams.set('ls', ls); mut = true; }
@@ -592,7 +590,7 @@ components.html(f"""
           try {{
             if (!idt || idt === lastSent) return;
             lastSent = idt;
-            var url = new URL(window.location);
+            var url = new URL(window.location.href);
             if (url.searchParams.get('ftok') === idt) return;
             url.searchParams.set('ftok', idt);
             window.location.replace(url.toString());
@@ -637,9 +635,9 @@ def qp_clear_keys(*keys):
     <script>
       (function(){
         try{
-          const u = new URL(window.location);
+          const u = new URL(window.location.href);
           %s
-          window.history.replaceState({}, '', u);
+          window.history.replaceState({}, '', u.toString());
         }catch(e){}
       })();
     </script>
@@ -686,7 +684,6 @@ def handle_firebase_ftok():
 
     try:
         from firebase_admin import auth as fb_auth
-        # If you want revocation checks, use: verify_id_token(ftok, check_revoked=True)
         decoded = fb_auth.verify_id_token(ftok)
         email = (decoded.get("email") or "").lower().strip()
         if not email:
@@ -716,7 +713,6 @@ def handle_firebase_ftok():
             "session_token": sess_token,
         })
 
-        # Persist both cookies + localStorage now that cookie_manager exists
         set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
         components.html(f"""
@@ -767,7 +763,7 @@ def _get_token_candidates():
     t = (t or "").strip()
     ls = (st.session_state.get("__ls_token") or "").strip()
     mem = (st.session_state.get("session_token") or "").strip()
-    cookie_tok = (cookie_manager.get("session_token") or "").strip()  # NEW: cookie token
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()
     out = [x for x in [mem, t, ls, cookie_tok] if x]
     seen, uniq = set(), []
     for x in out:
@@ -807,8 +803,8 @@ if not st.session_state.get("logged_in", False):
         <script>
           try {{
             localStorage.setItem('session_token', {json.dumps(new_tok)});
-            const u = new URL(window.location);
-            if (u.searchParams.has('t')) {{ u.searchParams.delete('t'); window.history.replaceState({{}}, '', u); }}
+            const u = new URL(window.location.href);
+            if (u.searchParams.has('t')) {{ u.searchParams.delete('t'); window.history.replaceState({{}}, '', u.toString()); }}
           }} catch(e) {{}}
         </script>
         """, height=0)
@@ -870,9 +866,9 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
         if ({json.dumps(student_code)} !== "") {{
           localStorage.setItem('student_code', {json.dumps(student_code)});
         }}
-        const u = new URL(window.location);
+        const u = new URL(window.location.href);
         ['t','ua','ls'].forEach(k => u.searchParams.delete(k));
-        window.history.replaceState({{}}, '', u);
+        window.history.replaceState({{}}, '', u.toString());
       }} catch(e) {{}}
     </script>
     """, height=0)
@@ -890,9 +886,9 @@ components.html("""
         last = now;
         try { localStorage.setItem('falowen_alive', String(now)); } catch(e){}
         try {
-          const u = new URL(window.location);
+          const u = new URL(window.location.href);
           u.hash = 'alive' + now;
-          history.replaceState({}, '', u);
+          history.replaceState({}, '', u.toString());
         } catch(e){}
       }
       document.addEventListener('visibilitychange', ping, {passive:true});
@@ -915,7 +911,7 @@ if (not st.session_state.get("logged_in", False)) and (not has_cookie_tok):
             try {
               var tok = localStorage.getItem('session_token') || '';
               if (tok) {
-                var u = new URL(window.location);
+                var u = new URL(window.location.href);
                 if (!u.searchParams.get('t') && !u.searchParams.get('ls') && !u.searchParams.get('ftok')) {
                   u.searchParams.set('ls', tok);
                   window.location.replace(u.toString());
@@ -19993,6 +19989,7 @@ if tab == "Schreiben Trainer":
 
 
 #
+
 
 
 
