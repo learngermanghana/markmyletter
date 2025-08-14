@@ -7179,6 +7179,10 @@ if tab == "Exams Mode & Custom Chat":
             allowed_types = {
                 "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
                 "audio/x-m4a", "audio/m4a", "audio/mp4",
+                "audio/3gpp", "video/3gpp",
+                "audio/aac", "audio/x-aac",
+                "audio/ogg", "audio/webm", "video/webm",
+                
             }
             allowed_exts = (".mp3", ".wav", ".m4a")
 
