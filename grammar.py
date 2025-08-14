@@ -7113,15 +7113,17 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged, uses your limits) ———
+    # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
-        import datetime
-        today_str = datetime.date.today().isoformat()
+        import datetime as _dt
+
+        today_str = _dt.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
         doc = uploads_ref.get()
         data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
         count = data.get("count", 0)
+
         if last_date != today_str:
             count = 0
         if count >= 3:
@@ -7132,54 +7134,80 @@ if tab == "Exams Mode & Custom Chat":
         st.info(
             """
             Record or upload your speaking sample below (max 60 seconds).  
-            • Use your phone's voice recorder **or** visit vocaroo.com and download the recording file to your phone.  
-            • Then tap **Browse** and select the saved WAV/MP3/M4A audio file.
+            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your device.  
+            • Then tap **Browse** and select the saved **.wav / .mp3 / .m4a** audio file.
             """
         )
+
         audio_file = st.file_uploader(
             "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
-            type=None, accept_multiple_files=False, key="pron_audio_uploader"
+            type=None,
+            accept_multiple_files=False,
+            key="pron_audio_uploader",
         )
+
         if audio_file:
             allowed_types = {
-                "audio/mpeg","audio/mp3","audio/wav","audio/x-wav","audio/x-m4a","audio/m4a","audio/mp4"
+                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                "audio/x-m4a", "audio/m4a", "audio/mp4",
             }
-            allowed_exts = (".mp3",".wav",".m4a")
+            allowed_exts = (".mp3", ".wav", ".m4a")
+
             if not (audio_file.type in allowed_types or audio_file.name.lower().endswith(allowed_exts)):
                 st.error("Please upload a .mp3, .wav, or .m4a audio file.")
             else:
                 st.audio(audio_file)
-                # Transcription
+
+                try:
+                    audio_file.seek(0)
+                except Exception:
+                    pass
+
+                # Force German transcription (no translation)
                 try:
                     transcript_resp = client.audio.transcriptions.create(
-                        file=audio_file, model="whisper-1"
+                        file=audio_file,
+                        model="whisper-1",
+                        language="de",
+                        temperature=0,
+                        prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                     )
                     transcript_text = transcript_resp.text
                 except Exception as e:
                     st.error(f"Sorry, could not process audio: {e}")
                     st.stop()
 
-                st.markdown(f"**I heard you say:**  \n> {transcript_text}")
+                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
+                # Evaluate in English
                 eval_prompt = (
-                    "You are a German tutor. The student said:\n"
-                    f'"{transcript_text}"\n\n'
-                    "Please score their Pronunciation, Grammar, and Fluency each out of 100, "
-                    "and then give three concise tips per category. "
-                    "Format as:\n"
+                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                    f'The student said (in German): "{transcript_text}"\n\n'
+                    "Please provide scores **in English only**:\n"
+                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                    "• Give three concise, actionable tips for each category.\n"
+                    "• Do not translate the student's text; focus on evaluating it.\n\n"
+                    "Respond exactly in this format:\n"
                     "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                     "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                     "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
                 )
+
                 with st.spinner("Evaluating your sample..."):
                     try:
                         eval_resp = client.chat.completions.create(
                             model="gpt-4o",
                             messages=[
-                                {"role": "system", "content": "You are a helpful German tutor."},
-                                {"role": "user", "content": eval_prompt}
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are an English-speaking tutor evaluating German speech. "
+                                        "Always answer in clear, concise English using the requested format."
+                                    ),
+                                },
+                                {"role": "user", "content": eval_prompt},
                             ],
-                            temperature=0.2
+                            temperature=0.2,
                         )
                         result_text = eval_resp.choices[0].message.content
                     except Exception as e:
@@ -7198,6 +7226,8 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#
+
 
 # =========================================
 # End
