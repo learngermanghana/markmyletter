@@ -1847,6 +1847,23 @@ def parse_contract_end(date_str):
         except ValueError: continue
     return None
 
+import re as _re
+
+def _read_money(val) -> float:
+    """Robustly parse currency-like strings to float. Handles '₵1,000', 'GHS 2000', etc."""
+    s = str(val or "").strip()
+    if not s:
+        return 0.0
+    # normalize common currency marks and thousand separators
+    s = s.replace(",", "").replace("₵", "").replace("GHS", "").replace("GHC", "")
+    # keep only digits, minus, and dot (defensive)
+    s = _re.sub(r"[^\d\.\-]", "", s)
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+
 @st.cache_data
 def load_reviews():
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
