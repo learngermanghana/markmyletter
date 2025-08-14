@@ -1189,8 +1189,6 @@ if _logout_clicked:
 
     st.stop()
     
-st.divider()
-
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
