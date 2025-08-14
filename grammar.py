@@ -581,35 +581,92 @@ if not st.session_state.get("logged_in", False):
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
 
+# ========================
+# 1) GLOBAL CSS (tightened spacing + CSS variables)
+# ========================
+st.markdown(
+    """
+    <style>
+      :root{
+        --brand:#25317e;              /* primaryColor */
+        --ink:#1a2340;                /* textColor */
+        --ink-dim:#3b425a;
+        --bg:#f3f7fb;                 /* backgroundColor */
+        --panel:#ffffff;
+        --panel-soft:#eef3fc;         /* secondaryBackgroundColor */
+        --muted:#e2e8f0;
+        --muted-strong:#cbd5e1;
+        --focus:#f59e0b;
+        --ok:#16a34a; --warn:#f59e0b; --bad:#dc2626; --link:#2563eb;
+        --radius:14px; --radius-sm:10px; --shadow:0 4px 16px rgba(0,0,0,.06);
+        --shadow-sm:0 2px 10px rgba(0,0,0,.04);
+        --space-1:6px; --space-2:10px; --space-3:14px; --space-4:18px; --space-5:24px;
+        --hero-w:980px; --content-w:1100px;
+      }
 
-# --- 2) Global CSS (tightened spacing) ---
-st.markdown("""
-<style>
-  .hero {
-    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
-  }
-  .help-contact-box {
-    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
-  }
-  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
-  .quick-links a {
-    background: #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight:600; text-decoration:none;
-    color:#0f172a; border:1px solid #cbd5e1;
-  }
-  .quick-links a:hover { background:#cbd5e1; }
-  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
-  .stButton > button:hover { background:#1d4ed8; }
-  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
-    outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
-  }
-  input, textarea { color:#0f172a !important; }
-  .page-wrap { max-width: 1100px; margin: 0 auto; }
-  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
-</style>
-""", unsafe_allow_html=True)
+      html, body { background: var(--bg); color: var(--ink); }
+      .page-wrap{ max-width: var(--content-w); margin: 0 auto; padding: 0 var(--space-3); }
 
+      /* Hero */
+      .hero{ background:linear-gradient(180deg, #fff, var(--panel-soft)); border-radius: var(--radius);
+             padding: var(--space-5); margin: var(--space-3) auto; max-width: var(--hero-w);
+             box-shadow: var(--shadow); border:1px solid #ebebf2; }
+      .hero h1{ margin: 0 0 var(--space-2); letter-spacing: .2px; }
+      .hero p{ margin: 0 auto var(--space-3); max-width: 780px; color: var(--ink-dim); }
+      .hero ul{ margin: var(--space-3) auto 0 auto; max-width: 780px; line-height: 1.45; padding-left: 1.1rem; }
+      .hero li{ margin-bottom: .42rem; }
+
+      /* Stats strip */
+      .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 6px auto; max-width:820px; }
+      .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+              box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+      .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+      .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+      .stat .label { font-size:.92rem; opacity:.98; }
+
+      /* Panels */
+      .help-contact-box { background: var(--panel); border-radius: var(--radius); padding: 18px; margin: 8px auto; max-width: 560px;
+                          box-shadow: var(--shadow-sm); border:1px solid #ebebf2; text-align:center; }
+
+      /* Quick links (if used elsewhere) */
+      .quick-links { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+      .quick-links a{ background: var(--muted); padding: 7px 14px; border-radius: 8px; font-weight:600; text-decoration:none; color:#0f172a; border:1px solid var(--muted-strong); }
+      .quick-links a:hover{ background: var(--muted-strong); }
+
+      /* Buttons */
+      .stButton > button { background: var(--link); color: #fff; font-weight:700; border-radius:10px; border:2px solid #1d4ed8; padding: 8px 18px; }
+      .stButton > button:hover { filter: brightness(.96); }
+
+      /* Focus & inputs */
+      a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
+        outline:3px solid var(--focus); outline-offset:2px; box-shadow:none !important;
+      }
+      input, textarea { color:#0f172a !important; }
+
+      /* Reviews carousel */
+      #reviews { position:relative; overflow:hidden; border-radius: var(--radius-sm); border:1px solid #e5e7eb; background:#fff; padding: 14px 12px; }
+      #rev_quote { font-size:1.06rem; line-height:1.42; margin:0; }
+      #rev_author { margin-top:10px; font-weight:700; color:#1e293b; }
+      #rev_level { color:#475569; }
+
+      /* Tabs top spacing tighten */
+      [data-testid='stTabs']{ margin-top: 4px !important; }
+
+      /* Motion-aware fade-in */
+      .fade-in{ opacity:0; transform: translateY(4px); animation:fadeUp .5s ease forwards; }
+      @media (prefers-reduced-motion: reduce){ .fade-in{ animation:none; opacity:1; transform:none; } }
+      @keyframes fadeUp{ to{ opacity:1; transform:none; } }
+
+      /* Responsive */
+      @media (max-width: 680px){ .hero{ padding: 18px 14px; } .stat{ min-width: 46%; } }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ========================
+# 2) GOOGLE OAUTH (unchanged logic, refreshed button)
+# ========================
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
@@ -693,22 +750,28 @@ def render_google_oauth():
         "access_type": "online",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    st.markdown(
-        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                <a href="{url}">
-                    <button aria-label="Sign in with Google"
-                            style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                        Sign in with Google
-                    </button>
-                </a>
-           </div>""".replace("{url}", auth_url),
-        unsafe_allow_html=True,
-    )
 
+    # SVG-based Google button for crisp rendering
+    btn_html = f"""
+      <div class=\"page-wrap\" style='text-align:center;margin:10px 0;'>
+        <a href=\"{auth_url}\" aria-label=\"Sign in with Google\" style=\"text-decoration:none;\">
+          <span role=\"button\" tabindex=\"0\" style=\"display:inline-flex;align-items:center;gap:10px;background:#4285f4;color:white;padding:8px 18px;border-radius:8px;border:0;\">
+            <svg width=\"18\" height=\"18\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><path fill=\"#FFC107\" d=\"M43.6 20.5H42V20H24v8h11.3C33.6 32.4 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.3-.4-3.5z\"/><path fill=\"#FF3D00\" d=\"M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.1 4 9.2 8.5 6.3 14.7z\"/><path fill=\"#4CAF50\" d=\"M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.4 35.8 26.9 37 24 37c-5.2 0-9.5-3.4-11.1-8.1l-6.6 5.1C9.2 39.5 16.1 44 24 44z\"/><path fill=\"#1976D2\" d=\"M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-3.6 5.8-6.8 7.1l6.2 5.2C37.8 42.3 44 38 44 24c0-1.2-.1-2.3-.4-3.5z\"/></svg>
+            <strong>Sign in with Google</strong>
+          </span>
+        </a>
+      </div>
+    """
+    st.markdown(btn_html, unsafe_allow_html=True)
+
+
+# ========================
+# 3) AUTH FORMS (unchanged logic, tighter spacing via global CSS)
+# ========================
 
 def render_login_form():
     with st.form("login_form", clear_on_submit=False):
-        login_id = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2)." ).strip().lower()
+        login_id = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).").strip().lower()
         login_pass = st.text_input("Password", type="password")
         login_btn = st.form_submit_button("Log In")
     if not login_btn:
@@ -785,9 +848,9 @@ def render_signup_form():
     st.success("Account created! Please log in on the Returning tab.")
 
 
-import json
-import streamlit as st
-import streamlit.components.v1 as components
+# ========================
+# 4) REVIEWS (motion-aware, same data structure)
+# ========================
 
 def render_reviews():
     REVIEWS = [
@@ -796,212 +859,24 @@ def render_reviews():
         {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
         {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
     ]
-
     _reviews_html = """
-    <style>
-      :root{
-        --bg: #0b1220;
-        --card:#ffffffcc;
-        --text:#0f172a;
-        --muted:#475569;
-        --brand:#2563eb;
-        --chip:#e0f2fe;
-        --chip-text:#0369a1;
-        --ring:#93c5fd;
-      }
-      @media (prefers-color-scheme: dark){
-        :root{
-          --card:#0b1220cc;
-          --text:#e2e8f0;
-          --muted:#94a3b8;
-          --chip:#1e293b;
-          --chip-text:#e2e8f0;
-          --ring:#334155;
-        }
-      }
-      .page-wrap{max-width:900px;margin:8px auto;}
-      .rev-shell{
-        position:relative; isolation:isolate;
-        border-radius:16px; padding:18px 16px 20px 16px;
-        background: radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
-                    radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
-        border:1px solid rgba(148,163,184,.25);
-        box-shadow: 0 10px 30px rgba(2,6,23,.08);
-        overflow:hidden;
-      }
-      .rev-card{
-        background: var(--card);
-        backdrop-filter: blur(8px);
-        border:1px solid rgba(148,163,184,.25);
-        border-radius:16px; padding:20px 18px;
-        min-height: 170px;
-      }
-      .rev-quote{
-        font-size:1.06rem; line-height:1.55; color:var(--text); margin:0; letter-spacing:.2px;
-      }
-      .rev-quote:before{content:"“"; margin-right:4px; opacity:.7}
-      .rev-quote:after{content:"”"; margin-left:2px; opacity:.7}
-      .rev-meta{
-        display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);
-      }
-      .rev-chip{
-        font-size:.78rem; font-weight:700; letter-spacing:.3px;
-        background:var(--chip); color:var(--chip-text);
-        border:1px solid rgba(148,163,184,.25);
-        padding:6px 10px; border-radius:999px;
-      }
-      .rev-author{ font-weight:700; color:var(--text); }
-      .rev-dots{
-        display:flex; gap:6px; justify-content:center; margin-top:14px;
-      }
-      .rev-dot{
-        width:8px; height:8px; border-radius:999px;
-        background:#cbd5e1; opacity:.8; transform:scale(.9);
-        transition: transform .25s ease, background .25s ease, opacity .25s ease;
-      }
-      .rev-dot[aria-current="true"]{
-        background:var(--brand); opacity:1; transform:scale(1.15);
-        box-shadow:0 0 0 4px var(--ring);
-      }
-      .rev-nav{
-        position:absolute; inset-block:0; inset-inline:0; pointer-events:none;
-      }
-      .rev-btn{
-        pointer-events:auto;
-        position:absolute; top:50%; translate:0 -50%;
-        border:none; background:rgba(15,23,42,.6);
-        color:white; width:36px; height:36px; border-radius:999px;
-        display:grid; place-items:center; cursor:pointer;
-        backdrop-filter: blur(4px);
-        transition: transform .15s ease, opacity .2s ease;
-        opacity:.9;
-      }
-      .rev-btn:hover{ transform: translateY(-2px); }
-      .rev-btn:focus-visible{ outline:3px solid var(--ring); outline-offset:3px; }
-      .rev-btn--prev{ left:6px; }
-      .rev-btn--next{ right:6px; }
-      .visually-hidden{ position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
-
-      /* animations */
-      @keyframes fadeSlideIn { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)} }
-      .rev-anim{ animation: fadeSlideIn .35s ease both; }
-      @media (prefers-reduced-motion: reduce){
-        .rev-anim{ animation:none }
-        .rev-btn{ transition:none }
-        .rev-dot{ transition:none }
-      }
-    </style>
-
-    <div class="page-wrap">
-      <div id="reviews" class="rev-shell" aria-live="polite">
-        <div class="rev-card rev-anim" id="rev_card">
-          <p id="rev_quote" class="rev-quote"></p>
-          <div class="rev-meta">
-            <span id="rev_level" class="rev-chip" aria-label="Level"></span>
-            <span id="rev_author" class="rev-author"></span>
-          </div>
-          <div class="rev-dots" id="rev_dots" role="tablist" aria-label="Review selector"></div>
-        </div>
-
-        <div class="rev-nav" aria-hidden="false">
-          <button class="rev-btn rev-btn--prev" id="rev_prev" aria-label="Previous review" title="Previous (←)">
-            &#8592;
-          </button>
-          <button class="rev-btn rev-btn--next" id="rev_next" aria-label="Next review" title="Next (→)">
-            &#8594;
-          </button>
-        </div>
-
-        <span class="visually-hidden" id="rev_sr"></span>
+    <div class="page-wrap" style="max-width:900px;margin-top:6px;">
+      <div id="reviews" class="fade-in" aria-live="polite" aria-atomic="true">
+        <blockquote id="rev_quote"></blockquote>
+        <div id="rev_author"></div>
+        <div id="rev_level"></div>
       </div>
     </div>
-
     <script>
-      const data = __DATA__;
-      const q = document.getElementById('rev_quote');
-      const a = document.getElementById('rev_author');
-      const l = document.getElementById('rev_level');
-      const dotsWrap = document.getElementById('rev_dots');
-      const sr = document.getElementById('rev_sr');
-      const card = document.getElementById('rev_card');
-      const btnPrev = document.getElementById('rev_prev');
-      const btnNext = document.getElementById('rev_next');
-
-      let i = 0;
-      let timer = null;
-      const interval = 6500;
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      function setActiveDot(idx){
-        [...dotsWrap.children].forEach((d, j) => d.setAttribute('aria-current', j === idx ? 'true' : 'false'));
-      }
-
-      function announce(txt){
-        sr.textContent = txt;
-      }
-
-      function render(idx){
-        const c = data[idx];
-        // light content animation
-        card.classList.remove('rev-anim'); void card.offsetWidth; card.classList.add('rev-anim');
-
-        q.textContent = c.quote;
-        a.textContent = c.author;
-        l.textContent = "Level " + c.level;
-        setActiveDot(idx);
-        announce("Showing review " + (idx+1) + " of " + data.length);
-      }
-
-      function next(){
-        i = (i + 1) % data.length;
-        render(i);
-      }
-      function prev(){
-        i = (i - 1 + data.length) % data.length;
-        render(i);
-      }
-
-      // dots
-      data.forEach((_, idx) => {
-        const dot = document.createElement('button');
-        dot.className = 'rev-dot';
-        dot.type = 'button';
-        dot.setAttribute('role','tab');
-        dot.setAttribute('aria-label','Show review ' + (idx+1));
-        dot.addEventListener('click', () => { i = idx; render(i); restart(); });
-        dotsWrap.appendChild(dot);
-      });
-
-      // autoplay (respects reduced motion)
-      function start(){
-        if (!reduced) timer = setInterval(next, interval);
-      }
-      function stop(){ if (timer) clearInterval(timer); timer = null; }
-      function restart(){ stop(); start(); }
-
-      // pause on hover/focus
-      const reviews = document.getElementById('reviews');
-      reviews.addEventListener('mouseenter', stop);
-      reviews.addEventListener('mouseleave', start);
-      reviews.addEventListener('focusin', stop);
-      reviews.addEventListener('focusout', start);
-
-      // keyboard nav
-      document.addEventListener('keydown', (e)=>{
-        if(e.key === 'ArrowRight'){ next(); restart(); }
-        if(e.key === 'ArrowLeft'){ prev(); restart(); }
-      });
-      btnNext.addEventListener('click', ()=>{ next(); restart(); });
-      btnPrev.addEventListener('click', ()=>{ prev(); restart(); });
-
-      // init
-      render(i); start();
+      const r=__DATA__,q=document.getElementById('rev_quote'),a=document.getElementById('rev_author'),l=document.getElementById('rev_level');
+      let i=0;function show(){const c=r[i];q.textContent='"'+c.quote+'"';a.textContent=c.author;l.textContent='Level '+c.level}
+      function next(){i=(i+1)%r.length;show()}
+      const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;show(); if(!reduced){setInterval(next,6000)}
     </script>
     """
-
-    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=300, scrolling=False)        
-
+    _reviews_json = json.dumps(REVIEWS)
+    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=220, scrolling=False)
+    
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     with tab1:
