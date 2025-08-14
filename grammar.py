@@ -2152,7 +2152,24 @@ if tab == "Dashboard":
     except Exception:
         pass
 
-    # ---- Payment chip: show if balance > 0 and (overdue, due today, or heads-up starts 15 days after contract start) ----
+    # ---- Payment chip: show ONLY when the student actually owes (due today or overdue).
+    # If the student does NOT owe (balance <= 0), show a gentle heads-up that
+    # the first payment is one month after contract start (if we can compute it).
+
+    # Safe money reader (fallback if not defined elsewhere)
+    _read_money = globals().get("_read_money")
+    if _read_money is None:
+        def _read_money(x):
+            try:
+                s = str(x).replace(",", "").strip()
+                return float(s) if s not in ("", "nan", "None") else 0.0
+            except Exception:
+                return 0.0
+
+    from datetime import datetime as _dt, timedelta as _timedelta
+    today_dt = globals().get("today_dt") or _dt.today()
+
+    # ---- Payment chip core inputs ----
     _balance = _read_money(safe_get(student_row, "Balance", 0))
 
     _cs = None
@@ -2170,13 +2187,9 @@ if tab == "Dashboard":
     payment_title_suffix = ""  # can be appended to the Payments expander title later
 
     if _balance > 0:
+        # Student potentially owes; only surface when actually due (today or past)
         if _first_due:
             _delta = (_first_due.date() - today_dt.date()).days
-
-            # Heads-up begins 15 days after contract start
-            from datetime import timedelta as _timedelta
-            _pre_start = (_cs + _timedelta(days=15)).date() if _cs else None
-
             if _delta < 0:
                 # Overdue
                 payment_chip_html = (
@@ -2188,15 +2201,19 @@ if tab == "Dashboard":
                 # Due today
                 payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
                 payment_title_suffix = " • due today"
-            elif _pre_start and today_dt.date() >= _pre_start:
-                # Heads-up window (from day 15 after contract start until the due date)
-                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due in {_delta}d — ₵{_balance:,.2f}</span>"
-                payment_title_suffix = f" • due in {_delta}d"
-            # else: Not in heads-up yet → no chip
+            # If _delta > 0 → not due yet → don't show a red/amber chip
         else:
-            # Balance > 0 but we can't read contract start
+            # Balance > 0 but we can't read contract start → still surface neutral notice
             payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
             payment_title_suffix = " • schedule unknown"
+    else:
+        # Student does NOT owe (balance <= 0). Don't show urgent chip.
+        # Instead, if we can compute the first due date AND it's in the future, show a gentle info chip.
+        if _first_due and today_dt.date() < _first_due.date():
+            payment_chip_html = (
+                f"<span class='chip chip-gray'>💡 First payment is one month after contract start — due on {_first_due:%d %b %Y}</span>"
+            )
+        # else: no chip at all
 #
 
 
