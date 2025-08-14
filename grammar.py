@@ -1448,31 +1448,162 @@ if not st.session_state.get("logged_in", False):
     login_page()
     st.stop()  # nothing below runs if not logged in
 
+# ---- Announcements renderer (must be defined before it's called) ----
+import json
+import streamlit.components.v1 as components
 
-# ===================== ANNOUNCEMENTS (define → render) =====================
-# If you already defined render_announcements() earlier in your file, this will just use it.
-# (The version below assumes you used the secure anchor creation in JS.)
-announcements = [
-    {
-        "title": "A2 Mock Exam this Saturday",
-        "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
-        "tag":   "Exam",
-        "href":  "https://www.learngermanghana.com/upcoming-classes",
-    },
-    {
-        "title": "System Update",
-        "body":  "Course Book uploads are now 2× faster. Report issues to support.",
-        "tag":   "System",
-    },
-    {
-        "title": "New B1 Writing Pack",
-        "body":  "Practice letters + opinions with 10 model answers.",
-        "tag":   "B1",
-        "href":  "https://www.learngermanghana.com/resources",
-    },
-]
-render_announcements(announcements)
+def render_announcements(ANNOUNCEMENTS: list):
+    """Responsive, dark-mode-aware rotating announcement board."""
+    if not ANNOUNCEMENTS:
+        return
 
+    _html = """
+    <style>
+      :root{
+        --brand:#2563eb; --ring:#93c5fd;
+        --text:#0f172a; --muted:#475569;
+        --card:#111827; /* dark by default so it pops on phones */
+        --chip-bg:#1f2937; --chip-fg:#e5e7eb;
+        --link:#60a5fa;
+        --shell-border: rgba(148,163,184,.22);
+      }
+      @media (prefers-color-scheme: light){
+        :root{
+          --text:#0f172a; --muted:#475569;
+          --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985;
+          --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
+        }
+      }
+
+      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
+      .ann-title{
+        font-weight:700; font-size:1.05rem; line-height:1.2;
+        padding-left:12px; border-left:5px solid var(--brand);
+        margin: 4px 0 8px 0; color: var(--text);
+      }
+      .ann-shell{
+        border-radius:12px; border:1px solid var(--shell-border);
+        background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.28);
+        padding:12px 14px; isolation:isolate; overflow:hidden;
+      }
+      .ann-heading{
+        display:flex; align-items:center; gap:8px;
+        margin:0 0 6px 0; font-weight:700; color:var(--text);
+      }
+      .ann-chip{
+        font-size:.75rem; font-weight:700; letter-spacing:.2px;
+        background:var(--chip-bg); color:var(--chip-fg);
+        padding:4px 8px; border-radius:999px; border:1px solid var(--shell-border);
+      }
+      .ann-body{ color:var(--muted); margin:0; line-height:1.5; font-size:.96rem; }
+      .ann-actions{ margin-top:8px }
+      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:600 }
+
+      .ann-dots{
+        display:flex; gap:10px; justify-content:center; margin-top:10px;
+      }
+      .ann-dot{
+        width:9px; height:9px; border-radius:999px; background:#9ca3af;
+        opacity:.9; transform:scale(.95);
+        transition: transform .2s ease, background .2s ease, opacity .2s ease;
+        touch-action: manipulation;
+      }
+      .ann-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.22);
+        box-shadow:0 0 0 4px var(--ring);
+      }
+
+      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      .ann-anim{animation:fadeInUp .25s ease both}
+      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+
+      @media (max-width: 640px){
+        .ann-title{ font-size:1rem; }
+        .ann-body{ font-size:.94rem; }
+        .page-wrap{ padding:0 8px; }
+        .ann-shell{ padding:12px; }
+      }
+    </style>
+
+    <div class="page-wrap">
+      <div class="ann-title">📣 Announcement</div>
+      <div class="ann-shell" id="ann_shell" aria-live="polite">
+        <div class="ann-anim" id="ann_card">
+          <div class="ann-heading">
+            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
+            <span id="ann_title"></span>
+          </div>
+          <p class="ann-body" id="ann_body"></p>
+          <div class="ann-actions" id="ann_action" style="display:none;"></div>
+        </div>
+        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
+      </div>
+    </div>
+
+    <script>
+      const data = __DATA__;
+      const titleEl = document.getElementById('ann_title');
+      const bodyEl  = document.getElementById('ann_body');
+      const tagEl   = document.getElementById('ann_tag');
+      const actionEl= document.getElementById('ann_action');
+      const dotsWrap= document.getElementById('ann_dots');
+      const card    = document.getElementById('ann_card');
+      const shell   = document.getElementById('ann_shell');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
+
+      function setActiveDot(idx){
+        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
+      }
+      function render(idx){
+        const c = data[idx] || {};
+        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
+        titleEl.textContent = c.title || '';
+        bodyEl.textContent  = c.body  || '';
+        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
+        if (c.href){
+          // secure anchor creation (no innerHTML)
+          const link = document.createElement('a');
+          link.href = c.href;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = 'Open';
+          actionEl.textContent = '';
+          actionEl.appendChild(link);
+          actionEl.style.display='';
+        } else {
+          actionEl.style.display='none';
+          actionEl.textContent = '';
+        }
+        setActiveDot(idx);
+      }
+      function next(){ i = (i+1) % data.length; render(i); }
+      function start(){ if (!reduced) timer = setInterval(next, INTERVAL); }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
+      function restart(){ stop(); start(); }
+
+      data.forEach((_, idx)=>{
+        const dot = document.createElement('button');
+        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
+        dot.setAttribute('aria-label','Show announcement '+(idx+1));
+        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
+        dotsWrap.appendChild(dot);
+      });
+
+      shell.addEventListener('mouseenter', stop);
+      shell.addEventListener('mouseleave', start);
+      shell.addEventListener('focusin', stop);
+      shell.addEventListener('focusout', start);
+
+      render(i); start();
+    </script>
+    """
+
+    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
+    components.html(_html.replace("__DATA__", data_json), height=170, scrolling=False)
 
 # ===================== WELCOME HEADER + LOGOUT BUTTON =====================
 st.markdown(
