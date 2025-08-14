@@ -1809,6 +1809,13 @@ if tab == "Dashboard":
         st.info("🚩 No student selected.")
         st.stop()
 
+    # ========== 1) ANNOUNCEMENTS (top of Dashboard) ==========
+    # Make sure render_announcements() and `announcements` are defined earlier in the file.
+    render_announcements(announcements)
+    # Tight spacer (keeps it close to the next section)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+#
+
     # ===== ALWAYS-VISIBLE STATUS BAR (Payment + Contract) =====
     # (place this near the top of the Dashboard, right after the student info card)
     from datetime import datetime, date, timedelta
