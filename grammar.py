@@ -1058,68 +1058,24 @@ def login_page():
       </div>
     """, unsafe_allow_html=True)
 
-    # Short explainer: which option to use
-    st.markdown("""
-    <style>
-      .option-box{
-        background:#f8fafc;
-        border:1px solid #e2e8f0;
-        border-left:5px solid #2563eb; /* Brand blue accent */
-        border-radius:12px;
-        padding:18px 20px;
-        display:grid;
-        gap:14px;
-        font-size:.96rem;
-        line-height:1.5;
-      }
-      .option-box b{color:#0f172a;}
-      .option-item{
-        display:grid;
-        grid-template-columns: 32px auto;
-        gap:10px;
-        align-items:flex-start;
-      }
-      .option-icon{
-        font-size:1.2rem;
-        flex-shrink:0;
-        margin-top:1px;
-        text-align:center;
-      }
-      @media (prefers-color-scheme: dark){
-        .option-box{
-          background:#1e293b;
-          border-color:#334155;
-          border-left-color:#3b82f6; /* Brighter in dark mode */
-          color:#e2e8f0;
-        }
-        .option-box b{color:#f1f5f9;}
-      }
-    </style>
-    <div class="page-wrap" style="max-width:900px;margin-top:6px;">
-      <div class="option-box">
-        <div style="font-weight:700;font-size:1.05rem;margin-bottom:2px;">Which option should I choose?</div>
-        <div class="option-item">
-          <div class="option-icon">👋</div>
-          <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
+    with st.expander("📌 Which option should I choose?", expanded=True):
+        st.markdown("""
+        <div class="option-box">
+          <div class="option-item">
+            <div class="option-icon">👋</div>
+            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
+          </div>
+          <div class="option-item">
+            <div class="option-icon">🧾</div>
+            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
+          </div>
+          <div class="option-item">
+            <div class="option-icon">📝</div>
+            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
+          </div>
         </div>
-        <div class="option-item">
-          <div class="option-icon">🧾</div>
-          <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
-        </div>
-        <div class="option-item">
-          <div class="option-icon">📝</div>
-          <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    render_reviews()
-
-    st.markdown(
-        "<style>[data-testid='stTabs']{margin-top:4px !important;}</style>",
-        unsafe_allow_html=True
-    )
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 #
