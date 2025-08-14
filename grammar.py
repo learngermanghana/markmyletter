@@ -1431,6 +1431,8 @@ def login_page():
 if not st.session_state.get("logged_in", False):
     login_page()
 
+st.divider()
+
 
 
 
@@ -1455,7 +1457,7 @@ with col2:
     _logout_clicked = st.button("Log out")
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
-
+st.divider()
    
 # Keep your meta tag injection and logout handling below as before:
 _inject_meta_tags()
