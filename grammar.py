@@ -1432,12 +1432,6 @@ def login_page():
 _inject_meta_tags()
 
 # ---- Imports used below (safe even if already imported above) ----
-import streamlit as st
-import pandas as pd
-import random
-from datetime import datetime, date, timedelta
-import json
-import streamlit.components.v1 as components
 
 # default so it's always defined (prevents NameError before the button is created)
 _logout_clicked = False
@@ -1449,8 +1443,7 @@ if not st.session_state.get("logged_in", False):
     st.stop()  # nothing below runs if not logged in
 
 # ---- Announcements renderer (must be defined before it's called) ----
-import json
-import streamlit.components.v1 as components
+
 
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive, dark-mode-aware rotating announcement board."""
@@ -1605,6 +1598,23 @@ def render_announcements(ANNOUNCEMENTS: list):
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
     components.html(_html.replace("__DATA__", data_json), height=170, scrolling=False)
 
+# ===== Announcements data (then render) =====
+announcements = [
+    {"title": "A2 Mock Exam this Saturday",
+     "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
+     "tag":   "Exam",
+     "href":  "https://www.learngermanghana.com/upcoming-classes"},
+    {"title": "System Update",
+     "body":  "Course Book uploads are now 2× faster. Report issues to support.",
+     "tag":   "System"},
+    {"title": "New B1 Writing Pack",
+     "body":  "Practice letters + opinions with 10 model answers.",
+     "tag":   "B1",
+     "href":  "https://www.learngermanghana.com/resources"},
+]
+render_announcements(announcements)
+
+
 # ===================== WELCOME HEADER + LOGOUT BUTTON =====================
 st.markdown(
     """
@@ -1628,8 +1638,12 @@ with col2:
 st.markdown("</div>", unsafe_allow_html=True)
 
 
-# ===================== LOGOUT HANDLING (with visible errors) =====================
-if _logout_clicked:
+# ===================== LOGOUT HANDLING =====================
+
+
+def logout_user():
+    from datetime import datetime, timedelta
+
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
@@ -1638,8 +1652,12 @@ if _logout_clicked:
         st.error(f"Logout failed (destroy token): {e}")
 
     try:
-        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-        set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+        set_student_code_cookie(
+            cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1)
+        )
+        set_session_token_cookie(
+            cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1)
+        )
     except Exception as e:
         st.error(f"Logout failed (expire cookies): {e}")
 
@@ -1684,6 +1702,9 @@ if _logout_clicked:
 
     st.stop()
 
+
+if _logout_clicked:
+    logout_user()
 
 # ===================== DATA LOADERS & HELPERS =====================
 @st.cache_data
