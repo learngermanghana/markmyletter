@@ -2069,48 +2069,59 @@ if tab == "Dashboard":
     """
     st.markdown(info_html, unsafe_allow_html=True)
 
-    # ---------- Payments (balance + due date) ----------
-    # Local fallbacks (use globals if already defined elsewhere)
+    # ---------- Payments (balance + due date, in an expander) ----------
+    from datetime import datetime as _dt
+    import calendar as _cal
+
+    # Safe money reader (fallback if not provided elsewhere)
+    _read_money = globals().get("_read_money") or (lambda x: (lambda s: float(s) if s not in ("", "nan", "None") else 0.0)(
+        str(x).replace(",", "").strip()
+    ) if True else 0.0)
+
+    # Fallbacks for date parsing / month add
     def _fallback_parse_date(s):
-        from datetime import datetime as __dt
         for f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
             try:
-                return __dt.strptime(str(s).strip(), f)
+                return _dt.strptime(str(s).strip(), f)
             except Exception:
                 pass
         return None
 
     def _fallback_add_months(dt, n):
-        import calendar as __cal
         y = dt.year + (dt.month - 1 + n) // 12
         m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, __cal.monthrange(y, m)[1])
+        d = min(dt.day, _cal.monthrange(y, m)[1])
         return dt.replace(year=y, month=m, day=d)
 
-    _parse_start = globals().get("parse_contract_start") or _fallback_parse_date
-    _add_months  = globals().get("add_months") or _fallback_add_months
+    # Use app-provided helpers if available, otherwise fallbacks
+    _parse_start = (
+        globals().get("parse_contract_start_fn")
+        or globals().get("parse_contract_start")
+        or _fallback_parse_date
+    )
+    _add_months = (
+        globals().get("add_months_fn")
+        or globals().get("add_months")
+        or _fallback_add_months
+    )
 
-    # Read contract start
+    # Normalize "today" to a date (no external dependency)
+    _today = _dt.today().date()
+
+    # Contract start -> first payment due (start + 1 month)
     _cs = None
     for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
         _s = str(safe_get(student_row, _k, "") or "").strip()
         if _s:
             _cs = _parse_start(_s)
             break
-
-    # First payment = 1 month after contract start (if start is known)
     _first_due = _add_months(_cs, 1) if _cs else None
 
-    # Normalize 'today' to a date for safe comparisons
-    _today = today_dt.date() if hasattr(today_dt, "date") else today_dt
-
-    # Compute status bits
+    # Read balance and compute delta
     _balance = _read_money(safe_get(student_row, "Balance", 0))
-    _delta = None
-    if _first_due:
-        _delta = (_first_due.date() - _today).days
+    _delta = (_first_due.date() - _today).days if _first_due else None
 
-    # Build expander title + body depending on state
+    # Build expander title/body
     if _balance > 0 and _first_due is not None:
         if _delta < 0:
             _exp_title = f"💳 Payments • overdue {abs(_delta)}d"
@@ -2124,13 +2135,11 @@ if tab == "Dashboard":
             _severity = "warning"
             _msg = f"⏳ **Payment due today** ({_first_due:%d %b %Y}). Amount due: **₵{_balance:,.2f}**."
         else:
-            # Upcoming but not due yet — still show details because user expanded it
             _exp_title = f"💳 Payments • due in {_delta}d"
             _severity = "info"
             _msg = (
                 f"Heads-up: your next payment is **in {_delta} day{'s' if _delta!=1 else ''}** "
-                f"({__import__('datetime').datetime.strftime(_first_due, '%d %b %Y')}). "
-                f"Current balance: **₵{_balance:,.2f}**."
+                f"({_first_due:%d %b %Y}). Current balance: **₵{_balance:,.2f}**."
             )
     elif _balance > 0 and _first_due is None:
         _exp_title = "💳 Payments • schedule unknown"
@@ -2140,7 +2149,6 @@ if tab == "Dashboard":
             "to compute the first payment date. Please contact the office."
         )
     else:
-        # No outstanding balance
         _exp_title = "💳 Payments (info)"
         _severity = "info"
         if _first_due:
@@ -2162,7 +2170,7 @@ if tab == "Dashboard":
         else:
             st.info(_msg)
 
-        # Always show the raw details inside the expander
+        # Always show raw details inside the expander
         _cs_str = _cs.strftime("%d %b %Y") if _cs else "—"
         _fd_str = _first_due.strftime("%d %b %Y") if _first_due else "—"
         st.markdown(
@@ -2171,10 +2179,11 @@ if tab == "Dashboard":
             - Contract start: **{_cs_str}**
             - First payment due: **{_fd_str}**
             - Current balance: **₵{_balance:,.2f}**
-            - Policy: First payment is due **1 month after contract start**.
+            - Policy: First payment is due **1 month after contract start**; contract extension costs **₵1,000/month**.
             """
         )
 #
+
 
 
      # ---------- Class schedules ----------
