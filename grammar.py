@@ -1428,7 +1428,926 @@ def login_page():
     st.stop()
 
 
+if not st.session_state.get("logged_in", False):
+    login_page()
 
+
+
+
+# --- Logged In UI ---
+st.markdown(
+    """
+    <style>
+        .post-login-header {margin-top:0; margin-bottom:4px;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
+col1, col2 = st.columns([0.85, 0.15])
+with col1:
+    st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+with col2:
+    st.markdown(
+        "<div style='display:flex; justify-content:flex-end; align-items:center;'>",
+        unsafe_allow_html=True,
+    )
+    _logout_clicked = st.button("Log out")
+    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
+
+   
+# Keep your meta tag injection and logout handling below as before:
+_inject_meta_tags()
+
+if _logout_clicked:
+    try:
+        tok = st.session_state.get("session_token", "")
+        if tok:
+            destroy_session_token(tok)
+    except Exception:
+        pass
+
+    try:
+        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+        set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+    except Exception:
+        pass
+
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.delete("session_token")
+        cookie_manager.save()
+    except Exception:
+        pass
+
+    # clear LS + strip OAuth params
+    components.html(
+        """
+        <script>
+          (function(){
+            try {
+              localStorage.removeItem('student_code');
+              localStorage.removeItem('session_token');
+              const u = new URL(window.location);
+              ['code','state'].forEach(k => u.searchParams.delete(k));
+              window.history.replaceState({}, '', u);
+              window.location.reload();
+            } catch(e){}
+          })();
+        </script>
+        """,
+        height=0,
+    )
+
+    for k, v in {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
+    }.items():
+        st.session_state[k] = v
+
+    st.stop()
+
+    
+
+# ==== GOOGLE SHEET LOADING FUNCTIONS ====
+@st.cache_data
+def load_assignment_scores():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url, dtype=str)
+    df.columns = df.columns.str.strip().str.lower()
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
+    return df
+
+
+# ---- ROBUST VOCAB LOADER + SAFE PICKER ----
+@st.cache_data(ttl=43200)
+def load_full_vocab_sheet():
+    SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    try:
+        df = pd.read_csv(csv_url, dtype=str)
+    except Exception:
+        # Network/privacy/etc. Return an empty, well-formed frame so downstream code never crashes.
+        st.error("Could not load vocab sheet.")
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
+
+    # Normalize headers (strip spaces, lowercase)
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Try to map common variants to our canonical names
+    def _match(colnames, *candidates):
+        s = set(colnames)
+        for cand in candidates:
+            if cand in s:
+                return cand
+        # fallback: fuzzy-ish startswith
+        for c in colnames:
+            if any(c.startswith(x) for x in candidates):
+                return c
+        return None
+
+    col_level   = _match(df.columns, "level")
+    col_german  = _match(df.columns, "german", "de", "word", "wort")
+    col_english = _match(df.columns, "english", "en", "meaning", "translation")
+    col_example = _match(df.columns, "example", "sentence", "usage")
+
+    # If required columns missing, return empty shaped frame
+    if not (col_level and col_german and col_english):
+        return pd.DataFrame(columns=["level", "german", "english", "example"])
+
+    # Rename to canonical names
+    rename_map = {
+        col_level: "level",
+        col_german: "german",
+        col_english: "english",
+    }
+    if col_example:
+        rename_map[col_example] = "example"
+    df = df.rename(columns=rename_map)
+
+    # Keep only the columns we care about
+    if "example" not in df.columns:
+        df["example"] = ""
+
+    # Clean & normalize
+    for c in ["level", "german", "english", "example"]:
+        df[c] = df[c].astype(str).str.strip()
+
+    df = df[df["level"].notna() & (df["level"] != "")]
+    df["level"] = df["level"].str.upper()
+
+    return df[["level", "german", "english", "example"]]
+
+
+def get_vocab_of_the_day(df: pd.DataFrame, level: str):
+    # Defensive guards so this never throws
+    if df is None or df.empty:
+        return None
+    if not {"level", "german", "english", "example"}.issubset(df.columns):
+        return None
+
+    lvl = (level or "").upper().strip()
+    subset = df[df["level"] == lvl]
+    if subset.empty:
+        return None
+
+    from datetime import date as _date
+    idx = _date.today().toordinal() % len(subset)
+    row = subset.reset_index(drop=True).iloc[idx]
+    return {
+        "german": row.get("german", ""),
+        "english": row.get("english", ""),
+        "example": row.get("example", ""),
+    }
+
+def parse_contract_end(date_str):
+    if not date_str or str(date_str).lower() in ("nan", "none", ""):
+        return None
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+@st.cache_data
+def load_reviews():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
+    return df
+
+# ---- Payment date helpers ----
+from calendar import monthrange
+
+def parse_contract_start(date_str: str):
+    # Reuse the same parsers as ContractEnd
+    return parse_contract_end(date_str)
+
+def add_months(dt: datetime, n: int) -> datetime:
+    y = dt.year + (dt.month - 1 + n) // 12
+    m = (dt.month - 1 + n) % 12 + 1
+    d = min(dt.day, monthrange(y, m)[1])
+    return dt.replace(year=y, month=m, day=d)
+
+def months_between(start_dt: datetime, end_dt: datetime) -> int:
+    months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
+    if end_dt.day < start_dt.day:
+        months -= 1
+    return months
+
+
+if st.session_state.get("logged_in"):
+    student_code = st.session_state["student_code"].strip().lower()
+    student_name = st.session_state["student_name"]
+
+    # Load student info
+    df_students = load_student_data()
+    matches = df_students[df_students["StudentCode"].str.lower() == student_code]
+    student_row = matches.iloc[0].to_dict() if not matches.empty else {}
+
+    # Greeting helper
+    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
+
+    # -------------------- CONTRACT (compute only) --------------------
+    MONTHLY_RENEWAL = 1000
+    contract_end_str = student_row.get("ContractEnd", "")
+    today_dt = datetime.today()
+    contract_end = parse_contract_end(contract_end_str)
+
+    contract_title_extra = "• no date"
+    contract_notice_level = "info"
+    contract_msg = "Contract end date unavailable or in wrong format."
+    urgent_contract = False
+
+    if contract_end:
+        days_left = (contract_end - today_dt).days
+        contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
+        if 0 < days_left <= 30:
+            contract_notice_level = "warning"
+            contract_msg = (
+                f"⏰ **Your contract ends in {days_left} days "
+                f"({contract_end.strftime('%d %b %Y')}).**\n"
+                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
+            contract_title_extra = f"• ends in {days_left}d"
+            urgent_contract = True
+        elif days_left < 0:
+            contract_notice_level = "error"
+            contract_msg = (
+                f"⚠️ **Your contract has ended!** Please contact the office to renew "
+                f"for **₵{MONTHLY_RENEWAL:,} per month**."
+            )
+            contract_title_extra = "• ended"
+            urgent_contract = True
+        else:
+            contract_notice_level = "info"
+            contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
+
+    # -------------------- PAYMENT / DUES (1 month after Contract Start) --------------------
+    _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
+    start_str = ""
+    for k in _start_keys:
+        v = str(student_row.get(k, "") or "").strip()
+        if v:
+            start_str = v
+            break
+
+    payment_title_extra = "• no start date"
+    payment_notice_level = "info"
+    payment_msg = "We couldn't read your contract start date."
+    owes = False
+    first_due = None
+    amount_due = MONTHLY_RENEWAL
+    overdue_days = 0
+
+    if start_str:
+        contract_start = parse_contract_start(start_str)
+        if contract_start:
+            first_due = add_months(contract_start, 1)
+            delta_days = (first_due.date() - today_dt.date()).days
+            payment_title_extra = f"• due {first_due:%d %b %Y}"
+
+            if delta_days > 1:
+                payment_msg = f"💳 Next payment due in **{delta_days} days** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            elif delta_days == 1:
+                payment_msg = f"💳 Payment due **tomorrow** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            elif delta_days == 0:
+                payment_notice_level = "warning"
+                payment_msg = f"💳 Payment due **today** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+            else:
+                owes = True
+                overdue_days = -delta_days
+                months_late = max(1, months_between(first_due, today_dt))
+                amount_due = MONTHLY_RENEWAL * months_late
+                payment_notice_level = "error"
+                payment_title_extra = f"• overdue {overdue_days}d"
+                payment_msg = (
+                    f"💸 **Overdue by {overdue_days} days.** "
+                    f"Estimated amount due: **₵{amount_due:,}** (₵{MONTHLY_RENEWAL:,}/month). "
+                    f"First due: {first_due:%d %b %Y}."
+                )
+        else:
+            payment_msg = "We couldn't parse your contract start date format."
+
+    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
+    df_assign = load_assignment_scores()
+    df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
+    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
+
+    from datetime import timedelta, date
+    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
+    streak = 1 if dates else 0
+    for i in range(1, len(dates)):
+        if (dates[i - 1] - dates[i]).days == 1:
+            streak += 1
+        else:
+            break
+
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
+    WEEKLY_GOAL = 3
+    goal_left = max(0, WEEKLY_GOAL - assignment_count)
+    streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
+    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)
+
+    # -------------------- BELL --------------------
+    bell_color = "#333"
+    st.markdown(f"""
+        <div style="display:flex;align-items:center;gap:10px;
+                    font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
+                    padding:6px 10px;background:#fdf6e3;border-radius:8px;">
+            <span style="font-size:1.3em;display:inline-block;color:{bell_color};">🔔</span> Your Notifications
+        </div>
+    """, unsafe_allow_html=True)
+
+    # -------------------- BADGES --------------------
+    pay_bg = "#fee2e2" if owes else ("#fff7ed" if payment_notice_level=="warning" else "#eef7f1")
+    pay_fg = "#991b1b" if owes else ("#7c2d12" if payment_notice_level=="warning" else "#1e7a3b")
+    pay_text = "💸 Payment: OVERDUE" if owes else ("💳 Payment: due soon" if payment_notice_level=="warning" else "💳 Payment")
+
+    st.markdown(f"""
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
+          <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
+          <span style="background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;">{pay_text}</span>
+          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
+          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
+          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # -------------------- VOCAB OF THE DAY --------------------
+    student_level = (student_row.get("Level") or "A1").upper().strip()
+    vocab_df = load_full_vocab_sheet()
+    vocab_item = get_vocab_of_the_day(vocab_df, student_level)
+    vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
+
+    # -------------------- LEADERBOARD (compute only) --------------------
+    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
+    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
+
+    MIN_ASSIGNMENTS = 3
+    user_level = student_row.get('Level', '').upper() if student_row else ''
+    df_level = (
+        df_assign[df_assign['level'] == user_level]
+        .groupby(['studentcode', 'name'], as_index=False)
+        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
+    )
+    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
+    df_level = df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
+    df_level['Rank'] = df_level.index + 1
+
+    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
+    total_students = len(df_level)
+    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+    total_possible = totals.get(user_level, 0)
+    leaderboard_title_extra = "• not ranked" if your_row.empty else f"• rank #{int(your_row.iloc[0]['Rank'])} / {total_students}"
+
+    # ==================== COLLAPSIBLE NOTIFICATIONS ====================
+
+    # Contract & renewal (collapsed)
+    with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
+        if contract_notice_level == "warning":
+            st.warning(contract_msg)
+        elif contract_notice_level == "error":
+            st.error(contract_msg)
+        else:
+            st.info(contract_msg)
+
+        st.info(
+            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
+            "Do your best to complete your course on time to avoid extra fees!"
+        )
+
+    # Payments (collapsed) + ALWAYS-VISIBLE summary right under it
+    with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
+        if payment_notice_level == "error":
+            st.error(payment_msg)
+        elif payment_notice_level == "warning":
+            st.warning(payment_msg)
+        else:
+            st.info(payment_msg)
+
+    # ---- Always-visible Payment Status strip (sits directly under the expander) ----
+    if owes:
+        bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸"
+        summary_line = f"Overdue by {overdue_days} days — est. **₵{amount_due:,}** due (₵{MONTHLY_RENEWAL:,}/month)."
+    elif first_due is None:
+        bg, border, fg, icon = "#f1f5f9", "#cbd5e1", "#334155", "ℹ️"
+        summary_line = "Contract start date missing — we can’t compute your first payment."
+    else:
+        delta = (first_due.date() - today_dt.date()).days
+        if delta <= 1:
+            bg, border, fg, icon = "#fff7ed", "#f59e0b", "#7c2d12", "⏳"
+            due_phrase = "today" if delta == 0 else "tomorrow"
+            summary_line = f"Payment due **{due_phrase}** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
+        else:
+            bg, border, fg, icon = "#ecfdf5", "#10b981", "#065f46", "✅"
+            summary_line = f"Next payment in **{delta} days** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
+
+    st.markdown(f"""
+        <div style="
+            margin:8px 0 16px 0; padding:10px 12px;
+            background:{bg}; border:1px solid {border}; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.15em">{icon}</span>
+                <div style="color:{fg}; font-weight:600">{summary_line}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+    # Assignment streak & weekly goal (collapsed)
+    with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
+        col1, col2 = st.columns(2)
+        col1.metric("Streak", f"{streak} days")
+        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+        if assignment_count >= WEEKLY_GOAL:
+            st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
+        else:
+            st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
+
+    # Vocab of the Day (collapsed)
+    with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=False):
+        if vocab_item:
+            st.markdown(f"""
+            <ul style='list-style:none;margin:0;padding:0;'>
+                <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
+                <li><b>English:</b> {vocab_item['english']}</li>
+                {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
+            </ul>
+            """, unsafe_allow_html=True)
+        else:
+            st.info(f"No vocab found for level {student_level}.")
+
+    # Leaderboard & progress (collapsed)
+    with st.expander(f"🏆 Leaderboard & Progress {leaderboard_title_extra}", expanded=False):
+        if not your_row.empty:
+            row = your_row.iloc[0]
+            rank = int(row['Rank'])
+            completed = int(row['completed'])
+            percent_rank = (rank / total_students) * 100 if total_students else 0
+            progress_pct = (completed / total_possible) * 100 if total_possible else 0
+
+            # Rotate messages (kept from your logic)
+            STUDY_TIPS = [
+                "Study a little every day. Small steps lead to big progress!",
+                "Teach someone else what you learned to remember it better!",
+                "If you make a mistake, that’s good! Mistakes are proof you are learning.",
+                "Don’t just read—say your answers aloud for better memory.",
+                "Review your old assignments to see how far you’ve come!"
+            ]
+            INSPIRATIONAL_QUOTES = [
+                "“The secret of getting ahead is getting started.” – Mark Twain",
+                "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
+                "“It always seems impossible until it’s done.” – Nelson Mandela",
+                "“The expert in anything was once a beginner.” – Helen Hayes",
+                "“Learning never exhausts the mind.” – Leonardo da Vinci"
+            ]
+            rotate = random.randint(0, 3)
+            if rotate == 0:
+                if rank == 1:
+                    message = "🏆 You are the leader! Outstanding work—keep inspiring others!"
+                elif rank <= 3:
+                    message = "🌟 You’re in the top 3! Excellent consistency and effort."
+                elif percent_rank <= 10:
+                    message = "💪 Top 10%! Keep pushing for the top!"
+                elif percent_rank <= 50:
+                    message = "👏 Above average! Stay consistent to reach the next level."
+                elif rank == total_students:
+                    message = "🔄 Don’t give up! Every assignment brings you closer to the next rank."
+                else:
+                    message = "🚀 Keep completing assignments and watch yourself climb!"
+            elif rotate in (1, 3):
+                message = "📝 Study Tip: " + random.choice(STUDY_TIPS)
+            else:
+                message = "💬 Motivation: " + random.choice(INSPIRATIONAL_QUOTES)
+
+            st.markdown(
+                f"""
+                <div style="
+                    background:#b388ff;
+                    border-left: 7px solid #8d4de8;
+                    color:#181135;
+                    padding:18px 20px;
+                    border-radius:14px;
+                    margin:10px 0 18px 0;
+                    box-shadow: 0 3px 12px rgba(0,0,0,0.13);
+                    font-weight: 500;">
+                    <b>Level {user_level}:</b> Rank #{rank} out of {total_students} students
+                    <div style="margin-top:10px;font-size:1.02em;">{message}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                f"""
+                <div style='margin-top:8px;'>
+                    <b>Your Progress:</b> {completed} / {total_possible} assignments
+                    <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                        <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
+            completed = df_assign[
+                (df_assign['studentcode'].str.lower() == student_code.lower()) &
+                (df_assign['level'] == user_level)
+            ]['assignment'].nunique()
+            total_possible = totals.get(user_level, 0)
+            progress_pct = (completed / total_possible) * 100 if total_possible else 0
+            if completed > 0:
+                st.markdown(
+                    f"""
+                    <div style='margin-top:8px;'>
+                        <b>Your Progress:</b> {completed} / {total_possible} assignments
+                        <div style="background:#f1f0fa;width:100%;height:16px;border-radius:8px;overflow:hidden;">
+                            <div style="background:#7e57c2;height:16px;width:{progress_pct:.2f}%;border-radius:8px;"></div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.info("Start submitting assignments to see your progress bar here!")
+
+
+    st.divider()
+
+    # -------------------- (Tabs come after this) --------------------
+    tab = st.radio(
+        "How do you want to practice?",
+        [
+            "Dashboard",
+            "My Course",
+            "My Results and Resources",
+            "Exams Mode & Custom Chat",
+            "Vocab Trainer",
+            "Schreiben Trainer",
+        ],
+        key="main_tab_select"
+    )
+
+
+if tab == "Dashboard":
+    # --- Helper to avoid AttributeError on any row type ---
+    def safe_get(row, key, default=""):
+        # mapping-style
+        try:
+            return row.get(key, default)
+        except Exception:
+            pass
+        # attribute-style
+        try:
+            return getattr(row, key, default)
+        except Exception:
+            pass
+        # index/key access
+        try:
+            return row[key]
+        except Exception:
+            return default
+
+    # --- Ensure student_row is something we can call safe_get() on ---
+    if not student_row:
+        st.info("🚩 No student selected.")
+        st.stop()
+    # (no need to convert to dict—safe_get covers all cases)
+
+    # --- Student Info & Balance | Compact Card, Info-Bar Style ---
+    name = safe_get(student_row, "Name")
+    info_html = f"""
+    <div style='
+        background:#f0f4ff;
+        border:1.6px solid #1976d2;
+        border-radius:12px;
+        padding:11px 13px 8px 13px;
+        margin-bottom:13px;
+        box-shadow:0 2px 8px rgba(44,106,221,0.07);
+        font-size:1.09em;
+        color:#17325e;
+        font-family: "Segoe UI", "Arial", sans-serif;
+        letter-spacing:0.01em;
+    '>
+        <div style="font-weight:700;font-size:1.18em;margin-bottom:2px;">
+            👤 {name}
+        </div>
+        <div style="font-size:1em;">
+            <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
+            <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
+            <b>Status:</b> {safe_get(student_row, 'Status', '')}
+        </div>
+        <div style="font-size:1em;">
+            <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
+            <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
+            <b>Location:</b> {safe_get(student_row, 'Location', '')}
+        </div>
+        <div style="font-size:1em;">
+            <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
+            <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
+        </div>
+    </div>
+    """
+    st.markdown(info_html, unsafe_allow_html=True)
+    try:
+        bal = float(safe_get(student_row, "Balance", 0))
+        if bal > 0:
+            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
+    except Exception:
+        pass
+
+
+    # ==== CLASS SCHEDULES DICTIONARY ====
+    GROUP_SCHEDULES = {
+        "A1 Munich Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "6:00pm–7:00pm",
+            "start_date": "2025-07-08",
+            "end_date": "2025-09-02",
+            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+        },
+        "A1 Berlin Klasse": {
+            "days": ["Thursday", "Friday", "Saturday"],
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+            "start_date": "2025-06-14",
+            "end_date": "2025-08-09",
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+        },
+        "A1 Koln Klasse": {
+            "days": ["Thursday", "Friday", "Saturday"],
+            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+            "start_date": "2025-08-15",
+            "end_date": "2025-10-11",
+            "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
+        },
+        "A2 Munich Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "2025-06-24",
+            "end_date": "2025-08-26",
+            "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
+        },
+        "A2 Berlin Klasse": {
+            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+            "start_date": "",
+            "end_date": "",
+            "doc_url": ""
+        },
+        "A2 Koln Klasse": {
+            "days": ["Wednesday", "Thursday", "Friday"],
+            "time": "11:00am–12:00pm",
+            "start_date": "2025-08-06",
+            "end_date": "2025-10-08",
+            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
+        },
+        "B1 Munich Klasse": {
+            "days": ["Thursday", "Friday"],
+            "time": "7:30pm–9:00pm",
+            "start_date": "2025-08-07",
+            "end_date": "2025-11-07",
+            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+        },
+        "B2 Munich Klasse": {
+            "days": ["Friday", "Saturday"],
+            "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
+            "start_date": "2025-08-08",
+            "end_date": "2025-10-08",
+            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
+        },
+    }
+
+    # ==== SHOW UPCOMING CLASSES CARD ====
+    from datetime import datetime, timedelta
+
+    # use safe_get instead of direct .get()
+    class_name = str(safe_get(student_row, "ClassName", "")).strip()
+    class_schedule = GROUP_SCHEDULES.get(class_name)
+    week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    if not class_name or not class_schedule:
+        st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
+    else:
+        days = class_schedule.get("days", [])
+        time_str = class_schedule.get("time", "")
+        start_dt = class_schedule.get("start_date", "")
+        end_dt = class_schedule.get("end_date", "")
+        doc_url = class_schedule.get("doc_url", "")
+
+        # parse dates safely
+        today = datetime.today().date()
+        start_date_obj = None
+        end_date_obj = None
+        try:
+            if start_dt:
+                start_date_obj = datetime.strptime(start_dt, "%Y-%m-%d").date()
+        except Exception:
+            start_date_obj = None
+        try:
+            if end_dt:
+                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+        except Exception:
+            end_date_obj = None
+
+        before_start = bool(start_date_obj and today < start_date_obj)
+        after_end = bool(end_date_obj and today > end_date_obj)
+
+        # map day names → indices
+        day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
+
+        # helper to get upcoming sessions from a reference date (inclusive)
+        def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
+            results = []
+            if not weekday_indices:
+                return results
+            check_date = from_date
+            while len(results) < limit:
+                if end_date and check_date > end_date:
+                    break
+                if check_date.weekday() in weekday_indices:
+                    results.append(check_date)
+                check_date += timedelta(days=1)
+            return results
+
+        # determine upcoming sessions depending on stage
+        if before_start and start_date_obj:
+            upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
+        elif after_end:
+            upcoming_sessions = []
+        else:
+            # course in progress (include today if it matches)
+            upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
+
+        # render based on status
+        if after_end:
+            end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
+            st.error(
+                f"❌ Your class ({class_name}) ended on {end_str}. "
+                "Please contact the office for next steps."
+            )
+        else:
+            # build status / countdown bar
+            bar_html = ""
+            if before_start and start_date_obj:
+                days_until = (start_date_obj - today).days
+                label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+      <div style="margin-bottom:4px;">{label}</div>
+      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+        <div style="width:3%; background:#1976d2; height:100%;"></div>
+      </div>
+    </div>
+    """
+            elif start_date_obj and end_date_obj:
+                total_days = (end_date_obj - start_date_obj).days + 1
+                elapsed = max(0, (today - start_date_obj).days + 1) if today >= start_date_obj else 0
+                remaining = max(0, (end_date_obj - today).days)
+                percent = int((elapsed / total_days) * 100) if total_days > 0 else 100
+                percent = min(100, max(0, percent))
+                label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+      <div style="margin-bottom:4px;">{label}</div>
+      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+        <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
+      </div>
+      <div style="margin-top:2px; font-size:0.75em;">
+        Progress: {percent}% (started {elapsed} of {total_days} days)
+      </div>
+    </div>
+    """
+            else:
+                bar_html = f"""
+    <div style="margin-top:8px; font-size:0.85em;">
+      <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+    </div>
+    """
+
+            # upcoming session list
+            if upcoming_sessions:
+                list_items = []
+                for session_date in upcoming_sessions:
+                    weekday_name = week_days[session_date.weekday()]
+                    display_date = session_date.strftime("%d %b")
+                    list_items.append(
+                        f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
+                        f"<span style='color:#1976d2;'>{display_date}</span> "
+                        f"<span style='color:#333;'>{time_str}</span></li>"
+                    )
+                session_items_html = "<ul style=\"padding-left:16px; margin:9px 0 0 0;\">" + "".join(list_items) + "</ul>"
+            else:
+                session_items_html = '<span style="color:#c62828;">No upcoming sessions in the visible window.</span>'
+
+            period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
+
+            st.markdown(
+                f"""
+    <div style='border:2px solid #17617a; border-radius:14px;
+                padding:13px 11px; margin-bottom:13px;
+                background:#eaf6fb; font-size:1.15em;
+                line-height:1.65; color:#232323;'>
+      <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+      {session_items_html}
+      {bar_html}
+      <div style="font-size:0.98em; margin-top:6px;">
+        <b>Course period:</b> {period_str}
+      </div>
+      {f'<a href="{doc_url}" target="_blank" '
+        f'style="font-size:1em;color:#17617a;'
+        f'text-decoration:underline;margin-top:6px;'
+        f'display:inline-block;">📄 View/download full class schedule</a>'
+        if doc_url else ''}
+    </div>
+    """,
+                unsafe_allow_html=True,
+            )
+
+    # --- Goethe Exam Countdown & Video of the Day (per level) ---
+    GOETHE_EXAM_DATES = {
+        "A1": (date(2025, 10, 13), 2850, None),
+        "A2": (date(2025, 10, 14), 2400, None),
+        "B1": (date(2025, 10, 15), 2750, 880),
+        "B2": (date(2025, 10, 16), 2500, 840),
+        "C1": (date(2025, 10, 17), 2450, 700),
+    }
+    level = (student_row.get("Level", "") or "").upper().replace(" ", "")
+    exam_info = GOETHE_EXAM_DATES.get(level)
+
+    st.subheader("⏳ Goethe Exam Countdown & Video of the Day")
+    if exam_info:
+        exam_date, fee, module_fee = exam_info
+        days_to_exam = (exam_date - date.today()).days
+        fee_text = f"**Fee:** ₵{fee:,}"
+        if module_fee:
+            fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
+        if days_to_exam > 0:
+            st.info(
+                f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                f"{fee_text}  \n"
+                "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
+            )
+        elif days_to_exam == 0:
+            st.success("🚀 Exam is today! Good luck!")
+        else:
+            st.error(
+                f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                f"{fee_text}"
+            )
+
+        # ---- Per-level YouTube Playlist ----
+        playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
+        if playlist_id:
+            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+            if video_list:
+                today_idx = date.today().toordinal()
+                pick = today_idx % len(video_list)
+                video = video_list[pick]
+                st.markdown(f"**🎬 Video of the Day for {level}: {video['title']}**")
+                st.video(video['url'])
+            else:
+                st.info("No videos found for your level’s playlist. Check back soon!")
+        else:
+            st.info("No playlist found for your level yet. Stay tuned!")
+    else:
+        st.warning("No exam date configured for your level.")
+
+    # --- Reviews Section ---
+    import datetime
+
+
+    st.markdown("### 🗣️ What Our Students Say")
+    reviews = load_reviews()   # <-- assumes this returns a DataFrame with 'review_text', 'student_name', 'rating' columns
+
+    if reviews.empty:
+        st.info("No reviews yet. Be the first to share your experience!")
+    else:
+        rev_list = reviews.to_dict("records")
+        # Pick one review per day using today's date
+        today_idx = datetime.date.today().toordinal() % len(rev_list)
+        r = rev_list[today_idx]
+        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        st.markdown(
+            f"> {r.get('review_text','')}\n"
+            f"> — **{r.get('student_name','')}**  \n"
+            f"> {stars}"
+        )
 
 def get_a1_schedule():
     return [
