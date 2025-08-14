@@ -328,6 +328,8 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
 
 # ==== YOUTUBE PLAYLIST HELPERS ====
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
@@ -609,6 +611,206 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
+GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
+REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+
+
+def _handle_google_oauth(code: str, state: str) -> None:
+    df = load_student_data()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    try:
+        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
+            st.error("OAuth state mismatch. Please try again."); return
+        if st.session_state.get("_oauth_code_redeemed") == code:
+            return
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }
+        resp = requests.post(token_url, data=data, timeout=10)
+        if not resp.ok:
+            st.error(f"Google login failed: {resp.status_code} {resp.text}"); return
+        access_token = resp.json().get("access_token")
+        if not access_token:
+            st.error("Google login failed: no access token."); return
+        st.session_state["_oauth_code_redeemed"] = code
+        userinfo = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
+        ).json()
+        email = (userinfo.get("email") or "").lower().strip()
+        match = df[df["Email"] == email]
+        if match.empty:
+            st.error("No student account found for that Google email."); return
+        student_row = match.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Contact the office."); return
+        ua_hash = st.session_state.get("__ua_hash", "")
+        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": student_row.to_dict(),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"],
+            "session_token": sess_token,
+        })
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        _persist_session_client(sess_token, student_row["StudentCode"])
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        qp_clear()
+        st.success(f"Welcome, {student_row['Name']}!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Google OAuth error: {e}")
+
+
+def render_google_oauth():
+    import secrets, urllib.parse
+
+    def _qp_first(val):
+        return val[0] if isinstance(val, list) else val
+
+    qp = qp_get()
+    code = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
+    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
+    if code:
+        _handle_google_oauth(code, state)
+        return
+    st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "prompt": "select_account",
+        "state": st.session_state["_oauth_state"],
+        "include_granted_scopes": "true",
+        "access_type": "online",
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    st.markdown(
+        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+                <a href="{url}">
+                    <button aria-label="Sign in with Google"
+                            style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                        Sign in with Google
+                    </button>
+                </a>
+           </div>""".replace("{url}", auth_url),
+        unsafe_allow_html=True,
+    )
+
+
+def render_login_form():
+    with st.form("login_form", clear_on_submit=False):
+        login_id = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2)." ).strip().lower()
+        login_pass = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Log In")
+    if not login_btn:
+        return
+    df = load_student_data()
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+    if lookup.empty:
+        st.error("No matching student code or email found."); return
+    student_row = lookup.iloc[0]
+    if is_contract_expired(student_row):
+        st.error("Your contract has expired. Contact the office."); return
+    doc_ref = db.collection("students").document(student_row["StudentCode"])
+    doc = doc_ref.get()
+    if not doc.exists:
+        st.error("Account not found. Please use 'Sign Up (Approved)' first."); return
+    data = doc.to_dict() or {}
+    stored_pw = data.get("password", "")
+    is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
+    try:
+        ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
+        if ok and not is_hash:
+            new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            doc_ref.update({"password": new_hash})
+    except Exception:
+        ok = False
+    if not ok:
+        st.error("Incorrect password."); return
+    ua_hash = st.session_state.get("__ua_hash", "")
+    sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": dict(student_row),
+        "student_code": student_row["StudentCode"],
+        "student_name": student_row["Name"],
+        "session_token": sess_token,
+    })
+    set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+    _persist_session_client(sess_token, student_row["StudentCode"])
+    set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+    st.success(f"Welcome, {student_row['Name']}!")
+    st.rerun()
+
+
+def render_signup_form():
+    with st.form("signup_form", clear_on_submit=False):
+        new_name = st.text_input("Full Name", key="ca_name")
+        new_email = st.text_input(
+            "Email (must match teacher’s record)",
+            help="Use the school email your tutor added to the roster.",
+            key="ca_email",
+        ).strip().lower()
+        new_code = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code").strip().lower()
+        new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
+        signup_btn = st.form_submit_button("Create Account")
+    if not signup_btn:
+        return
+    if not (new_name and new_email and new_code and new_password):
+        st.error("Please fill in all fields."); return
+    if len(new_password) < 8:
+        st.error("Password must be at least 8 characters."); return
+    df = load_student_data()
+    df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+    df["Email"] = df["Email"].str.lower().str.strip()
+    valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
+    if valid.empty:
+        st.error("Your code/email aren’t registered. Use 'Request Access' first."); return
+    doc_ref = db.collection("students").document(new_code)
+    if doc_ref.get().exists:
+        st.error("An account with this student code already exists. Please log in instead."); return
+    hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
+    st.success("Account created! Please log in on the Returning tab.")
+
+
+def render_reviews():
+    REVIEWS = [
+        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
+        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
+        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
+        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
+    ]
+    _reviews_html = """
+    <div class="page-wrap" style="max-width:900px;margin-top:20px;">
+      <div id="reviews" style="position:relative;height:270px;overflow:hidden;border-radius:10px;border:1px solid #ddd;background:#fff;padding:24px 16px;">
+        <blockquote id="rev_quote" style="font-size:1.05em;line-height:1.4;margin:0;"></blockquote>
+        <div id="rev_author" style="margin-top:12px;font-weight:bold;color:#1e293b;"></div>
+        <div id="rev_level" style="color:#475569;"></div>
+      </div>
+    </div>
+    <script>
+      const r=__DATA__,q=document.getElementById('rev_quote'),a=document.getElementById('rev_author'),l=document.getElementById('rev_level');
+      let i=0;function show(){const c=r[i];q.textContent='"'+c.quote+'"';a.textContent=c.author;l.textContent='Level '+c.level}
+      function next(){i=(i+1)%r.length;show()}
+      const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(!reduced){setInterval(next,6000)}show();
+    </script>
+    """
+    _reviews_json = json.dumps(REVIEWS)
+    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=320, scrolling=True)
+
 def login_page():
 
     # Optional container width helper (safe if you already defined it in global CSS)
@@ -708,293 +910,17 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Rotating multi-country reviews (with flags) ---
-    REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
-         "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
-         "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
-         "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.",
-         "author": "Kossi — Lomé, Togo 🇹🇬", "level": "B1"},
-        {"quote": "Exactly what I needed for B2 writing — detailed, actionable feedback every time.",
-         "author": "Lea — Berlin, Germany 🇩🇪", "level": "B2"},
-        {"quote": "Solid grammar explanations and lots of practice. My confidence improved fast.",
-         "author": "Sipho — Johannesburg, South Africa 🇿🇦", "level": "A2"},
-        {"quote": "Great structure for busy schedules. I can study, submit, and track results easily.",
-         "author": "Nadia — Windhoek, Namibia 🇳🇦", "level": "B1"},
-    ]
-    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-    _reviews_html = """
-<div class="page-wrap" role="region" aria-label="Student reviews" style="margin-top:10px;">
-  <div id="rev-quote" style="
-      background:#f8fafc;border-left:4px solid #6366f1;padding:12px 14px;border-radius:10px;
-      color:#475569;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.45;">
-    Loading…
-  </div>
-  <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;">
-    <button id="rev-prev" aria-label="Previous review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">‹</button>
-    <div id="rev-dots" aria-hidden="true" style="display:flex;gap:6px;"></div>
-    <button id="rev-next" aria-label="Next review" style="background:#0ea5e9;color:#fff;border:none;border-radius:10px;padding:6px 10px;cursor:pointer;">›</button>
-  </div>
-</div>
-<script>
-  const data = __DATA__;
-  let i = 0;
-  const quoteEl = document.getElementById('rev-quote');
-  const dotsEl  = document.getElementById('rev-dots');
-  const prevBtn = document.getElementById('rev-prev');
-  const nextBtn = document.getElementById('rev-next');
+    render_reviews()
 
-  function renderDots(){
-    dotsEl.innerHTML = '';
-    data.forEach((_, idx) => {
-      const d = document.createElement('button');
-      d.setAttribute('aria-label', 'Go to review ' + (idx + 1));
-      d.style.width = '10px'; d.style.height = '10px'; d.style.borderRadius = '999px';
-      d.style.border = 'none'; d.style.cursor = 'pointer';
-      d.style.background = (idx === i) ? '#6366f1' : '#c7d2fe';
-      d.addEventListener('click', () => { i = idx; render(); });
-      dotsEl.appendChild(d);
-    });
-  }
-
-  function render(){
-    const r = data[i];
-    // Use <span> wrappers to keep style consistent and allow wrapping.
-    quoteEl.innerHTML = '“' + r.quote + '” — <i>' + r.author + ' · ' + r.level + '</i>';
-    renderDots();
-  }
-
-  function next(){ i = (i + 1) % data.length; render(); }
-  function prev(){ i = (i - 1 + data.length) % data.length; render(); }
-
-  prevBtn.addEventListener('click', prev);
-  nextBtn.addEventListener('click', next);
-
-  // Auto-rotate unless user prefers reduced motion
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reduced) { setInterval(next, 6000); }
-
-  // Initial render
-  render();
-</script>
-"""
-    # Increased height + allow scroll if content ever exceeds (safest + simplest in Streamlit)
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=320, scrolling=True)
-
-
-    # --- Google OAuth (Optional) ---
-    GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
-    GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
-    REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
-
-    def _qp_first(val):
-        if isinstance(val, list): return val[0]
-        return val
-
-    def do_google_oauth():
-        import secrets, urllib.parse
-        st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
-        params = {
-            "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": REDIRECT_URI,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "prompt": "select_account",
-            "state": st.session_state["_oauth_state"],
-            "include_granted_scopes": "true",
-            "access_type": "online",
-        }
-        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-        st.markdown(
-            """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                    <a href="{url}">
-                        <button aria-label="Sign in with Google"
-                                style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                            Sign in with Google
-                        </button>
-                    </a>
-               </div>""".replace("{url}", auth_url),
-            unsafe_allow_html=True
-        )
-
-    def handle_google_login():
-        qp = qp_get()
-        code  = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
-        state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
-        if not code: return False
-        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again."); return False
-        if st.session_state.get("_oauth_code_redeemed") == code:
-            return False
-
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code"
-        }
-        try:
-            resp = requests.post(token_url, data=data, timeout=10)
-            if not resp.ok:
-                st.error(f"Google login failed: {resp.status_code} {resp.text}"); return False
-            tokens = resp.json()
-            access_token = tokens.get("access_token")
-            if not access_token:
-                st.error("Google login failed: no access token."); return False
-            st.session_state["_oauth_code_redeemed"] = code
-
-            userinfo = requests.get(
-                "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=10
-            ).json()
-            email = (userinfo.get("email") or "").lower().strip()
-            if not email:
-                st.error("Google login failed: no email returned."); return False
-
-            df = load_student_data()
-            df["Email"] = df["Email"].str.lower().str.strip()
-            match = df[df["Email"] == email]
-            if match.empty:
-                st.error("No student account found for that Google email."); return False
-
-            student_row = match.iloc[0]
-            if is_contract_expired(student_row):
-                st.error("Your contract has expired. Contact the office."); return False
-
-            ua_hash = st.session_state.get("__ua_hash", "")
-            sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-
-            st.session_state.update({
-                "logged_in": True,
-                "student_row": student_row.to_dict(),
-                "student_code": student_row["StudentCode"],
-                "student_name": student_row["Name"],
-                "session_token": sess_token,
-            })
-            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-            _persist_session_client(sess_token, student_row["StudentCode"])
-            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
-
-            qp_clear()
-            st.success(f"Welcome, {student_row['Name']}!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Google OAuth error: {e}")
-        return False
-
-    if handle_google_login():
-        st.stop()
-
-    # Tabs: Returning / Sign Up (Approved) / Request Access
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
-    # --- Returning ---
     with tab1:
-        do_google_oauth()
+        render_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        with st.form("login_form", clear_on_submit=False):
-            login_id_input   = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).")
-            login_pass_input = st.text_input("Password", type="password")
-            login_btn        = st.form_submit_button("Log In")
+        render_login_form()
 
-        if login_btn:
-            login_id   = (login_id_input or "").strip().lower()
-            login_pass = (login_pass_input or "")
-            df = load_student_data()
-            df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-            df["Email"]       = df["Email"].str.lower().str.strip()
-            lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-
-            if lookup.empty:
-                st.error("No matching student code or email found.")
-            else:
-                student_row = lookup.iloc[0]
-                if is_contract_expired(student_row):
-                    st.error("Your contract has expired. Contact the office.")
-                else:
-                    doc_ref = db.collection("students").document(student_row["StudentCode"])
-                    doc     = doc_ref.get()
-                    if not doc.exists:
-                        st.error("Account not found. Please use 'Sign Up (Approved)' first.")
-                    else:
-                        data      = doc.to_dict() or {}
-                        stored_pw = data.get("password", "")
-
-                        def _is_bcrypt_hash(s: str) -> bool:
-                            return isinstance(s, str) and s.startswith(("$2a$", "$2b$", "$2y$")) and len(s) >= 60
-
-                        ok = False
-                        try:
-                            if _is_bcrypt_hash(stored_pw):
-                                ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
-                            else:
-                                ok = (stored_pw == login_pass)
-                                if ok:
-                                    new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                                    doc_ref.update({"password": new_hash})
-                        except Exception:
-                            ok = False
-
-                        if not ok:
-                            st.error("Incorrect password.")
-                        else:
-                            ua_hash = st.session_state.get("__ua_hash", "")
-                            sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-
-                            st.session_state.update({
-                                "logged_in":   True,
-                                "student_row": dict(student_row),
-                                "student_code": student_row["StudentCode"],
-                                "student_name": student_row["Name"],
-                                "session_token": sess_token,
-                            })
-                            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-                            _persist_session_client(sess_token, student_row["StudentCode"])
-                            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
-
-                            st.success(f"Welcome, {student_row['Name']}!")
-                            st.rerun()
-
-    # --- Sign Up (Approved students — already on roster, no account yet) ---
     with tab2:
-        with st.form("signup_form", clear_on_submit=False):
-            new_name_input     = st.text_input("Full Name", key="ca_name")
-            new_email_input    = st.text_input("Email (must match teacher’s record)", help="Use the school email your tutor added to the roster.", key="ca_email")
-            new_code_input     = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code")
-            new_password_input = st.text_input("Choose a Password", type="password", key="ca_pass")
-            signup_btn         = st.form_submit_button("Create Account")
-
-        if signup_btn:
-            new_name     = (new_name_input or "").strip()
-            new_email    = (new_email_input or "").strip().lower()
-            new_code     = (new_code_input or "").strip().lower()
-            new_password = (new_password_input or "")
-
-            if not (new_name and new_email and new_code and new_password):
-                st.error("Please fill in all fields.")
-            elif len(new_password) < 8:
-                st.error("Password must be at least 8 characters.")
-            else:
-                df = load_student_data()
-                df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-                df["Email"]       = df["Email"].str.lower().str.strip()
-                valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
-                if valid.empty:
-                    st.error("Your code/email aren’t registered. Use 'Request Access' first.")
-                else:
-                    doc_ref = db.collection("students").document(new_code)
-                    if doc_ref.get().exists:
-                        st.error("An account with this student code already exists. Please log in instead.")
-                    else:
-                        hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                        doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
-                        st.success("Account created! Please log in on the Returning tab.")
+        render_signup_form()
 
     # --- Request Access ---
     with tab3:
@@ -1253,7 +1179,6 @@ if st.button("Log out"):
         st.session_state[k] = v
 
     st.stop()
-
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
