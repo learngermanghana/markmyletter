@@ -1434,7 +1434,6 @@ _inject_meta_tags()
 # ===================== LOGOUT HANDLING (with visible errors) =====================
 if _logout_clicked:
     from datetime import datetime, timedelta
-
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
@@ -1455,7 +1454,6 @@ if _logout_clicked:
     except Exception as e:
         st.error(f"Logout failed (delete cookies): {e}")
 
-    # clear LS + strip OAuth params in browser
     components.html(
         """
         <script>
@@ -1490,10 +1488,9 @@ if _logout_clicked:
 
     st.stop()
 
+
 # ===================== DATA LOADERS & HELPERS =====================
-import pandas as pd
-import random
-from datetime import datetime, timedelta, date
+
 
 @st.cache_data
 def load_assignment_scores():
