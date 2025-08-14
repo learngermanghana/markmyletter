@@ -1124,11 +1124,20 @@ if not st.session_state.get("logged_in", False):
     login_page()
 
 # --- Logged In UI ---
-st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+col1, col2 = st.columns([0.85, 0.15])
+with col1:
+    st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+with col2:
+    st.markdown(
+        "<div style='display:flex; justify-content:flex-end;'>",
+        unsafe_allow_html=True,
+    )
+    _logout_clicked = st.button("Log out")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 _inject_meta_tags()
 
-if st.button("Log out"):
+if _logout_clicked:
     try:
         tok = st.session_state.get("session_token", "")
         if tok: destroy_session_token(tok)
