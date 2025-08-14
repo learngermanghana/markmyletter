@@ -2239,6 +2239,76 @@ if tab == "Dashboard":
                     f"(**{_ce_date:%d %b %Y}**). Extension costs **₵{EXT_FEE:,}/month**."
                 )
         # If contract end is further out, we stay silent per policy.
+
+    # ---------- Always-visible Contract Alert (cannot be missed) ----------
+    from datetime import datetime as _dt
+
+    # Fallback date parser if app helpers aren’t injected
+    def _fallback_parse_date(_s):
+        for _f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return _dt.strptime(str(_s).strip(), _f)
+            except Exception:
+                pass
+        return None
+
+    _parse_end = (
+        globals().get("parse_contract_end_fn")
+        or globals().get("parse_contract_end")
+        or _fallback_parse_date
+    )
+
+    _today = _dt.today().date()
+    _ce_raw = _parse_end(safe_get(student_row, "ContractEnd", ""))
+    _ce_date = _ce_raw.date() if hasattr(_ce_raw, "date") else _ce_raw
+
+    # Mobile-friendly, readable alert styles
+    st.markdown("""
+    <style>
+      .contract-alert { border-radius:12px; padding:12px 14px; margin:8px 0 10px 0; font-weight:600; }
+      .ca-warn { background:#fff7ed; color:#7c2d12; border:1px solid #fed7aa; }
+      .ca-err  { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+      .ca-text { font-size:1rem; line-height:1.55; }
+      .ca-cta  { margin-top:6px; font-size:.95rem; }
+      @media (max-width:640px){
+        .contract-alert{ padding:10px 12px; }
+        .ca-text{ font-size:1.02rem; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if _ce_date:
+        _days_left = (_ce_date - _today).days
+        _student_code = str(safe_get(student_row, "StudentCode", "") or "").strip().lower()
+        _alert_key = f"hide_contract_alert:{_student_code}:{_ce_date.isoformat()}:{_today.isoformat()}"
+        _ext_fee = 1000
+
+        if not st.session_state.get(_alert_key, False):
+            if _days_left < 0:
+                _msg = (
+                    f"⚠️ <b>Your contract ended on {_ce_date:%d %b %Y}.</b> "
+                    f"To continue, extension costs <b>₵{_ext_fee:,}/month</b>."
+                )
+                _cls = "ca-err"
+            elif _days_left <= 14:
+                _msg = (
+                    f"⏰ <b>Your contract ends in {_days_left} day{'s' if _days_left != 1 else ''} "
+                    f"({_ce_date:%d %b %Y}).</b> Extension costs <b>₵{_ext_fee:,}/month</b>."
+                )
+                _cls = "ca-warn"
+            else:
+                _msg = ""
+                _cls = ""
+
+            if _msg:
+                st.markdown(
+                    f"<div class='contract-alert {_cls}'><div class='ca-text'>{_msg}</div></div>",
+                    unsafe_allow_html=True
+                )
+                # Dismiss for today (so students can acknowledge but can't claim they never saw it)
+                if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code}"):
+                    st.session_state[_alert_key] = True
+                    st.rerun()
 #
 
 
