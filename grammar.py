@@ -2135,64 +2135,54 @@ if tab == "Dashboard":
     except Exception:
         pass
 
-    # ---------- Payment reminder (ONLY when balance>0 and due/past or schedule unknown) ----------
-    first_due = None
-    for k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
-        v = str(safe_get(student_row, k, "") or "").strip()
-        if v:
-            cs = parse_contract_start_fn(v)
-            if cs:
-                first_due = add_months_fn(cs, 1)
+    # ---- Payment chip: show if balance > 0 and (overdue, due today, or heads-up starts 15 days after contract start) ----
+    try:
+        _balance = float(str(safe_get(student_row, "Balance", 0)).strip())
+    except Exception:
+        _balance = 0.0
+
+    _cs = None
+    _first_due = None
+    for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
+        _s = str(safe_get(student_row, _k, "") or "").strip()
+        if _s:
+            _cs = parse_contract_start_fn(_s)
+            if _cs:
+                _first_due = add_months_fn(_cs, 1)
+        if _first_due:
             break
 
-    show_payment_ui = False
-    payment_title_extra = ""
-    payment_notice_level = "info"
-    payment_msg = ""
-    overdue_days = 0
+    payment_chip_html = ""
+    payment_title_suffix = ""   # can be appended to the Payments expander title later
 
-    try:
-        balance = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
-    except Exception:
-        balance = 0.0
+    if _balance > 0:
+        if _first_due:
+            _delta = (_first_due.date() - today_dt.date()).days
+            _pre_start = (_cs + _td(days=15)).date() if _cs else None
 
-    if balance > 0:
-        if first_due:
-            delta_days = (first_due.date() - today_dt.date()).days
-            if delta_days < 0:
-                show_payment_ui = True
-                overdue_days = -delta_days
-                payment_notice_level = "error"
-                payment_title_extra = f"• overdue {overdue_days}d"
-                payment_msg = (
-                    f"💸 **Overdue by {overdue_days} days.** "
-                    f"Amount due: **₵{balance:,.2f}**. First due: {first_due:%d %b %Y}."
+            if _delta < 0:
+                # Overdue
+                payment_chip_html = (
+                    f"<span class='chip chip-red'>💸 Overdue {abs(_delta)}d — ₵{_balance:,.2f} "
+                    f"(first due {_first_due:%d %b %Y})</span>"
                 )
-            elif delta_days == 0:
-                show_payment_ui = True
-                payment_notice_level = "warning"
-                payment_title_extra = "• due today"
-                payment_msg = (
-                    f"💳 Payment due **today** ({first_due:%d %b %Y}). "
-                    f"Amount due: **₵{balance:,.2f}**."
+                payment_title_suffix = f" • overdue {abs(_delta)}d"
+            elif _delta == 0:
+                # Due today
+                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
+                payment_title_suffix = " • due today"
+            elif _pre_start and today_dt.date() >= _pre_start:
+                # Heads-up window (from day 15 after contract start until the due date)
+                payment_chip_html = (
+                    f"<span class='chip chip-amber'>⏳ Due in {_delta}d — ₵{_balance:,.2f}</span>"
                 )
+                payment_title_suffix = f" • due in {_delta}d"
+            # else: Not in heads-up yet → no chip
         else:
-            show_payment_ui = True
-            payment_notice_level = "info"
-            payment_title_extra = "• schedule unknown"
-            payment_msg = (
-                "ℹ️ You have an outstanding balance, but we couldn't read your contract start date "
-                "to compute the first payment date. Please contact the office."
-            )
-
-    if show_payment_ui:
-        with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
-            if payment_notice_level == "error":
-                st.error(payment_msg)
-            elif payment_notice_level == "warning":
-                st.warning(payment_msg)
-            else:
-                st.info(payment_msg)
+            # Balance > 0 but we can't read contract start
+            payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
+            payment_title_suffix = " • schedule unknown"
+#
 
     # ---------- Contract reminder (ONLY ≤14 days left, or ended) ----------
     EXTENSION_FEE = 1000
