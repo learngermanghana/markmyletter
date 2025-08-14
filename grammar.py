@@ -1710,10 +1710,15 @@ def parse_contract_start(date_str: str):
     return parse_contract_end(date_str)
 
 def add_months(dt: datetime, n: int) -> datetime:
+    """
+    Add n calendar months to dt, clamping the day to the last day of the target month.
+    """
     y = dt.year + (dt.month - 1 + n) // 12
     m = (dt.month - 1 + n) % 12 + 1
-    d = min(dt.day, monthrange(y, m)[1])
+    last_day = calendar.monthrange(y, m)[1]   # <-- fully qualified, no NameError
+    d = min(dt.day, last_day)
     return dt.replace(year=y, month=m, day=d)
+
 
 def months_between(start_dt: datetime, end_dt: datetime) -> int:
     months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
