@@ -1057,13 +1057,13 @@ def login_page():
         </div>
       </div>
     """, unsafe_allow_html=True)
-
     # Short explainer: which option to use
     st.markdown("""
     <style>
       .option-box{
         background:#f8fafc;
         border:1px solid #e2e8f0;
+        border-left:5px solid #2563eb; /* Brand blue accent */
         border-radius:12px;
         padding:18px 20px;
         display:grid;
@@ -1088,6 +1088,7 @@ def login_page():
         .option-box{
           background:#1e293b;
           border-color:#334155;
+          border-left-color:#3b82f6; /* Slightly brighter blue for dark mode */
           color:#e2e8f0;
         }
         .option-box b{color:#f1f5f9;}
@@ -1113,6 +1114,9 @@ def login_page():
     """, unsafe_allow_html=True)
 #
 
+    )
+    tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
+#
     with tab1:
         render_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
