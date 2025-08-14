@@ -1847,22 +1847,6 @@ def parse_contract_end(date_str):
         except ValueError: continue
     return None
 
-import re as _re
-
-def _read_money(val) -> float:
-    """Robustly parse currency-like strings to float. Handles '₵1,000', 'GHS 2000', etc."""
-    s = str(val or "").strip()
-    if not s:
-        return 0.0
-    # normalize common currency marks and thousand separators
-    s = s.replace(",", "").replace("₵", "").replace("GHS", "").replace("GHC", "")
-    # keep only digits, minus, and dot (defensive)
-    s = _re.sub(r"[^\d\.\-]", "", s)
-    try:
-        return float(s)
-    except Exception:
-        return 0.0
-
 
 @st.cache_data
 def load_reviews():
@@ -1964,66 +1948,207 @@ if tab == "Dashboard":
     render_announcements(announcements)
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # ---------- 2) Status bar chips (payment + contract) ----------
-    MONTHLY_EXTENSION_FEE = 1000
-    today_dt = datetime.today()
+            # ===================== Payment reminder widgets (copy-paste) =====================
 
-    # Payment chip (only when balance>0 and due today/overdue, or schedule unknown)
-    try:
-        _balance = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
-    except Exception:
-        _balance = 0.0
+        from datetime import datetime, date, timedelta
+        import re
 
-    _first_due = None
-    for _k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
-        _s = str(safe_get(student_row, _k, "") or "").strip()
-        if _s:
-            _cs = parse_contract_start_fn(_s)
-            if _cs:
-                _first_due = add_months_fn(_cs, 1)
-            break
+        def render_payment_widgets(student_row, *, currency="₵", today_dt=None):
+            """
+            Renders:
+              1) A compact top chip showing only if the student OWES (due today / overdue).
+              2) A 'Payments …' expander with details when shown.
 
-    payment_chip_html = ""
-    payment_title_suffix = ""
+            Policy (default):
+              - If balance <= 0       -> show nothing.
+              - If balance > 0:
+                  * If first_due is today -> amber 'Due today' chip + expander.
+                  * If first_due is past  -> red 'Overdue' chip + expander.
+                  * If first_due is future-> show nothing (strict policy).
+              - Optional: enable heads-up window for future due dates with HEADS_UP_ENABLED.
 
-    if _balance > 0:
-        if _first_due:
-            _delta = (_first_due.date() - today_dt.date()).days
-            if _delta < 0:
-                payment_chip_html = (
-                    f"<span class='chip chip-red'>💸 Overdue {abs(_delta)}d — ₵{_balance:,.2f} "
-                    f"(first due {_first_due:%d %b %Y})</span>"
+            Usage (inside Dashboard):
+              chip_html, title_suffix = render_payment_widgets(student_row)
+              if chip_html: st.markdown(chip_html, unsafe_allow_html=True)
+            """
+            import streamlit as st  # local import to avoid global coupling
+
+            # ---------------- Config toggles ----------------
+            HEADS_UP_ENABLED = True          # set True to show a neutral chip before due date
+            HEADS_UP_MIN_DAYS_BEFORE_DUE = 7  # show heads-up when due in [7..15] days
+            HEADS_UP_MAX_DAYS_BEFORE_DUE = 15
+            HEADS_UP_AFTER_START_DAYS = 15    # only show heads-up starting 15 days after contract start
+
+            # -------------- Safe helpers (no external deps) --------------
+            def _safe_get(row, key, default=""):
+                try:
+                    return row.get(key, default)
+                except Exception:
+                    pass
+                try:
+                    return getattr(row, key, default)
+                except Exception:
+                    pass
+                try:
+                    return row[key]
+                except Exception:
+                    return default
+
+            def _read_money(x) -> float:
+                """Robust money reader: handles '1,200', '₵ 1.200,50', spaces, etc."""
+                if x is None:
+                    return 0.0
+                s = str(x).strip()
+                if not s:
+                    return 0.0
+                # keep digits, dots, commas, minus
+                s = re.sub(r"[^\d,.\-]", "", s)
+                # if both comma and dot present, assume comma is thousands
+                if "," in s and "." in s:
+                    s = s.replace(",", "")
+                else:
+                    # if only comma present, assume it's a decimal point for EU style "123,45"
+                    if "," in s and "." not in s:
+                        s = s.replace(",", ".")
+                try:
+                    return float(s)
+                except Exception:
+                    return 0.0
+
+            # Fallback parsers if not injected elsewhere
+            def _fallback_parse_date(s):
+                if not s:
+                    return None
+                for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
+                    try:
+                        return datetime.strptime(str(s).strip(), fmt)
+                    except Exception:
+                        continue
+                return None
+
+            def _fallback_add_months(dt_in, n):
+                import calendar as _cal
+                y = dt_in.year + (dt_in.month - 1 + n) // 12
+                m = (dt_in.month - 1 + n) % 12 + 1
+                d = min(dt_in.day, _cal.monthrange(y, m)[1])
+                return dt_in.replace(year=y, month=m, day=d)
+
+            # Prefer injected app-level helpers if present
+            parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
+            add_months_fn           = globals().get("add_months",           _fallback_add_months)
+
+            # Normalize "today" to a date
+            if isinstance(today_dt, datetime):
+                _today = today_dt.date()
+            elif isinstance(today_dt, date):
+                _today = today_dt
+            else:
+                _today = datetime.today().date()
+
+            # ---------------- Read inputs ----------------
+            balance = _read_money(_safe_get(student_row, "Balance", 0))
+
+            # contract start -> first due = start + 1 month
+            cs = None
+            for k in ("ContractStart", "StartDate", "ContractBegin", "Start", "Begin"):
+                v = str(_safe_get(student_row, k, "") or "").strip()
+                if not v:
+                    continue
+                cs = parse_contract_start_fn(v)
+                if cs:
+                    break
+
+            first_due = add_months_fn(cs, 1) if cs else None  # datetime
+            first_due_date = first_due.date() if first_due else None
+
+            # ---------------- Decide what to show ----------------
+            chip_html = ""
+            title_suffix = ""      # appended to "Payments …" expander title
+            show_expander = False  # show details only when we show a chip (owes by default)
+            msg = ""
+            level = "info"         # error | warning | info
+
+            if balance <= 0:
+                # Paid up or zero: strict policy shows nothing.
+                return "", ""
+
+            if first_due_date:
+                days_to_due = (first_due_date - _today).days
+
+                if days_to_due < 0:
+                    # Overdue
+                    overdue_days = abs(days_to_due)
+                    chip_html = (
+                        f"<div class='statusbar'>"
+                        f"<span class='chip chip-red'>💸 Overdue {overdue_days}d — {currency}{balance:,.2f} "
+                        f"(first due {first_due:%d %b %Y})</span>"
+                        f"</div>"
+                    )
+                    title_suffix = f" • overdue {overdue_days}d"
+                    msg = (
+                        f"💸 **Overdue by {overdue_days} day{'s' if overdue_days != 1 else ''}.** "
+                        f"Amount due: **{currency}{balance:,.2f}**. First due: {first_due:%d %b %Y}."
+                    )
+                    level = "error"
+                    show_expander = True
+
+                elif days_to_due == 0:
+                    # Due today
+                    chip_html = (
+                        f"<div class='statusbar'>"
+                        f"<span class='chip chip-amber'>⏳ Due today — {currency}{balance:,.2f}</span>"
+                        f"</div>"
+                    )
+                    title_suffix = " • due today"
+                    msg = f"💳 Payment due **today** ({first_due:%d %b %Y}). Amount due: **{currency}{balance:,.2f}**."
+                    level = "warning"
+                    show_expander = True
+
+                else:
+                    # Future due → strict policy: no chip. (Heads-up optional below)
+                    if False:  # HEADS_UP_ENABLED (kept literal False to avoid accidental enable in nested scope)
+                        if 7 <= days_to_due <= 15:  # HEADS_UP_MIN_DAYS_BEFORE_DUE .. MAX
+                            if cs and _today >= (cs.date() + timedelta(days=15)):  # HEADS_UP_AFTER_START_DAYS
+                                chip_html = (
+                                    f"<div class='statusbar'>"
+                                    f"<span class='chip chip-blue'>📅 Next payment due in {days_to_due}d "
+                                    f"({first_due:%d %b %Y})</span>"
+                                    f"</div>"
+                                )
+                                title_suffix = f" • due in {days_to_due}d"
+                                # No expander in heads-up to keep it subtle
+                                show_expander = False
+
+            else:
+                # Balance > 0 but no readable start date → schedule unknown (neutral)
+                chip_html = (
+                    "<div class='statusbar'>"
+                    "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
+                    "</div>"
                 )
-                payment_title_suffix = f" • overdue {abs(_delta)}d"
-            elif _delta == 0:
-                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
-                payment_title_suffix = " • due today"
-            # if > 0: not due yet → no chip
-        else:
-            payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
-            payment_title_suffix = " • schedule unknown"
+                title_suffix = " • schedule unknown"
+                msg = (
+                    "ℹ️ You have an outstanding balance, but we couldn't read your contract start date "
+                    "to compute the first payment date. Please contact the office."
+                )
+                level = "info"
+                show_expander = True
 
-    # Contract chip (<=14 days left or ended)
-    contract_chip_html = ""
-    _ce = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
-    if _ce:
-        _ce_date = _ce.date() if hasattr(_ce, "date") else _ce
-        _days_left = (_ce_date - today_dt.date()).days
-        if _days_left < 0:
-            contract_chip_html = (
-                f"<span class='chip chip-red'>⚠️ Contract ended ({_ce_date:%d %b %Y}) — "
-                f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
-            )
-        elif _days_left <= 14:
-            contract_chip_html = (
-                f"<span class='chip chip-amber'>⏰ Ends in {_days_left}d ({_ce_date:%d %b %Y}) — "
-                f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
-            )
+            # ---------------- Render expander (only when needed) ----------------
+            if show_expander:
+                with st.expander(f"💳 Payments{title_suffix}", expanded=False):
+                    if level == "error":
+                        st.error(msg)
+                    elif level == "warning":
+                        st.warning(msg)
+                    else:
+                        st.info(msg)
 
-    chips_html = " ".join([x for x in [payment_chip_html, contract_chip_html] if x]).strip()
-    if chips_html:
-        st.markdown(f"<div class='statusbar'>{chips_html}</div>", unsafe_allow_html=True)
+            return chip_html, title_suffix
 
+        # ===================== /Payment reminder widgets =====================
+
+    
     # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     _df_assign = load_assignment_scores()
