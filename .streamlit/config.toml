@@ -1,1 +1,43 @@
+[theme]
+base = "light"       # or "dark"
+primaryColor = "#25317e"
+backgroundColor = "#f3f7fb"
+secondaryBackgroundColor = "#eef3fc"
+textColor = "#1a2340"
+font = "sans serif"
 
+[ui]
+customTheme = true   # enables the user theme switcher
+
+[server]
+head = """
+  <title>Falowen – Your German Conversation Partner</title>
+  <meta name="description" content="Falowen is your all-in-one German learning platform, powered by Learn Language Education Academy. Track streaks, submit assignments, watch lectures, practice vocab & Schreiben, and more.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    /* Reduce section spacing */
+    .block-container {
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+    }
+
+    /* Tighten widget spacing */
+    .stMarkdown, .stTextInput, .stButton {
+      margin-top: 0.25rem !important;
+      margin-bottom: 0.25rem !important;
+    }
+
+    /* Adjust header margins */
+    h1, h2, h3, h4 {
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Limit max content width for better readability */
+    .main .block-container {
+      max-width: 900px;
+      margin: auto;
+    }
+  </style>
+"""
