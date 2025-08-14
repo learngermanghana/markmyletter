@@ -1,5 +1,5 @@
 [theme]
-base = "light"      
+base = "light"       # or "dark"
 primaryColor = "#25317e"
 backgroundColor = "#f3f7fb"
 secondaryBackgroundColor = "#eef3fc"
@@ -8,45 +8,11 @@ font = "sans serif"
 
 [ui]
 customTheme = true   # enables the user theme switcher
+
 [server]
+# These lines will be injected into your HTML <head>
 head = """
   <title>Falowen – Your German Conversation Partner</title>
   <meta name="description" content="Falowen is your all-in-one German learning platform, powered by Learn Language Education Academy. Track streaks, submit assignments, watch lectures, practice vocab & Schreiben, and more.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <style>
-    /* ===== Minimal / Dense layout ===== */
-
-    /* Tighter canvas & consistent max width */
-    .main .block-container {
-      padding: 0.6rem !important;     /* both axes */
-      max-width: 880px;   /* 760–920px is a sweet spot */
-      margin: 0 auto !important;      /* center without extra top/bottom space */
-    }
-    [data-testid="stAppViewContainer"] .main .block-container > div:first-child { margin-top: 0.2rem !important; }
-    [data-testid="stAppViewContainer"] .main .block-container > div:last-child  { margin-bottom: 0.2rem !important; }
-
-    /* Global type compaction */
-    html, body, .stMarkdown, .stTextInput, .stSelectbox, .stMultiSelect, .stNumberInput,
-    .stDateInput, .stTextArea, .stSlider, .stColorPicker {
-      line-height: 1.25;
-    }
-
-    /* Headings: crisp, low-margin */
-    h1, h2, h3, h4, h5, h6 {
-      margin: 0.35rem 0 0.35rem 0;
-      line-height: 1.15;
-      letter-spacing: -0.01em;
-    }
-
-    /* Paragraphs & lists: trim top/bottom space */
-    .stMarkdown p,
-    .stMarkdown ul, .stMarkdown ol {
-      margin-top: 0.25rem;
-      margin-bottom: 0.25rem;
-    }
-    .stMarkdown li { margin: 0.12rem 0; }
-
-    /* Widgets: remove extra outer margins */
-    [data-testid="stWidgetLabel"] { margin-bottom: 0.15rem; }
-    .stTextInput, .stTextArea, .stNumberInput, .stDateInput,
+"""
