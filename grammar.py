@@ -1428,78 +1428,46 @@ def login_page():
 
     st.stop()
 
-
-if not st.session_state.get("logged_in", False):
-    login_page()
-
-# ===========================================
-# ---------- Logged-in Header + Logout -------
-# ===========================================
-# Default so it's always defined before we read it
-_logout_clicked = False
-
-# Compact header + logout button
+# ========== Logged-in Header + Logout (single click, no double taps) ==========
+# Compact header CSS
 st.markdown("""
 <style>
   .post-login-header { margin-top:0; margin-bottom:4px; }
-  /* tighten everything a bit */
   .block-container { padding-top: 0.6rem !important; }
-  /* shrink expander gaps */
   div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
-  /* compact notif banner */
   .your-notifs { margin: 4px 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
-col1, col2 = st.columns([0.85, 0.15])
-with col1:
-    st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
-with col2:
-    st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-    _logout_clicked = st.button("Log out")
-    st.markdown("</div>", unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
+def _do_logout():
+    """Revoke token, clear cookies & session, then rerun immediately."""
+    from datetime import datetime, timedelta
 
-# ---- Logout handling (with visible errors so issues surface) ----
-if _logout_clicked:
+    # 1) Server-side token revocation (tolerate failures gracefully)
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
-            destroy_session_token(tok)  # your server-side revocation
+            destroy_session_token(tok)
     except Exception as e:
-        st.error(f"Logout failed (destroy token): {e}")
+        st.warning(f"Logout warning (destroy token): {e}")
 
+    # 2) Expire cookies if cookie_manager is available
     try:
-        # expire cookies (requires your cookie_manager + helpers)
-        set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-        set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
+        if "cookie_manager" in globals():
+            expires_past = datetime.utcnow() - timedelta(seconds=1)
+            try:
+                set_student_code_cookie(cookie_manager, "", expires=expires_past)
+                set_session_token_cookie(cookie_manager, "", expires=expires_past)
+            except Exception:
+                # If your helpers aren't available, fall back to direct delete
+                pass
+            cookie_manager.delete("student_code")
+            cookie_manager.delete("session_token")
+            cookie_manager.save()
     except Exception as e:
-        st.error(f"Logout failed (expire cookies): {e}")
+        st.warning(f"Logout warning (cookies): {e}")
 
-    try:
-        cookie_manager.delete("student_code")
-        cookie_manager.delete("session_token")
-        cookie_manager.save()
-    except Exception as e:
-        st.error(f"Logout failed (delete cookies): {e}")
-
-    # clear browser storage + strip OAuth params, then hard reload
-    components.html("""
-      <script>
-        (function(){
-          try {
-            localStorage.removeItem('student_code');
-            localStorage.removeItem('session_token');
-            const u = new URL(window.location);
-            ['code','state'].forEach(k => u.searchParams.delete(k));
-            window.history.replaceState({}, '', u);
-            window.location.reload();
-          } catch(e){}
-        })();
-      </script>
-    """, height=0)
-
+    # 3) Clear session_state keys
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1514,6 +1482,23 @@ if _logout_clicked:
     }.items():
         st.session_state[k] = v
 
+    # 4) Immediate rerun so the guard below kicks in this same click
+    st.rerun()
+
+# Header with logout button (callback handles everything)
+st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
+col1, col2 = st.columns([0.85, 0.15])
+with col1:
+    st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
+with col2:
+    st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
+    st.button("Log out", key="logout_btn", on_click=_do_logout)
+    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ---------- Login guard (placed AFTER logout so one click works) ----------
+if not st.session_state.get("logged_in", False):
+    login_page()
     st.stop()
 
 
