@@ -1427,14 +1427,54 @@ def login_page():
 
     st.stop()
 
-
+# ===================== PREAMBLE / META =====================
 # Keep your meta tag injection as before
 _inject_meta_tags()
 
-# default so it's always defined
+# ---- Imports used below (safe even if already imported above) ----
+import streamlit as st
+import pandas as pd
+import random
+from datetime import datetime, date, timedelta
+import json
+import streamlit.components.v1 as components
+
+# default so it's always defined (prevents NameError before the button is created)
 _logout_clicked = False
 
-# --- Logged In UI ---
+
+# ===================== AUTH GATE =====================
+if not st.session_state.get("logged_in", False):
+    login_page()
+    st.stop()  # nothing below runs if not logged in
+
+
+# ===================== ANNOUNCEMENTS (define → render) =====================
+# If you already defined render_announcements() earlier in your file, this will just use it.
+# (The version below assumes you used the secure anchor creation in JS.)
+announcements = [
+    {
+        "title": "A2 Mock Exam this Saturday",
+        "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
+        "tag":   "Exam",
+        "href":  "https://www.learngermanghana.com/upcoming-classes",
+    },
+    {
+        "title": "System Update",
+        "body":  "Course Book uploads are now 2× faster. Report issues to support.",
+        "tag":   "System",
+    },
+    {
+        "title": "New B1 Writing Pack",
+        "body":  "Practice letters + opinions with 10 model answers.",
+        "tag":   "B1",
+        "href":  "https://www.learngermanghana.com/resources",
+    },
+]
+render_announcements(announcements)
+
+
+# ===================== WELCOME HEADER + LOGOUT BUTTON =====================
 st.markdown(
     """
     <style>
@@ -1459,7 +1499,6 @@ st.markdown("</div>", unsafe_allow_html=True)
 
 # ===================== LOGOUT HANDLING (with visible errors) =====================
 if _logout_clicked:
-    from datetime import datetime, timedelta
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
@@ -1516,8 +1555,6 @@ if _logout_clicked:
 
 
 # ===================== DATA LOADERS & HELPERS =====================
-
-
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
@@ -1586,11 +1623,7 @@ def get_vocab_of_the_day(df: pd.DataFrame, level: str):
 
     idx = date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
-    return {
-        "german": row.get("german", ""),
-        "english": row.get("english", ""),
-        "example": row.get("example", ""),
-    }
+    return {"german": row.get("german", ""), "english": row.get("english", ""), "example": row.get("example", "")}
 
 def parse_contract_end(date_str):
     if not date_str or str(date_str).lower() in ("nan", "none", ""):
@@ -1626,12 +1659,13 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
         months -= 1
     return months
 
-# ===================== DASHBOARD DATA & PANELS =====================
+
+# ===================== DASHBOARD DATA & PANELS (above the tabs) =====================
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
 
-    # Load student info
+    # Load student info (expects your existing helper)
     df_students = load_student_data()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
@@ -1741,7 +1775,7 @@ if st.session_state.get("logged_in"):
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
     urgent_assignments = goal_left > 0 and (today.weekday() >= 5)
 
-    # ----- BELL -----
+    # ----- NOTIFICATIONS HEADER -----
     bell_color = "#333"
     st.markdown(
         f"""
@@ -1807,7 +1841,6 @@ if st.session_state.get("logged_in"):
             st.error(contract_msg)
         else:
             st.info(contract_msg)
-
         st.info(
             f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
             "Do your best to complete your course on time to avoid extra fees!"
@@ -1889,14 +1922,14 @@ if st.session_state.get("logged_in"):
                 "Teach someone else what you learned to remember it better!",
                 "If you make a mistake, that’s good! Mistakes are proof you are learning.",
                 "Don’t just read—say your answers aloud for better memory.",
-                "Review your old assignments to see how far you’ve come!"
+                "Review your old assignments to see how far you’ve come!",
             ]
             INSPIRATIONAL_QUOTES = [
                 "“The secret of getting ahead is getting started.” – Mark Twain",
                 "“Success is the sum of small efforts repeated day in and day out.” – Robert Collier",
                 "“It always seems impossible until it’s done.” – Nelson Mandela",
                 "“The expert in anything was once a beginner.” – Helen Hayes",
-                "“Learning never exhausts the mind.” – Leonardo da Vinci"
+                "“Learning never exhausts the mind.” – Leonardo da Vinci",
             ]
             rotate = random.randint(0, 3)
             if rotate == 0:
@@ -1983,6 +2016,7 @@ if st.session_state.get("logged_in"):
         ],
         key="main_tab_select",
     )
+
 
 # ===================== DASHBOARD CONTENT =====================
 if tab == "Dashboard":
@@ -2180,15 +2214,14 @@ if tab == "Dashboard":
                 remaining = max(0, (end_date_obj - today_d).days)
                 percent = int((elapsed / total_days) * 100) if total_days > 0 else 100
                 percent = min(100, max(0, percent))
-                label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
                 bar_html = f"""
                 <div style="margin-top:8px; font-size:0.85em;">
-                  <div style="margin-bottom:4px;">{label}</div>
+                  <div style="margin-bottom:4px;">{remaining} day{'s' if remaining != 1 else ''} remaining in course</div>
                   <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
                     <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
                   </div>
                   <div style="margin-top:2px; font-size:0.75em;">
-                    Progress: {percent}% (started {elapsed} of {total_days} days)
+                    Progress: {percent}% (started {max(0, (today_d - start_date_obj).days + 1) if start_date_obj else 0} of {total_days} days)
                   </div>
                 </div>
                 """
@@ -2303,6 +2336,7 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
+
 
 
 def get_a1_schedule():
