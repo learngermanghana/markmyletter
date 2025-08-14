@@ -1516,10 +1516,17 @@ if _logout_clicked:
 
     st.stop()
 
+# ======== Imports ========
 import json
+import calendar
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+from datetime import datetime, date, timedelta
 
+# =========================================================
+# ============= Announcements (mobile-friendly) ===========
+# =========================================================
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with mobile-first, light card on phones."""
     if not ANNOUNCEMENTS:
@@ -1712,27 +1719,50 @@ def render_announcements(ANNOUNCEMENTS: list):
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
     components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
 
+
+# Optional: extra style injector for status chips & mini-cards if you want to reuse elsewhere
 def inject_notice_css():
     st.markdown("""
     <style>
-      /* ---- Theme tokens for the notification card ---- */
       :root{
-        --n-bg:#fff9f2;      /* light, warm background */
-        --n-border:#fed7aa;  /* soft amber border */
-        --n-text:#7c2d12;    /* dark amber text */
+        --chip-border: rgba(148,163,184,.35);
       }
-      /* Even in dark mode, keep the card light for readability on phones */
       @media (prefers-color-scheme: dark){
         :root{
-          --n-bg:#fff4e5;
-          --n-border:#f5b97a;
-          --n-text:#5a2507;
+          --chip-border: rgba(148,163,184,.28);
         }
       }
+      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
+              border:1px solid var(--chip-border); mix-blend-mode: normal; }
+      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
 
-      /* Compact utility to*
+      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
+      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
+                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
+      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
+      .minicard .sub { color:#475569; font-size:.92rem; }
+
+      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
+      .pill-green { background:#e6ffed; color:#0a7f33; }
+      .pill-purple { background:#efe9ff; color:#5b21b6; }
+      .pill-amber { background:#fff7ed; color:#7c2d12; }
+
+      @media (max-width: 640px){
+        .chip{ padding:7px 10px; font-size:.95rem; }
+        .minicard{ padding:11px; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
 
 
+# =========================================================
+# ================== Demo data for announcements ==========
+# =========================================================
 announcements = [
     {"title": "A2 Mock Exam this Saturday",
      "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
@@ -1747,9 +1777,9 @@ announcements = [
      "href":  "https://www.learngermanghana.com/resources"},
 ]
 
-# ===========================================
-# ---------- Data loaders & helpers ---------
-# ===========================================
+# =========================================================
+# ============== Data loaders & helpers ===================
+# =========================================================
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
@@ -1830,130 +1860,61 @@ def add_months(dt: datetime, n: int) -> datetime:
     """
     y = dt.year + (dt.month - 1 + n) // 12
     m = (dt.month - 1 + n) % 12 + 1
-    last_day = calendar.monthrange(y, m)[1]   # <-- fully qualified, no NameError
+    last_day = calendar.monthrange(y, m)[1]
     d = min(dt.day, last_day)
     return dt.replace(year=y, month=m, day=d)
-
 
 def months_between(start_dt: datetime, end_dt: datetime) -> int:
     months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
     if end_dt.day < start_dt.day: months -= 1
     return months
 
-# ===========================================
-# --------------- Tabs ----------------------
-# ===========================================
+# =========================================================
+# ===================== Tabs UI ===========================
+# =========================================================
 tab = st.radio(
     "How do you want to practice?",
     ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"],
     key="main_tab_select"
 )
 
+# =========================================================
+# ===================== Dashboard =========================
+# =========================================================
 if tab == "Dashboard":
-    import pandas as pd
-    import streamlit as st
-    from datetime import datetime as _dt, date as _date, timedelta as _td
-
-    # ---------- helpers ----------
+    # ---------- Helpers ----------
     def safe_get(row, key, default=""):
-        # mapping-style
-        try:
-            return row.get(key, default)
-        except Exception:
-            pass
-        # attribute-style
-        try:
-            return getattr(row, key, default)
-        except Exception:
-            pass
-        # index/key access
-        try:
-            return row[key]
-        except Exception:
-            return default
+        try: return row.get(key, default)
+        except Exception: pass
+        try: return getattr(row, key, default)
+        except Exception: pass
+        try: return row[key]
+        except Exception: return default
 
     # Fallback parsers if globals not present
     def _fallback_parse_date(s):
         fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
         for f in fmts:
-            try:
-                return _dt.strptime(str(s).strip(), f)
-            except Exception:
-                pass
+            try: return datetime.strptime(str(s).strip(), f)
+            except Exception: pass
         return None
 
     def _fallback_add_months(dt, n):
-        import calendar as _cal
         y = dt.year + (dt.month - 1 + n) // 12
         m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, _cal.monthrange(y, m)[1])
+        d = min(dt.day, calendar.monthrange(y, m)[1])
         return dt.replace(year=y, month=m, day=d)
 
-    # Use globals if provided elsewhere, otherwise fall back safely
     parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
     parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
     add_months_fn           = globals().get("add_months",           _fallback_add_months)
 
-    # ---------- MOBILE/THEME FIXES (makes cards readable on phones) ----------
-    st.markdown("""
-    <style>
-      /* Force readable light cards for Announcements + Status on phones and dark mode */
-      :root{
-        --ann-bg:#ffffff; --ann-border:rgba(148,163,184,.30); --ann-text:#0f172a; --ann-muted:#475569;
-        --chip-border: rgba(148,163,184,.35);
-      }
-      @media (prefers-color-scheme: dark){
-        :root{
-          --ann-bg:#ffffff; --ann-border:rgba(148,163,184,.30); --ann-text:#0b1020; --ann-muted:#334155;
-          --chip-border: rgba(148,163,184,.28);
-        }
-      }
-      /* Override the announcement shell from render_announcements() */
-      .ann-shell{
-        background: var(--ann-bg) !important;
-        color: var(--ann-text) !important;
-        border: 1px solid var(--ann-border) !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,.06) !important;
-        isolation:isolate; mix-blend-mode: normal;
-      }
-      .ann-title, .ann-heading, .ann-body { color: var(--ann-text) !important; }
-      .ann-body { color: var(--ann-muted) !important; }
-      .ann-chip{ border-color: var(--ann-border) !important; }
+    # Global styles for chips & mini-cards
+    inject_notice_css()
 
-      /* Status bar / chips */
-      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
-      .chip { display:inline-flex; align-items:center; gap:8px;
-              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
-              border:1px solid var(--chip-border); mix-blend-mode: normal; }
-      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
-      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
-
-      /* Mini-cards */
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
-      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
-                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber { background:#fff7ed; color:#7c2d12; }
-
-      /* Mobile adjustments */
-      @media (max-width: 640px){
-        .ann-shell{ padding:12px !important; border-radius:12px !important; }
-        .chip{ padding:7px 10px; font-size:.95rem; }
-        .minicard{ padding:11px; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ---------- ensure student_row exists ----------
+    # ---------- Ensure we have a student row ----------
     load_student_data_fn = globals().get("load_student_data")
     if load_student_data_fn is None:
-        # minimal empty frame fallback to avoid crashes
         def load_student_data_fn():
             return pd.DataFrame(columns=["StudentCode"])
 
@@ -1969,36 +1930,29 @@ if tab == "Dashboard":
         except Exception:
             pass
 
-    # fallback to session_state copy if available
-    if (not student_row) and isinstance(st.session_state.get("student_row"), dict):
-        if st.session_state["student_row"]:
-            student_row = st.session_state["student_row"]
+    if (not student_row) and isinstance(st.session_state.get("student_row"), dict) and st.session_state["student_row"]:
+        student_row = st.session_state["student_row"]
 
-    # tiny spacer to keep UI tight
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
 
-    # ========== 1) ANNOUNCEMENTS (top of Dashboard) ==========
-    # Make sure render_announcements() and `announcements` are defined earlier in the file.
+    # ---------- 1) Announcements (top) ----------
     render_announcements(announcements)
-    # Tight spacer (keeps it close to the next section)
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # ===== ALWAYS-VISIBLE STATUS BAR (Payment + Contract) =====
+    # ---------- 2) Status bar chips (payment + contract) ----------
     MONTHLY_EXTENSION_FEE = 1000
-    today_dt = _dt.today()
+    today_dt = datetime.today()
 
-    # ---- Payment chip: only show if balance > 0 and (due today or overdue or schedule unknown)
-    # Read balance safely
+    # Payment chip (only when balance>0 and due today/overdue, or schedule unknown)
     try:
-        _balance = float(str(safe_get(student_row, "Balance", 0)).strip())
+        _balance = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
     except Exception:
         _balance = 0.0
 
-    # Compute first_due = 1 month after contract start
     _first_due = None
     for _k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
         _s = str(safe_get(student_row, _k, "") or "").strip()
@@ -2009,35 +1963,29 @@ if tab == "Dashboard":
             break
 
     payment_chip_html = ""
-    payment_title_suffix = ""   # you can append this to your expander title if you keep it
+    payment_title_suffix = ""
 
     if _balance > 0:
         if _first_due:
             _delta = (_first_due.date() - today_dt.date()).days
             if _delta < 0:
-                # overdue
                 payment_chip_html = (
-                    f"<span class='chip chip-red'>💸 Overdue {_delta*-1}d — ₵{_balance:,.2f} "
+                    f"<span class='chip chip-red'>💸 Overdue {abs(_delta)}d — ₵{_balance:,.2f} "
                     f"(first due {_first_due:%d %b %Y})</span>"
                 )
                 payment_title_suffix = f" • overdue {abs(_delta)}d"
             elif _delta == 0:
-                # due today
-                payment_chip_html = (
-                    f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
-                )
+                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
                 payment_title_suffix = " • due today"
-            # if _delta > 0 → not due yet → no chip at top
+            # if > 0: not due yet → no chip
         else:
-            # balance > 0 but no readable start date
             payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
             payment_title_suffix = " • schedule unknown"
 
-    # ---- Contract chip: show if ends in ≤14 days or already ended
+    # Contract chip (<=14 days left or ended)
     contract_chip_html = ""
     _ce = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
     if _ce:
-        # _ce may be datetime or date; normalize
         _ce_date = _ce.date() if hasattr(_ce, "date") else _ce
         _days_left = (_ce_date - today_dt.date()).days
         if _days_left < 0:
@@ -2051,21 +1999,11 @@ if tab == "Dashboard":
                 f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
             )
 
-    # Render the status bar if we have at least one chip
-    _chips = " ".join([x for x in [payment_chip_html, contract_chip_html] if x]).strip()
-    if _chips:
-        st.markdown(f"<div class='statusbar'>{_chips}</div>", unsafe_allow_html=True)
+    chips_html = " ".join([x for x in [payment_chip_html, contract_chip_html] if x]).strip()
+    if chips_html:
+        st.markdown(f"<div class='statusbar'>{chips_html}</div>", unsafe_allow_html=True)
 
-    # (Optional) if you still render the detailed Payments expander later,
-    # you can append the small suffix to its title like this:
-    try:
-        payment_title_extra = (payment_title_extra + payment_title_suffix) if payment_title_suffix else payment_title_extra
-    except NameError:
-        # if the variable doesn't exist in your file, ignore safely
-        pass
-
-    # ===== Motivation & Progress (compact, above the fold) =====
-    # Assignment metrics
+    # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     _df_assign = load_assignment_scores()
     _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
@@ -2079,17 +2017,15 @@ if tab == "Dashboard":
         else:
             break
 
-    _monday = _date.today() - _td(days=_date.today().weekday())
+    _monday = date.today() - timedelta(days=date.today().weekday())
     _weekly_goal = 3
     _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
     _goal_left = max(0, _weekly_goal - _submitted_this_week)
 
-    # Vocab of the day
     _level = (safe_get(student_row, "Level", "A1") or "A1").upper().strip()
     _vocab_df = load_full_vocab_sheet()
     _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
 
-    # Leaderboard (compact summary)
     _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
     _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
     _min_assignments = 3
@@ -2103,8 +2039,6 @@ if tab == "Dashboard":
     _df_level['Rank'] = _df_level.index + 1
     _your_row = _df_level[_df_level['studentcode'].str.lower() == _student_code.lower()]
     _total_students = len(_df_level)
-    _totals_map = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    _total_possible = _totals_map.get(_level, 0)
 
     _streak_line = (
         f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
@@ -2154,7 +2088,7 @@ if tab == "Dashboard":
         unsafe_allow_html=True
     )
 
-    # ---------- Student info card (tight spacing) ----------
+    # ---------- Student info card ----------
     name = safe_get(student_row, "Name")
     info_html = f"""
     <div style='
@@ -2189,7 +2123,7 @@ if tab == "Dashboard":
     """
     st.markdown(info_html, unsafe_allow_html=True)
 
-    # quick balance banner (not a reminder—just info)
+    # ---------- Quick balance banner (pure info) ----------
     try:
         bal_val = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
         if bal_val > 0:
@@ -2197,10 +2131,7 @@ if tab == "Dashboard":
     except Exception:
         pass
 
-    # ---------- Payment reminder (ONLY when balance > 0 AND first payment is due/past) ----------
-    today_dt = _dt.today()
-
-    # compute first_due = start + 1 month
+    # ---------- Payment reminder (ONLY when balance>0 and due/past or schedule unknown) ----------
     first_due = None
     for k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
         v = str(safe_get(student_row, k, "") or "").strip()
@@ -2225,7 +2156,6 @@ if tab == "Dashboard":
         if first_due:
             delta_days = (first_due.date() - today_dt.date()).days
             if delta_days < 0:
-                # overdue
                 show_payment_ui = True
                 overdue_days = -delta_days
                 payment_notice_level = "error"
@@ -2235,7 +2165,6 @@ if tab == "Dashboard":
                     f"Amount due: **₵{balance:,.2f}**. First due: {first_due:%d %b %Y}."
                 )
             elif delta_days == 0:
-                # due today
                 show_payment_ui = True
                 payment_notice_level = "warning"
                 payment_title_extra = "• due today"
@@ -2243,9 +2172,7 @@ if tab == "Dashboard":
                     f"💳 Payment due **today** ({first_due:%d %b %Y}). "
                     f"Amount due: **₵{balance:,.2f}**."
                 )
-            # if delta_days > 0 → not due yet → show nothing
         else:
-            # positive balance but no readable start → nudge
             show_payment_ui = True
             payment_notice_level = "info"
             payment_title_extra = "• schedule unknown"
@@ -2263,7 +2190,7 @@ if tab == "Dashboard":
             else:
                 st.info(payment_msg)
 
-    # ---------- Contract reminder (ONLY when ≤ 14 days left, or ended) ----------
+    # ---------- Contract reminder (ONLY ≤14 days left, or ended) ----------
     EXTENSION_FEE = 1000
     contract_end = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
     if contract_end:
@@ -2281,7 +2208,7 @@ if tab == "Dashboard":
                     f"({contract_end:%d %b %Y}). Extension is **₵{EXTENSION_FEE:,}/month**, or try to finish."
                 )
 
-    # ================= CLASS SCHEDULES =================
+    # ---------- Class schedules ----------
     GROUP_SCHEDULES = {
         "A1 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -2341,8 +2268,7 @@ if tab == "Dashboard":
         },
     }
 
-    # ---- Upcoming classes card ----
-    from datetime import datetime, timedelta  # local import ok
+    from datetime import datetime as _dt_local, timedelta as _td_local
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -2356,17 +2282,17 @@ if tab == "Dashboard":
         end_dt = class_schedule.get("end_date", "")
         doc_url = class_schedule.get("doc_url", "")
 
-        today = datetime.today().date()
+        today = _dt_local.today().date()
         start_date_obj = None
         end_date_obj = None
         try:
             if start_dt:
-                start_date_obj = datetime.strptime(start_dt, "%Y-%m-%d").date()
+                start_date_obj = _dt_local.strptime(start_dt, "%Y-%m-%d").date()
         except Exception:
             start_date_obj = None
         try:
             if end_dt:
-                end_date_obj = datetime.strptime(end_dt, "%Y-%m-%d").date()
+                end_date_obj = _dt_local.strptime(end_dt, "%Y-%m-%d").date()
         except Exception:
             end_date_obj = None
 
@@ -2384,7 +2310,7 @@ if tab == "Dashboard":
                     break
                 if check_date.weekday() in weekday_indices:
                     results.append(check_date)
-                check_date += timedelta(days=1)
+                check_date += _td_local(days=1)
             return results
 
         if before_start and start_date_obj:
@@ -2466,7 +2392,6 @@ if tab == "Dashboard":
             )
 
     # ---------- Goethe exam & video ----------
-    from datetime import date
     GOETHE_EXAM_DATES = {
         "A1": (date(2025, 10, 13), 2850, None),
         "A2": (date(2025, 10, 14), 2400, None),
@@ -2539,7 +2464,6 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-
 
 
 def get_a1_schedule():
