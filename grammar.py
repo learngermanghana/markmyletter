@@ -1431,6 +1431,7 @@ def login_page():
 if not st.session_state.get("logged_in", False):
     login_page()
 
+
 # --- Logged In UI ---
 st.markdown(
     """
@@ -1453,157 +1454,162 @@ with col2:
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- Close gap + Announcement Board (between Welcome and dashboard) ---
-    st.markdown("""
+# --- Close gap + Announcement Board (between Welcome and dashboard) ---
+st.markdown(
+    """
     <style>
       .post-login-header { margin-bottom: 4px !important; }
       .dash-top-gap { height: 4px; }
     </style>
     <div class="dash-top-gap"></div>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
-    import json
-    import streamlit.components.v1 as components
+import json
+import streamlit.components.v1 as components
 
-    def render_announcements(ANNOUNCEMENTS: list):
-        """Simple rotating announcement board. Edit ANNOUNCEMENTS below."""
-        if not ANNOUNCEMENTS:
-            return
-        _html = """
-        <style>
-          :root{
-            --brand:#2563eb; --ring:#93c5fd; --text:#0f172a; --muted:#475569;
-            --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985; --link:#1d4ed8;
-          }
-          @media (prefers-color-scheme: dark){
-            :root{
-              --text:#e2e8f0; --muted:#94a3b8; --card:#0b1220;
-              --chip-bg:#1e293b; --chip-fg:#e2e8f0; --link:#60a5fa;
-            }
-          }
-          .page-wrap{max-width:1100px;margin:0 auto;}
-          .ann-title{
-            font-weight:700;font-size:1.05rem;line-height:1.2;
-            padding-left:12px;border-left:5px solid var(--brand);
-            margin: 4px 0 8px 0;
-          }
-          .ann-shell{
-            border-radius:12px;border:1px solid rgba(148,163,184,.25);
-            background:var(--card); box-shadow:0 6px 18px rgba(2,6,23,.06);
-            padding:12px 14px; isolation:isolate; overflow:hidden;
-          }
-          .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 4px 0;font-weight:700;color:var(--text)}
-          .ann-chip{font-size:.72rem;font-weight:700;background:var(--chip-bg);color:var(--chip-fg);
-                    padding:3px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25)}
-          .ann-body{color:var(--muted);margin:0;line-height:1.45}
-          .ann-actions{margin-top:6px}
-          .ann-actions a{color:var(--link);text-decoration:none;font-weight:600}
-          .ann-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}
-          .ann-dot{width:7px;height:7px;border-radius:999px;background:#cbd5e1;opacity:.85;transform:scale(.9);
-                   transition:transform .2s ease, background .2s ease, opacity .2s ease}
-          .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.2);box-shadow:0 0 0 4px var(--ring)}
-          @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-          .ann-anim{animation:fadeInUp .25s ease both}
-          @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-        </style>
+def render_announcements(ANNOUNCEMENTS: list):
+    """Simple rotating announcement board. Edit ANNOUNCEMENTS below."""
+    if not ANNOUNCEMENTS:
+        return
+    _html = """
+    <style>
+      :root{
+        --brand:#2563eb; --ring:#93c5fd; --text:#0f172a; --muted:#475569;
+        --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985; --link:#1d4ed8;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --text:#e2e8f0; --muted:#94a3b8; --card:#0b1220;
+          --chip-bg:#1e293b; --chip-fg:#e2e8f0; --link:#60a5fa;
+        }
+      }
+      .page-wrap{max-width:1100px;margin:0 auto;}
+      .ann-title{
+        font-weight:700;font-size:1.05rem;line-height:1.2;
+        padding-left:12px;border-left:5px solid var(--brand);
+        margin: 4px 0 8px 0;
+      }
+      .ann-shell{
+        border-radius:12px;border:1px solid rgba(148,163,184,.25);
+        background:var(--card); box-shadow:0 6px 18px rgba(2,6,23,.06);
+        padding:12px 14px; isolation:isolate; overflow:hidden;
+      }
+      .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 4px 0;font-weight:700;color:var(--text)}
+      .ann-chip{font-size:.72rem;font-weight:700;background:var(--chip-bg);color:var(--chip-fg);
+                padding:3px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25)}
+      .ann-body{color:var(--muted);margin:0;line-height:1.45}
+      .ann-actions{margin-top:6px}
+      .ann-actions a{color:var(--link);text-decoration:none;font-weight:600}
+      .ann-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}
+      .ann-dot{width:7px;height:7px;border-radius:999px;background:#cbd5e1;opacity:.85;transform:scale(.9);
+               transition:transform .2s ease, background .2s ease, opacity .2s ease}
+      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.2);box-shadow:0 0 0 4px var(--ring)}
+      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      .ann-anim{animation:fadeInUp .25s ease both}
+      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+    </style>
 
-        <div class="page-wrap">
-          <div class="ann-title">📣 Announcement</div>
-          <div class="ann-shell" id="ann_shell" aria-live="polite">
-            <div class="ann-anim" id="ann_card">
-              <div class="ann-heading">
-                <span class="ann-chip" id="ann_tag" style="display:none;"></span>
-                <span id="ann_title"></span>
-              </div>
-              <p class="ann-body" id="ann_body"></p>
-              <div class="ann-actions" id="ann_action" style="display:none;"></div>
-            </div>
-            <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
+    <div class="page-wrap">
+      <div class="ann-title">📣 Announcement</div>
+      <div class="ann-shell" id="ann_shell" aria-live="polite">
+        <div class="ann-anim" id="ann_card">
+          <div class="ann-heading">
+            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
+            <span id="ann_title"></span>
           </div>
+          <p class="ann-body" id="ann_body"></p>
+          <div class="ann-actions" id="ann_action" style="display:none;"></div>
         </div>
+        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
+      </div>
+    </div>
 
-        <script>
-          const data = __DATA__;
-          const titleEl = document.getElementById('ann_title');
-          const bodyEl  = document.getElementById('ann_body');
-          const tagEl   = document.getElementById('ann_tag');
-          const actionEl= document.getElementById('ann_action');
-          const dotsWrap= document.getElementById('ann_dots');
-          const card    = document.getElementById('ann_card');
-          const shell   = document.getElementById('ann_shell');
-          const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    <script>
+      const data = __DATA__;
+      const titleEl = document.getElementById('ann_title');
+      const bodyEl  = document.getElementById('ann_body');
+      const tagEl   = document.getElementById('ann_tag');
+      const actionEl= document.getElementById('ann_action');
+      const dotsWrap= document.getElementById('ann_dots');
+      const card    = document.getElementById('ann_card');
+      const shell   = document.getElementById('ann_shell');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-          let i = 0, timer = null;
-          const INTERVAL = 6500;
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
 
-          function setActiveDot(idx){
-            [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
-          }
-          function render(idx){
-            const c = data[idx] || {};
-            card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-            titleEl.textContent = c.title || '';
-            bodyEl.textContent  = c.body  || '';
-            if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
-            if (c.href){ actionEl.innerHTML='<a href="'+c.href+'" target="_blank" rel="noopener">Open</a>'; actionEl.style.display=''; }
-            else { actionEl.style.display='none'; }
-            setActiveDot(idx);
-          }
-          function next(){ i = (i+1) % data.length; render(i); }
-          function start(){ if (!reduced) timer = setInterval(next, INTERVAL); }
-          function stop(){ if (timer) clearInterval(timer); timer = null; }
-          function restart(){ stop(); start(); }
+      function setActiveDot(idx){
+        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
+      }
+      function render(idx){
+        const c = data[idx] || {};
+        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
+        titleEl.textContent = c.title || '';
+        bodyEl.textContent  = c.body  || '';
+        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
+        if (c.href){ actionEl.innerHTML='<a href="'+c.href+'" target="_blank" rel="noopener">Open</a>'; actionEl.style.display=''; }
+        else { actionEl.style.display='none'; }
+        setActiveDot(idx);
+      }
+      function next(){ i = (i+1) % data.length; render(i); }
+      function start(){ if (!reduced) timer = setInterval(next, INTERVAL); }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
+      function restart(){ stop(); start(); }
 
-          // dots
-          data.forEach((_, idx)=>{
-            const dot = document.createElement('button');
-            dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
-            dot.setAttribute('aria-label','Show announcement '+(idx+1));
-            dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
-            dotsWrap.appendChild(dot);
-          });
+      // dots
+      data.forEach((_, idx)=>{
+        const dot = document.createElement('button');
+        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
+        dot.setAttribute('aria-label','Show announcement '+(idx+1));
+        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
+        dotsWrap.appendChild(dot);
+      });
 
-          shell.addEventListener('mouseenter', stop);
-          shell.addEventListener('mouseleave', start);
-          shell.addEventListener('focusin', stop);
-          shell.addEventListener('focusout', start);
+      shell.addEventListener('mouseenter', stop);
+      shell.addEventListener('mouseleave', start);
+      shell.addEventListener('focusin', stop);
+      shell.addEventListener('focusout', start);
 
-          render(i); start();
-        </script>
-        """
-        data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-        components.html(_html.replace("__DATA__", data_json), height=160, scrolling=False)
+      render(i); start();
+    </script>
+    """
+    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
+    components.html(_html.replace("__DATA__", data_json), height=160, scrolling=False)
 
-    # --- Three starter announcements (edit later) ---
-    announcements = [
-        {
-            "title": "A2 Mock Exam this Saturday",
-            "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
-            "tag":   "Exam",
-            "href":  "https://www.learngermanghana.com/upcoming-classes"
-        },
-        {
-            "title": "System Update",
-            "body":  "Course Book uploads are now 2× faster. Report issues to support.",
-            "tag":   "System"
-        },
-        {
-            "title": "New B1 Writing Pack",
-            "body":  "Practice letters + opinions with 10 model answers.",
-            "tag":   "B1",
-            "href":  "https://www.learngermanghana.com/resources"
-        },
-    ]
-    render_announcements(announcements)
-#
+# --- Three starter announcements (edit later) ---
+announcements = [
+    {
+        "title": "A2 Mock Exam this Saturday",
+        "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
+        "tag":   "Exam",
+        "href":  "https://www.learngermanghana.com/upcoming-classes"
+    },
+    {
+        "title": "System Update",
+        "body":  "Course Book uploads are now 2× faster. Report issues to support.",
+        "tag":   "System"
+    },
+    {
+        "title": "New B1 Writing Pack",
+        "body":  "Practice letters + opinions with 10 model answers.",
+        "tag":   "B1",
+        "href":  "https://www.learngermanghana.com/resources"
+    },
+]
+render_announcements(announcements)
 
+# (continue with the rest of your dashboard sections...)
 
+# Keep your meta tag injection and logout handling below as before:
 _inject_meta_tags()
 
 if _logout_clicked:
     try:
         tok = st.session_state.get("session_token", "")
-        if tok: destroy_session_token(tok)
+        if tok:
+            destroy_session_token(tok)
     except Exception:
         pass
 
@@ -1621,20 +1627,23 @@ if _logout_clicked:
         pass
 
     # clear LS + strip OAuth params
-    components.html("""
-    <script>
-      (function(){
-        try {
-          localStorage.removeItem('student_code');
-          localStorage.removeItem('session_token');
-          const u = new URL(window.location);
-          ['code','state'].forEach(k => u.searchParams.delete(k));
-          window.history.replaceState({}, '', u);
-          window.location.reload();
-        } catch(e){}
-      })();
-    </script>
-    """, height=0)
+    components.html(
+        """
+        <script>
+          (function(){
+            try {
+              localStorage.removeItem('student_code');
+              localStorage.removeItem('session_token');
+              const u = new URL(window.location);
+              ['code','state'].forEach(k => u.searchParams.delete(k));
+              window.history.replaceState({}, '', u);
+              window.location.reload();
+            } catch(e){}
+          })();
+        </script>
+        """,
+        height=0,
+    )
 
     for k, v in {
         "logged_in": False,
@@ -1651,6 +1660,7 @@ if _logout_clicked:
         st.session_state[k] = v
 
     st.stop()
+
     
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
