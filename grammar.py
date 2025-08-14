@@ -1735,7 +1735,11 @@ tab = st.radio(
 )
 
 if tab == "Dashboard":
-    # --- Helper to avoid AttributeError on any row type ---
+    import pandas as pd
+    import streamlit as st
+    from datetime import datetime as _dt, date as _date, timedelta as _td
+
+    # ---------- helpers ----------
     def safe_get(row, key, default=""):
         # mapping-style
         try:
@@ -1753,16 +1757,59 @@ if tab == "Dashboard":
         except Exception:
             return default
 
-    # (Optional) tiny spacer to keep the UI tight (no big divider)
+    # Fallback parsers if globals not present
+    def _fallback_parse_date(s):
+        fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
+        for f in fmts:
+            try:
+                return _dt.strptime(str(s).strip(), f)
+            except Exception:
+                pass
+        return None
+
+    def _fallback_add_months(dt, n):
+        import calendar as _cal
+        y = dt.year + (dt.month - 1 + n) // 12
+        m = (dt.month - 1 + n) % 12 + 1
+        d = min(dt.day, _cal.monthrange(y, m)[1])
+        return dt.replace(year=y, month=m, day=d)
+
+    parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
+    parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
+    add_months_fn           = globals().get("add_months",           _fallback_add_months)
+
+    # ---------- ensure student_row exists ----------
+    load_student_data_fn = globals().get("load_student_data")
+    if load_student_data_fn is None:
+        # minimal empty frame fallback to avoid crashes
+        def load_student_data_fn():
+            return pd.DataFrame(columns=["StudentCode"])
+
+    df_students = load_student_data_fn()
+    student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+
+    student_row = {}
+    if student_code and not df_students.empty and "StudentCode" in df_students.columns:
+        try:
+            matches = df_students[df_students["StudentCode"].astype(str).str.lower() == student_code]
+            if not matches.empty:
+                student_row = matches.iloc[0].to_dict()
+        except Exception:
+            pass
+
+    # fallback to session_state copy if available
+    if (not student_row) and isinstance(st.session_state.get("student_row"), dict):
+        if st.session_state["student_row"]:
+            student_row = st.session_state["student_row"]
+
+    # tiny spacer to keep UI tight
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-    # --- Ensure student_row is something we can call safe_get() on ---
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
-    # (no need to convert to dict—safe_get covers all cases)
 
-    # --- Student Info & Balance | Compact Card, Info-Bar Style ---
+    # ---------- Student info card (tight spacing) ----------
     name = safe_get(student_row, "Name")
     info_html = f"""
     <div style='
@@ -1770,13 +1817,12 @@ if tab == "Dashboard":
         border:1.6px solid #1976d2;
         border-radius:12px;
         padding:11px 13px 8px 13px;
-        margin-bottom:10px;  /* tighter gap */
+        margin-bottom:10px;
         box-shadow:0 2px 8px rgba(44,106,221,0.07);
         font-size:1.09em;
         color:#17325e;
-        font-family: "Segoe UI", "Arial", sans-serif;
-        letter-spacing:0.01em;
-    '>
+        font-family:"Segoe UI","Arial",sans-serif;
+        letter-spacing:.01em;'>
         <div style="font-weight:700;font-size:1.18em;margin-bottom:2px;">
             👤 {name}
         </div>
@@ -1797,33 +1843,17 @@ if tab == "Dashboard":
     </div>
     """
     st.markdown(info_html, unsafe_allow_html=True)
+
+    # quick balance banner (not a reminder—just info)
     try:
-        bal = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
-        if bal > 0:
-            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal:.2f}", unsafe_allow_html=True)
+        bal_val = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
+        if bal_val > 0:
+            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal_val:.2f}", unsafe_allow_html=True)
     except Exception:
         pass
 
-    # ================= Payment reminder (ONLY when balance > 0 AND first payment is due/past) =================
-    from datetime import datetime as _dt, date as _date, timedelta as _td
+    # ---------- Payment reminder (ONLY when balance > 0 AND first payment is due/past) ----------
     today_dt = _dt.today()
-
-    # helpers fallback (in case not in globals)
-    def _fallback_parse_contract_start(s):
-        fmts = ("%Y-%m-%d","%m/%d/%Y","%d.%m.%y","%d/%m/%Y","%d-%m-%Y")
-        for f in fmts:
-            try: return _dt.strptime(str(s).strip(), f)
-            except Exception: pass
-        return None
-    def _fallback_add_months(dt, n):
-        import calendar as _cal
-        y = dt.year + (dt.month - 1 + n) // 12
-        m = (dt.month - 1 + n) % 12 + 1
-        d = min(dt.day, _cal.monthrange(y, m)[1])
-        return dt.replace(year=y, month=m, day=d)
-
-    parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_contract_start)
-    add_months_fn = globals().get("add_months", _fallback_add_months)
 
     # compute first_due = start + 1 month
     first_due = None
@@ -1835,14 +1865,12 @@ if tab == "Dashboard":
                 first_due = add_months_fn(cs, 1)
             break
 
-    # payment UI vars
     show_payment_ui = False
     payment_title_extra = ""
     payment_notice_level = "info"
     payment_msg = ""
     overdue_days = 0
 
-    # balance-driven rule
     try:
         balance = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
     except Exception:
@@ -1890,22 +1918,11 @@ if tab == "Dashboard":
             else:
                 st.info(payment_msg)
 
-    # ================= Contract reminder (ONLY when ≤ 14 days left, or ended) =================
+    # ---------- Contract reminder (ONLY when ≤ 14 days left, or ended) ----------
     EXTENSION_FEE = 1000
-
-    # fallback parse for end date if needed
-    def _fallback_parse_contract_end(s):
-        fmts = ("%Y-%m-%d","%m/%d/%Y","%d.%m.%y","%d/%m/%Y","%d-%m-%Y")
-        for f in fmts:
-            try: return _dt.strptime(str(s).strip(), f)
-            except Exception: pass
-        return None
-    parse_contract_end_fn = globals().get("parse_contract_end", _fallback_parse_contract_end)
-
     contract_end = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
     if contract_end:
         days_left = (contract_end - today_dt).days
-        # Contract & renewal expander appears only when relevant
         if days_left < 0:
             with st.expander("⏰ Contract & Renewal • ended", expanded=False):
                 st.error(
@@ -1919,7 +1936,7 @@ if tab == "Dashboard":
                     f"({contract_end:%d %b %Y}). Extension is **₵{EXTENSION_FEE:,}/month**, or try to finish."
                 )
 
-    # ==== CLASS SCHEDULES DICTIONARY ====
+    # ================= CLASS SCHEDULES =================
     GROUP_SCHEDULES = {
         "A1 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
@@ -1979,10 +1996,8 @@ if tab == "Dashboard":
         },
     }
 
-    # ==== SHOW UPCOMING CLASSES CARD ====
-    from datetime import datetime, timedelta  # local import ok here
-
-    # use safe_get instead of direct .get()
+    # ---- Upcoming classes card ----
+    from datetime import datetime, timedelta  # local import ok
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
     week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -1996,7 +2011,6 @@ if tab == "Dashboard":
         end_dt = class_schedule.get("end_date", "")
         doc_url = class_schedule.get("doc_url", "")
 
-        # parse dates safely
         today = datetime.today().date()
         start_date_obj = None
         end_date_obj = None
@@ -2013,11 +2027,8 @@ if tab == "Dashboard":
 
         before_start = bool(start_date_obj and today < start_date_obj)
         after_end = bool(end_date_obj and today > end_date_obj)
-
-        # map day names → indices
         day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # helper to get upcoming sessions from a reference date (inclusive)
         def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
             results = []
             if not weekday_indices:
@@ -2031,25 +2042,31 @@ if tab == "Dashboard":
                 check_date += timedelta(days=1)
             return results
 
-        # determine upcoming sessions depending on stage
         if before_start and start_date_obj:
             upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
         elif after_end:
             upcoming_sessions = []
         else:
-            # course in progress (include today if it matches)
             upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
 
-        # render based on status
         if after_end:
             end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
-            st.error(
-                f"❌ Your class ({class_name}) ended on {end_str}. "
-                "Please contact the office for next steps."
-            )
+            st.error(f"❌ Your class ({class_name}) ended on {end_str}. Please contact the office for next steps.")
         else:
-            # build status / countdown bar
-            bar_html = ""
+            if upcoming_sessions:
+                items = []
+                for session_date in upcoming_sessions:
+                    weekday_name = week_days[session_date.weekday()]
+                    display_date = session_date.strftime("%d %b")
+                    items.append(
+                        f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
+                        f"<span style='color:#1976d2;'>{display_date}</span> "
+                        f"<span style='color:#333;'>{time_str}</span></li>"
+                    )
+                session_items_html = "<ul style='padding-left:16px; margin:9px 0 0 0;'>" + "".join(items) + "</ul>"
+            else:
+                session_items_html = "<span style='color:#c62828;'>No upcoming sessions in the visible window.</span>"
+
             if before_start and start_date_obj:
                 days_until = (start_date_obj - today).days
                 label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
@@ -2059,8 +2076,7 @@ if tab == "Dashboard":
       <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
         <div style="width:3%; background:#1976d2; height:100%;"></div>
       </div>
-    </div>
-    """
+    </div>"""
             elif start_date_obj and end_date_obj:
                 total_days = (end_date_obj - start_date_obj).days + 1
                 elapsed = max(0, (today - start_date_obj).days + 1) if today >= start_date_obj else 0
@@ -2077,32 +2093,14 @@ if tab == "Dashboard":
       <div style="margin-top:2px; font-size:0.75em;">
         Progress: {percent}% (started {elapsed} of {total_days} days)
       </div>
-    </div>
-    """
+    </div>"""
             else:
                 bar_html = f"""
     <div style="margin-top:8px; font-size:0.85em;">
       <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
-    </div>
-    """
-
-            # upcoming session list
-            if upcoming_sessions:
-                list_items = []
-                for session_date in upcoming_sessions:
-                    weekday_name = week_days[session_date.weekday()]
-                    display_date = session_date.strftime("%d %b")
-                    list_items.append(
-                        f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
-                        f"<span style='color:#1976d2;'>{display_date}</span> "
-                        f"<span style='color:#333;'>{time_str}</span></li>"
-                    )
-                session_items_html = "<ul style=\"padding-left:16px; margin:9px 0 0 0;\">" + "".join(list_items) + "</ul>"
-            else:
-                session_items_html = '<span style="color:#c62828;">No upcoming sessions in the visible window.</span>'
+    </div>"""
 
             period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
-
             st.markdown(
                 f"""
     <div style='border:2px solid #17617a; border-radius:14px;
@@ -2116,17 +2114,14 @@ if tab == "Dashboard":
         <b>Course period:</b> {period_str}
       </div>
       {f'<a href="{doc_url}" target="_blank" '
-        f'style="font-size:1em;color:#17617a;'
-        f'text-decoration:underline;margin-top:6px;'
-        f'display:inline-block;">📄 View/download full class schedule</a>'
+        f'style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>'
         if doc_url else ''}
-    </div>
-    """,
+    </div>""",
                 unsafe_allow_html=True,
             )
 
-    # --- Goethe Exam Countdown & Video of the Day (per level) ---
-    from datetime import date  # ensure date is available
+    # ---------- Goethe exam & video ----------
+    from datetime import date
     GOETHE_EXAM_DATES = {
         "A1": (date(2025, 10, 13), 2850, None),
         "A2": (date(2025, 10, 14), 2400, None),
@@ -2158,7 +2153,6 @@ if tab == "Dashboard":
                 f"{fee_text}"
             )
 
-        # ---- Per-level YouTube Playlist ----
         playlist_id = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(level)
         fetch_videos = globals().get("fetch_youtube_playlist_videos")
         api_key = globals().get("YOUTUBE_API_KEY")
@@ -2168,8 +2162,8 @@ if tab == "Dashboard":
             except Exception:
                 video_list = []
             if video_list:
-                today_idx = date.today().toordinal() % len(video_list)
-                video = video_list[today_idx]
+                pick = date.today().toordinal() % len(video_list)
+                video = video_list[pick]
                 st.markdown(f"**🎬 Video of the Day for {level}: {video.get('title','')}**")
                 st.video(video.get('url',''))
             else:
@@ -2179,17 +2173,16 @@ if tab == "Dashboard":
     else:
         st.warning("No exam date configured for your level.")
 
-    # --- Reviews Section ---
+    # ---------- Reviews ----------
     import datetime as _pydt
-
+    reviews = load_reviews()
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()   # expects 'review_text','student_name','rating'
     if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
     else:
         rev_list = reviews.to_dict("records")
-        today_idx = _pydt.date.today().toordinal() % len(rev_list)
-        r = rev_list[today_idx]
+        pick = _pydt.date.today().toordinal() % len(rev_list)
+        r = rev_list[pick]
         try:
             rating = int(r.get("rating", 5))
         except Exception:
@@ -2201,6 +2194,7 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
+
 
 
 
