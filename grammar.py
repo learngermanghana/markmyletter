@@ -1188,7 +1188,8 @@ if _logout_clicked:
         st.session_state[k] = v
 
     st.stop()
-
+    
+st.divider()
 
 
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
