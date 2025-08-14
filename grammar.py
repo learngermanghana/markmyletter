@@ -1948,10 +1948,7 @@ if tab == "Dashboard":
     render_announcements(announcements)
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-            # ===================== Payment reminder widgets (copy-paste) =====================
-
-        from datetime import datetime, date, timedelta
-        import re
+    # ===================== Payment reminder widgets (copy-paste) =====================
 
         def render_payment_widgets(student_row, *, currency="₵", today_dt=None):
             """
