@@ -3,6 +3,7 @@ import atexit, base64, difflib, hashlib
 import html as html_stdlib
 import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
+import calendar
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from typing import Optional
