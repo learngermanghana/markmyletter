@@ -581,92 +581,35 @@ if not st.session_state.get("logged_in", False):
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
 
-# ========================
-# 1) GLOBAL CSS (tightened spacing + CSS variables)
-# ========================
-st.markdown(
-    """
-    <style>
-      :root{
-        --brand:#25317e;              /* primaryColor */
-        --ink:#1a2340;                /* textColor */
-        --ink-dim:#3b425a;
-        --bg:#f3f7fb;                 /* backgroundColor */
-        --panel:#ffffff;
-        --panel-soft:#eef3fc;         /* secondaryBackgroundColor */
-        --muted:#e2e8f0;
-        --muted-strong:#cbd5e1;
-        --focus:#f59e0b;
-        --ok:#16a34a; --warn:#f59e0b; --bad:#dc2626; --link:#2563eb;
-        --radius:14px; --radius-sm:10px; --shadow:0 4px 16px rgba(0,0,0,.06);
-        --shadow-sm:0 2px 10px rgba(0,0,0,.04);
-        --space-1:6px; --space-2:10px; --space-3:14px; --space-4:18px; --space-5:24px;
-        --hero-w:980px; --content-w:1100px;
-      }
 
-      html, body { background: var(--bg); color: var(--ink); }
-      .page-wrap{ max-width: var(--content-w); margin: 0 auto; padding: 0 var(--space-3); }
+# --- 2) Global CSS (tightened spacing) ---
+st.markdown("""
+<style>
+  .hero {
+    background: #fff; border-radius: 12px; padding: 24px; margin: 12px auto; max-width: 800px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  }
+  .help-contact-box {
+    background: #fff; border-radius: 14px; padding: 20px; margin: 8px auto; max-width: 500px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04); border:1px solid #ebebf2; text-align:center;
+  }
+  .quick-links { display: flex; flex-wrap: wrap; gap:12px; justify-content:center; }
+  .quick-links a {
+    background: #e2e8f0; padding: 8px 16px; border-radius: 8px; font-weight:600; text-decoration:none;
+    color:#0f172a; border:1px solid #cbd5e1;
+  }
+  .quick-links a:hover { background:#cbd5e1; }
+  .stButton > button { background:#2563eb; color:#ffffff; font-weight:700; border-radius:8px; border:2px solid #1d4ed8; }
+  .stButton > button:hover { background:#1d4ed8; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
+    outline:3px solid #f59e0b; outline-offset:2px; box-shadow:none !important;
+  }
+  input, textarea { color:#0f172a !important; }
+  .page-wrap { max-width: 1100px; margin: 0 auto; }
+  @media (max-width:600px){ .hero, .help-contact-box { padding:16px 4vw; } }
+</style>
+""", unsafe_allow_html=True)
 
-      /* Hero */
-      .hero{ background:linear-gradient(180deg, #fff, var(--panel-soft)); border-radius: var(--radius);
-             padding: var(--space-5); margin: var(--space-3) auto; max-width: var(--hero-w);
-             box-shadow: var(--shadow); border:1px solid #ebebf2; }
-      .hero h1{ margin: 0 0 var(--space-2); letter-spacing: .2px; }
-      .hero p{ margin: 0 auto var(--space-3); max-width: 780px; color: var(--ink-dim); }
-      .hero ul{ margin: var(--space-3) auto 0 auto; max-width: 780px; line-height: 1.45; padding-left: 1.1rem; }
-      .hero li{ margin-bottom: .42rem; }
-
-      /* Stats strip */
-      .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 6px auto; max-width:820px; }
-      .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-              box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-      .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-      .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-      .stat .label { font-size:.92rem; opacity:.98; }
-
-      /* Panels */
-      .help-contact-box { background: var(--panel); border-radius: var(--radius); padding: 18px; margin: 8px auto; max-width: 560px;
-                          box-shadow: var(--shadow-sm); border:1px solid #ebebf2; text-align:center; }
-
-      /* Quick links (if used elsewhere) */
-      .quick-links { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
-      .quick-links a{ background: var(--muted); padding: 7px 14px; border-radius: 8px; font-weight:600; text-decoration:none; color:#0f172a; border:1px solid var(--muted-strong); }
-      .quick-links a:hover{ background: var(--muted-strong); }
-
-      /* Buttons */
-      .stButton > button { background: var(--link); color: #fff; font-weight:700; border-radius:10px; border:2px solid #1d4ed8; padding: 8px 18px; }
-      .stButton > button:hover { filter: brightness(.96); }
-
-      /* Focus & inputs */
-      a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
-        outline:3px solid var(--focus); outline-offset:2px; box-shadow:none !important;
-      }
-      input, textarea { color:#0f172a !important; }
-
-      /* Reviews carousel */
-      #reviews { position:relative; overflow:hidden; border-radius: var(--radius-sm); border:1px solid #e5e7eb; background:#fff; padding: 14px 12px; }
-      #rev_quote { font-size:1.06rem; line-height:1.42; margin:0; }
-      #rev_author { margin-top:10px; font-weight:700; color:#1e293b; }
-      #rev_level { color:#475569; }
-
-      /* Tabs top spacing tighten */
-      [data-testid='stTabs']{ margin-top: 4px !important; }
-
-      /* Motion-aware fade-in */
-      .fade-in{ opacity:0; transform: translateY(4px); animation:fadeUp .5s ease forwards; }
-      @media (prefers-reduced-motion: reduce){ .fade-in{ animation:none; opacity:1; transform:none; } }
-      @keyframes fadeUp{ to{ opacity:1; transform:none; } }
-
-      /* Responsive */
-      @media (max-width: 680px){ .hero{ padding: 18px 14px; } .stat{ min-width: 46%; } }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ========================
-# 2) GOOGLE OAUTH (unchanged logic, refreshed button)
-# ========================
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
@@ -750,28 +693,22 @@ def render_google_oauth():
         "access_type": "online",
     }
     auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
+    st.markdown(
+        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
+                <a href="{url}">
+                    <button aria-label="Sign in with Google"
+                            style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
+                        Sign in with Google
+                    </button>
+                </a>
+           </div>""".replace("{url}", auth_url),
+        unsafe_allow_html=True,
+    )
 
-    # SVG-based Google button for crisp rendering
-    btn_html = f"""
-      <div class=\"page-wrap\" style='text-align:center;margin:10px 0;'>
-        <a href=\"{auth_url}\" aria-label=\"Sign in with Google\" style=\"text-decoration:none;\">
-          <span role=\"button\" tabindex=\"0\" style=\"display:inline-flex;align-items:center;gap:10px;background:#4285f4;color:white;padding:8px 18px;border-radius:8px;border:0;\">
-            <svg width=\"18\" height=\"18\" viewBox=\"0 0 48 48\" aria-hidden=\"true\"><path fill=\"#FFC107\" d=\"M43.6 20.5H42V20H24v8h11.3C33.6 32.4 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.3-.4-3.5z\"/><path fill=\"#FF3D00\" d=\"M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.1 4 9.2 8.5 6.3 14.7z\"/><path fill=\"#4CAF50\" d=\"M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.4 35.8 26.9 37 24 37c-5.2 0-9.5-3.4-11.1-8.1l-6.6 5.1C9.2 39.5 16.1 44 24 44z\"/><path fill=\"#1976D2\" d=\"M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-3.6 5.8-6.8 7.1l6.2 5.2C37.8 42.3 44 38 44 24c0-1.2-.1-2.3-.4-3.5z\"/></svg>
-            <strong>Sign in with Google</strong>
-          </span>
-        </a>
-      </div>
-    """
-    st.markdown(btn_html, unsafe_allow_html=True)
-
-
-# ========================
-# 3) AUTH FORMS (unchanged logic, tighter spacing via global CSS)
-# ========================
 
 def render_login_form():
     with st.form("login_form", clear_on_submit=False):
-        login_id = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2).").strip().lower()
+        login_id = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2)." ).strip().lower()
         login_pass = st.text_input("Password", type="password")
         login_btn = st.form_submit_button("Log In")
     if not login_btn:
@@ -848,35 +785,296 @@ def render_signup_form():
     st.success("Account created! Please log in on the Returning tab.")
 
 
-# ========================
-# 4) REVIEWS (motion-aware, same data structure)
-# ========================
-
 def render_reviews():
+    # Richer, clearer data: goal, time, features used, outcome
     REVIEWS = [
-        {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-        {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-        {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-        {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
+        {
+            "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
+            "author": "Ama",
+            "location": "Accra, Ghana 🇬🇭",
+            "level": "A2",
+            "time": "8 weeks",
+            "used": ["Course Book", "Assignments", "Results emails"],
+            "outcome": "Passed Goethe A2"
+        },
+        {
+            "quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.",
+            "author": "Tunde",
+            "location": "Lagos, Nigeria 🇳🇬",
+            "level": "B1",
+            "time": "12 weeks",
+            "used": ["Vocab Trainer", "Results emails", "Course Book"],
+            "outcome": "Completed B1 modules"
+        },
+        {
+            "quote": "Clear lessons, easy submissions, and I get notified quickly when marked.",
+            "author": "Mariama",
+            "location": "Freetown, Sierra Leone 🇸🇱",
+            "level": "A1",
+            "time": "6 weeks",
+            "used": ["Assignments", "Course Book"],
+            "outcome": "A1 basics completed"
+        },
+        {
+            "quote": "I like the locked submissions and the clean Results tab.",
+            "author": "Kwaku",
+            "location": "Kumasi, Ghana 🇬🇭",
+            "level": "B2",
+            "time": "10 weeks",
+            "used": ["Results tab", "Assignments"],
+            "outcome": "B2 writing improved"
+        },
     ]
-    _reviews_html = """
-    <div class="page-wrap" style="max-width:900px;margin-top:6px;">
-      <div id="reviews" class="fade-in" aria-live="polite" aria-atomic="true">
-        <blockquote id="rev_quote"></blockquote>
-        <div id="rev_author"></div>
-        <div id="rev_level"></div>
-      </div>
+
+    _html = """
+    <div class="page-wrap" style="max-width:900px;margin-top:8px;">
+      <section id="reviews" aria-label="Student stories" class="rev-wrap" tabindex="-1">
+        <header class="rev-head">
+          <h3 class="rev-title">Student stories</h3>
+          <div class="rev-cta">
+            <button class="rev-btn" id="rev_prev" aria-label="Previous review" title="Previous">◀</button>
+            <button class="rev-btn" id="rev_next" aria-label="Next review" title="Next">▶</button>
+          </div>
+        </header>
+
+        <article class="rev-card" aria-live="polite" aria-atomic="true">
+          <blockquote id="rev_quote" class="rev-quote"></blockquote>
+          <div class="rev-meta">
+            <div class="rev-name" id="rev_author"></div>
+            <div class="rev-sub"  id="rev_location"></div>
+          </div>
+
+          <div class="rev-badges">
+            <span class="badge" id="rev_level"></span>
+            <span class="badge" id="rev_time"></span>
+            <span class="badge badge-ok" id="rev_outcome"></span>
+          </div>
+
+          <div class="rev-used" id="rev_used" aria-label="Features used"></div>
+        </article>
+
+        <nav class="rev-dots" aria-label="Slide indicators" id="rev_dots"></nav>
+      </section>
     </div>
+
+    <style>
+      .rev-wrap{
+        background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; 
+        box-shadow:0 4px 16px rgba(0,0,0,.05);
+      }
+      .rev-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+      .rev-title{ margin:0; font-size:1.05rem; color:#25317e; }
+      .rev-cta{ display:flex; gap:6px; }
+      .rev-btn{
+        background:#eef3fc; border:1px solid #cbd5e1; border-radius:8px; padding:4px 10px; cursor:pointer; 
+        font-weight:700;
+      }
+      .rev-btn:hover{ background:#e2e8f0; }
+
+      .rev-card{ position:relative; min-height:190px; }
+      .rev-quote{ font-size:1.06rem; line-height:1.45; margin:4px 0 10px 0; color:#0f172a; }
+      .rev-meta{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+      .rev-name{ font-weight:700; color:#1e293b; }
+      .rev-sub{ color:#475569; }
+
+      .rev-badges{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px; }
+      .badge{
+        display:inline-block; background:#f1f5f9; border:1px solid #e2e8f0; color:#0f172a;
+        padding:4px 8px; border-radius:999px; font-size:.86rem; font-weight:600;
+      }
+      .badge-ok{ background:#ecfdf5; border-color:#bbf7d0; color:#065f46; }
+
+      .rev-used{ display:flex; gap:6px; flex-wrap:wrap; }
+      .rev-used .chip{
+        background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; 
+        padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:600;
+      }
+
+      .rev-dots{ display:flex; gap:6px; justify-content:center; margin-top:10px; }
+      .rev-dot{
+        width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer;
+      }
+      .rev-dot[aria-current="true"]{ background:#25317e; }
+
+      /* Motion awareness */
+      .fade{ opacity:0; transform:translateY(4px); transition:opacity .28s ease, transform .28s ease; }
+      .fade.show{ opacity:1; transform:none; }
+      @media (prefers-reduced-motion: reduce){
+        .fade{ transition:none; opacity:1; transform:none; }
+      }
+    </style>
+
     <script>
-      const r=__DATA__,q=document.getElementById('rev_quote'),a=document.getElementById('rev_author'),l=document.getElementById('rev_level');
-      let i=0;function show(){const c=r[i];q.textContent='"'+c.quote+'"';a.textContent=c.author;l.textContent='Level '+c.level}
-      function next(){i=(i+1)%r.length;show()}
-      const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;show(); if(!reduced){setInterval(next,6000)}
+      const DATA = __DATA__;
+      const q  = (id) => document.getElementById(id);
+      const qs = (sel) => document.querySelector(sel);
+      const wrap = qs("#reviews");
+      const quote = q("rev_quote");
+      const author = q("rev_author");
+      const locationEl = q("rev_location");
+      const level = q("rev_level");
+      const time  = q("rev_time");
+      const outcome = q("rev_outcome");
+      const used = q("rev_used");
+      const dots = q("rev_dots");
+      const prevBtn = q("rev_prev");
+      const nextBtn = q("rev_next");
+
+      let i = 0, timer = null, hovered = false;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function setUsedChips(items){
+        used.innerHTML = "";
+        (items || []).forEach(t => {
+          const s = document.createElement("span");
+          s.className = "chip";
+          s.textContent = t;
+          used.appendChild(s);
+        });
+      }
+
+      function setDots(){
+        dots.innerHTML = "";
+        DATA.forEach((_, idx) => {
+          const b = document.createElement("button");
+          b.className = "rev-dot";
+          b.setAttribute("aria-label", "Go to review " + (idx+1));
+          if(idx === i) b.setAttribute("aria-current","true");
+          b.addEventListener("click", () => { i = idx; show(true); restart(); });
+          dots.appendChild(b);
+        });
+      }
+
+      function show(animate){
+        const c = DATA[i];
+        quote.textContent = '"' + (c.quote || '') + '"';
+        author.textContent = c.author ? c.author + ' — ' : '';
+        locationEl.textContent = c.location || '';
+        level.textContent = 'Level: ' + (c.level || '—');
+        time.textContent  = 'Time: ' + (c.time  || '—');
+        outcome.textContent = c.outcome || '';
+
+        setUsedChips(c.used);
+        setDots();
+
+        const card = wrap.querySelector(".rev-card");
+        if(animate && !reduced){
+          card.classList.remove("show");
+          card.classList.add("fade");
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => card.classList.add("show"));
+          });
+        }
+      }
+
+      function next(){ i = (i + 1) % DATA.length; show(true); }
+      function prev(){ i = (i - 1 + DATA.length) % DATA.length; show(true); }
+
+      function start(){
+        if(reduced) return;
+        timer = setInterval(() => { if(!hovered) next(); }, 6000);
+      }
+      function stop(){ if(timer){ clearInterval(timer); timer = null; } }
+      function restart(){ stop(); start(); }
+
+      // Events
+      nextBtn.addEventListener("click", () => { next(); restart(); });
+      prevBtn.addEventListener("click", () => { prev(); restart(); });
+      wrap.addEventListener("mouseenter", () => { hovered = true; });
+      wrap.addEventListener("mouseleave", () => { hovered = false; });
+
+      // Keyboard nav
+      wrap.addEventListener("keydown", (e) => {
+        if(e.key === "ArrowRight"){ next(); restart(); }
+        if(e.key === "ArrowLeft"){  prev(); restart(); }
+      });
+
+      // Init
+      show(false);
+      start();
     </script>
     """
-    _reviews_json = json.dumps(REVIEWS)
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=220, scrolling=False)
+    # NOTE: height tuned; no scrollbars; fixed a padding typo from previous HTML
+    _json = json.dumps(REVIEWS)
+    components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
+
+def login_page():
+
+    # Optional container width helper (safe if you already defined it in global CSS)
+    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
+
+    # HERO FIRST — this is the first visible element on the page
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="hero" aria-label="Falowen app introduction">
+        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+        <p style="text-align:center; font-size:1.1em; color:#555;">
+          Falowen is your all-in-one German learning platform, powered by
+          <b>Learn Language Education Academy</b>, with courses and vocabulary from
+          <b>A1 to C1</b> levels and live tutor support.
+        </p>
+        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+        </ul>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     
+    # ===== Compact stats strip =====
+    st.markdown("""
+      <style>
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
+        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+        .stat .label { font-size:.92rem; opacity:.98; }
+        @media (max-width:560px){ .stat { min-width:46%; } }
+      </style>
+      <div class="stats-strip" role="list" aria-label="Falowen highlights">
+        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
+          <div class="num">300+</div>
+          <div class="label">Active learners</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
+          <div class="num">1,200+</div>
+          <div class="label">Assignments submitted</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
+          <div class="num">A1–C1</div>
+          <div class="label">Full course coverage</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
+          <div class="num">4.8/5</div>
+          <div class="label">Avg. feedback</div>
+        </div>
+      </div>
+    """, unsafe_allow_html=True)
+
+    # Short explainer: which option to use
+    st.markdown("""
+    <div class="page-wrap" style="max-width:900px;margin-top:4px;">
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 14px;border-radius:10px;">
+        <b>Which option should I use?</b><br>
+        • <b>Returning student</b>: you already created a password — log in.<br>
+        • <b>Sign up (approved)</b>: you’ve paid and your email & code are on the roster, but no account yet — create one.<br>
+        • <b>Request access</b>: brand new learner — fill the form and we’ll contact you.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    render_reviews()
+    st.markdown(
+        "<style>[data-testid='stTabs']{margin-top:4px !important;}</style>",
+        unsafe_allow_html=True,
+    )
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     with tab1:
