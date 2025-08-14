@@ -2157,7 +2157,6 @@ if tab == "Dashboard":
 
     if _balance > 0:
         if _first_due:
-            _delta = (_first_due.date() - today_dt.date()).days
             from datetime import timedelta as _timedelta
             _pre_start = (_cs + _td(days=15)).date() if _cs else None
 
