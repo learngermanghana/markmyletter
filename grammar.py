@@ -1189,6 +1189,8 @@ if _logout_clicked:
 
     st.stop()
 
+
+
 # ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_assignment_scores():
