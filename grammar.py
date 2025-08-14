@@ -2034,40 +2034,66 @@ if tab == "Dashboard":
         unsafe_allow_html=True
     )
 
-    # ---------- Student info card ----------
+    # ---------- Student header (compact) + details (expander) ----------
     name = safe_get(student_row, "Name")
-    info_html = f"""
-    <div style='
-        background:#f0f4ff;
-        border:1.6px solid #1976d2;
-        border-radius:12px;
-        padding:11px 13px 8px 13px;
-        margin-bottom:10px;
-        box-shadow:0 2px 8px rgba(44,106,221,0.07);
-        font-size:1.09em;
-        color:#17325e;
-        font-family:"Segoe UI","Arial",sans-serif;
-        letter-spacing:.01em;'>
-        <div style="font-weight:700;font-size:1.18em;margin-bottom:2px;">
-            👤 {name}
+    level = safe_get(student_row, "Level", "")
+    code  = safe_get(student_row, "StudentCode", "")
+    try:
+        bal_val = float(str(safe_get(student_row, "Balance", 0)).replace(",", "").strip() or 0)
+    except Exception:
+        bal_val = 0.0
+
+    # Always-visible compact header (one line)
+    st.markdown(
+        f"<div style='display:flex;flex-wrap:wrap;gap:10px;align-items:center;"
+        f"padding:8px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;"
+        f"background:#ffffff;'>"
+        f"<b>👤 {name}</b>"
+        f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {level}</span>"
+        f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{code}</code></span>"
+        + (f"<span style='background:#fff7ed;color:#7c2d12;padding:2px 8px;border-radius:999px;'>Balance: ₵{bal_val:,.2f}</span>"
+           if bal_val > 0 else
+           "<span style='background:#ecfdf5;color:#065f46;padding:2px 8px;border-radius:999px;'>Balance: ₵0.00</span>")
+        + "</div>",
+        unsafe_allow_html=True
+    )
+
+    # Full details inside an expander
+    with st.expander("👤 Student details", expanded=False):
+        info_html = f"""
+        <div style='
+            background:#f8fbff;
+            border:1.6px solid #cfe3ff;
+            border-radius:12px;
+            padding:12px 14px;
+            margin-top:8px;
+            box-shadow:0 2px 8px rgba(44,106,221,0.04);
+            font-size:1.04em;
+            color:#17325e;
+            font-family:"Segoe UI","Arial",sans-serif;
+            letter-spacing:.01em;'>
+            <div style="font-weight:700;font-size:1.12em;margin-bottom:6px;">
+                👤 {name}
+            </div>
+            <div style="font-size:1em; margin-bottom:4px;">
+                <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
+                <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
+                <b>Status:</b> {safe_get(student_row, 'Status', '')}
+            </div>
+            <div style="font-size:1em; margin-bottom:4px;">
+                <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
+                <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
+                <b>Location:</b> {safe_get(student_row, 'Location', '')}
+            </div>
+            <div style="font-size:1em;">
+                <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
+                <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
+            </div>
         </div>
-        <div style="font-size:1em;">
-            <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
-            <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
-            <b>Status:</b> {safe_get(student_row, 'Status', '')}
-        </div>
-        <div style="font-size:1em;">
-            <b>Email:</b> {safe_get(student_row, 'Email', '')} &nbsp;|&nbsp;
-            <b>Phone:</b> {safe_get(student_row, 'Phone', '')} &nbsp;|&nbsp;
-            <b>Location:</b> {safe_get(student_row, 'Location', '')}
-        </div>
-        <div style="font-size:1em;">
-            <b>Contract:</b> {safe_get(student_row, 'ContractStart', '')} ➔ {safe_get(student_row, 'ContractEnd', '')} &nbsp;|&nbsp;
-            <b>Enroll Date:</b> {safe_get(student_row, 'EnrollDate', '')}
-        </div>
-    </div>
-    """
-    st.markdown(info_html, unsafe_allow_html=True)
+        """
+        st.markdown(info_html, unsafe_allow_html=True)
+#
+
 
     # ---------- Payments (balance + due date, in an expander) ----------
     from datetime import datetime as _dt
