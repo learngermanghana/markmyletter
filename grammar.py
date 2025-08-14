@@ -2149,15 +2149,16 @@ if tab == "Dashboard":
             _cs = parse_contract_start_fn(_s)
             if _cs:
                 _first_due = add_months_fn(_cs, 1)
-        if _first_due:
-            break
+                break  # we have what we need; stop scanning keys
 
     payment_chip_html = ""
     payment_title_suffix = ""   # can be appended to the Payments expander title later
 
     if _balance > 0:
         if _first_due:
-            from datetime import timedelta as _timedelta
+            _delta = (_first_due.date() - today_dt.date()).days
+
+            # Heads-up window begins 15 days after contract start
             _pre_start = (_cs + _td(days=15)).date() if _cs else None
 
             if _delta < 0:
@@ -2171,18 +2172,19 @@ if tab == "Dashboard":
                 # Due today
                 payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
                 payment_title_suffix = " • due today"
-            elif _pre_start and today_dt.date() >= _pre_start:
+            elif _pre_start and today_dt.date() >= _pre_start and _delta > 0:
                 # Heads-up window (from day 15 after contract start until the due date)
                 payment_chip_html = (
                     f"<span class='chip chip-amber'>⏳ Due in {_delta}d — ₵{_balance:,.2f}</span>"
                 )
                 payment_title_suffix = f" • due in {_delta}d"
-            # else: Not in heads-up yet → no chip
+            # else: Not yet in heads-up window → no chip
         else:
             # Balance > 0 but we can't read contract start
             payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
             payment_title_suffix = " • schedule unknown"
 #
+
 
     # ---------- Contract reminder (ONLY ≤14 days left, or ended) ----------
     EXTENSION_FEE = 1000
