@@ -1,6 +1,7 @@
 # ==== Standard Library ====
-import atexit, base64
-import io, json, os, sqlite3, time
+import atexit, base64, difflib, hashlib
+import html as html_stdlib
+import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
