@@ -1809,6 +1809,178 @@ if tab == "Dashboard":
         st.info("🚩 No student selected.")
         st.stop()
 
+                # ===== Motivation & Progress (compact, bottom of Dashboard) =====
+    # tiny spacer so this hugs the content above tightly
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # --- compute safe metrics (self-contained) ---
+    from datetime import date, timedelta
+    import pandas as pd
+    import random
+
+    def _safe_get(row, key, default=""):
+        try:
+            return row.get(key, default)
+        except Exception:
+            pass
+        try:
+            return getattr(row, key, default)
+        except Exception:
+            pass
+        try:
+            return row[key]
+        except Exception:
+            return default
+
+    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+
+    # Assignment metrics
+    _df_assign = load_assignment_scores()
+    _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
+    _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
+
+    _dates = sorted(_df_assign[_mask_student]["date"].dropna().unique(), reverse=True)
+    _streak = 1 if _dates else 0
+    for i in range(1, len(_dates)):
+        if (_dates[i - 1] - _dates[i]).days == 1:
+            _streak += 1
+        else:
+            break
+
+    _today = date.today()
+    _monday = _today - timedelta(days=_today.weekday())
+    _weekly_goal = 3
+    _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
+    _goal_left = max(0, _weekly_goal - _submitted_this_week)
+
+    # Vocab of the day
+    _level = (_safe_get(student_row, "Level", "A1") or "A1").upper().strip()
+    _vocab_df = load_full_vocab_sheet()
+    _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
+
+    # Leaderboard (compact summary)
+    _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
+    _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
+    _min_assignments = 3
+    _df_level = (
+        _df_assign[_df_assign['level'] == _level]
+        .groupby(['studentcode', 'name'], as_index=False)
+        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
+    )
+    _df_level = _df_level[_df_level['completed'] >= _min_assignments]
+    _df_level = _df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
+    _df_level['Rank'] = _df_level.index + 1
+    _your_row = _df_level[_df_level['studentcode'].str.lower() == _student_code.lower()]
+    _total_students = len(_df_level)
+    _totals_map = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
+    _total_possible = _totals_map.get(_level, 0)
+
+    # --- styles for compact cards (scoped) ---
+    st.markdown("""
+    <style>
+      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 4px 0; }
+      .minicard { flex:1 1 280px; border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px; }
+      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; }
+      .minicard .sub { color:#475569; font-size:.92rem; }
+      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
+      .pill-green { background:#e6ffed; color:#0a7f33; }
+      .pill-purple { background:#efe9ff; color:#5b21b6; }
+      .pill-amber { background:#fff7ed; color:#7c2d12; }
+      @media (prefers-color-scheme: dark){
+        .minicard { border-color: rgba(148,163,184,.22); background:#0b1220; }
+        .minicard .sub { color:#94a3b8; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # --- card 1: Streak ---
+    _streak_line = (
+        f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
+        if _streak > 0 else
+        "<span class='pill pill-amber'>Start your streak today</span>"
+    )
+    _goal_line = (
+        f"Submitted {_submitted_this_week}/{_weekly_goal} this week"
+        + (f" — { _goal_left } to go" if _goal_left else " — goal met 🎉")
+    )
+
+    # --- card 2: Vocab ---
+    if _vocab_item:
+        _vocab_german = _vocab_item.get("german", "")
+        _vocab_english = _vocab_item.get("english", "")
+        _vocab_chip = f"<span class='pill pill-purple'>{_vocab_german}</span>"
+        _vocab_sub = f"{_vocab_english} · Level {_level}"
+    else:
+        _vocab_chip = "<span class='pill pill-amber'>No vocab available</span>"
+        _vocab_sub = f"Level {_level}"
+
+    # --- card 3: Leaderboard ---
+    if not _your_row.empty:
+        _rank = int(_your_row.iloc[0]["Rank"])
+        _rank_text = f"Rank #{_rank} of {_total_students}"
+        _lead_chip = "<span class='pill pill-purple'>On the board</span>"
+    else:
+        _rank_text = "Complete 3+ assignments to be ranked"
+        _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
+
+    # --- render the three cards in one row ---
+    _cards_html = f"""
+    <div class="minirow">
+      <div class="minicard">
+        <h4>🏅 Assignment Streak</h4>
+        <div>{_streak_line}</div>
+        <div class="sub">{_goal_line}</div>
+      </div>
+      <div class="minicard">
+        <h4>🗣️ Vocab of the Day</h4>
+        <div>{_vocab_chip}</div>
+        <div class="sub">{_vocab_sub}</div>
+      </div>
+      <div class="minicard">
+        <h4>🏆 Leaderboard</h4>
+        <div>{_lead_chip}</div>
+        <div class="sub">{_rank_text}</div>
+      </div>
+    </div>
+    """
+    st.markdown(_cards_html, unsafe_allow_html=True)
+
+    # --- optional detailed expanders (stay compact when collapsed) ---
+    with st.expander("More on your streak & weekly goal", expanded=False):
+        st.write(f"• Current streak: **{_streak}** day{'s' if _streak != 1 else ''}")
+        st.write(f"• This week: **{_submitted_this_week}/{_weekly_goal}**")
+        if _goal_left:
+            st.info(f"Submit **{_goal_left}** more to hit your weekly goal.")
+        else:
+            st.success("Weekly goal reached — great job!")
+
+    with st.expander(f"Vocab details (Level {_level})", expanded=False):
+        if _vocab_item:
+            st.markdown(
+                f"- **German:** `{_vocab_item.get('german','')}`\n"
+                f"- **English:** {_vocab_item.get('english','')}\n"
+                + (f"- **Example:** {_vocab_item.get('example','')}" if _vocab_item.get('example') else "")
+            )
+        else:
+            st.info("No vocab entry available today for your level.")
+
+    with st.expander("Leaderboard details", expanded=False):
+        if not _your_row.empty:
+            _completed = int(_your_row.iloc[0]["completed"])
+            _progress_pct = ( _completed / _total_possible * 100 ) if _total_possible else 0
+            st.write(f"Rank: **#{_rank}** out of **{_total_students}**")
+            st.write(f"Assignments completed at your level: **{_completed}/{_total_possible}**")
+            st.markdown(
+                f"""
+                <div style="background:#f1f5f9;height:14px;border-radius:8px;overflow:hidden;">
+                  <div style="background:#7e57c2;height:14px;width:{_progress_pct:.2f}%;"></div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("Complete at least 3 assignments at your level to appear on the leaderboard.")
+
     # ---------- Student info card (tight spacing) ----------
     name = safe_get(student_row, "Name")
     info_html = f"""
@@ -2194,184 +2366,6 @@ if tab == "Dashboard":
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
-
-            # ===== Motivation & Progress (compact, bottom of Dashboard) =====
-    # tiny spacer so this hugs the content above tightly
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-    # --- compute safe metrics (self-contained) ---
-    from datetime import date, timedelta
-    import pandas as pd
-    import random
-
-    def _safe_get(row, key, default=""):
-        try:
-            return row.get(key, default)
-        except Exception:
-            pass
-        try:
-            return getattr(row, key, default)
-        except Exception:
-            pass
-        try:
-            return row[key]
-        except Exception:
-            return default
-
-    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
-
-    # Assignment metrics
-    _df_assign = load_assignment_scores()
-    _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
-    _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
-
-    _dates = sorted(_df_assign[_mask_student]["date"].dropna().unique(), reverse=True)
-    _streak = 1 if _dates else 0
-    for i in range(1, len(_dates)):
-        if (_dates[i - 1] - _dates[i]).days == 1:
-            _streak += 1
-        else:
-            break
-
-    _today = date.today()
-    _monday = _today - timedelta(days=_today.weekday())
-    _weekly_goal = 3
-    _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
-    _goal_left = max(0, _weekly_goal - _submitted_this_week)
-
-    # Vocab of the day
-    _level = (_safe_get(student_row, "Level", "A1") or "A1").upper().strip()
-    _vocab_df = load_full_vocab_sheet()
-    _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
-
-    # Leaderboard (compact summary)
-    _df_assign['level'] = _df_assign['level'].astype(str).str.upper().str.strip()
-    _df_assign['score'] = pd.to_numeric(_df_assign['score'], errors='coerce')
-    _min_assignments = 3
-    _df_level = (
-        _df_assign[_df_assign['level'] == _level]
-        .groupby(['studentcode', 'name'], as_index=False)
-        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
-    )
-    _df_level = _df_level[_df_level['completed'] >= _min_assignments]
-    _df_level = _df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
-    _df_level['Rank'] = _df_level.index + 1
-    _your_row = _df_level[_df_level['studentcode'].str.lower() == _student_code.lower()]
-    _total_students = len(_df_level)
-    _totals_map = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    _total_possible = _totals_map.get(_level, 0)
-
-    # --- styles for compact cards (scoped) ---
-    st.markdown("""
-    <style>
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 4px 0; }
-      .minicard { flex:1 1 280px; border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px; }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber { background:#fff7ed; color:#7c2d12; }
-      @media (prefers-color-scheme: dark){
-        .minicard { border-color: rgba(148,163,184,.22); background:#0b1220; }
-        .minicard .sub { color:#94a3b8; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- card 1: Streak ---
-    _streak_line = (
-        f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
-        if _streak > 0 else
-        "<span class='pill pill-amber'>Start your streak today</span>"
-    )
-    _goal_line = (
-        f"Submitted {_submitted_this_week}/{_weekly_goal} this week"
-        + (f" — { _goal_left } to go" if _goal_left else " — goal met 🎉")
-    )
-
-    # --- card 2: Vocab ---
-    if _vocab_item:
-        _vocab_german = _vocab_item.get("german", "")
-        _vocab_english = _vocab_item.get("english", "")
-        _vocab_chip = f"<span class='pill pill-purple'>{_vocab_german}</span>"
-        _vocab_sub = f"{_vocab_english} · Level {_level}"
-    else:
-        _vocab_chip = "<span class='pill pill-amber'>No vocab available</span>"
-        _vocab_sub = f"Level {_level}"
-
-    # --- card 3: Leaderboard ---
-    if not _your_row.empty:
-        _rank = int(_your_row.iloc[0]["Rank"])
-        _rank_text = f"Rank #{_rank} of {_total_students}"
-        _lead_chip = "<span class='pill pill-purple'>On the board</span>"
-    else:
-        _rank_text = "Complete 3+ assignments to be ranked"
-        _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
-
-    # --- render the three cards in one row ---
-    _cards_html = f"""
-    <div class="minirow">
-      <div class="minicard">
-        <h4>🏅 Assignment Streak</h4>
-        <div>{_streak_line}</div>
-        <div class="sub">{_goal_line}</div>
-      </div>
-      <div class="minicard">
-        <h4>🗣️ Vocab of the Day</h4>
-        <div>{_vocab_chip}</div>
-        <div class="sub">{_vocab_sub}</div>
-      </div>
-      <div class="minicard">
-        <h4>🏆 Leaderboard</h4>
-        <div>{_lead_chip}</div>
-        <div class="sub">{_rank_text}</div>
-      </div>
-    </div>
-    """
-    st.markdown(_cards_html, unsafe_allow_html=True)
-
-    # --- optional detailed expanders (stay compact when collapsed) ---
-    with st.expander("More on your streak & weekly goal", expanded=False):
-        st.write(f"• Current streak: **{_streak}** day{'s' if _streak != 1 else ''}")
-        st.write(f"• This week: **{_submitted_this_week}/{_weekly_goal}**")
-        if _goal_left:
-            st.info(f"Submit **{_goal_left}** more to hit your weekly goal.")
-        else:
-            st.success("Weekly goal reached — great job!")
-
-    with st.expander(f"Vocab details (Level {_level})", expanded=False):
-        if _vocab_item:
-            st.markdown(
-                f"- **German:** `{_vocab_item.get('german','')}`\n"
-                f"- **English:** {_vocab_item.get('english','')}\n"
-                + (f"- **Example:** {_vocab_item.get('example','')}" if _vocab_item.get('example') else "")
-            )
-        else:
-            st.info("No vocab entry available today for your level.")
-
-    with st.expander("Leaderboard details", expanded=False):
-        if not _your_row.empty:
-            _completed = int(_your_row.iloc[0]["completed"])
-            _progress_pct = ( _completed / _total_possible * 100 ) if _total_possible else 0
-            st.write(f"Rank: **#{_rank}** out of **{_total_students}**")
-            st.write(f"Assignments completed at your level: **{_completed}/{_total_possible}**")
-            st.markdown(
-                f"""
-                <div style="background:#f1f5f9;height:14px;border-radius:8px;overflow:hidden;">
-                  <div style="background:#7e57c2;height:14px;width:{_progress_pct:.2f}%;"></div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.info("Complete at least 3 assignments at your level to appear on the leaderboard.")
-#
-
-
-
-
-
 
 
 
