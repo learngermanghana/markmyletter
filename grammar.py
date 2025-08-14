@@ -2153,10 +2153,7 @@ if tab == "Dashboard":
         pass
 
     # ---- Payment chip: show if balance > 0 and (overdue, due today, or heads-up starts 15 days after contract start) ----
-    try:
-        _balance = float(str(safe_get(student_row, "Balance", 0)).strip())
-    except Exception:
-        _balance = 0.0
+    _balance = _read_money(safe_get(student_row, "Balance", 0))
 
     _cs = None
     _first_due = None
@@ -2166,16 +2163,17 @@ if tab == "Dashboard":
             _cs = parse_contract_start_fn(_s)
             if _cs:
                 _first_due = add_months_fn(_cs, 1)
-                break  # we have what we need; stop scanning keys
+        if _first_due:
+            break
 
     payment_chip_html = ""
-    payment_title_suffix = ""   # can be appended to the Payments expander title later
+    payment_title_suffix = ""  # can be appended to the Payments expander title later
 
     if _balance > 0:
         if _first_due:
             _delta = (_first_due.date() - today_dt.date()).days
 
-            # Heads-up window begins 15 days after contract start
+            # Heads-up begins 15 days after contract start
             from datetime import timedelta as _timedelta
             _pre_start = (_cs + _timedelta(days=15)).date() if _cs else None
 
@@ -2190,19 +2188,16 @@ if tab == "Dashboard":
                 # Due today
                 payment_chip_html = f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
                 payment_title_suffix = " • due today"
-            elif _pre_start and today_dt.date() >= _pre_start and _delta > 0:
+            elif _pre_start and today_dt.date() >= _pre_start:
                 # Heads-up window (from day 15 after contract start until the due date)
-                payment_chip_html = (
-                    f"<span class='chip chip-amber'>⏳ Due in {_delta}d — ₵{_balance:,.2f}</span>"
-                )
+                payment_chip_html = f"<span class='chip chip-amber'>⏳ Due in {_delta}d — ₵{_balance:,.2f}</span>"
                 payment_title_suffix = f" • due in {_delta}d"
-            # else: Not yet in heads-up window → no chip
+            # else: Not in heads-up yet → no chip
         else:
             # Balance > 0 but we can't read contract start
             payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
             payment_title_suffix = " • schedule unknown"
 #
-
 
 
     # ---------- Contract reminder (ONLY ≤14 days left, or ended) ----------
