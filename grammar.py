@@ -2159,7 +2159,8 @@ if tab == "Dashboard":
             _delta = (_first_due.date() - today_dt.date()).days
 
             # Heads-up window begins 15 days after contract start
-            _pre_start = (_cs + _td(days=15)).date() if _cs else None
+            from datetime import timedelta as _timedelta
+            _pre_start = (_cs + _timedelta(days=15)).date() if _cs else None
 
             if _delta < 0:
                 # Overdue
@@ -2184,6 +2185,7 @@ if tab == "Dashboard":
             payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
             payment_title_suffix = " • schedule unknown"
 #
+
 
 
     # ---------- Contract reminder (ONLY ≤14 days left, or ended) ----------
