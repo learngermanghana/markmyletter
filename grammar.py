@@ -1428,46 +1428,33 @@ def login_page():
 
     st.stop()
 
-# ========== Logged-in Header + Logout (single click, no double taps) ==========
-# Compact header CSS
-st.markdown("""
-<style>
-  .post-login-header { margin-top:0; margin-bottom:4px; }
-  .block-container { padding-top: 0.6rem !important; }
-  div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
-  .your-notifs { margin: 4px 0 !important; }
-</style>
-""", unsafe_allow_html=True)
 
+# ===== Logout callback =====
 def _do_logout():
     """Revoke token, clear cookies & session, then rerun immediately."""
-    from datetime import datetime, timedelta
-
-    # 1) Server-side token revocation (tolerate failures gracefully)
+    # 1) Revoke server-side token (best-effort)
     try:
         tok = st.session_state.get("session_token", "")
-        if tok:
+        if tok and "destroy_session_token" in globals():
             destroy_session_token(tok)
     except Exception as e:
         st.warning(f"Logout warning (destroy token): {e}")
 
-    # 2) Expire cookies if cookie_manager is available
+    # 2) Expire cookies (if you use cookie_manager)
     try:
         if "cookie_manager" in globals():
             expires_past = datetime.utcnow() - timedelta(seconds=1)
-            try:
+            if "set_student_code_cookie" in globals():
                 set_student_code_cookie(cookie_manager, "", expires=expires_past)
+            if "set_session_token_cookie" in globals():
                 set_session_token_cookie(cookie_manager, "", expires=expires_past)
-            except Exception:
-                # If your helpers aren't available, fall back to direct delete
-                pass
             cookie_manager.delete("student_code")
             cookie_manager.delete("session_token")
             cookie_manager.save()
     except Exception as e:
         st.warning(f"Logout warning (cookies): {e}")
 
-    # 3) Clear session_state keys
+    # 3) Clear session state
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1482,10 +1469,25 @@ def _do_logout():
     }.items():
         st.session_state[k] = v
 
-    # 4) Immediate rerun so the guard below kicks in this same click
+    # 4) Immediate rerun so auth guard below takes effect now
     st.rerun()
 
-# Header with logout button (callback handles everything)
+# ===== AUTH GUARD (place BEFORE rendering any header/UI for logged-in users) =====
+if not st.session_state.get("logged_in", False):
+    # Show your login page and stop execution so no header is drawn
+    login_page()
+    st.stop()
+
+# ===== Compact header + logout button (only runs when logged in) =====
+st.markdown("""
+<style>
+  .post-login-header { margin-top:0; margin-bottom:4px; }
+  .block-container { padding-top: 0.6rem !important; }
+  div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
+  .your-notifs { margin: 4px 0 !important; }
+</style>
+""", unsafe_allow_html=True)
+
 st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
 col1, col2 = st.columns([0.85, 0.15])
 with col1:
@@ -1496,10 +1498,6 @@ with col2:
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------- Login guard (placed AFTER logout so one click works) ----------
-if not st.session_state.get("logged_in", False):
-    login_page()
-    st.stop()
 
 
 
