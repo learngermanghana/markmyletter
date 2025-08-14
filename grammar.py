@@ -1700,6 +1700,17 @@ if st.session_state.get("logged_in"):
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
     # -------------------- PAYMENT / DUES (1 month after Contract Start) --------------------
+    # Rule:
+    # - Student only "owes" if (balance > 0) AND (we are past first_due = 1 month after contract start)
+    # - If balance < 0, student has credit and never "owes" by this rule.
+
+    # Read balance safely
+    balance_raw = (student_row.get("Balance", 0) if isinstance(student_row, dict) else 0)
+    try:
+        balance = float(str(balance_raw).strip())
+    except Exception:
+        balance = 0.0
+
     _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
     start_str = ""
     for k in _start_keys:
@@ -1723,15 +1734,12 @@ if st.session_state.get("logged_in"):
             delta_days = (first_due.date() - today_dt.date()).days
             payment_title_extra = f"• due {first_due:%d %b %Y}"
 
-            if delta_days > 1:
-                payment_msg = f"💳 Next payment due in **{delta_days} days** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
-            elif delta_days == 1:
-                payment_msg = f"💳 Payment due **tomorrow** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
-            elif delta_days == 0:
-                payment_notice_level = "warning"
-                payment_msg = f"💳 Payment due **today** ({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
-            else:
-                owes = True
+            is_overdue = (delta_days < 0)
+            owes_by_balance = (balance > 0)
+            owes = is_overdue and owes_by_balance  # <— your rule
+
+            if owes:
+                # Overdue AND student has positive balance
                 overdue_days = -delta_days
                 months_late = max(1, months_between(first_due, today_dt))
                 amount_due = MONTHLY_RENEWAL * months_late
@@ -1740,10 +1748,93 @@ if st.session_state.get("logged_in"):
                 payment_msg = (
                     f"💸 **Overdue by {overdue_days} days.** "
                     f"Estimated amount due: **₵{amount_due:,}** (₵{MONTHLY_RENEWAL:,}/month). "
-                    f"First due: {first_due:%d %b %Y}."
+                    f"First due: {first_due:%d %b %Y}. Your balance is **₵{balance:,.2f}**."
                 )
+
+            else:
+                # Not owing (either not overdue yet, or balance ≤ 0)
+                if balance < 0:
+                    # Credit, never owes per rule
+                    credit = abs(balance)
+                    payment_notice_level = "success"
+                    if is_overdue:
+                        # Past date but with credit → still no owe, just inform
+                        payment_msg = (
+                            f"✅ Your first payment date ({first_due:%d %b %Y}) has passed, "
+                            f"but you have a **credit of ₵{credit:,.2f}**. No payment owed."
+                        )
+                        payment_title_extra = f"• credit ₵{credit:,.2f}"
+                    else:
+                        if delta_days > 1:
+                            payment_msg = (
+                                f"✅ You have a **credit of ₵{credit:,.2f}**. "
+                                f"First payment in **{delta_days} days** ({first_due:%d %b %Y})."
+                            )
+                        elif delta_days == 1:
+                            payment_msg = (
+                                f"✅ You have a **credit of ₵{credit:,.2f}**. "
+                                f"First payment is **tomorrow** ({first_due:%d %b %Y})."
+                            )
+                        else:  # delta_days == 0
+                            payment_msg = (
+                                f"✅ You have a **credit of ₵{credit:,.2f}**. "
+                                f"First payment is **today** ({first_due:%d %b %Y})."
+                            )
+
+                elif balance == 0:
+                    # Settled; just show timing info
+                    if is_overdue:
+                        payment_notice_level = "info"
+                        payment_title_extra = f"• due {first_due:%d %b %Y}"
+                        payment_msg = (
+                            f"ℹ️ Your first payment date ({first_due:%d %b %Y}) has passed, "
+                            f"but your balance is **₵0.00** — nothing owed."
+                        )
+                    else:
+                        if delta_days > 1:
+                            payment_notice_level = "info"
+                            payment_msg = (
+                                f"💳 First payment in **{delta_days} days** "
+                                f"({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+                            )
+                        elif delta_days == 1:
+                            payment_notice_level = "warning"
+                            payment_msg = (
+                                f"💳 First payment **tomorrow** "
+                                f"({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+                            )
+                        else:
+                            payment_notice_level = "warning"
+                            payment_msg = (
+                                f"💳 First payment **today** "
+                                f"({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
+                            )
+
+                else:
+                    # balance > 0 but NOT overdue yet → upcoming payment, not owed now
+                    if delta_days > 1:
+                        payment_notice_level = "info"
+                        payment_msg = (
+                            f"💳 First payment in **{delta_days} days** ({first_due:%d %b %Y}). "
+                            f"Current balance: **₵{balance:,.2f}**."
+                        )
+                    elif delta_days == 1:
+                        payment_notice_level = "warning"
+                        payment_msg = (
+                            f"💳 First payment **tomorrow** ({first_due:%d %b %Y}). "
+                            f"Current balance: **₵{balance:,.2f}**."
+                        )
+                    else:  # delta_days == 0
+                        payment_notice_level = "warning"
+                        payment_msg = (
+                            f"💳 First payment **today** ({first_due:%d %b %Y}). "
+                            f"Current balance: **₵{balance:,.2f}**."
+                        )
         else:
             payment_msg = "We couldn't parse your contract start date format."
+    # else: keep the default "no start date" message
+#
+
 
     # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
     df_assign = load_assignment_scores()
@@ -1818,7 +1909,7 @@ if st.session_state.get("logged_in"):
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total_possible = totals.get(user_level, 0)
     leaderboard_title_extra = "• not ranked" if your_row.empty else f"• rank #{int(your_row.iloc[0]['Rank'])} / {total_students}"
-
+    
     # ==================== COLLAPSIBLE NOTIFICATIONS ====================
 
     # Contract & renewal (collapsed)
