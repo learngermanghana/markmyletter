@@ -1428,231 +1428,34 @@ def login_page():
     st.stop()
 
 
-if not st.session_state.get("logged_in", False):
-    login_page()
-
-# --- Close gap + Announcement Board (between Welcome and dashboard) ---
-st.markdown(
-    """
-    <style>
-      .post-login-header { margin-bottom: 4px !important; }
-      .dash-top-gap { height: 4px; }
-    </style>
-    <div class="dash-top-gap"></div>
-    """,
-    unsafe_allow_html=True
-)
-
-import json
-import streamlit.components.v1 as components
-
-def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive, dark-mode-aware rotating announcement board."""
-    if not ANNOUNCEMENTS:
-        return
-
-    _html = """
-    <style>
-      :root{
-        --brand:#2563eb; --ring:#93c5fd;
-        --text:#0f172a; --muted:#475569;
-        --card:#111827; /* dark by default so it pops on phones */
-        --chip-bg:#1f2937; --chip-fg:#e5e7eb;
-        --link:#60a5fa;
-        --shell-border: rgba(148,163,184,.22);
-      }
-      @media (prefers-color-scheme: light){
-        :root{
-          --text:#0f172a; --muted:#475569;
-          --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985;
-          --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
-        }
-      }
-
-      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{
-        font-weight:700; font-size:1.05rem; line-height:1.2;
-        padding-left:12px; border-left:5px solid var(--brand);
-        margin: 4px 0 8px 0; color: var(--text);
-      }
-      .ann-shell{
-        border-radius:12px; border:1px solid var(--shell-border);
-        background:var(--card);
-        box-shadow:0 6px 18px rgba(2,6,23,.28);
-        padding:12px 14px; isolation:isolate; overflow:hidden;
-      }
-      .ann-heading{
-        display:flex; align-items:center; gap:8px;
-        margin:0 0 6px 0; font-weight:700; color:var(--text);
-      }
-      .ann-chip{
-        font-size:.75rem; font-weight:700; letter-spacing:.2px;
-        background:var(--chip-bg); color:var(--chip-fg);
-        padding:4px 8px; border-radius:999px; border:1px solid var(--shell-border);
-      }
-      .ann-body{ color:var(--muted); margin:0; line-height:1.5; font-size:.96rem; }
-      .ann-actions{ margin-top:8px }
-      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:600 }
-
-      .ann-dots{
-        display:flex; gap:10px; justify-content:center; margin-top:10px;
-      }
-      .ann-dot{
-        width:9px; height:9px; border-radius:999px; background:#9ca3af;
-        opacity:.9; transform:scale(.95);
-        transition: transform .2s ease, background .2s ease, opacity .2s ease;
-        touch-action: manipulation;
-      }
-      .ann-dot[aria-current="true"]{
-        background:var(--brand); opacity:1; transform:scale(1.22);
-        box-shadow:0 0 0 4px var(--ring);
-      }
-
-      /* motion + mobile tweaks */
-      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-      .ann-anim{animation:fadeInUp .25s ease both}
-      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-
-      @media (max-width: 640px){
-        .ann-title{ font-size:1rem; }
-        .ann-body{ font-size:.94rem; }
-        .page-wrap{ padding:0 8px; }
-        .ann-shell{ padding:12px; }
-      }
-    </style>
-
-    <div class="page-wrap">
-      <div class="ann-title">📣 Announcement</div>
-      <div class="ann-shell" id="ann_shell" aria-live="polite">
-        <div class="ann-anim" id="ann_card">
-          <div class="ann-heading">
-            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
-            <span id="ann_title"></span>
-          </div>
-          <p class="ann-body" id="ann_body"></p>
-          <div class="ann-actions" id="ann_action" style="display:none;"></div>
-        </div>
-        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
-      </div>
-    </div>
-
-    <script>
-      const data = __DATA__;
-      const titleEl = document.getElementById('ann_title');
-      const bodyEl  = document.getElementById('ann_body');
-      const tagEl   = document.getElementById('ann_tag');
-      const actionEl= document.getElementById('ann_action');
-      const dotsWrap= document.getElementById('ann_dots');
-      const card    = document.getElementById('ann_card');
-      const shell   = document.getElementById('ann_shell');
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      let i = 0, timer = null;
-      const INTERVAL = 6500;
-
-      function setActiveDot(idx){
-        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
-      }
-      function render(idx){
-        const c = data[idx] || {};
-        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-        titleEl.textContent = c.title || '';
-        bodyEl.textContent  = c.body  || '';
-        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
-        if (c.href){ actionEl.innerHTML='<a href="'+c.href+'" target="_blank" rel="noopener">Open</a>'; actionEl.style.display=''; }
-        else { actionEl.style.display='none'; }
-        setActiveDot(idx);
-      }
-      function next(){ i = (i+1) % data.length; render(i); }
-      function start(){ if (!reduced) timer = setInterval(next, INTERVAL); }
-      function stop(){ if (timer) clearInterval(timer); timer = null; }
-      function restart(){ stop(); start(); }
-
-      // dots
-      data.forEach((_, idx)=>{
-        const dot = document.createElement('button');
-        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
-        dot.setAttribute('aria-label','Show announcement '+(idx+1));
-        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
-        dotsWrap.appendChild(dot);
-      });
-
-      shell.addEventListener('mouseenter', stop);
-      shell.addEventListener('mouseleave', start);
-      shell.addEventListener('focusin', stop);
-      shell.addEventListener('focusout', start);
-
-      render(i); start();
-    </script>
-    """
-
-    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=170, scrolling=False)
-
-# --- Three starter announcements (edit later) ---
-announcements = [
-    {"title": "A2 Mock Exam this Saturday",
-     "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
-     "tag":   "Exam",
-     "href":  "https://www.learngermanghana.com/upcoming-classes"},
-    {"title": "System Update",
-     "body":  "Course Book uploads are now 2× faster. Report issues to support.",
-     "tag":   "System"},
-    {"title": "New B1 Writing Pack",
-     "body":  "Practice letters + opinions with 10 model answers.",
-     "tag":   "B1",
-     "href":  "https://www.learngermanghana.com/resources"},
-]
-
-
-# --- Logged In UI ---
-st.markdown(
-    """
-    <style>
-        .post-login-header {margin-top:0; margin-bottom:4px;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
-col1, col2 = st.columns([0.85, 0.15])
-with col1:
-    st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
-with col2:
-    st.markdown(
-        "<div style='display:flex; justify-content:flex-end; align-items:center;'>",
-        unsafe_allow_html=True,
-    )
-    _logout_clicked = st.button("Log out")
-    st.markdown("</div>", unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
-
-   
-# Keep your meta tag injection and logout handling below as before:
+# Keep your meta tag injection as before
 _inject_meta_tags()
 
+# ===================== LOGOUT HANDLING (with visible errors) =====================
 if _logout_clicked:
+    from datetime import datetime, timedelta
+
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
             destroy_session_token(tok)
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Logout failed (destroy token): {e}")
 
     try:
         set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
         set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Logout failed (expire cookies): {e}")
 
     try:
         cookie_manager.delete("student_code")
         cookie_manager.delete("session_token")
         cookie_manager.save()
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Logout failed (delete cookies): {e}")
 
-    # clear LS + strip OAuth params
+    # clear LS + strip OAuth params in browser
     components.html(
         """
         <script>
@@ -1687,9 +1490,11 @@ if _logout_clicked:
 
     st.stop()
 
-    
+# ===================== DATA LOADERS & HELPERS =====================
+import pandas as pd
+import random
+from datetime import datetime, timedelta, date
 
-# ==== GOOGLE SHEET LOADING FUNCTIONS ====
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
@@ -1700,8 +1505,6 @@ def load_assignment_scores():
         df[col] = df[col].astype(str).str.strip()
     return df
 
-
-# ---- ROBUST VOCAB LOADER + SAFE PICKER ----
 @st.cache_data(ttl=43200)
 def load_full_vocab_sheet():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
@@ -1709,20 +1512,16 @@ def load_full_vocab_sheet():
     try:
         df = pd.read_csv(csv_url, dtype=str)
     except Exception:
-        # Network/privacy/etc. Return an empty, well-formed frame so downstream code never crashes.
         st.error("Could not load vocab sheet.")
         return pd.DataFrame(columns=["level", "german", "english", "example"])
 
-    # Normalize headers (strip spaces, lowercase)
     df.columns = df.columns.str.strip().str.lower()
 
-    # Try to map common variants to our canonical names
     def _match(colnames, *candidates):
         s = set(colnames)
         for cand in candidates:
             if cand in s:
                 return cand
-        # fallback: fuzzy-ish startswith
         for c in colnames:
             if any(c.startswith(x) for x in candidates):
                 return c
@@ -1733,36 +1532,25 @@ def load_full_vocab_sheet():
     col_english = _match(df.columns, "english", "en", "meaning", "translation")
     col_example = _match(df.columns, "example", "sentence", "usage")
 
-    # If required columns missing, return empty shaped frame
     if not (col_level and col_german and col_english):
         return pd.DataFrame(columns=["level", "german", "english", "example"])
 
-    # Rename to canonical names
-    rename_map = {
-        col_level: "level",
-        col_german: "german",
-        col_english: "english",
-    }
+    rename_map = {col_level: "level", col_german: "german", col_english: "english"}
     if col_example:
         rename_map[col_example] = "example"
     df = df.rename(columns=rename_map)
 
-    # Keep only the columns we care about
     if "example" not in df.columns:
         df["example"] = ""
 
-    # Clean & normalize
     for c in ["level", "german", "english", "example"]:
         df[c] = df[c].astype(str).str.strip()
 
     df = df[df["level"].notna() & (df["level"] != "")]
     df["level"] = df["level"].str.upper()
-
     return df[["level", "german", "english", "example"]]
 
-
 def get_vocab_of_the_day(df: pd.DataFrame, level: str):
-    # Defensive guards so this never throws
     if df is None or df.empty:
         return None
     if not {"level", "german", "english", "example"}.issubset(df.columns):
@@ -1773,8 +1561,7 @@ def get_vocab_of_the_day(df: pd.DataFrame, level: str):
     if subset.empty:
         return None
 
-    from datetime import date as _date
-    idx = _date.today().toordinal() % len(subset)
+    idx = date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
     return {
         "german": row.get("german", ""),
@@ -1800,11 +1587,8 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-# ---- Payment date helpers ----
 from calendar import monthrange
-
 def parse_contract_start(date_str: str):
-    # Reuse the same parsers as ContractEnd
     return parse_contract_end(date_str)
 
 def add_months(dt: datetime, n: int) -> datetime:
@@ -1819,7 +1603,7 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
         months -= 1
     return months
 
-
+# ===================== DASHBOARD DATA & PANELS =====================
 if st.session_state.get("logged_in"):
     student_code = st.session_state["student_code"].strip().lower()
     student_name = st.session_state["student_name"]
@@ -1832,7 +1616,7 @@ if st.session_state.get("logged_in"):
     # Greeting helper
     first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
 
-    # -------------------- CONTRACT (compute only) --------------------
+    # ----- CONTRACT -----
     MONTHLY_RENEWAL = 1000
     contract_end_str = student_row.get("ContractEnd", "")
     today_dt = datetime.today()
@@ -1867,7 +1651,7 @@ if st.session_state.get("logged_in"):
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
-    # -------------------- PAYMENT / DUES (1 month after Contract Start) --------------------
+    # ----- PAYMENTS -----
     _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
     start_str = ""
     for k in _start_keys:
@@ -1913,16 +1697,15 @@ if st.session_state.get("logged_in"):
         else:
             payment_msg = "We couldn't parse your contract start date format."
 
-    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
+    # ----- STREAK / WEEKLY GOAL -----
     df_assign = load_assignment_scores()
     df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
     mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
 
-    from datetime import timedelta, date
-    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
-    streak = 1 if dates else 0
-    for i in range(1, len(dates)):
-        if (dates[i - 1] - dates[i]).days == 1:
+    dates_list = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
+    streak = 1 if dates_list else 0
+    for i in range(1, len(dates_list)):
+        if (dates_list[i - 1] - dates_list[i]).days == 1:
             streak += 1
         else:
             break
@@ -1935,22 +1718,26 @@ if st.session_state.get("logged_in"):
     streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
     urgent_assignments = goal_left > 0 and (today.weekday() >= 5)
 
-    # -------------------- BELL --------------------
+    # ----- BELL -----
     bell_color = "#333"
-    st.markdown(f"""
+    st.markdown(
+        f"""
         <div style="display:flex;align-items:center;gap:10px;
                     font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
                     padding:6px 10px;background:#fdf6e3;border-radius:8px;">
             <span style="font-size:1.3em;display:inline-block;color:{bell_color};">🔔</span> Your Notifications
         </div>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # -------------------- BADGES --------------------
-    pay_bg = "#fee2e2" if owes else ("#fff7ed" if payment_notice_level=="warning" else "#eef7f1")
-    pay_fg = "#991b1b" if owes else ("#7c2d12" if payment_notice_level=="warning" else "#1e7a3b")
-    pay_text = "💸 Payment: OVERDUE" if owes else ("💳 Payment: due soon" if payment_notice_level=="warning" else "💳 Payment")
+    # ----- BADGES -----
+    pay_bg = "#fee2e2" if owes else ("#fff7ed" if payment_notice_level == "warning" else "#eef7f1")
+    pay_fg = "#991b1b" if owes else ("#7c2d12" if payment_notice_level == "warning" else "#1e7a3b")
+    pay_text = "💸 Payment: OVERDUE" if owes else ("💳 Payment: due soon" if payment_notice_level == "warning" else "💳 Payment")
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
           <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
           <span style="background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;">{pay_text}</span>
@@ -1958,15 +1745,17 @@ if st.session_state.get("logged_in"):
           <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
           <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
         </div>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # -------------------- VOCAB OF THE DAY --------------------
+    # ----- VOCAB OF THE DAY -----
     student_level = (student_row.get("Level") or "A1").upper().strip()
     vocab_df = load_full_vocab_sheet()
     vocab_item = get_vocab_of_the_day(vocab_df, student_level)
     vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
 
-    # -------------------- LEADERBOARD (compute only) --------------------
+    # ----- LEADERBOARD (compute only) -----
     df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
     df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
 
@@ -1987,9 +1776,7 @@ if st.session_state.get("logged_in"):
     total_possible = totals.get(user_level, 0)
     leaderboard_title_extra = "• not ranked" if your_row.empty else f"• rank #{int(your_row.iloc[0]['Rank'])} / {total_students}"
 
-    # ==================== COLLAPSIBLE NOTIFICATIONS ====================
-
-    # Contract & renewal (collapsed)
+    # ===================== COLLAPSIBLE NOTIFICATIONS =====================
     with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
         if contract_notice_level == "warning":
             st.warning(contract_msg)
@@ -2003,7 +1790,6 @@ if st.session_state.get("logged_in"):
             "Do your best to complete your course on time to avoid extra fees!"
         )
 
-    # Payments (collapsed) + ALWAYS-VISIBLE summary right under it
     with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
         if payment_notice_level == "error":
             st.error(payment_msg)
@@ -2012,7 +1798,7 @@ if st.session_state.get("logged_in"):
         else:
             st.info(payment_msg)
 
-    # ---- Always-visible Payment Status strip (sits directly under the expander) ----
+    # Always-visible Payment status strip
     if owes:
         bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸"
         summary_line = f"Overdue by {overdue_days} days — est. **₵{amount_due:,}** due (₵{MONTHLY_RENEWAL:,}/month)."
@@ -2029,7 +1815,8 @@ if st.session_state.get("logged_in"):
             bg, border, fg, icon = "#ecfdf5", "#10b981", "#065f46", "✅"
             summary_line = f"Next payment in **{delta} days** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
         <div style="
             margin:8px 0 16px 0; padding:10px 12px;
             background:{bg}; border:1px solid {border}; border-radius:10px;">
@@ -2038,33 +1825,34 @@ if st.session_state.get("logged_in"):
                 <div style="color:{fg}; font-weight:600">{summary_line}</div>
             </div>
         </div>
-    """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
 
-
-    # Assignment streak & weekly goal (collapsed)
     with st.expander(f"🏅 Assignment Streak & Weekly Goal {streak_title_extra}", expanded=False):
-        col1, col2 = st.columns(2)
-        col1.metric("Streak", f"{streak} days")
-        col2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
+        c1, c2 = st.columns(2)
+        c1.metric("Streak", f"{streak} days")
+        c2.metric("Submitted", f"{assignment_count} / {WEEKLY_GOAL}")
         if assignment_count >= WEEKLY_GOAL:
             st.success("🎉 You’ve reached your weekly goal of 3 assignments!")
         else:
             st.info(f"Submit {goal_left} more assignment{'s' if goal_left != 1 else ''} by Sunday to hit your goal.")
 
-    # Vocab of the Day (collapsed)
     with st.expander(f"🗣️ Vocab of the Day {vocab_title_extra}", expanded=False):
         if vocab_item:
-            st.markdown(f"""
-            <ul style='list-style:none;margin:0;padding:0;'>
-                <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
-                <li><b>English:</b> {vocab_item['english']}</li>
-                {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
-            </ul>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f"""
+                <ul style='list-style:none;margin:0;padding:0;'>
+                  <li><b>German:</b> <span style="background:#e6ffed;color:#0a7f33;padding:3px 9px;border-radius:8px;font-size:1.12em;font-family:monospace;">{vocab_item['german']}</span></li>
+                  <li><b>English:</b> {vocab_item['english']}</li>
+                  {"<li><b>Example:</b> " + vocab_item['example'] + "</li>" if vocab_item.get("example") else ""}
+                </ul>
+                """,
+                unsafe_allow_html=True,
+            )
         else:
             st.info(f"No vocab found for level {student_level}.")
 
-    # Leaderboard & progress (collapsed)
     with st.expander(f"🏆 Leaderboard & Progress {leaderboard_title_extra}", expanded=False):
         if not your_row.empty:
             row = your_row.iloc[0]
@@ -2073,7 +1861,6 @@ if st.session_state.get("logged_in"):
             percent_rank = (rank / total_students) * 100 if total_students else 0
             progress_pct = (completed / total_possible) * 100 if total_possible else 0
 
-            # Rotate messages (kept from your logic)
             STUDY_TIPS = [
                 "Study a little every day. Small steps lead to big progress!",
                 "Teach someone else what you learned to remember it better!",
@@ -2122,7 +1909,7 @@ if st.session_state.get("logged_in"):
                     <div style="margin-top:10px;font-size:1.02em;">{message}</div>
                 </div>
                 """,
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
             st.markdown(
                 f"""
@@ -2133,7 +1920,7 @@ if st.session_state.get("logged_in"):
                     </div>
                 </div>
                 """,
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
         else:
             st.info(f"Complete at least {MIN_ASSIGNMENTS} assignments to appear on the leaderboard for your level.")
@@ -2153,11 +1940,10 @@ if st.session_state.get("logged_in"):
                         </div>
                     </div>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
             else:
                 st.info("Start submitting assignments to see your progress bar here!")
-
 
     st.divider()
 
@@ -2172,36 +1958,31 @@ if st.session_state.get("logged_in"):
             "Vocab Trainer",
             "Schreiben Trainer",
         ],
-        key="main_tab_select"
+        key="main_tab_select",
     )
 
-
+# ===================== DASHBOARD CONTENT =====================
 if tab == "Dashboard":
-    # --- Helper to avoid AttributeError on any row type ---
+    # Helper that tolerates dict/attr/index access
     def safe_get(row, key, default=""):
-        # mapping-style
         try:
             return row.get(key, default)
         except Exception:
             pass
-        # attribute-style
         try:
             return getattr(row, key, default)
         except Exception:
             pass
-        # index/key access
         try:
             return row[key]
         except Exception:
             return default
 
-    # --- Ensure student_row is something we can call safe_get() on ---
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
-    # (no need to convert to dict—safe_get covers all cases)
 
-    # --- Student Info & Balance | Compact Card, Info-Bar Style ---
+    # Student Info card
     name = safe_get(student_row, "Name")
     info_html = f"""
     <div style='
@@ -2236,6 +2017,7 @@ if tab == "Dashboard":
     </div>
     """
     st.markdown(info_html, unsafe_allow_html=True)
+
     try:
         bal = float(safe_get(student_row, "Balance", 0))
         if bal > 0:
@@ -2243,74 +2025,69 @@ if tab == "Dashboard":
     except Exception:
         pass
 
-
-    # ==== CLASS SCHEDULES DICTIONARY ====
+    # ---- CLASS SCHEDULES ----
     GROUP_SCHEDULES = {
         "A1 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
             "time": "6:00pm–7:00pm",
             "start_date": "2025-07-08",
             "end_date": "2025-09-02",
-            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing",
         },
         "A1 Berlin Klasse": {
             "days": ["Thursday", "Friday", "Saturday"],
             "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
             "start_date": "2025-06-14",
             "end_date": "2025-08-09",
-            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing",
         },
         "A1 Koln Klasse": {
             "days": ["Thursday", "Friday", "Saturday"],
             "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
             "start_date": "2025-08-15",
             "end_date": "2025-10-11",
-            "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing",
         },
         "A2 Munich Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday"],
             "time": "7:30pm–9:00pm",
             "start_date": "2025-06-24",
             "end_date": "2025-08-26",
-            "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
+            "doc_url": "https://docs.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing",
         },
         "A2 Berlin Klasse": {
             "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
             "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
             "start_date": "",
             "end_date": "",
-            "doc_url": ""
+            "doc_url": "",
         },
         "A2 Koln Klasse": {
             "days": ["Wednesday", "Thursday", "Friday"],
             "time": "11:00am–12:00pm",
             "start_date": "2025-08-06",
             "end_date": "2025-10-08",
-            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing",
         },
         "B1 Munich Klasse": {
             "days": ["Thursday", "Friday"],
             "time": "7:30pm–9:00pm",
             "start_date": "2025-08-07",
             "end_date": "2025-11-07",
-            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing",
         },
         "B2 Munich Klasse": {
             "days": ["Friday", "Saturday"],
             "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
             "start_date": "2025-08-08",
             "end_date": "2025-10-08",
-            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
+            "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing",
         },
     }
 
-    # ==== SHOW UPCOMING CLASSES CARD ====
-    from datetime import datetime, timedelta
-
-    # use safe_get instead of direct .get()
+    week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     class_name = str(safe_get(student_row, "ClassName", "")).strip()
     class_schedule = GROUP_SCHEDULES.get(class_name)
-    week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
     if not class_name or not class_schedule:
         st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
@@ -2321,8 +2098,7 @@ if tab == "Dashboard":
         end_dt = class_schedule.get("end_date", "")
         doc_url = class_schedule.get("doc_url", "")
 
-        # parse dates safely
-        today = datetime.today().date()
+        today_d = datetime.today().date()
         start_date_obj = None
         end_date_obj = None
         try:
@@ -2336,13 +2112,10 @@ if tab == "Dashboard":
         except Exception:
             end_date_obj = None
 
-        before_start = bool(start_date_obj and today < start_date_obj)
-        after_end = bool(end_date_obj and today > end_date_obj)
-
-        # map day names → indices
+        before_start = bool(start_date_obj and today_d < start_date_obj)
+        after_end = bool(end_date_obj and today_d > end_date_obj)
         day_indices = [week_days.index(d) for d in days if d in week_days] if isinstance(days, list) else []
 
-        # helper to get upcoming sessions from a reference date (inclusive)
         def get_next_sessions(from_date, weekday_indices, limit=3, end_date=None):
             results = []
             if not weekday_indices:
@@ -2356,101 +2129,88 @@ if tab == "Dashboard":
                 check_date += timedelta(days=1)
             return results
 
-        # determine upcoming sessions depending on stage
         if before_start and start_date_obj:
             upcoming_sessions = get_next_sessions(start_date_obj, day_indices, limit=3, end_date=end_date_obj)
         elif after_end:
             upcoming_sessions = []
         else:
-            # course in progress (include today if it matches)
-            upcoming_sessions = get_next_sessions(today, day_indices, limit=3, end_date=end_date_obj)
+            upcoming_sessions = get_next_sessions(today_d, day_indices, limit=3, end_date=end_date_obj)
 
-        # render based on status
         if after_end:
             end_str = end_date_obj.strftime('%d %b %Y') if end_date_obj else end_dt
-            st.error(
-                f"❌ Your class ({class_name}) ended on {end_str}. "
-                "Please contact the office for next steps."
-            )
+            st.error(f"❌ Your class ({class_name}) ended on {end_str}. Please contact the office for next steps.")
         else:
-            # build status / countdown bar
-            bar_html = ""
             if before_start and start_date_obj:
-                days_until = (start_date_obj - today).days
+                days_until = (start_date_obj - today_d).days
                 label = f"Starts in {days_until} day{'s' if days_until != 1 else ''} (on {start_date_obj.strftime('%d %b %Y')})"
                 bar_html = f"""
-    <div style="margin-top:8px; font-size:0.85em;">
-      <div style="margin-bottom:4px;">{label}</div>
-      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
-        <div style="width:3%; background:#1976d2; height:100%;"></div>
-      </div>
-    </div>
-    """
+                <div style="margin-top:8px; font-size:0.85em;">
+                  <div style="margin-bottom:4px;">{label}</div>
+                  <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+                    <div style="width:3%; background:#1976d2; height:100%;"></div>
+                  </div>
+                </div>
+                """
             elif start_date_obj and end_date_obj:
                 total_days = (end_date_obj - start_date_obj).days + 1
-                elapsed = max(0, (today - start_date_obj).days + 1) if today >= start_date_obj else 0
-                remaining = max(0, (end_date_obj - today).days)
+                elapsed = max(0, (today_d - start_date_obj).days + 1) if today_d >= start_date_obj else 0
+                remaining = max(0, (end_date_obj - today_d).days)
                 percent = int((elapsed / total_days) * 100) if total_days > 0 else 100
                 percent = min(100, max(0, percent))
                 label = f"{remaining} day{'s' if remaining != 1 else ''} remaining in course"
                 bar_html = f"""
-    <div style="margin-top:8px; font-size:0.85em;">
-      <div style="margin-bottom:4px;">{label}</div>
-      <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
-        <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
-      </div>
-      <div style="margin-top:2px; font-size:0.75em;">
-        Progress: {percent}% (started {elapsed} of {total_days} days)
-      </div>
-    </div>
-    """
+                <div style="margin-top:8px; font-size:0.85em;">
+                  <div style="margin-bottom:4px;">{label}</div>
+                  <div style="background:#ddd; border-radius:6px; overflow:hidden; height:12px; width:100%;">
+                    <div style="width:{percent}%; background: linear-gradient(90deg,#1976d2,#4da6ff); height:100%;"></div>
+                  </div>
+                  <div style="margin-top:2px; font-size:0.75em;">
+                    Progress: {percent}% (started {elapsed} of {total_days} days)
+                  </div>
+                </div>
+                """
             else:
                 bar_html = f"""
-    <div style="margin-top:8px; font-size:0.85em;">
-      <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
-    </div>
-    """
+                <div style="margin-top:8px; font-size:0.85em;">
+                  <b>Course period:</b> {start_dt or '[not set]'} to {end_dt or '[not set]'}
+                </div>
+                """
 
-            # upcoming session list
             if upcoming_sessions:
-                list_items = []
+                items = []
                 for session_date in upcoming_sessions:
                     weekday_name = week_days[session_date.weekday()]
                     display_date = session_date.strftime("%d %b")
-                    list_items.append(
+                    items.append(
                         f"<li style='margin-bottom:6px;'><b>{weekday_name}</b> "
                         f"<span style='color:#1976d2;'>{display_date}</span> "
                         f"<span style='color:#333;'>{time_str}</span></li>"
                     )
-                session_items_html = "<ul style=\"padding-left:16px; margin:9px 0 0 0;\">" + "".join(list_items) + "</ul>"
+                session_items_html = "<ul style='padding-left:16px; margin:9px 0 0 0;'>" + "".join(items) + "</ul>"
             else:
-                session_items_html = '<span style="color:#c62828;">No upcoming sessions in the visible window.</span>'
+                session_items_html = "<span style='color:#c62828;'>No upcoming sessions in the visible window.</span>"
 
             period_str = f"{start_dt or '[not set]'} to {end_dt or '[not set]'}"
 
             st.markdown(
                 f"""
-    <div style='border:2px solid #17617a; border-radius:14px;
-                padding:13px 11px; margin-bottom:13px;
-                background:#eaf6fb; font-size:1.15em;
-                line-height:1.65; color:#232323;'>
-      <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
-      {session_items_html}
-      {bar_html}
-      <div style="font-size:0.98em; margin-top:6px;">
-        <b>Course period:</b> {period_str}
-      </div>
-      {f'<a href="{doc_url}" target="_blank" '
-        f'style="font-size:1em;color:#17617a;'
-        f'text-decoration:underline;margin-top:6px;'
-        f'display:inline-block;">📄 View/download full class schedule</a>'
-        if doc_url else ''}
-    </div>
-    """,
+                <div style='border:2px solid #17617a; border-radius:14px;
+                            padding:13px 11px; margin-bottom:13px;
+                            background:#eaf6fb; font-size:1.15em;
+                            line-height:1.65; color:#232323;'>
+                  <b style="font-size:1.09em;">🗓️ Your Next Classes ({class_name}):</b><br>
+                  {session_items_html}
+                  {bar_html}
+                  <div style="font-size:0.98em; margin-top:6px;">
+                    <b>Course period:</b> {period_str}
+                  </div>
+                  {f'<a href="{doc_url}" target="_blank" style="font-size:1em;color:#17617a;text-decoration:underline;margin-top:6px;display:inline-block;">📄 View/download full class schedule</a>' if doc_url else ''}
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
 
-    # --- Goethe Exam Countdown & Video of the Day (per level) ---
+    # ---- Goethe Exam Countdown & Video of the Day ----
     GOETHE_EXAM_DATES = {
         "A1": (date(2025, 10, 13), 2850, None),
         "A2": (date(2025, 10, 14), 2400, None),
@@ -2482,9 +2242,9 @@ if tab == "Dashboard":
                 f"{fee_text}"
             )
 
-        # ---- Per-level YouTube Playlist ----
-        playlist_id = YOUTUBE_PLAYLIST_IDS.get(level)
-        if playlist_id:
+        # (Assumes you defined YOUTUBE_PLAYLIST_IDS, YOUTUBE_API_KEY, and fetch_youtube_playlist_videos elsewhere)
+        playlist_id = YOUTUBE_PLAYLIST_IDS.get(level) if 'YOUTUBE_PLAYLIST_IDS' in globals() else None
+        if playlist_id and 'fetch_youtube_playlist_videos' in globals() and 'YOUTUBE_API_KEY' in globals():
             video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
             if video_list:
                 today_idx = date.today().toordinal()
@@ -2499,26 +2259,28 @@ if tab == "Dashboard":
     else:
         st.warning("No exam date configured for your level.")
 
-    # --- Reviews Section ---
-    import datetime
-
-
+    # ---- Reviews (daily one) ----
+    import datetime as _dt
     st.markdown("### 🗣️ What Our Students Say")
-    reviews = load_reviews()   # <-- assumes this returns a DataFrame with 'review_text', 'student_name', 'rating' columns
-
+    reviews = load_reviews()
     if reviews.empty:
         st.info("No reviews yet. Be the first to share your experience!")
     else:
         rev_list = reviews.to_dict("records")
-        # Pick one review per day using today's date
-        today_idx = datetime.date.today().toordinal() % len(rev_list)
+        today_idx = _dt.date.today().toordinal() % len(rev_list)
         r = rev_list[today_idx]
-        stars = "★" * int(r.get("rating", 5)) + "☆" * (5 - int(r.get("rating", 5)))
+        try:
+            rating = int(r.get("rating", 5))
+        except Exception:
+            rating = 5
+        rating = min(5, max(0, rating))
+        stars = "★" * rating + "☆" * (5 - rating)
         st.markdown(
             f"> {r.get('review_text','')}\n"
             f"> — **{r.get('student_name','')}**  \n"
             f"> {stars}"
         )
+
 
 def get_a1_schedule():
     return [
