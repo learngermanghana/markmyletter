@@ -2981,8 +2981,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Dative Preposition",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/8dX40NXG_gI",
+            "youtube_link": "https://youtu.be/8dX40NXG_gI",
             "grammarbook_link": "https://drive.google.com/file/d/11yEcMioSB9x1ZD-x5_67ApFzP53iau-N/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1dIsFg7wNaqyyOHm95h7xv4Ssll5Fm0V1/view?usp=sharing"
         },
@@ -3347,8 +3347,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Adjektivdeklination mit unbestimmten Artikeln",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/8k0Iaw_-o8c",
+            "youtube_link": "https://youtu.be/8k0Iaw_-o8c",
             "grammarbook_link": "https://drive.google.com/file/d/1kUtriLOZfJXUxj2IVU2VHZZkghIWDWKv/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1qVANqTLg4FOU40_WfLZyVTu5KBluzYrh/view?usp=sharing"
         },
@@ -3363,7 +3363,7 @@ def get_b1_schedule():
             "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing",
+            "grammarbook_link": "https://drive.google.com/file/d/1NW5F0R5zj6nn2SqDjhpQlkGcfK-UBUqk/view?usp=drive_link",
             "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
         # TAG 5
