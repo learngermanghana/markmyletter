@@ -1454,6 +1454,7 @@ with col2:
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
+
 # --- Close gap + Announcement Board (between Welcome and dashboard) ---
 st.markdown(
     """
@@ -1479,7 +1480,7 @@ def render_announcements(ANNOUNCEMENTS: list):
       :root{
         --brand:#2563eb; --ring:#93c5fd;
         --text:#0f172a; --muted:#475569;
-        --card:#111827; /* darker default to look good on phones */
+        --card:#111827; /* dark by default so it pops on phones */
         --chip-bg:#1f2937; --chip-fg:#e5e7eb;
         --link:#60a5fa;
         --shell-border: rgba(148,163,184,.22);
@@ -1614,25 +1615,20 @@ def render_announcements(ANNOUNCEMENTS: list):
 
 # --- Three starter announcements (edit later) ---
 announcements = [
-    {
-        "title": "A2 Mock Exam this Saturday",
-        "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
-        "tag":   "Exam",
-        "href":  "https://www.learngermanghana.com/upcoming-classes"
-    },
-    {
-        "title": "System Update",
-        "body":  "Course Book uploads are now 2× faster. Report issues to support.",
-        "tag":   "System"
-    },
-    {
-        "title": "New B1 Writing Pack",
-        "body":  "Practice letters + opinions with 10 model answers.",
-        "tag":   "B1",
-        "href":  "https://www.learngermanghana.com/resources"
-    },
+    {"title": "A2 Mock Exam this Saturday",
+     "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
+     "tag":   "Exam",
+     "href":  "https://www.learngermanghana.com/upcoming-classes"},
+    {"title": "System Update",
+     "body":  "Course Book uploads are now 2× faster. Report issues to support.",
+     "tag":   "System"},
+    {"title": "New B1 Writing Pack",
+     "body":  "Practice letters + opinions with 10 model answers.",
+     "tag":   "B1",
+     "href":  "https://www.learngermanghana.com/resources"},
 ]
 
+   
 # Keep your meta tag injection and logout handling below as before:
 _inject_meta_tags()
 
