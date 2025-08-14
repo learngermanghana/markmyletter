@@ -1431,6 +1431,32 @@ def login_page():
 # Keep your meta tag injection as before
 _inject_meta_tags()
 
+# default so it's always defined
+_logout_clicked = False
+
+# --- Logged In UI ---
+st.markdown(
+    """
+    <style>
+        .post-login-header {margin-top:0; margin-bottom:4px;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
+col1, col2 = st.columns([0.85, 0.15])
+with col1:
+    st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+with col2:
+    st.markdown(
+        "<div style='display:flex; justify-content:flex-end; align-items:center;'>",
+        unsafe_allow_html=True,
+    )
+    _logout_clicked = st.button("Log out")  # <— now this overwrites the default
+    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
+
+
 # ===================== LOGOUT HANDLING (with visible errors) =====================
 if _logout_clicked:
     from datetime import datetime, timedelta
