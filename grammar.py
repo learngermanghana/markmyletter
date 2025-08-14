@@ -2,7 +2,6 @@
 import atexit, base64, difflib, hashlib
 import html as html_stdlib
 import io, json, os, random, math, re, sqlite3, tempfile, time
-import datetime
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
@@ -2002,6 +2001,8 @@ if tab == "Dashboard":
         st.warning("No exam date configured for your level.")
 
     # --- Reviews Section ---
+      import datetime
+
 
     st.markdown("### 🗣️ What Our Students Say")
     reviews = load_reviews()   # <-- assumes this returns a DataFrame with 'review_text', 'student_name', 'rating' columns
@@ -6671,6 +6672,7 @@ if tab == "Exams Mode & Custom Chat":
 
     # ——— Stage 99: Pronunciation & Speaking Checker (unchanged, uses your limits) ———
     if st.session_state.get("falowen_stage") == 99:
+        import datetime
         today_str = datetime.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
         doc = uploads_ref.get()
@@ -9691,7 +9693,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
