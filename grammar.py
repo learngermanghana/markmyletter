@@ -1256,6 +1256,148 @@ def login_page():
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
+        # --- Student Stories Section ---
+    st.markdown("""
+    <style>
+      .section-title {
+        font-weight:700;
+        font-size:1.15rem;
+        padding-left:12px;
+        border-left:5px solid #2563eb;
+        margin: 12px 0 12px 0;
+      }
+      @media (prefers-color-scheme: dark){
+        .section-title { border-left-color:#3b82f6; color:#f1f5f9; }
+      }
+    </style>
+    <div class="page-wrap">
+      <div class="section-title">💬 Student Stories</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    def render_reviews():
+        REVIEWS = [
+            {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
+            {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
+            {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
+            {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
+        ]
+
+        _reviews_html = """
+        <style>
+          :root{
+            --bg: #0b1220;
+            --card:#ffffffcc;
+            --text:#0f172a;
+            --muted:#475569;
+            --brand:#2563eb;
+            --chip:#e0f2fe;
+            --chip-text:#0369a1;
+            --ring:#93c5fd;
+          }
+          @media (prefers-color-scheme: dark){
+            :root{
+              --card:#0b1220cc;
+              --text:#e2e8f0;
+              --muted:#94a3b8;
+              --chip:#1e293b;
+              --chip-text:#e2e8f0;
+              --ring:#334155;
+            }
+          }
+          .page-wrap{max-width:900px;margin:8px auto;}
+          .rev-shell{
+            position:relative; isolation:isolate;
+            border-radius:16px; padding:18px 16px 20px 16px;
+            background: radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
+                        radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
+            border:1px solid rgba(148,163,184,.25);
+            box-shadow: 0 10px 30px rgba(2,6,23,.08);
+            overflow:hidden;
+          }
+          .rev-card{
+            background: var(--card);
+            backdrop-filter: blur(8px);
+            border:1px solid rgba(148,163,184,.25);
+            border-radius:16px; padding:20px 18px; min-height:170px;
+          }
+          .rev-quote{
+            font-size:1.06rem; line-height:1.55; color:var(--text); margin:0;
+          }
+          .rev-meta{
+            display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);
+          }
+          .rev-chip{
+            font-size:.78rem; font-weight:700;
+            background:var(--chip); color:var(--chip-text);
+            border-radius:999px; padding:6px 10px;
+          }
+          .rev-author{ font-weight:700; color:var(--text); }
+          .rev-dots{
+            display:flex; gap:6px; justify-content:center; margin-top:14px;
+          }
+          .rev-dot{
+            width:8px; height:8px; border-radius:999px;
+            background:#cbd5e1; opacity:.8; transform:scale(.9);
+            transition: all .25s ease;
+          }
+          .rev-dot[aria-current="true"]{
+            background:var(--brand); opacity:1; transform:scale(1.15);
+            box-shadow:0 0 0 4px var(--ring);
+          }
+        </style>
+        <div class="page-wrap">
+          <div id="reviews" class="rev-shell">
+            <div class="rev-card" id="rev_card">
+              <p id="rev_quote" class="rev-quote"></p>
+              <div class="rev-meta">
+                <span id="rev_level" class="rev-chip"></span>
+                <span id="rev_author" class="rev-author"></span>
+              </div>
+              <div class="rev-dots" id="rev_dots"></div>
+            </div>
+          </div>
+        </div>
+        <script>
+          const data = __DATA__;
+          const q = document.getElementById('rev_quote');
+          const a = document.getElementById('rev_author');
+          const l = document.getElementById('rev_level');
+          const dotsWrap = document.getElementById('rev_dots');
+          let i = 0;
+          function setActiveDot(idx){
+            [...dotsWrap.children].forEach((d, j) => d.setAttribute('aria-current', j === idx ? 'true' : 'false'));
+          }
+          function render(idx){
+            const c = data[idx];
+            q.textContent = c.quote;
+            a.textContent = c.author;
+            l.textContent = "Level " + c.level;
+            setActiveDot(idx);
+          }
+          function next(){
+            i = (i + 1) % data.length;
+            render(i);
+          }
+          data.forEach((_, idx) => {
+            const dot = document.createElement('button');
+            dot.className = 'rev-dot';
+            dot.type = 'button';
+            dot.addEventListener('click', () => { i = idx; render(i); });
+            dotsWrap.appendChild(dot);
+          });
+          setInterval(next, 6000);
+          render(i);
+        </script>
+        """
+        _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
+        components.html(_reviews_html.replace("__DATA__", _reviews_json), height=300, scrolling=False)
+
+    # --- Render reviews below Quick Links + Steps ---
+    render_reviews()
+#
+
+
     st.markdown("---")
 
     with st.expander("How do I log in?"):
