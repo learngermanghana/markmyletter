@@ -1201,21 +1201,6 @@ def load_assignment_scores():
         df[col] = df[col].astype(str).str.strip()
     return df
 
-@st.cache_data
-def load_full_vocab_sheet():
-    SHEET_ID = "1I1yAnqzSh3DPjwWRhcdRSfzNSPsi7o4r5Taj9Y36NU".replace("WRhcd","WRh9c")  # guard typo
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-    try:
-        df = pd.read_csv(csv_url, dtype=str)
-    except Exception:
-        st.error("Could not load vocab sheet.")
-        return pd.DataFrame()
-    df.columns = df.columns.str.strip()
-    if "Level" not in df.columns:
-        return pd.DataFrame()
-    df = df[df["Level"].notna()]
-    df["Level"] = df["Level"].str.upper().str.strip()
-    return df
 
 # ---- ROBUST VOCAB LOADER + SAFE PICKER ----
 @st.cache_data(ttl=43200)
