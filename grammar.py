@@ -1809,32 +1809,106 @@ if tab == "Dashboard":
         st.info("🚩 No student selected.")
         st.stop()
 
-                # ===== Motivation & Progress (compact, bottom of Dashboard) =====
-    # tiny spacer so this hugs the content above tightly
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-    # --- compute safe metrics (self-contained) ---
-    from datetime import date, timedelta
+    # ===== ALWAYS-VISIBLE STATUS BAR (Payment + Contract) =====
+    # (place this near the top of the Dashboard, right after the student info card)
+    from datetime import datetime, date, timedelta
     import pandas as pd
     import random
 
-    def _safe_get(row, key, default=""):
-        try:
-            return row.get(key, default)
-        except Exception:
-            pass
-        try:
-            return getattr(row, key, default)
-        except Exception:
-            pass
-        try:
-            return row[key]
-        except Exception:
-            return default
+    # styles for compact chips (scoped)
+    st.markdown("""
+    <style>
+      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:6px 10px; border-radius:999px; font-weight:600; font-size:.95rem;
+              border:1px solid rgba(148,163,184,.35); }
+      .chip-red   { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
+      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+      @media (prefers-color-scheme: dark){
+        .chip { border-color: rgba(148,163,184,.22); }
+      }
+    </style>
+    """, unsafe_allow_html=True)
 
-    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
+    MONTHLY_EXTENSION_FEE = 1000
+    today_dt = datetime.today()
 
+    # ---- Payment chip: only show if balance > 0 and (due today or overdue or schedule unknown)
+    # Read balance safely
+    try:
+        _balance = float(str(safe_get(student_row, "Balance", 0)).strip())
+    except Exception:
+        _balance = 0.0
+
+    # Compute first_due = 1 month after contract start
+    _first_due = None
+    for _k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
+        _s = str(safe_get(student_row, _k, "") or "").strip()
+        if _s:
+            _cs = parse_contract_start(_s)
+            if _cs:
+                _first_due = add_months(_cs, 1)
+            break
+
+    payment_chip_html = ""
+    payment_title_suffix = ""   # you can append this to your expander title if you keep it
+
+    if _balance > 0:
+        if _first_due:
+            _delta = (_first_due.date() - today_dt.date()).days
+            if _delta < 0:
+                # overdue
+                payment_chip_html = (
+                    f"<span class='chip chip-red'>💸 Overdue {_delta*-1}d — ₵{_balance:,.2f} "
+                    f"(first due {_first_due:%d %b %Y})</span>"
+                )
+                payment_title_suffix = f" • overdue {abs(_delta)}d"
+            elif _delta == 0:
+                # due today
+                payment_chip_html = (
+                    f"<span class='chip chip-amber'>⏳ Due today — ₵{_balance:,.2f}</span>"
+                )
+                payment_title_suffix = " • due today"
+            # if _delta > 0 → not due yet → no chip at top
+        else:
+            # balance > 0 but no readable start date
+            payment_chip_html = "<span class='chip chip-gray'>ℹ️ Balance outstanding — schedule unknown</span>"
+            payment_title_suffix = " • schedule unknown"
+
+    # ---- Contract chip: show if ends in ≤14 days or already ended
+    contract_chip_html = ""
+    _ce = parse_contract_end(safe_get(student_row, "ContractEnd", ""))
+    if _ce:
+        _days_left = (_ce.date() - today_dt.date()).days if isinstance(_ce, datetime) else (_ce - today_dt).days
+        if _days_left < 0:
+            contract_chip_html = (
+                f"<span class='chip chip-red'>⚠️ Contract ended ({_ce:%d %b %Y}) — "
+                f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
+            )
+        elif _days_left <= 14:
+            contract_chip_html = (
+                f"<span class='chip chip-amber'>⏰ Ends in {_days_left}d ({_ce:%d %b %Y}) — "
+                f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
+            )
+
+    # Render the status bar if we have at least one chip
+    _chips = " ".join([x for x in [payment_chip_html, contract_chip_html] if x]).strip()
+    if _chips:
+        st.markdown(f"<div class='statusbar'>{_chips}</div>", unsafe_allow_html=True)
+
+    # (Optional) if you still render the detailed Payments expander later,
+    # you can append the small suffix to its title like this:
+    try:
+        payment_title_extra = (payment_title_extra + payment_title_suffix) if payment_title_suffix else payment_title_extra
+    except NameError:
+        # if the variable doesn't exist in your file, ignore safely
+        pass
+
+    # ===== Motivation & Progress (compact, above the fold) =====
     # Assignment metrics
+    _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     _df_assign = load_assignment_scores()
     _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
     _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
@@ -1847,14 +1921,13 @@ if tab == "Dashboard":
         else:
             break
 
-    _today = date.today()
-    _monday = _today - timedelta(days=_today.weekday())
+    _monday = date.today() - timedelta(days=date.today().weekday())
     _weekly_goal = 3
     _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
     _goal_left = max(0, _weekly_goal - _submitted_this_week)
 
     # Vocab of the day
-    _level = (_safe_get(student_row, "Level", "A1") or "A1").upper().strip()
+    _level = (safe_get(student_row, "Level", "A1") or "A1").upper().strip()
     _vocab_df = load_full_vocab_sheet()
     _vocab_item = get_vocab_of_the_day(_vocab_df, _level)
 
@@ -1875,10 +1948,10 @@ if tab == "Dashboard":
     _totals_map = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     _total_possible = _totals_map.get(_level, 0)
 
-    # --- styles for compact cards (scoped) ---
+    # compact mini-cards (reuse earlier styles if you like; these are simple)
     st.markdown("""
     <style>
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 4px 0; }
+      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
       .minicard { flex:1 1 280px; border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px; }
       .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; }
       .minicard .sub { color:#475569; font-size:.92rem; }
@@ -1893,7 +1966,6 @@ if tab == "Dashboard":
     </style>
     """, unsafe_allow_html=True)
 
-    # --- card 1: Streak ---
     _streak_line = (
         f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
         if _streak > 0 else
@@ -1901,20 +1973,16 @@ if tab == "Dashboard":
     )
     _goal_line = (
         f"Submitted {_submitted_this_week}/{_weekly_goal} this week"
-        + (f" — { _goal_left } to go" if _goal_left else " — goal met 🎉")
+        + (f" — {_goal_left} to go" if _goal_left else " — goal met 🎉")
     )
 
-    # --- card 2: Vocab ---
     if _vocab_item:
-        _vocab_german = _vocab_item.get("german", "")
-        _vocab_english = _vocab_item.get("english", "")
-        _vocab_chip = f"<span class='pill pill-purple'>{_vocab_german}</span>"
-        _vocab_sub = f"{_vocab_english} · Level {_level}"
+        _vocab_chip = f"<span class='pill pill-purple'>{_vocab_item.get('german','')}</span>"
+        _vocab_sub = f"{_vocab_item.get('english','')} · Level {_level}"
     else:
         _vocab_chip = "<span class='pill pill-amber'>No vocab available</span>"
         _vocab_sub = f"Level {_level}"
 
-    # --- card 3: Leaderboard ---
     if not _your_row.empty:
         _rank = int(_your_row.iloc[0]["Rank"])
         _rank_text = f"Rank #{_rank} of {_total_students}"
@@ -1923,63 +1991,30 @@ if tab == "Dashboard":
         _rank_text = "Complete 3+ assignments to be ranked"
         _lead_chip = "<span class='pill pill-amber'>Not ranked yet</span>"
 
-    # --- render the three cards in one row ---
-    _cards_html = f"""
-    <div class="minirow">
-      <div class="minicard">
-        <h4>🏅 Assignment Streak</h4>
-        <div>{_streak_line}</div>
-        <div class="sub">{_goal_line}</div>
-      </div>
-      <div class="minicard">
-        <h4>🗣️ Vocab of the Day</h4>
-        <div>{_vocab_chip}</div>
-        <div class="sub">{_vocab_sub}</div>
-      </div>
-      <div class="minicard">
-        <h4>🏆 Leaderboard</h4>
-        <div>{_lead_chip}</div>
-        <div class="sub">{_rank_text}</div>
-      </div>
-    </div>
-    """
-    st.markdown(_cards_html, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="minirow">
+          <div class="minicard">
+            <h4>🏅 Assignment Streak</h4>
+            <div>{_streak_line}</div>
+            <div class="sub">{_goal_line}</div>
+          </div>
+          <div class="minicard">
+            <h4>🗣️ Vocab of the Day</h4>
+            <div>{_vocab_chip}</div>
+            <div class="sub">{_vocab_sub}</div>
+          </div>
+          <div class="minicard">
+            <h4>🏆 Leaderboard</h4>
+            <div>{_lead_chip}</div>
+            <div class="sub">{_rank_text}</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+#
 
-    # --- optional detailed expanders (stay compact when collapsed) ---
-    with st.expander("More on your streak & weekly goal", expanded=False):
-        st.write(f"• Current streak: **{_streak}** day{'s' if _streak != 1 else ''}")
-        st.write(f"• This week: **{_submitted_this_week}/{_weekly_goal}**")
-        if _goal_left:
-            st.info(f"Submit **{_goal_left}** more to hit your weekly goal.")
-        else:
-            st.success("Weekly goal reached — great job!")
-
-    with st.expander(f"Vocab details (Level {_level})", expanded=False):
-        if _vocab_item:
-            st.markdown(
-                f"- **German:** `{_vocab_item.get('german','')}`\n"
-                f"- **English:** {_vocab_item.get('english','')}\n"
-                + (f"- **Example:** {_vocab_item.get('example','')}" if _vocab_item.get('example') else "")
-            )
-        else:
-            st.info("No vocab entry available today for your level.")
-
-    with st.expander("Leaderboard details", expanded=False):
-        if not _your_row.empty:
-            _completed = int(_your_row.iloc[0]["completed"])
-            _progress_pct = ( _completed / _total_possible * 100 ) if _total_possible else 0
-            st.write(f"Rank: **#{_rank}** out of **{_total_students}**")
-            st.write(f"Assignments completed at your level: **{_completed}/{_total_possible}**")
-            st.markdown(
-                f"""
-                <div style="background:#f1f5f9;height:14px;border-radius:8px;overflow:hidden;">
-                  <div style="background:#7e57c2;height:14px;width:{_progress_pct:.2f}%;"></div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.info("Complete at least 3 assignments at your level to appear on the leaderboard.")
 
     # ---------- Student info card (tight spacing) ----------
     name = safe_get(student_row, "Name")
