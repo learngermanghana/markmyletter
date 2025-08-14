@@ -1775,7 +1775,7 @@ announcements = [
     },
     {
         "title": "Before You Submit Assignments",
-        "body":  "Always make sure your assignment is fully complete before submitting—upload all pages, attach audio if required, and double-check the instructions.",
+        "body":  "Always make sure your assignment is fully complete before submitting — add your Schreiben, Lesen & Hören work if required, type your final answers in My Course → Classroom (answer box), then submit.",
         "tag":   "Reminder"
     }
 ]
