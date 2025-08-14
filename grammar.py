@@ -1516,51 +1516,128 @@ if _logout_clicked:
 
     st.stop()
 
-# ===========================================
-# ---------- Announcements (safe) -----------
-# ===========================================
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
 def render_announcements(ANNOUNCEMENTS: list):
-    """Responsive rotating announcement board with safe link creation."""
+    """Responsive rotating announcement board with mobile-first, light card on phones."""
     if not ANNOUNCEMENTS:
+        st.info("📣 No announcements to show.")
         return
+
     _html = """
     <style>
+      /* ---------- THEME TOKENS ---------- */
       :root{
-        --brand:#2563eb; --ring:#93c5fd; --text:#0f172a; --muted:#475569;
-        --card:#111827; --chip-bg:#1f2937; --chip-fg:#e5e7eb;
-        --link:#60a5fa; --shell-border: rgba(148,163,184,.22);
+        /* brand */
+        --brand:#1d4ed8;      /* primary */
+        --ring:#93c5fd;
+
+        /* light defaults */
+        --text:#0b1220;
+        --muted:#475569;
+        --card:#ffffff;       /* <- light card by default */
+        --chip-bg:#eaf2ff;
+        --chip-fg:#1e3a8a;
+        --link:#1d4ed8;
+        --shell-border: rgba(2,6,23,.08);
       }
-      @media (prefers-color-scheme: light){
+
+      /* Dark scheme (desktop/tablet). We will still force light card on phones below. */
+      @media (prefers-color-scheme: dark){
         :root{
-          --text:#0f172a; --muted:#475569; --card:#ffffff;
-          --chip-bg:#e0f2fe; --chip-fg:#075985; --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
+          --text:#e5e7eb;
+          --muted:#cbd5e1;
+          --card:#111827;
+          --chip-bg:#1f2937;
+          --chip-fg:#e5e7eb;
+          --link:#93c5fd;
+          --shell-border: rgba(148,163,184,.25);
         }
       }
+
+      /* ---------- LAYOUT ---------- */
       .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{font-weight:700;font-size:1.05rem;line-height:1.2;padding-left:12px;border-left:5px solid var(--brand);margin:2px 0 6px 0;color:var(--text);}
-      .ann-shell{border-radius:12px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.18);padding:12px 14px;isolation:isolate;overflow:hidden;}
-      .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 6px 0;font-weight:700;color:var(--text)}
-      .ann-chip{font-size:.75rem;font-weight:700;letter-spacing:.2px;background:var(--chip-bg);color:var(--chip-fg);padding:4px 8px;border-radius:999px;border:1px solid var(--shell-border)}
-      .ann-body{color:var(--muted);margin:0;line-height:1.5;font-size:.96rem}
-      .ann-actions{margin-top:8px}
-      .ann-actions a{color:var(--link);text-decoration:none;font-weight:600}
-      .ann-dots{display:flex;gap:10px;justify-content:center;margin-top:10px}
-      .ann-dot{width:9px;height:9px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);transition:transform .2s, background .2s, opacity .2s}
-      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
+      .ann-title{
+        font-weight:800; font-size:1.05rem; line-height:1.2;
+        padding-left:12px; border-left:5px solid var(--brand);
+        margin: 0 0 6px 0; color: var(--text);
+        letter-spacing: .2px;
+      }
+      .ann-shell{
+        border-radius:14px;
+        border:1px solid var(--shell-border);
+        background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.12);
+        padding:12px 14px; isolation:isolate; overflow:hidden;
+      }
+      .ann-heading{
+        display:flex; align-items:center; gap:10px; margin:0 0 6px 0;
+        font-weight:800; color:var(--text); letter-spacing:.2px;
+      }
+      .ann-chip{
+        font-size:.78rem; font-weight:800; text-transform:uppercase;
+        background:var(--chip-bg); color:var(--chip-fg);
+        padding:4px 9px; border-radius:999px; border:1px solid var(--shell-border);
+      }
+      .ann-body{ color:var(--muted); margin:0; line-height:1.55; font-size:1rem }
+      .ann-actions{ margin-top:8px }
+      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:700 }
+
+      .ann-dots{
+        display:flex; gap:12px; justify-content:center; margin-top:12px
+      }
+      .ann-dot{
+        width:11px; height:11px; border-radius:999px; background:#9ca3af;
+        opacity:.9; transform:scale(.95);
+        transition:transform .2s, background .2s, opacity .2s;
+        border:none; cursor:pointer;
+      }
+      .ann-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.22);
+        box-shadow:0 0 0 4px var(--ring)
+      }
+
       @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       .ann-anim{animation:fadeInUp .25s ease both}
       @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+
+      /* ---------- MOBILE OVERRIDES ---------- */
+      @media (max-width: 640px){
+        /* Force a light look on phones, regardless of system dark mode */
+        :root{
+          --card:#ffffff !important;
+          --text:#0b1220 !important;
+          --muted:#334155 !important;
+          --link:#1d4ed8 !important;
+          --chip-bg:#eaf2ff !important;
+          --chip-fg:#1e3a8a !important;
+          --shell-border: rgba(2,6,23,.10) !important;
+        }
+        .page-wrap{ padding:0 8px; }
+        .ann-shell{ padding:10px 12px; border-radius:12px; }
+        .ann-title{ font-size:1rem; margin:0 0 4px 0; }
+        .ann-heading{ gap:8px; }
+        .ann-chip{ font-size:.72rem; padding:3px 8px; }
+        .ann-body{ font-size:1.02rem; line-height:1.6; }
+        .ann-dots{ gap:10px; margin-top:10px; }
+        .ann-dot{ width:12px; height:12px; }
+      }
+
+      /* Tight spacer utility for Streamlit blocks around this widget */
+      .tight-section{ margin:6px 0 !important; }
     </style>
 
-    <div class="page-wrap">
-      <div class="ann-title">📣 Announcement</div>
+    <div class="page-wrap tight-section">
+      <div class="ann-title">📣 Announcements</div>
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div class="ann-anim" id="ann_card">
           <div class="ann-heading">
             <span class="ann-chip" id="ann_tag" style="display:none;"></span>
             <span id="ann_title"></span>
           </div>
-          <p class="ann-body" id="ann_body"></p>
+          <p class="ann-body" id="ann_body">loading…</p>
           <div class="ann-actions" id="ann_action" style="display:none;"></div>
         </div>
         <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
@@ -1577,7 +1654,9 @@ def render_announcements(ANNOUNCEMENTS: list):
       const card    = document.getElementById('ann_card');
       const shell   = document.getElementById('ann_shell');
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let i = 0, timer = null; const INTERVAL = 6500;
+
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
 
       function setActiveDot(idx){
         [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
@@ -1585,18 +1664,33 @@ def render_announcements(ANNOUNCEMENTS: list):
       function render(idx){
         const c = data[idx] || {};
         card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
+
         titleEl.textContent = c.title || '';
         bodyEl.textContent  = c.body  || '';
-        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
+
+        if (c.tag){
+          tagEl.textContent = c.tag;
+          tagEl.style.display='';
+        } else {
+          tagEl.style.display='none';
+        }
+
         if (c.href){
-          const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Open';
-          actionEl.textContent = ''; actionEl.appendChild(link); actionEl.style.display='';
-        } else { actionEl.style.display='none'; actionEl.textContent=''; }
+          const link = document.createElement('a');
+          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Open';
+          actionEl.textContent = '';
+          actionEl.appendChild(link);
+          actionEl.style.display='';
+        } else {
+          actionEl.style.display='none';
+          actionEl.textContent = '';
+        }
         setActiveDot(idx);
       }
-      function next(){ i=(i+1)%data.length; render(i); }
-      function start(){ if(!reduced) timer=setInterval(next, INTERVAL); }
-      function stop(){ if(timer) clearInterval(timer); timer=null; }
+      function next(){ i = (i+1) % data.length; render(i); }
+      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
       function restart(){ stop(); start(); }
 
       data.forEach((_, idx)=>{
@@ -1616,7 +1710,28 @@ def render_announcements(ANNOUNCEMENTS: list):
     </script>
     """
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=200, scrolling=False)
+    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
+
+def inject_notice_css():
+    st.markdown("""
+    <style>
+      /* ---- Theme tokens for the notification card ---- */
+      :root{
+        --n-bg:#fff9f2;      /* light, warm background */
+        --n-border:#fed7aa;  /* soft amber border */
+        --n-text:#7c2d12;    /* dark amber text */
+      }
+      /* Even in dark mode, keep the card light for readability on phones */
+      @media (prefers-color-scheme: dark){
+        :root{
+          --n-bg:#fff4e5;
+          --n-border:#f5b97a;
+          --n-text:#5a2507;
+        }
+      }
+
+      /* Compact utility to*
+
 
 announcements = [
     {"title": "A2 Mock Exam this Saturday",
@@ -1774,9 +1889,66 @@ if tab == "Dashboard":
         d = min(dt.day, _cal.monthrange(y, m)[1])
         return dt.replace(year=y, month=m, day=d)
 
+    # Use globals if provided elsewhere, otherwise fall back safely
     parse_contract_start_fn = globals().get("parse_contract_start", _fallback_parse_date)
     parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
     add_months_fn           = globals().get("add_months",           _fallback_add_months)
+
+    # ---------- MOBILE/THEME FIXES (makes cards readable on phones) ----------
+    st.markdown("""
+    <style>
+      /* Force readable light cards for Announcements + Status on phones and dark mode */
+      :root{
+        --ann-bg:#ffffff; --ann-border:rgba(148,163,184,.30); --ann-text:#0f172a; --ann-muted:#475569;
+        --chip-border: rgba(148,163,184,.35);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --ann-bg:#ffffff; --ann-border:rgba(148,163,184,.30); --ann-text:#0b1020; --ann-muted:#334155;
+          --chip-border: rgba(148,163,184,.28);
+        }
+      }
+      /* Override the announcement shell from render_announcements() */
+      .ann-shell{
+        background: var(--ann-bg) !important;
+        color: var(--ann-text) !important;
+        border: 1px solid var(--ann-border) !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,.06) !important;
+        isolation:isolate; mix-blend-mode: normal;
+      }
+      .ann-title, .ann-heading, .ann-body { color: var(--ann-text) !important; }
+      .ann-body { color: var(--ann-muted) !important; }
+      .ann-chip{ border-color: var(--ann-border) !important; }
+
+      /* Status bar / chips */
+      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
+              border:1px solid var(--chip-border); mix-blend-mode: normal; }
+      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+
+      /* Mini-cards */
+      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
+      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
+                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
+      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
+      .minicard .sub { color:#475569; font-size:.92rem; }
+      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
+      .pill-green { background:#e6ffed; color:#0a7f33; }
+      .pill-purple { background:#efe9ff; color:#5b21b6; }
+      .pill-amber { background:#fff7ed; color:#7c2d12; }
+
+      /* Mobile adjustments */
+      @media (max-width: 640px){
+        .ann-shell{ padding:12px !important; border-radius:12px !important; }
+        .chip{ padding:7px 10px; font-size:.95rem; }
+        .minicard{ padding:11px; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
 
     # ---------- ensure student_row exists ----------
     load_student_data_fn = globals().get("load_student_data")
@@ -1814,33 +1986,10 @@ if tab == "Dashboard":
     render_announcements(announcements)
     # Tight spacer (keeps it close to the next section)
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-#
 
     # ===== ALWAYS-VISIBLE STATUS BAR (Payment + Contract) =====
-    # (place this near the top of the Dashboard, right after the student info card)
-    from datetime import datetime, date, timedelta
-    import pandas as pd
-    import random
-
-    # styles for compact chips (scoped)
-    st.markdown("""
-    <style>
-      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
-      .chip { display:inline-flex; align-items:center; gap:8px;
-              padding:6px 10px; border-radius:999px; font-weight:600; font-size:.95rem;
-              border:1px solid rgba(148,163,184,.35); }
-      .chip-red   { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
-      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
-      @media (prefers-color-scheme: dark){
-        .chip { border-color: rgba(148,163,184,.22); }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
     MONTHLY_EXTENSION_FEE = 1000
-    today_dt = datetime.today()
+    today_dt = _dt.today()
 
     # ---- Payment chip: only show if balance > 0 and (due today or overdue or schedule unknown)
     # Read balance safely
@@ -1854,9 +2003,9 @@ if tab == "Dashboard":
     for _k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
         _s = str(safe_get(student_row, _k, "") or "").strip()
         if _s:
-            _cs = parse_contract_start(_s)
+            _cs = parse_contract_start_fn(_s)
             if _cs:
-                _first_due = add_months(_cs, 1)
+                _first_due = add_months_fn(_cs, 1)
             break
 
     payment_chip_html = ""
@@ -1886,17 +2035,19 @@ if tab == "Dashboard":
 
     # ---- Contract chip: show if ends in ≤14 days or already ended
     contract_chip_html = ""
-    _ce = parse_contract_end(safe_get(student_row, "ContractEnd", ""))
+    _ce = parse_contract_end_fn(safe_get(student_row, "ContractEnd", ""))
     if _ce:
-        _days_left = (_ce.date() - today_dt.date()).days if isinstance(_ce, datetime) else (_ce - today_dt).days
+        # _ce may be datetime or date; normalize
+        _ce_date = _ce.date() if hasattr(_ce, "date") else _ce
+        _days_left = (_ce_date - today_dt.date()).days
         if _days_left < 0:
             contract_chip_html = (
-                f"<span class='chip chip-red'>⚠️ Contract ended ({_ce:%d %b %Y}) — "
+                f"<span class='chip chip-red'>⚠️ Contract ended ({_ce_date:%d %b %Y}) — "
                 f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
             )
         elif _days_left <= 14:
             contract_chip_html = (
-                f"<span class='chip chip-amber'>⏰ Ends in {_days_left}d ({_ce:%d %b %Y}) — "
+                f"<span class='chip chip-amber'>⏰ Ends in {_days_left}d ({_ce_date:%d %b %Y}) — "
                 f"extension ₵{MONTHLY_EXTENSION_FEE:,}/month</span>"
             )
 
@@ -1928,7 +2079,7 @@ if tab == "Dashboard":
         else:
             break
 
-    _monday = date.today() - timedelta(days=date.today().weekday())
+    _monday = _date.today() - _td(days=_date.today().weekday())
     _weekly_goal = 3
     _submitted_this_week = _df_assign[_mask_student & (_df_assign["date"] >= _monday)].shape[0]
     _goal_left = max(0, _weekly_goal - _submitted_this_week)
@@ -1954,24 +2105,6 @@ if tab == "Dashboard":
     _total_students = len(_df_level)
     _totals_map = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     _total_possible = _totals_map.get(_level, 0)
-
-    # compact mini-cards (reuse earlier styles if you like; these are simple)
-    st.markdown("""
-    <style>
-      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
-      .minicard { flex:1 1 280px; border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:12px; }
-      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; }
-      .minicard .sub { color:#475569; font-size:.92rem; }
-      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
-      .pill-green { background:#e6ffed; color:#0a7f33; }
-      .pill-purple { background:#efe9ff; color:#5b21b6; }
-      .pill-amber { background:#fff7ed; color:#7c2d12; }
-      @media (prefers-color-scheme: dark){
-        .minicard { border-color: rgba(148,163,184,.22); background:#0b1220; }
-        .minicard .sub { color:#94a3b8; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
 
     _streak_line = (
         f"<span class='pill pill-green'>{_streak} day{'s' if _streak != 1 else ''} streak</span>"
@@ -2020,8 +2153,6 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
-#
-
 
     # ---------- Student info card (tight spacing) ----------
     name = safe_get(student_row, "Name")
