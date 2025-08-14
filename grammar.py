@@ -1001,7 +1001,7 @@ def render_reviews():
 
     _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
     components.html(_reviews_html.replace("__DATA__", _reviews_json), height=300, scrolling=False)        
-    )
+
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     with tab1:
