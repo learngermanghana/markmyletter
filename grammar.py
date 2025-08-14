@@ -1879,18 +1879,26 @@ if st.session_state.get("logged_in"):
             contract_notice_level = "info"
             contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
-    # -------------------- PAYMENT / DUES (1 month after Contract Start) --------------------
-    # Rule:
-    # - Student only "owes" if (balance > 0) AND (we are past first_due = 1 month after contract start)
-    # - If balance < 0, student has credit and never "owes" by this rule.
+     # -------------------- PAYMENT / DUES (balance-gated, first_due after 1 month) --------------------
+    MONTHLY_EXTENSION_FEE = 1000  # ONLY for post-contract extensions
 
     # Read balance safely
-    balance_raw = (student_row.get("Balance", 0) if isinstance(student_row, dict) else 0)
     try:
-        balance = float(str(balance_raw).strip())
+        balance = float(str(student_row.get("Balance", 0)).strip())
     except Exception:
         balance = 0.0
 
+    # Defaults
+    owes = False
+    show_payment_ui = False
+    payment_title_extra = ""
+    payment_notice_level = "info"   # "info" | "warning" | "error" | "success"
+    payment_msg = ""
+    first_due = None
+    overdue_days = 0
+    amount_due = balance  # amount due is the Balance value (NOT the extension fee)
+
+    # Parse contract start → compute first_due (start + 1 month)
     _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
     start_str = ""
     for k in _start_keys:
@@ -1899,120 +1907,125 @@ if st.session_state.get("logged_in"):
             start_str = v
             break
 
-    payment_title_extra = "• no start date"
-    payment_notice_level = "info"
-    payment_msg = "We couldn't read your contract start date."
-    owes = False
-    first_due = None
-    amount_due = MONTHLY_RENEWAL
-    overdue_days = 0
-
     if start_str:
         contract_start = parse_contract_start(start_str)
         if contract_start:
             first_due = add_months(contract_start, 1)
+
+    # Apply your rule:
+    # - If balance ≤ 0 → NO payment UI at all.
+    # - If balance > 0 → student owes only when today ≥ first_due.
+    if balance > 0:
+        if first_due:
             delta_days = (first_due.date() - today_dt.date()).days
-            payment_title_extra = f"• due {first_due:%d %b %Y}"
-
-            is_overdue = (delta_days < 0)
-            owes_by_balance = (balance > 0)
-            owes = is_overdue and owes_by_balance  # <— your rule
-
-            if owes:
-                # Overdue AND student has positive balance
+            if delta_days > 0:
+                # Not due yet → per your rule, do not show any payment notice
+                owes = False
+                show_payment_ui = False
+            elif delta_days == 0:
+                # Due today
+                owes = True
+                show_payment_ui = True
+                payment_notice_level = "warning"
+                payment_title_extra = "• due today"
+                payment_msg = (
+                    f"💳 Payment due **today** ({first_due:%d %b %Y}). "
+                    f"Amount due: **₵{amount_due:,.2f}**."
+                )
+            else:
+                # Overdue
+                owes = True
+                show_payment_ui = True
                 overdue_days = -delta_days
-                months_late = max(1, months_between(first_due, today_dt))
-                amount_due = MONTHLY_RENEWAL * months_late
                 payment_notice_level = "error"
                 payment_title_extra = f"• overdue {overdue_days}d"
                 payment_msg = (
                     f"💸 **Overdue by {overdue_days} days.** "
-                    f"Estimated amount due: **₵{amount_due:,}** (₵{MONTHLY_RENEWAL:,}/month). "
-                    f"First due: {first_due:%d %b %Y}. Your balance is **₵{balance:,.2f}**."
+                    f"Amount due: **₵{amount_due:,.2f}**. "
+                    f"First due: {first_due:%d %b %Y}."
                 )
-
-            else:
-                # Not owing (either not overdue yet, or balance ≤ 0)
-                if balance < 0:
-                    # Credit, never owes per rule
-                    credit = abs(balance)
-                    payment_notice_level = "success"
-                    if is_overdue:
-                        # Past date but with credit → still no owe, just inform
-                        payment_msg = (
-                            f"✅ Your first payment date ({first_due:%d %b %Y}) has passed, "
-                            f"but you have a **credit of ₵{credit:,.2f}**. No payment owed."
-                        )
-                        payment_title_extra = f"• credit ₵{credit:,.2f}"
-                    else:
-                        if delta_days > 1:
-                            payment_msg = (
-                                f"✅ You have a **credit of ₵{credit:,.2f}**. "
-                                f"First payment in **{delta_days} days** ({first_due:%d %b %Y})."
-                            )
-                        elif delta_days == 1:
-                            payment_msg = (
-                                f"✅ You have a **credit of ₵{credit:,.2f}**. "
-                                f"First payment is **tomorrow** ({first_due:%d %b %Y})."
-                            )
-                        else:  # delta_days == 0
-                            payment_msg = (
-                                f"✅ You have a **credit of ₵{credit:,.2f}**. "
-                                f"First payment is **today** ({first_due:%d %b %Y})."
-                            )
-
-                elif balance == 0:
-                    # Settled; just show timing info
-                    if is_overdue:
-                        payment_notice_level = "info"
-                        payment_title_extra = f"• due {first_due:%d %b %Y}"
-                        payment_msg = (
-                            f"ℹ️ Your first payment date ({first_due:%d %b %Y}) has passed, "
-                            f"but your balance is **₵0.00** — nothing owed."
-                        )
-                    else:
-                        if delta_days > 1:
-                            payment_notice_level = "info"
-                            payment_msg = (
-                                f"💳 First payment in **{delta_days} days** "
-                                f"({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
-                            )
-                        elif delta_days == 1:
-                            payment_notice_level = "warning"
-                            payment_msg = (
-                                f"💳 First payment **tomorrow** "
-                                f"({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
-                            )
-                        else:
-                            payment_notice_level = "warning"
-                            payment_msg = (
-                                f"💳 First payment **today** "
-                                f"({first_due:%d %b %Y}). Amount: **₵{MONTHLY_RENEWAL:,}**."
-                            )
-
-                else:
-                    # balance > 0 but NOT overdue yet → upcoming payment, not owed now
-                    if delta_days > 1:
-                        payment_notice_level = "info"
-                        payment_msg = (
-                            f"💳 First payment in **{delta_days} days** ({first_due:%d %b %Y}). "
-                            f"Current balance: **₵{balance:,.2f}**."
-                        )
-                    elif delta_days == 1:
-                        payment_notice_level = "warning"
-                        payment_msg = (
-                            f"💳 First payment **tomorrow** ({first_due:%d %b %Y}). "
-                            f"Current balance: **₵{balance:,.2f}**."
-                        )
-                    else:  # delta_days == 0
-                        payment_notice_level = "warning"
-                        payment_msg = (
-                            f"💳 First payment **today** ({first_due:%d %b %Y}). "
-                            f"Current balance: **₵{balance:,.2f}**."
-                        )
         else:
-            payment_msg = "We couldn't parse your contract start date format."
-    # else: keep the default "no start date" message
+            # Balance > 0 but no readable start date → we can't compute 'first_due'
+            owes = False  # we cannot assert overdue without first_due
+            show_payment_ui = True
+            payment_notice_level = "info"
+            payment_title_extra = "• schedule unknown"
+            payment_msg = (
+                "ℹ️ You have an outstanding balance, but we couldn't read your contract start date "
+                "to compute the first payment date. Please contact the office."
+            )
+    else:
+        # balance ≤ 0 → no payment notices at all
+        owes = False
+        show_payment_ui = False
+
+    # -------------------- RENDER: Payment UI (only when show_payment_ui True) --------------------
+    if show_payment_ui:
+        with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
+            if payment_notice_level == "error":
+                st.error(payment_msg)
+            elif payment_notice_level == "warning":
+                st.warning(payment_msg)
+            elif payment_notice_level == "success":
+                st.success(payment_msg)
+            else:
+                st.info(payment_msg)
+
+        # (Optional) small status strip under the expander
+        if owes:
+            bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸" if "overdue" in payment_title_extra else ("#fff7ed", "#f59e0b", "#7c2d12", "⏳")
+            st.markdown(
+                f"""
+                <div style="
+                    margin:8px 0 16px 0; padding:10px 12px;
+                    background:{bg}; border:1px solid {border}; border-radius:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:1.15em">{icon}</span>
+                        <div style="color:{fg}; font-weight:600">{payment_msg}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # -------------------- CONTRACT END → EXTENSION INFO (separate from payments) --------------------
+    if contract_end:
+        days_left = (contract_end - today_dt).days
+        if days_left < 0:
+            st.error(
+                f"⚠️ Your contract has ended ({contract_end:%d %b %Y}). "
+                f"If you need more time, you can extend for **₵{MONTHLY_EXTENSION_FEE:,}/month**."
+            )
+        elif days_left <= 30:
+            st.warning(
+                f"⏰ Your contract ends in {days_left} days ({contract_end:%d %b %Y}). "
+                f"If you need more time, extension costs **₵{MONTHLY_EXTENSION_FEE:,}/month**."
+            )
+
+    # -------------------- BADGES (hide Payment chip unless we’re showing payment UI) --------------------
+    # Example: rebuild your badges row so the Payment chip only appears when show_payment_ui is True.
+    badges_html = [
+        "<span style='background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;'>⏰ Contract</span>",
+        "<span style='background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;'>🏅 Assignments</span>",
+        "<span style='background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;'>🗣️ Vocab</span>",
+        "<span style='background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;'>🏆 Leaderboard</span>",
+    ]
+    if show_payment_ui:
+        # choose color by level
+        if payment_notice_level == "error":
+            pay_bg, pay_fg, pay_text = "#fee2e2", "#991b1b", "💸 Payment"
+        elif payment_notice_level == "warning":
+            pay_bg, pay_fg, pay_text = "#fff7ed", "#7c2d12", "💳 Payment"
+        else:
+            pay_bg, pay_fg, pay_text = "#f1f5f9", "#334155", "💳 Payment"
+        badges_html.insert(1, f"<span style='background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;'>{pay_text}</span>")
+
+    st.markdown(
+        "<div style='display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;'>"
+        + "".join(badges_html)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
 #
 
 
