@@ -2069,30 +2069,113 @@ if tab == "Dashboard":
     """
     st.markdown(info_html, unsafe_allow_html=True)
 
-    # ---------- Quick balance banner (pure info) ----------
-    try:
-        bal_val = float(str(safe_get(student_row, "Balance", 0)).strip() or 0)
-        if bal_val > 0:
-            st.warning(f"💸 <b>Balance to pay:</b> ₵{bal_val:.2f}", unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    # ---- Payment chip: show ONLY when the student actually owes (due today or overdue).
-    # If the student does NOT owe (balance <= 0), show a gentle heads-up that
-    # the first payment is one month after contract start (if we can compute it).
-
-    # Safe money reader (fallback if not defined elsewhere)
-    _read_money = globals().get("_read_money")
-    if _read_money is None:
-        def _read_money(x):
+    # ---------- Payments (balance + due date) ----------
+    # Local fallbacks (use globals if already defined elsewhere)
+    def _fallback_parse_date(s):
+        from datetime import datetime as __dt
+        for f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
             try:
-                s = str(x).replace(",", "").strip()
-                return float(s) if s not in ("", "nan", "None") else 0.0
+                return __dt.strptime(str(s).strip(), f)
             except Exception:
-                return 0.0
+                pass
+        return None
 
-    from datetime import datetime as _dt, timedelta as _timedelta
-    today_dt = globals().get("today_dt") or _dt.today()
+    def _fallback_add_months(dt, n):
+        import calendar as __cal
+        y = dt.year + (dt.month - 1 + n) // 12
+        m = (dt.month - 1 + n) % 12 + 1
+        d = min(dt.day, __cal.monthrange(y, m)[1])
+        return dt.replace(year=y, month=m, day=d)
+
+    _parse_start = globals().get("parse_contract_start") or _fallback_parse_date
+    _add_months  = globals().get("add_months") or _fallback_add_months
+
+    # Read contract start
+    _cs = None
+    for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
+        _s = str(safe_get(student_row, _k, "") or "").strip()
+        if _s:
+            _cs = _parse_start(_s)
+            break
+
+    # First payment = 1 month after contract start (if start is known)
+    _first_due = _add_months(_cs, 1) if _cs else None
+
+    # Normalize 'today' to a date for safe comparisons
+    _today = today_dt.date() if hasattr(today_dt, "date") else today_dt
+
+    # Compute status bits
+    _balance = _read_money(safe_get(student_row, "Balance", 0))
+    _delta = None
+    if _first_due:
+        _delta = (_first_due.date() - _today).days
+
+    # Build expander title + body depending on state
+    if _balance > 0 and _first_due is not None:
+        if _delta < 0:
+            _exp_title = f"💳 Payments • overdue {abs(_delta)}d"
+            _severity = "error"
+            _msg = (
+                f"💸 **Overdue by {abs(_delta)} day{'s' if abs(_delta)!=1 else ''}.** "
+                f"Amount due: **₵{_balance:,.2f}**. First due: {_first_due:%d %b %Y}."
+            )
+        elif _delta == 0:
+            _exp_title = "💳 Payments • due today"
+            _severity = "warning"
+            _msg = f"⏳ **Payment due today** ({_first_due:%d %b %Y}). Amount due: **₵{_balance:,.2f}**."
+        else:
+            # Upcoming but not due yet — still show details because user expanded it
+            _exp_title = f"💳 Payments • due in {_delta}d"
+            _severity = "info"
+            _msg = (
+                f"Heads-up: your next payment is **in {_delta} day{'s' if _delta!=1 else ''}** "
+                f"({__import__('datetime').datetime.strftime(_first_due, '%d %b %Y')}). "
+                f"Current balance: **₵{_balance:,.2f}**."
+            )
+    elif _balance > 0 and _first_due is None:
+        _exp_title = "💳 Payments • schedule unknown"
+        _severity = "info"
+        _msg = (
+            "ℹ️ You have an outstanding balance, but I couldn’t read your contract start date "
+            "to compute the first payment date. Please contact the office."
+        )
+    else:
+        # No outstanding balance
+        _exp_title = "💳 Payments (info)"
+        _severity = "info"
+        if _first_due:
+            _msg = (
+                f"No outstanding balance. Your **first payment** date is **{_first_due:%d %b %Y}** "
+                f"(one month after your contract start)."
+            )
+        else:
+            _msg = (
+                "No outstanding balance. Your first payment is **one month after your contract start**. "
+                "We’ll show the exact date once your start date is on file."
+            )
+
+    with st.expander(_exp_title, expanded=False):
+        if _severity == "error":
+            st.error(_msg)
+        elif _severity == "warning":
+            st.warning(_msg)
+        else:
+            st.info(_msg)
+
+        # Always show the raw details inside the expander
+        _cs_str = _cs.strftime("%d %b %Y") if _cs else "—"
+        _fd_str = _first_due.strftime("%d %b %Y") if _first_due else "—"
+        st.markdown(
+            f"""
+            **Details**
+            - Contract start: **{_cs_str}**
+            - First payment due: **{_fd_str}**
+            - Current balance: **₵{_balance:,.2f}**
+            - Policy: First payment is due **1 month after contract start**.
+            """
+        )
+#
+
 
      # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
