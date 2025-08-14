@@ -1516,13 +1516,7 @@ if _logout_clicked:
 
     st.stop()
 
-# ======== Imports ========
-import json
-import calendar
-import pandas as pd
-import streamlit as st
-import streamlit.components.v1 as components
-from datetime import datetime, date, timedelta
+
 
 # =========================================================
 # ============= Announcements (mobile-friendly) ===========
@@ -1764,18 +1758,28 @@ def inject_notice_css():
 # ================== Demo data for announcements ==========
 # =========================================================
 announcements = [
-    {"title": "A2 Mock Exam this Saturday",
-     "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
-     "tag":   "Exam",
-     "href":  "https://www.learngermanghana.com/upcoming-classes"},
-    {"title": "System Update",
-     "body":  "Course Book uploads are now 2× faster. Report issues to support.",
-     "tag":   "System"},
-    {"title": "New B1 Writing Pack",
-     "body":  "Practice letters + opinions with 10 model answers.",
-     "tag":   "B1",
-     "href":  "https://www.learngermanghana.com/resources"},
+    {
+        "title": "New! Dictionary tab in Vocab Trainer",
+        "body":  "Look up quick definitions and example sentences. Open: Vocab Trainer → Dictionary.",
+        "tag":   "Update"
+    },
+    {
+        "title": "Calendar & Zoom in My Course → Classroom (no WhatsApp)",
+        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom. We’re discontinuing WhatsApp for announcements.",
+        "tag":   "Action"
+    },
+    {
+        "title": "Answers by Email + Weekly Summary",
+        "body":  "Your marked answers will arrive in your email. You’ll also get a weekly summary of your submissions.",
+        "tag":   "Email"
+    },
+    {
+        "title": "Before You Submit Assignments",
+        "body":  "Always make sure your assignment is fully complete before submitting—upload all pages, attach audio if required, and double-check the instructions.",
+        "tag":   "Reminder"
+    }
 ]
+
 
 # =========================================================
 # ============== Data loaders & helpers ===================
