@@ -7182,10 +7182,10 @@ if tab == "Exams Mode & Custom Chat":
                 "audio/3gpp", "video/3gpp",
                 "audio/aac", "audio/x-aac",
                 "audio/ogg", "audio/webm", "video/webm",
-                
             }
             allowed_exts = (
                 ".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm"
+            )
 
             file_type = (audio_file.type or "").lower()
             file_name = audio_file.name.lower()
@@ -7194,10 +7194,9 @@ if tab == "Exams Mode & Custom Chat":
                 or file_type in allowed_types
                 or file_name.endswith(allowed_exts)
             ):
-
                 st.error(
                     "Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm)."
-                 )
+                )
             else:
                 st.audio(audio_file)
 
@@ -7270,6 +7269,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 # =========================================
