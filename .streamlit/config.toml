@@ -7,113 +7,12 @@ textColor = "#1a2340"
 font = "sans serif"
 
 [ui]
-customTheme = true
+customTheme = true   # enables the user theme switcher
 
 [server]
+# These lines will be injected into your HTML <head>
 head = """
   <title>Falowen – Your German Conversation Partner</title>
   <meta name="description" content="Falowen is your all-in-one German learning platform, powered by Learn Language Education Academy. Track streaks, submit assignments, watch lectures, practice vocab & Schreiben, and more.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <style>
-    /* ===== Minimal / Dense layout ===== */
-
-    /* Tighter canvas & consistent max width */
-    .main .block-container {
-      padding-top: 0.6rem;
-      padding-bottom: 0.6rem;
-      max-width: 880px;   /* 760–920px is a sweet spot */
-      margin: auto;
-    }
-
-    /* Global type compaction */
-    html, body, .stMarkdown, .stTextInput, .stSelectbox, .stMultiSelect, .stNumberInput,
-    .stDateInput, .stTextArea, .stSlider, .stColorPicker {
-      line-height: 1.25;
-    }
-
-    /* Headings: crisp, low-margin */
-    h1, h2, h3, h4, h5, h6 {
-      margin: 0.35rem 0 0.35rem 0;
-      line-height: 1.15;
-      letter-spacing: -0.01em;
-    }
-
-    /* Paragraphs & lists: trim top/bottom space */
-    .stMarkdown p,
-    .stMarkdown ul, .stMarkdown ol {
-      margin-top: 0.25rem;
-      margin-bottom: 0.25rem;
-    }
-    .stMarkdown li { margin: 0.12rem 0; }
-
-    /* Widgets: remove extra outer margins */
-    [data-testid="stWidgetLabel"] { margin-bottom: 0.15rem; }
-    .stTextInput, .stTextArea, .stNumberInput, .stDateInput,
-    .stSelectbox, .stMultiSelect, .stSlider, .stColorPicker {
-      margin-top: 0.15rem !important;
-      margin-bottom: 0.35rem !important;
-    }
-
-    /* Inputs & selects: compact height & padding */
-    input[type="text"], input[type="number"], textarea, select {
-      padding: 0.45rem 0.6rem !important;
-      min-height: 2.1rem !important;
-      font-size: 0.95rem !important;
-      border-radius: 0.6rem !important;
-    }
-
-    /* Buttons: smaller, tighter spacing */
-    .stButton > button {
-      padding: 0.45rem 0.9rem !important;
-      min-height: 2.1rem !important;
-      border-radius: 0.8rem !important;
-      margin: 0.25rem 0.35rem 0.35rem 0 !important;
-      font-weight: 600;
-    }
-
-    /* Columns: reduce inner gutters a bit */
-    [data-testid="column"] {
-      padding-left: 0.35rem !important;
-      padding-right: 0.35rem !important;
-    }
-
-    /* Expanders: slimmer header and body spacing */
-    details summary {
-      padding: 0.35rem 0.4rem !important;
-      margin: 0.25rem 0 !important;
-    }
-    details[open] > div {
-      padding: 0.35rem 0.4rem 0.5rem 0.4rem !important;
-    }
-
-    /* Tables/dataframes: tighter rows without hurting readability */
-    .dataframe tbody tr th, .dataframe tbody tr td {
-      padding: 0.35rem 0.5rem !important;
-    }
-    .stDataFrame { margin-bottom: 0.4rem; }
-
-    /* Cards/containers (e.g., st.container, st.metric): reduce gaps */
-    [data-testid="stMetric"] {
-      padding: 0.35rem 0.5rem !important;
-      margin: 0.25rem 0.35rem !important;
-    }
-
-    /* Code blocks: compact line-height & margins */
-    pre, code, .stCodeBlock {
-      line-height: 1.2 !important;
-      margin: 0.25rem 0 !important;
-      padding: 0.5rem 0.6rem !important;
-      border-radius: 0.6rem !important;
-    }
-
-    /* Optional: slightly darker secondary bg for structure */
-    .stAppViewContainer, .stSidebar, .st-emotion-cache-1r6slb0 {
-      background-image: none !important;
-    }
-
-    /* Subtle divider tightness */
-    hr { margin: 0.6rem 0 !important; }
-  </style>
 """
-
