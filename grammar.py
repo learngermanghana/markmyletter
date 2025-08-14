@@ -61,14 +61,13 @@ st.markdown("""
 }
 
 /* Keep hero flush and compact */
-.hero {
-  margin-top: 4px !important;      /* was 0/12 — pulls hero up */
-  margin-bottom: 8px !important;   /* tighter space before tabs */
-  padding-top: 6px !important;
-  display: flow-root;
-}
+  .hero {
+    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
+    margin-bottom: 4px !important;   /* tighter space before tabs */
+    padding-top: 6px !important;
+    display: flow-root;
+  }
 .hero h1:first-child { margin-top: 0 !important; }
-
 /* Trim default gap above Streamlit tabs */
 [data-testid="stTabs"] {
   margin-top: 8px !important;
@@ -794,8 +793,9 @@ def render_reviews():
         {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
     ]
     _reviews_html = """
-    <div class="page-wrap" style="max-width:900px;margin-top:20px;">
-      <div id="reviews" style="position:relative;height:270px;overflow:hidden;border-radius:10px;border:1px solid #ddd;background:#fff;padding:24px 16px;">
+    <div class="page-wrap" style="max-width:900px;margin-top:8px;">
+       <div id="reviews" style="position:relative;height:270px;overflow:hidden;border-radius:10px;border:1px solid #ddd;background:#fff;padding:1
+    6px 12px;">
         <blockquote id="rev_quote" style="font-size:1.05em;line-height:1.4;margin:0;"></blockquote>
         <div id="rev_author" style="margin-top:12px;font-weight:bold;color:#1e293b;"></div>
         <div id="rev_level" style="color:#475569;"></div>
@@ -911,7 +911,10 @@ def login_page():
     """, unsafe_allow_html=True)
 
     render_reviews()
-
+    st.markdown(
+        "<style>[data-testid='stTabs']{margin-top:4px !important;}</style>",
+        unsafe_allow_html=True,
+    )
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
     with tab1:
@@ -1124,16 +1127,26 @@ if not st.session_state.get("logged_in", False):
     login_page()
 
 # --- Logged In UI ---
+st.markdown(
+    """
+    <style>
+        .post-login-header {margin-top:0; margin-bottom:4px;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
 col1, col2 = st.columns([0.85, 0.15])
 with col1:
     st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
 with col2:
     st.markdown(
-        "<div style='display:flex; justify-content:flex-end;'>",
+        "<div style='display:flex; justify-content:flex-end; align-items:center;'>",
         unsafe_allow_html=True,
     )
     _logout_clicked = st.button("Log out")
     st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
 _inject_meta_tags()
 
