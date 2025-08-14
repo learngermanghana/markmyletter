@@ -785,6 +785,10 @@ def render_signup_form():
     st.success("Account created! Please log in on the Returning tab.")
 
 
+import json
+import streamlit as st
+import streamlit.components.v1 as components
+
 def render_reviews():
     REVIEWS = [
         {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
@@ -792,101 +796,211 @@ def render_reviews():
         {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
         {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
     ]
+
     _reviews_html = """
-    <div class="page-wrap" style="max-width:900px;margin-top:8px;">
-       <div id="reviews" style="position:relative;height:270px;overflow:hidden;border-radius:10px;border:1px solid #ddd;background:#fff;padding:1
-    6px 12px;">
-        <blockquote id="rev_quote" style="font-size:1.05em;line-height:1.4;margin:0;"></blockquote>
-        <div id="rev_author" style="margin-top:12px;font-weight:bold;color:#1e293b;"></div>
-        <div id="rev_level" style="color:#475569;"></div>
+    <style>
+      :root{
+        --bg: #0b1220;
+        --card:#ffffffcc;
+        --text:#0f172a;
+        --muted:#475569;
+        --brand:#2563eb;
+        --chip:#e0f2fe;
+        --chip-text:#0369a1;
+        --ring:#93c5fd;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --card:#0b1220cc;
+          --text:#e2e8f0;
+          --muted:#94a3b8;
+          --chip:#1e293b;
+          --chip-text:#e2e8f0;
+          --ring:#334155;
+        }
+      }
+      .page-wrap{max-width:900px;margin:8px auto;}
+      .rev-shell{
+        position:relative; isolation:isolate;
+        border-radius:16px; padding:18px 16px 20px 16px;
+        background: radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
+                    radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
+        border:1px solid rgba(148,163,184,.25);
+        box-shadow: 0 10px 30px rgba(2,6,23,.08);
+        overflow:hidden;
+      }
+      .rev-card{
+        background: var(--card);
+        backdrop-filter: blur(8px);
+        border:1px solid rgba(148,163,184,.25);
+        border-radius:16px; padding:20px 18px;
+        min-height: 170px;
+      }
+      .rev-quote{
+        font-size:1.06rem; line-height:1.55; color:var(--text); margin:0; letter-spacing:.2px;
+      }
+      .rev-quote:before{content:"“"; margin-right:4px; opacity:.7}
+      .rev-quote:after{content:"”"; margin-left:2px; opacity:.7}
+      .rev-meta{
+        display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);
+      }
+      .rev-chip{
+        font-size:.78rem; font-weight:700; letter-spacing:.3px;
+        background:var(--chip); color:var(--chip-text);
+        border:1px solid rgba(148,163,184,.25);
+        padding:6px 10px; border-radius:999px;
+      }
+      .rev-author{ font-weight:700; color:var(--text); }
+      .rev-dots{
+        display:flex; gap:6px; justify-content:center; margin-top:14px;
+      }
+      .rev-dot{
+        width:8px; height:8px; border-radius:999px;
+        background:#cbd5e1; opacity:.8; transform:scale(.9);
+        transition: transform .25s ease, background .25s ease, opacity .25s ease;
+      }
+      .rev-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.15);
+        box-shadow:0 0 0 4px var(--ring);
+      }
+      .rev-nav{
+        position:absolute; inset-block:0; inset-inline:0; pointer-events:none;
+      }
+      .rev-btn{
+        pointer-events:auto;
+        position:absolute; top:50%; translate:0 -50%;
+        border:none; background:rgba(15,23,42,.6);
+        color:white; width:36px; height:36px; border-radius:999px;
+        display:grid; place-items:center; cursor:pointer;
+        backdrop-filter: blur(4px);
+        transition: transform .15s ease, opacity .2s ease;
+        opacity:.9;
+      }
+      .rev-btn:hover{ transform: translateY(-2px); }
+      .rev-btn:focus-visible{ outline:3px solid var(--ring); outline-offset:3px; }
+      .rev-btn--prev{ left:6px; }
+      .rev-btn--next{ right:6px; }
+      .visually-hidden{ position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+      /* animations */
+      @keyframes fadeSlideIn { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)} }
+      .rev-anim{ animation: fadeSlideIn .35s ease both; }
+      @media (prefers-reduced-motion: reduce){
+        .rev-anim{ animation:none }
+        .rev-btn{ transition:none }
+        .rev-dot{ transition:none }
+      }
+    </style>
+
+    <div class="page-wrap">
+      <div id="reviews" class="rev-shell" aria-live="polite">
+        <div class="rev-card rev-anim" id="rev_card">
+          <p id="rev_quote" class="rev-quote"></p>
+          <div class="rev-meta">
+            <span id="rev_level" class="rev-chip" aria-label="Level"></span>
+            <span id="rev_author" class="rev-author"></span>
+          </div>
+          <div class="rev-dots" id="rev_dots" role="tablist" aria-label="Review selector"></div>
+        </div>
+
+        <div class="rev-nav" aria-hidden="false">
+          <button class="rev-btn rev-btn--prev" id="rev_prev" aria-label="Previous review" title="Previous (←)">
+            &#8592;
+          </button>
+          <button class="rev-btn rev-btn--next" id="rev_next" aria-label="Next review" title="Next (→)">
+            &#8594;
+          </button>
+        </div>
+
+        <span class="visually-hidden" id="rev_sr"></span>
       </div>
     </div>
+
     <script>
-      const r=__DATA__,q=document.getElementById('rev_quote'),a=document.getElementById('rev_author'),l=document.getElementById('rev_level');
-      let i=0;function show(){const c=r[i];q.textContent='"'+c.quote+'"';a.textContent=c.author;l.textContent='Level '+c.level}
-      function next(){i=(i+1)%r.length;show()}
-      const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(!reduced){setInterval(next,6000)}show();
+      const data = __DATA__;
+      const q = document.getElementById('rev_quote');
+      const a = document.getElementById('rev_author');
+      const l = document.getElementById('rev_level');
+      const dotsWrap = document.getElementById('rev_dots');
+      const sr = document.getElementById('rev_sr');
+      const card = document.getElementById('rev_card');
+      const btnPrev = document.getElementById('rev_prev');
+      const btnNext = document.getElementById('rev_next');
+
+      let i = 0;
+      let timer = null;
+      const interval = 6500;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function setActiveDot(idx){
+        [...dotsWrap.children].forEach((d, j) => d.setAttribute('aria-current', j === idx ? 'true' : 'false'));
+      }
+
+      function announce(txt){
+        sr.textContent = txt;
+      }
+
+      function render(idx){
+        const c = data[idx];
+        // light content animation
+        card.classList.remove('rev-anim'); void card.offsetWidth; card.classList.add('rev-anim');
+
+        q.textContent = c.quote;
+        a.textContent = c.author;
+        l.textContent = "Level " + c.level;
+        setActiveDot(idx);
+        announce("Showing review " + (idx+1) + " of " + data.length);
+      }
+
+      function next(){
+        i = (i + 1) % data.length;
+        render(i);
+      }
+      function prev(){
+        i = (i - 1 + data.length) % data.length;
+        render(i);
+      }
+
+      // dots
+      data.forEach((_, idx) => {
+        const dot = document.createElement('button');
+        dot.className = 'rev-dot';
+        dot.type = 'button';
+        dot.setAttribute('role','tab');
+        dot.setAttribute('aria-label','Show review ' + (idx+1));
+        dot.addEventListener('click', () => { i = idx; render(i); restart(); });
+        dotsWrap.appendChild(dot);
+      });
+
+      // autoplay (respects reduced motion)
+      function start(){
+        if (!reduced) timer = setInterval(next, interval);
+      }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
+      function restart(){ stop(); start(); }
+
+      // pause on hover/focus
+      const reviews = document.getElementById('reviews');
+      reviews.addEventListener('mouseenter', stop);
+      reviews.addEventListener('mouseleave', start);
+      reviews.addEventListener('focusin', stop);
+      reviews.addEventListener('focusout', start);
+
+      // keyboard nav
+      document.addEventListener('keydown', (e)=>{
+        if(e.key === 'ArrowRight'){ next(); restart(); }
+        if(e.key === 'ArrowLeft'){ prev(); restart(); }
+      });
+      btnNext.addEventListener('click', ()=>{ next(); restart(); });
+      btnPrev.addEventListener('click', ()=>{ prev(); restart(); });
+
+      // init
+      render(i); start();
     </script>
     """
-    _reviews_json = json.dumps(REVIEWS)
-    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=320, scrolling=True)
 
-def login_page():
-
-    # Optional container width helper (safe if you already defined it in global CSS)
-    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
-
-    # HERO FIRST — this is the first visible element on the page
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
-          Falowen is your all-in-one German learning platform, powered by
-          <b>Learn Language Education Academy</b>, with courses and vocabulary from
-          <b>A1 to C1</b> levels and live tutor support.
-        </p>
-        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-        </ul>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    
-    # ===== Compact stats strip =====
-    st.markdown("""
-      <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.92rem; opacity:.98; }
-        @media (max-width:560px){ .stat { min-width:46%; } }
-      </style>
-      <div class="stats-strip" role="list" aria-label="Falowen highlights">
-        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-          <div class="num">300+</div>
-          <div class="label">Active learners</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-          <div class="num">1,200+</div>
-          <div class="label">Assignments submitted</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-          <div class="num">A1–C1</div>
-          <div class="label">Full course coverage</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-          <div class="num">4.8/5</div>
-          <div class="label">Avg. feedback</div>
-        </div>
-      </div>
-    """, unsafe_allow_html=True)
-
-    # Short explainer: which option to use
-    st.markdown("""
-    <div class="page-wrap" style="max-width:900px;margin-top:4px;">
-      <div style="background:#f1f5f9;border:1px solid #e2e8f0;padding:12px 14px;border-radius:10px;">
-        <b>Which option should I use?</b><br>
-        • <b>Returning student</b>: you already created a password — log in.<br>
-        • <b>Sign up (approved)</b>: you’ve paid and your email & code are on the roster, but no account yet — create one.<br>
-        • <b>Request access</b>: brand new learner — fill the form and we’ll contact you.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    render_reviews()
-    st.markdown(
-        "<style>[data-testid='stTabs']{margin-top:4px !important;}</style>",
-        unsafe_allow_html=True,
+    _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
+    components.html(_reviews_html.replace("__DATA__", _reviews_json), height=300, scrolling=False)        
     )
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
@@ -9708,7 +9822,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
