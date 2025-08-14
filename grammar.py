@@ -1431,74 +1431,73 @@ def login_page():
 if not st.session_state.get("logged_in", False):
     login_page()
 
-st.divider()
+# ===========================================
+# ---------- Logged-in Header + Logout -------
+# ===========================================
+# Default so it's always defined before we read it
+_logout_clicked = False
 
+# Compact header + logout button
+st.markdown("""
+<style>
+  .post-login-header { margin-top:0; margin-bottom:4px; }
+  /* tighten everything a bit */
+  .block-container { padding-top: 0.6rem !important; }
+  /* shrink expander gaps */
+  div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
+  /* compact notif banner */
+  .your-notifs { margin: 4px 0 !important; }
+</style>
+""", unsafe_allow_html=True)
 
-# --- Logged In UI ---
-st.markdown(
-    """
-    <style>
-        .post-login-header {margin-top:0; margin-bottom:4px;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
 col1, col2 = st.columns([0.85, 0.15])
 with col1:
-    st.write(f"👋 Welcome, **{st.session_state['student_name']}**")
+    st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
 with col2:
-    st.markdown(
-        "<div style='display:flex; justify-content:flex-end; align-items:center;'>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
     _logout_clicked = st.button("Log out")
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
-st.divider()
-   
-# Keep your meta tag injection and logout handling below as before:
-_inject_meta_tags()
 
+# ---- Logout handling (with visible errors so issues surface) ----
 if _logout_clicked:
     try:
         tok = st.session_state.get("session_token", "")
         if tok:
-            destroy_session_token(tok)
-    except Exception:
-        pass
+            destroy_session_token(tok)  # your server-side revocation
+    except Exception as e:
+        st.error(f"Logout failed (destroy token): {e}")
 
     try:
+        # expire cookies (requires your cookie_manager + helpers)
         set_student_code_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
         set_session_token_cookie(cookie_manager, "", expires=datetime.utcnow() - timedelta(seconds=1))
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Logout failed (expire cookies): {e}")
 
     try:
         cookie_manager.delete("student_code")
         cookie_manager.delete("session_token")
         cookie_manager.save()
-    except Exception:
-        pass
+    except Exception as e:
+        st.error(f"Logout failed (delete cookies): {e}")
 
-    # clear LS + strip OAuth params
-    components.html(
-        """
-        <script>
-          (function(){
-            try {
-              localStorage.removeItem('student_code');
-              localStorage.removeItem('session_token');
-              const u = new URL(window.location);
-              ['code','state'].forEach(k => u.searchParams.delete(k));
-              window.history.replaceState({}, '', u);
-              window.location.reload();
-            } catch(e){}
-          })();
-        </script>
-        """,
-        height=0,
-    )
+    # clear browser storage + strip OAuth params, then hard reload
+    components.html("""
+      <script>
+        (function(){
+          try {
+            localStorage.removeItem('student_code');
+            localStorage.removeItem('session_token');
+            const u = new URL(window.location);
+            ['code','state'].forEach(k => u.searchParams.delete(k));
+            window.history.replaceState({}, '', u);
+            window.location.reload();
+          } catch(e){}
+        })();
+      </script>
+    """, height=0)
 
     for k, v in {
         "logged_in": False,
@@ -1516,77 +1515,44 @@ if _logout_clicked:
 
     st.stop()
 
-  # ===== Announcements renderer (define BEFORE calling it) =====
-import json
-import streamlit as st
-import streamlit.components.v1 as components
-
+# ===========================================
+# ---------- Announcements (safe) -----------
+# ===========================================
 def render_announcements(ANNOUNCEMENTS: list):
     """Responsive rotating announcement board with safe link creation."""
     if not ANNOUNCEMENTS:
-        st.info("📣 No announcements to show.")
         return
-
-    # quick debug line so you can confirm it ran
-    st.caption(f"📣 Rendering {len(ANNOUNCEMENTS)} announcement(s)…")
-
     _html = """
     <style>
       :root{
-        --brand:#2563eb; --ring:#93c5fd;
-        --text:#0f172a; --muted:#475569;
-        --card:#111827; /* darker default for phones */
-        --chip-bg:#1f2937; --chip-fg:#e5e7eb;
+        --brand:#2563eb; --ring:#93c5fd; --text:#0f172a; --muted:#475569;
+        --card:#111827; --chip-bg:#1f2937; --chip-fg:#e5e7eb;
         --link:#60a5fa; --shell-border: rgba(148,163,184,.22);
       }
       @media (prefers-color-scheme: light){
         :root{
-          --text:#0f172a; --muted:#475569;
-          --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985;
-          --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
+          --text:#0f172a; --muted:#475569; --card:#ffffff;
+          --chip-bg:#e0f2fe; --chip-fg:#075985; --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
         }
       }
       .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{font-weight:700;font-size:1.05rem;line-height:1.2;
-                 padding-left:12px;border-left:5px solid var(--brand);
-                 margin: 2px 0 6px 0; color: var(--text);}
-      .ann-shell{border-radius:12px;border:1px solid var(--shell-border);
-                 background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.18);
-                 padding:12px 14px; isolation:isolate; overflow:hidden;}
-      .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 6px 0;
-                   font-weight:700;color:var(--text)}
-      .ann-chip{font-size:.75rem;font-weight:700;letter-spacing:.2px;
-                background:var(--chip-bg);color:var(--chip-fg);
-                padding:4px 8px;border-radius:999px;border:1px solid var(--shell-border)}
+      .ann-title{font-weight:700;font-size:1.05rem;line-height:1.2;padding-left:12px;border-left:5px solid var(--brand);margin:2px 0 6px 0;color:var(--text);}
+      .ann-shell{border-radius:12px;border:1px solid var(--shell-border);background:var(--card);box-shadow:0 6px 18px rgba(2,6,23,.18);padding:12px 14px;isolation:isolate;overflow:hidden;}
+      .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 6px 0;font-weight:700;color:var(--text)}
+      .ann-chip{font-size:.75rem;font-weight:700;letter-spacing:.2px;background:var(--chip-bg);color:var(--chip-fg);padding:4px 8px;border-radius:999px;border:1px solid var(--shell-border)}
       .ann-body{color:var(--muted);margin:0;line-height:1.5;font-size:.96rem}
       .ann-actions{margin-top:8px}
       .ann-actions a{color:var(--link);text-decoration:none;font-weight:600}
-
       .ann-dots{display:flex;gap:10px;justify-content:center;margin-top:10px}
-      .ann-dot{width:9px;height:9px;border-radius:999px;background:#9ca3af;
-               opacity:.9;transform:scale(.95);
-               transition:transform .2s, background .2s, opacity .2s}
-      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);
-                                    box-shadow:0 0 0 4px var(--ring)}
-
+      .ann-dot{width:9px;height:9px;border-radius:999px;background:#9ca3af;opacity:.9;transform:scale(.95);transition:transform .2s, background .2s, opacity .2s}
+      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.22);box-shadow:0 0 0 4px var(--ring)}
       @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       .ann-anim{animation:fadeInUp .25s ease both}
       @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
-
-      @media (max-width: 640px){
-        .ann-title{ font-size:1rem; }
-        .ann-body{ font-size:.94rem; }
-        .page-wrap{ padding:0 8px; }
-        .ann-shell{ padding:12px; }
-      }
     </style>
 
     <div class="page-wrap">
       <div class="ann-title">📣 Announcement</div>
-
-      <!-- Visible placeholder while JS loads -->
-      <div style="font-size:.9rem;color:#64748b;margin:2px 0 6px 2px" id="ann_ph">loading…</div>
-
       <div class="ann-shell" id="ann_shell" aria-live="polite">
         <div class="ann-anim" id="ann_card">
           <div class="ann-heading">
@@ -1598,17 +1564,10 @@ def render_announcements(ANNOUNCEMENTS: list):
         </div>
         <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
       </div>
-
-      <noscript>
-        <div style="margin-top:8px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px;">
-          JavaScript is disabled — showing the first announcement only.
-        </div>
-      </noscript>
     </div>
 
     <script>
       const data = __DATA__;
-      const ph = document.getElementById('ann_ph');
       const titleEl = document.getElementById('ann_title');
       const bodyEl  = document.getElementById('ann_body');
       const tagEl   = document.getElementById('ann_tag');
@@ -1617,11 +1576,7 @@ def render_announcements(ANNOUNCEMENTS: list):
       const card    = document.getElementById('ann_card');
       const shell   = document.getElementById('ann_shell');
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      if (ph) ph.remove(); // remove placeholder once JS runs
-
-      let i = 0, timer = null;
-      const INTERVAL = 6500;
+      let i = 0, timer = null; const INTERVAL = 6500;
 
       function setActiveDot(idx){
         [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
@@ -1629,40 +1584,20 @@ def render_announcements(ANNOUNCEMENTS: list):
       function render(idx){
         const c = data[idx] || {};
         card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-
         titleEl.textContent = c.title || '';
         bodyEl.textContent  = c.body  || '';
-
-        if (c.tag){
-          tagEl.textContent = c.tag;
-          tagEl.style.display='';
-        } else {
-          tagEl.style.display='none';
-        }
-
+        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
         if (c.href){
-          // secure anchor creation (no innerHTML)
-          const link = document.createElement('a');
-          link.href = c.href;
-          link.target = '_blank';
-          link.rel = 'noopener';
-          link.textContent = 'Open';
-          actionEl.textContent = '';
-          actionEl.appendChild(link);
-          actionEl.style.display='';
-        } else {
-          actionEl.style.display='none';
-          actionEl.textContent = '';
-        }
-
+          const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel='noopener'; link.textContent='Open';
+          actionEl.textContent = ''; actionEl.appendChild(link); actionEl.style.display='';
+        } else { actionEl.style.display='none'; actionEl.textContent=''; }
         setActiveDot(idx);
       }
-      function next(){ i = (i+1) % data.length; render(i); }
-      function start(){ if (!reduced) timer = setInterval(next, INTERVAL); }
-      function stop(){ if (timer) clearInterval(timer); timer = null; }
+      function next(){ i=(i+1)%data.length; render(i); }
+      function start(){ if(!reduced) timer=setInterval(next, INTERVAL); }
+      function stop(){ if(timer) clearInterval(timer); timer=null; }
       function restart(){ stop(); start(); }
 
-      // dots
       data.forEach((_, idx)=>{
         const dot = document.createElement('button');
         dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
@@ -1679,11 +1614,9 @@ def render_announcements(ANNOUNCEMENTS: list):
       render(i); start();
     </script>
     """
-
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
-    
-# ===== Announcements data (then render) =====
+    components.html(_html.replace("__DATA__", data_json), height=200, scrolling=False)
+
 announcements = [
     {"title": "A2 Mock Exam this Saturday",
      "body":  "Arrive by 8:20am with ID. Speaking slots post on Friday.",
@@ -1697,11 +1630,10 @@ announcements = [
      "tag":   "B1",
      "href":  "https://www.learngermanghana.com/resources"},
 ]
-render_announcements(announcements)
-st.divider()
-  
 
-# ==== GOOGLE SHEET LOADING FUNCTIONS ====
+# ===========================================
+# ---------- Data loaders & helpers ---------
+# ===========================================
 @st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
@@ -1712,8 +1644,6 @@ def load_assignment_scores():
         df[col] = df[col].astype(str).str.strip()
     return df
 
-
-# ---- ROBUST VOCAB LOADER + SAFE PICKER ----
 @st.cache_data(ttl=43200)
 def load_full_vocab_sheet():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
@@ -1721,87 +1651,50 @@ def load_full_vocab_sheet():
     try:
         df = pd.read_csv(csv_url, dtype=str)
     except Exception:
-        # Network/privacy/etc. Return an empty, well-formed frame so downstream code never crashes.
         st.error("Could not load vocab sheet.")
         return pd.DataFrame(columns=["level", "german", "english", "example"])
-
-    # Normalize headers (strip spaces, lowercase)
     df.columns = df.columns.str.strip().str.lower()
 
-    # Try to map common variants to our canonical names
-    def _match(colnames, *candidates):
+    def _match(colnames, *cands):
         s = set(colnames)
-        for cand in candidates:
-            if cand in s:
-                return cand
-        # fallback: fuzzy-ish startswith
+        for c in cands:
+            if c in s: return c
         for c in colnames:
-            if any(c.startswith(x) for x in candidates):
-                return c
+            if any(c.startswith(x) for x in cands): return c
         return None
 
     col_level   = _match(df.columns, "level")
     col_german  = _match(df.columns, "german", "de", "word", "wort")
     col_english = _match(df.columns, "english", "en", "meaning", "translation")
     col_example = _match(df.columns, "example", "sentence", "usage")
-
-    # If required columns missing, return empty shaped frame
     if not (col_level and col_german and col_english):
         return pd.DataFrame(columns=["level", "german", "english", "example"])
 
-    # Rename to canonical names
-    rename_map = {
-        col_level: "level",
-        col_german: "german",
-        col_english: "english",
-    }
-    if col_example:
-        rename_map[col_example] = "example"
-    df = df.rename(columns=rename_map)
-
-    # Keep only the columns we care about
-    if "example" not in df.columns:
-        df["example"] = ""
-
-    # Clean & normalize
-    for c in ["level", "german", "english", "example"]:
+    rename = {col_level:"level", col_german:"german", col_english:"english"}
+    if col_example: rename[col_example] = "example"
+    df = df.rename(columns=rename)
+    if "example" not in df.columns: df["example"] = ""
+    for c in ["level","german","english","example"]:
         df[c] = df[c].astype(str).str.strip()
-
     df = df[df["level"].notna() & (df["level"] != "")]
     df["level"] = df["level"].str.upper()
-
-    return df[["level", "german", "english", "example"]]
-
+    return df[["level","german","english","example"]]
 
 def get_vocab_of_the_day(df: pd.DataFrame, level: str):
-    # Defensive guards so this never throws
-    if df is None or df.empty:
-        return None
-    if not {"level", "german", "english", "example"}.issubset(df.columns):
-        return None
-
+    if df is None or df.empty: return None
+    if not {"level","german","english","example"}.issubset(df.columns): return None
     lvl = (level or "").upper().strip()
     subset = df[df["level"] == lvl]
-    if subset.empty:
-        return None
-
-    from datetime import date as _date
-    idx = _date.today().toordinal() % len(subset)
+    if subset.empty: return None
+    idx = date.today().toordinal() % len(subset)
     row = subset.reset_index(drop=True).iloc[idx]
-    return {
-        "german": row.get("german", ""),
-        "english": row.get("english", ""),
-        "example": row.get("example", ""),
-    }
+    return {"german": row.get("german",""), "english": row.get("english",""), "example": row.get("example","")}
 
 def parse_contract_end(date_str):
-    if not date_str or str(date_str).lower() in ("nan", "none", ""):
-        return None
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
-        try:
-            return datetime.strptime(date_str, fmt)
-        except ValueError:
-            continue
+    if not date_str or str(date_str).strip().lower() in ("nan","none",""): return None
+    for fmt in ("%Y-%m-%d","%m/%d/%Y","%d.%m.%y","%d/%m/%Y","%d-%m-%Y"):
+        try: return datetime.strptime(date_str, fmt)
+        except ValueError: continue
     return None
 
 @st.cache_data
@@ -1812,11 +1705,7 @@ def load_reviews():
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-# ---- Payment date helpers ----
-from calendar import monthrange
-
 def parse_contract_start(date_str: str):
-    # Reuse the same parsers as ContractEnd
     return parse_contract_end(date_str)
 
 def add_months(dt: datetime, n: int) -> datetime:
@@ -1827,334 +1716,161 @@ def add_months(dt: datetime, n: int) -> datetime:
 
 def months_between(start_dt: datetime, end_dt: datetime) -> int:
     months = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
-    if end_dt.day < start_dt.day:
-        months -= 1
+    if end_dt.day < start_dt.day: months -= 1
     return months
 
+# ===========================================
+# --------------- Tabs ----------------------
+# ===========================================
+tab = st.radio(
+    "How do you want to practice?",
+    ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"],
+    key="main_tab_select"
+)
 
-if st.session_state.get("logged_in"):
-    student_code = st.session_state["student_code"].strip().lower()
-    student_name = st.session_state["student_name"]
-
-    # Load student info
-    df_students = load_student_data()
+# ===========================================
+# ------------- DASHBOARD TAB ---------------
+# ===========================================
+if tab == "Dashboard":
+    # ------ Load current student row ------
+    df_students = load_student_data()  # defined elsewhere in your app
+    student_code = (st.session_state.get("student_code","") or "").strip().lower()
     matches = df_students[df_students["StudentCode"].str.lower() == student_code]
     student_row = matches.iloc[0].to_dict() if not matches.empty else {}
 
-    # Greeting helper
-    first_name = (student_row.get('Name') or student_name or "Student").split()[0].title()
+    def safe_get(row, key, default=""):
+        try: return row.get(key, default)
+        except Exception: pass
+        try: return getattr(row, key, default)
+        except Exception: pass
+        try: return row[key]
+        except Exception: return default
 
-    # -------------------- CONTRACT (compute only) --------------------
-    MONTHLY_RENEWAL = 1000
-    contract_end_str = student_row.get("ContractEnd", "")
+    if not student_row:
+        st.info("🚩 No student selected.")
+        st.stop()
+
+    # ------ Announcements on top ------
+    render_announcements(announcements)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)  # tiny spacer, no big divider
+
+    # ------ Contract info + end reminders (<= 14 days) ------
+    MONTHLY_EXTENSION_FEE = 1000
     today_dt = datetime.today()
-    contract_end = parse_contract_end(contract_end_str)
-
-    contract_title_extra = "• no date"
-    contract_notice_level = "info"
-    contract_msg = "Contract end date unavailable or in wrong format."
-    urgent_contract = False
-
+    contract_end = parse_contract_end(safe_get(student_row,"ContractEnd",""))
     if contract_end:
         days_left = (contract_end - today_dt).days
-        contract_title_extra = f"• {contract_end.strftime('%d %b %Y')}"
-        if 0 < days_left <= 30:
-            contract_notice_level = "warning"
-            contract_msg = (
-                f"⏰ **Your contract ends in {days_left} days "
-                f"({contract_end.strftime('%d %b %Y')}).**\n"
-                f"If you need more time, you can renew for **₵{MONTHLY_RENEWAL:,} per month**."
+        if days_left < 0:
+            st.error(
+                f"⚠️ Your contract has ended ({contract_end:%d %b %Y}). "
+                f"If you need more time, you can extend for **₵{MONTHLY_EXTENSION_FEE:,}/month** or try to finish your course."
             )
-            contract_title_extra = f"• ends in {days_left}d"
-            urgent_contract = True
-        elif days_left < 0:
-            contract_notice_level = "error"
-            contract_msg = (
-                f"⚠️ **Your contract has ended!** Please contact the office to renew "
-                f"for **₵{MONTHLY_RENEWAL:,} per month**."
+        elif days_left <= 14:
+            st.warning(
+                f"⏰ Your contract ends in {days_left} day{'s' if days_left != 1 else ''} "
+                f"({contract_end:%d %b %Y}). Extension is **₵{MONTHLY_EXTENSION_FEE:,}/month**, or try to finish your course."
             )
-            contract_title_extra = "• ended"
-            urgent_contract = True
-        else:
-            contract_notice_level = "info"
-            contract_msg = f"✅ Contract active. End date: {contract_end.strftime('%d %b %Y')}."
 
-     # -------------------- PAYMENT / DUES (balance-gated, first_due after 1 month) --------------------
-    MONTHLY_EXTENSION_FEE = 1000  # ONLY for post-contract extensions
-
+    # ------ Payment reminder (ONLY when due and balance > 0) ------
     # Read balance safely
     try:
-        balance = float(str(student_row.get("Balance", 0)).strip())
+        balance = float(str(safe_get(student_row, "Balance", 0)).strip())
     except Exception:
         balance = 0.0
 
-    # Defaults
-    owes = False
-    show_payment_ui = False
-    payment_title_extra = ""
-    payment_notice_level = "info"   # "info" | "warning" | "error" | "success"
-    payment_msg = ""
+    # Compute first_due = 1 month after contract start
     first_due = None
-    overdue_days = 0
-    amount_due = balance  # amount due is the Balance value (NOT the extension fee)
-
-    # Parse contract start → compute first_due (start + 1 month)
-    _start_keys = ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]
     start_str = ""
-    for k in _start_keys:
-        v = str(student_row.get(k, "") or "").strip()
+    for k in ["ContractStart","StartDate","ContractBegin","Start","Begin"]:
+        v = str(safe_get(student_row, k, "") or "").strip()
         if v:
             start_str = v
             break
-
     if start_str:
-        contract_start = parse_contract_start(start_str)
-        if contract_start:
-            first_due = add_months(contract_start, 1)
+        cs = parse_contract_start(start_str)
+        if cs:
+            first_due = add_months(cs, 1)
 
-    # Apply your rule:
-    # - If balance ≤ 0 → NO payment UI at all.
-    # - If balance > 0 → student owes only when today ≥ first_due.
-    if balance > 0:
-        if first_due:
-            delta_days = (first_due.date() - today_dt.date()).days
-            if delta_days > 0:
-                # Not due yet → per your rule, do not show any payment notice
-                owes = False
-                show_payment_ui = False
-            elif delta_days == 0:
-                # Due today
-                owes = True
-                show_payment_ui = True
-                payment_notice_level = "warning"
-                payment_title_extra = "• due today"
-                payment_msg = (
-                    f"💳 Payment due **today** ({first_due:%d %b %Y}). "
-                    f"Amount due: **₵{amount_due:,.2f}**."
-                )
-            else:
-                # Overdue
-                owes = True
-                show_payment_ui = True
-                overdue_days = -delta_days
-                payment_notice_level = "error"
-                payment_title_extra = f"• overdue {overdue_days}d"
-                payment_msg = (
-                    f"💸 **Overdue by {overdue_days} days.** "
-                    f"Amount due: **₵{amount_due:,.2f}**. "
-                    f"First due: {first_due:%d %b %Y}."
-                )
-        else:
-            # Balance > 0 but no readable start date → we can't compute 'first_due'
-            owes = False  # we cannot assert overdue without first_due
+    # Show payment expander ONLY if balance > 0 AND (today >= first_due)
+    show_payment_ui = False
+    payment_notice_level = "info"
+    payment_title_extra = ""
+    payment_msg = ""
+    overdue_days = 0
+
+    if balance > 0 and first_due:
+        delta_days = (first_due.date() - today_dt.date()).days
+        if delta_days < 0:
+            # overdue
             show_payment_ui = True
-            payment_notice_level = "info"
-            payment_title_extra = "• schedule unknown"
+            overdue_days = -delta_days
+            payment_notice_level = "error"
+            payment_title_extra = f"• overdue {overdue_days}d"
             payment_msg = (
-                "ℹ️ You have an outstanding balance, but we couldn't read your contract start date "
-                "to compute the first payment date. Please contact the office."
+                f"💸 **Overdue by {overdue_days} days.** "
+                f"Amount due: **₵{balance:,.2f}**. First due: {first_due:%d %b %Y}."
             )
-    else:
-        # balance ≤ 0 → no payment notices at all
-        owes = False
-        show_payment_ui = False
+        elif delta_days == 0:
+            # due today
+            show_payment_ui = True
+            payment_notice_level = "warning"
+            payment_title_extra = "• due today"
+            payment_msg = (
+                f"💳 Payment due **today** ({first_due:%d %b %Y}). "
+                f"Amount due: **₵{balance:,.2f}**."
+            )
+        # if delta_days > 0 → not due yet → show nothing at all
 
-    # -------------------- RENDER: Payment UI (only when show_payment_ui True) --------------------
+    # If we couldn't read start date but balance > 0, you can choose to nudge:
+    if balance > 0 and first_due is None:
+        show_payment_ui = True
+        payment_notice_level = "info"
+        payment_title_extra = "• schedule unknown"
+        payment_msg = (
+            "ℹ️ You have an outstanding balance, but we couldn't read your contract start date "
+            "to compute the first payment date. Please contact the office."
+        )
+
     if show_payment_ui:
         with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
             if payment_notice_level == "error":
                 st.error(payment_msg)
             elif payment_notice_level == "warning":
                 st.warning(payment_msg)
-            elif payment_notice_level == "success":
-                st.success(payment_msg)
             else:
                 st.info(payment_msg)
 
-        # (Optional) small status strip under the expander
-        if owes:
-            bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸" if "overdue" in payment_title_extra else ("#fff7ed", "#f59e0b", "#7c2d12", "⏳")
-            st.markdown(
-                f"""
-                <div style="
-                    margin:8px 0 16px 0; padding:10px 12px;
-                    background:{bg}; border:1px solid {border}; border-radius:10px;">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <span style="font-size:1.15em">{icon}</span>
-                        <div style="color:{fg}; font-weight:600">{payment_msg}</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    # ------ Compact "Your Notifications" banner (tighter gap) ------
+    st.markdown(
+        """
+        <div class="your-notifs" style="display:flex;align-items:center;gap:10px;
+                    font-size:1.2em;font-weight:600;padding:6px 10px;
+                    background:#fdf6e3;border-radius:8px;">
+            <span style="font-size:1.2em;display:inline-block;">🔔</span> Your Notifications
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    # -------------------- CONTRACT END → EXTENSION INFO (separate from payments) --------------------
-    if contract_end:
-        days_left = (contract_end - today_dt).days
-        if days_left < 0:
-            st.error(
-                f"⚠️ Your contract has ended ({contract_end:%d %b %Y}). "
-                f"If you need more time, you can extend for **₵{MONTHLY_EXTENSION_FEE:,}/month**."
-            )
-        elif days_left <= 30:
-            st.warning(
-                f"⏰ Your contract ends in {days_left} days ({contract_end:%d %b %Y}). "
-                f"If you need more time, extension costs **₵{MONTHLY_EXTENSION_FEE:,}/month**."
-            )
-
-    # -------------------- BADGES (hide Payment chip unless we’re showing payment UI) --------------------
-    # Example: rebuild your badges row so the Payment chip only appears when show_payment_ui is True.
-    badges_html = [
+    # ------ Quick badges (only show Payment chip if we actually showed payment UI) ------
+    badges = [
         "<span style='background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;'>⏰ Contract</span>",
         "<span style='background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;'>🏅 Assignments</span>",
         "<span style='background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;'>🗣️ Vocab</span>",
         "<span style='background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;'>🏆 Leaderboard</span>",
     ]
     if show_payment_ui:
-        # choose color by level
         if payment_notice_level == "error":
             pay_bg, pay_fg, pay_text = "#fee2e2", "#991b1b", "💸 Payment"
         elif payment_notice_level == "warning":
             pay_bg, pay_fg, pay_text = "#fff7ed", "#7c2d12", "💳 Payment"
         else:
             pay_bg, pay_fg, pay_text = "#f1f5f9", "#334155", "💳 Payment"
-        badges_html.insert(1, f"<span style='background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;'>{pay_text}</span>")
+        badges.insert(1, f"<span style='background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;'>{pay_text}</span>")
 
-    st.markdown(
-        "<div style='display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;'>"
-        + "".join(badges_html)
-        + "</div>",
-        unsafe_allow_html=True,
-    )
-#
+    st.markdown("<div style='display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;'>" + "".join(badges) + "</div>", unsafe_allow_html=True)
 
 
-    # -------------------- ASSIGNMENT STREAK / WEEKLY GOAL --------------------
-    df_assign = load_assignment_scores()
-    df_assign["date"] = pd.to_datetime(df_assign["date"], format="%Y-%m-%d", errors="coerce").dt.date
-    mask_student = df_assign["studentcode"].str.lower().str.strip() == student_code
-
-    from datetime import timedelta, date
-    dates = sorted(df_assign[mask_student]["date"].dropna().unique(), reverse=True)
-    streak = 1 if dates else 0
-    for i in range(1, len(dates)):
-        if (dates[i - 1] - dates[i]).days == 1:
-            streak += 1
-        else:
-            break
-
-    today = date.today()
-    monday = today - timedelta(days=today.weekday())
-    assignment_count = df_assign[mask_student & (df_assign["date"] >= monday)].shape[0]
-    WEEKLY_GOAL = 3
-    goal_left = max(0, WEEKLY_GOAL - assignment_count)
-    streak_title_extra = f"• {assignment_count}/{WEEKLY_GOAL} this week • {streak}d streak"
-    urgent_assignments = goal_left > 0 and (today.weekday() >= 5)
-
-    # -------------------- BELL --------------------
-    bell_color = "#333"
-    st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:10px;
-                    font-size:1.3em;font-weight:600;margin:12px 0 6px 0;
-                    padding:6px 10px;background:#fdf6e3;border-radius:8px;">
-            <span style="font-size:1.3em;display:inline-block;color:{bell_color};">🔔</span> Your Notifications
-        </div>
-    """, unsafe_allow_html=True)
-
-    # -------------------- BADGES --------------------
-    pay_bg = "#fee2e2" if owes else ("#fff7ed" if payment_notice_level=="warning" else "#eef7f1")
-    pay_fg = "#991b1b" if owes else ("#7c2d12" if payment_notice_level=="warning" else "#1e7a3b")
-    pay_text = "💸 Payment: OVERDUE" if owes else ("💳 Payment: due soon" if payment_notice_level=="warning" else "💳 Payment")
-
-    st.markdown(f"""
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px 0;">
-          <span style="background:#eef4ff;color:#2541b2;padding:4px 10px;border-radius:999px;font-size:0.9em;">⏰ Contract</span>
-          <span style="background:{pay_bg};color:{pay_fg};padding:4px 10px;border-radius:999px;font-size:0.9em;">{pay_text}</span>
-          <span style="background:#eef7f1;color:#1e7a3b;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏅 Assignments</span>
-          <span style="background:#fff4e5;color:#a36200;padding:4px 10px;border-radius:999px;font-size:0.9em;">🗣️ Vocab</span>
-          <span style="background:#f7ecff;color:#6b29b8;padding:4px 10px;border-radius:999px;font-size:0.9em;">🏆 Leaderboard</span>
-        </div>
-    """, unsafe_allow_html=True)
-
-    # -------------------- VOCAB OF THE DAY --------------------
-    student_level = (student_row.get("Level") or "A1").upper().strip()
-    vocab_df = load_full_vocab_sheet()
-    vocab_item = get_vocab_of_the_day(vocab_df, student_level)
-    vocab_title_extra = f"• {student_level}" if vocab_item else "• none"
-
-    # -------------------- LEADERBOARD (compute only) --------------------
-    df_assign['level'] = df_assign['level'].astype(str).str.upper().str.strip()
-    df_assign['score'] = pd.to_numeric(df_assign['score'], errors='coerce')
-
-    MIN_ASSIGNMENTS = 3
-    user_level = student_row.get('Level', '').upper() if student_row else ''
-    df_level = (
-        df_assign[df_assign['level'] == user_level]
-        .groupby(['studentcode', 'name'], as_index=False)
-        .agg(total_score=('score', 'sum'), completed=('assignment', 'nunique'))
-    )
-    df_level = df_level[df_level['completed'] >= MIN_ASSIGNMENTS]
-    df_level = df_level.sort_values(['total_score', 'completed'], ascending=[False, False]).reset_index(drop=True)
-    df_level['Rank'] = df_level.index + 1
-
-    your_row = df_level[df_level['studentcode'].str.lower() == student_code.lower()]
-    total_students = len(df_level)
-    totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
-    total_possible = totals.get(user_level, 0)
-    leaderboard_title_extra = "• not ranked" if your_row.empty else f"• rank #{int(your_row.iloc[0]['Rank'])} / {total_students}"
-    
-    # ==================== COLLAPSIBLE NOTIFICATIONS ====================
-
-    # Contract & renewal (collapsed)
-    with st.expander(f"⏰ Contract & Renewal {contract_title_extra}", expanded=False):
-        if contract_notice_level == "warning":
-            st.warning(contract_msg)
-        elif contract_notice_level == "error":
-            st.error(contract_msg)
-        else:
-            st.info(contract_msg)
-
-        st.info(
-            f"🔄 **Renewal Policy:** If your contract ends before you finish, renew for **₵{MONTHLY_RENEWAL:,} per month**. "
-            "Do your best to complete your course on time to avoid extra fees!"
-        )
-
-    # Payments (collapsed) + ALWAYS-VISIBLE summary right under it
-    with st.expander(f"💳 Payments {payment_title_extra}", expanded=False):
-        if payment_notice_level == "error":
-            st.error(payment_msg)
-        elif payment_notice_level == "warning":
-            st.warning(payment_msg)
-        else:
-            st.info(payment_msg)
-
-    # ---- Always-visible Payment Status strip (sits directly under the expander) ----
-    if owes:
-        bg, border, fg, icon = "#fee2e2", "#ef4444", "#991b1b", "💸"
-        summary_line = f"Overdue by {overdue_days} days — est. **₵{amount_due:,}** due (₵{MONTHLY_RENEWAL:,}/month)."
-    elif first_due is None:
-        bg, border, fg, icon = "#f1f5f9", "#cbd5e1", "#334155", "ℹ️"
-        summary_line = "Contract start date missing — we can’t compute your first payment."
-    else:
-        delta = (first_due.date() - today_dt.date()).days
-        if delta <= 1:
-            bg, border, fg, icon = "#fff7ed", "#f59e0b", "#7c2d12", "⏳"
-            due_phrase = "today" if delta == 0 else "tomorrow"
-            summary_line = f"Payment due **{due_phrase}** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
-        else:
-            bg, border, fg, icon = "#ecfdf5", "#10b981", "#065f46", "✅"
-            summary_line = f"Next payment in **{delta} days** ({first_due:%d %b %Y}) — **₵{MONTHLY_RENEWAL:,}**."
-
-    st.markdown(f"""
-        <div style="
-            margin:8px 0 16px 0; padding:10px 12px;
-            background:{bg}; border:1px solid {border}; border-radius:10px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span style="font-size:1.15em">{icon}</span>
-                <div style="color:{fg}; font-weight:600">{summary_line}</div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
 
 
     # Assignment streak & weekly goal (collapsed)
