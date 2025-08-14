@@ -7184,10 +7184,20 @@ if tab == "Exams Mode & Custom Chat":
                 "audio/ogg", "audio/webm", "video/webm",
                 
             }
-            allowed_exts = (".mp3", ".wav", ".m4a")
+            allowed_exts = (
+                ".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm"
 
-            if not (audio_file.type in allowed_types or audio_file.name.lower().endswith(allowed_exts)):
-                st.error("Please upload a .mp3, .wav, or .m4a audio file.")
+            file_type = (audio_file.type or "").lower()
+            file_name = audio_file.name.lower()
+            if not (
+                file_type.startswith("audio/")
+                or file_type in allowed_types
+                or file_name.endswith(allowed_exts)
+            ):
+
+                st.error(
+                    "Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm)."
+                 )
             else:
                 st.audio(audio_file)
 
