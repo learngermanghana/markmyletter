@@ -1470,45 +1470,78 @@ import json
 import streamlit.components.v1 as components
 
 def render_announcements(ANNOUNCEMENTS: list):
-    """Simple rotating announcement board. Edit ANNOUNCEMENTS below."""
+    """Responsive, dark-mode-aware rotating announcement board."""
     if not ANNOUNCEMENTS:
         return
+
     _html = """
     <style>
       :root{
-        --brand:#2563eb; --ring:#93c5fd; --text:#0f172a; --muted:#475569;
-        --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985; --link:#1d4ed8;
+        --brand:#2563eb; --ring:#93c5fd;
+        --text:#0f172a; --muted:#475569;
+        --card:#111827; /* darker default to look good on phones */
+        --chip-bg:#1f2937; --chip-fg:#e5e7eb;
+        --link:#60a5fa;
+        --shell-border: rgba(148,163,184,.22);
       }
-      @media (prefers-color-scheme: dark){
+      @media (prefers-color-scheme: light){
         :root{
-          --text:#e2e8f0; --muted:#94a3b8; --card:#0b1220;
-          --chip-bg:#1e293b; --chip-fg:#e2e8f0; --link:#60a5fa;
+          --text:#0f172a; --muted:#475569;
+          --card:#ffffff; --chip-bg:#e0f2fe; --chip-fg:#075985;
+          --link:#1d4ed8; --shell-border: rgba(148,163,184,.25);
         }
       }
-      .page-wrap{max-width:1100px;margin:0 auto;}
+
+      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
       .ann-title{
-        font-weight:700;font-size:1.05rem;line-height:1.2;
-        padding-left:12px;border-left:5px solid var(--brand);
-        margin: 4px 0 8px 0;
+        font-weight:700; font-size:1.05rem; line-height:1.2;
+        padding-left:12px; border-left:5px solid var(--brand);
+        margin: 4px 0 8px 0; color: var(--text);
       }
       .ann-shell{
-        border-radius:12px;border:1px solid rgba(148,163,184,.25);
-        background:var(--card); box-shadow:0 6px 18px rgba(2,6,23,.06);
+        border-radius:12px; border:1px solid var(--shell-border);
+        background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.28);
         padding:12px 14px; isolation:isolate; overflow:hidden;
       }
-      .ann-heading{display:flex;align-items:center;gap:8px;margin:0 0 4px 0;font-weight:700;color:var(--text)}
-      .ann-chip{font-size:.72rem;font-weight:700;background:var(--chip-bg);color:var(--chip-fg);
-                padding:3px 8px;border-radius:999px;border:1px solid rgba(148,163,184,.25)}
-      .ann-body{color:var(--muted);margin:0;line-height:1.45}
-      .ann-actions{margin-top:6px}
-      .ann-actions a{color:var(--link);text-decoration:none;font-weight:600}
-      .ann-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}
-      .ann-dot{width:7px;height:7px;border-radius:999px;background:#cbd5e1;opacity:.85;transform:scale(.9);
-               transition:transform .2s ease, background .2s ease, opacity .2s ease}
-      .ann-dot[aria-current="true"]{background:var(--brand);opacity:1;transform:scale(1.2);box-shadow:0 0 0 4px var(--ring)}
+      .ann-heading{
+        display:flex; align-items:center; gap:8px;
+        margin:0 0 6px 0; font-weight:700; color:var(--text);
+      }
+      .ann-chip{
+        font-size:.75rem; font-weight:700; letter-spacing:.2px;
+        background:var(--chip-bg); color:var(--chip-fg);
+        padding:4px 8px; border-radius:999px; border:1px solid var(--shell-border);
+      }
+      .ann-body{ color:var(--muted); margin:0; line-height:1.5; font-size:.96rem; }
+      .ann-actions{ margin-top:8px }
+      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:600 }
+
+      .ann-dots{
+        display:flex; gap:10px; justify-content:center; margin-top:10px;
+      }
+      .ann-dot{
+        width:9px; height:9px; border-radius:999px; background:#9ca3af;
+        opacity:.9; transform:scale(.95);
+        transition: transform .2s ease, background .2s ease, opacity .2s ease;
+        touch-action: manipulation;
+      }
+      .ann-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.22);
+        box-shadow:0 0 0 4px var(--ring);
+      }
+
+      /* motion + mobile tweaks */
       @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       .ann-anim{animation:fadeInUp .25s ease both}
       @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+
+      @media (max-width: 640px){
+        .ann-title{ font-size:1rem; }
+        .ann-body{ font-size:.94rem; }
+        .page-wrap{ padding:0 8px; }
+        .ann-shell{ padding:12px; }
+      }
     </style>
 
     <div class="page-wrap">
@@ -1575,8 +1608,9 @@ def render_announcements(ANNOUNCEMENTS: list):
       render(i); start();
     </script>
     """
+
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
-    components.html(_html.replace("__DATA__", data_json), height=160, scrolling=False)
+    components.html(_html.replace("__DATA__", data_json), height=170, scrolling=False)
 
 # --- Three starter announcements (edit later) ---
 announcements = [
@@ -1598,9 +1632,6 @@ announcements = [
         "href":  "https://www.learngermanghana.com/resources"
     },
 ]
-render_announcements(announcements)
-
-# (continue with the rest of your dashboard sections...)
 
 # Keep your meta tag injection and logout handling below as before:
 _inject_meta_tags()
