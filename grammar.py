@@ -1454,7 +1454,6 @@ with col2:
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-
 # --- Close gap + Announcement Board (between Welcome and dashboard) ---
 st.markdown(
     """
@@ -1627,6 +1626,9 @@ announcements = [
      "tag":   "B1",
      "href":  "https://www.learngermanghana.com/resources"},
 ]
+
+# ⬇️ This was missing before
+render_announcements(announcements)
 
    
 # Keep your meta tag injection and logout handling below as before:
