@@ -1517,33 +1517,51 @@ def login_page():
 
     st.stop()
 
-
-# ===== Logout callback =====
-def _do_logout():
-    """Revoke token, clear cookies & session, then rerun immediately."""
-    # 1) Revoke server-side token (best-effort)
+# ---- Logout handling (no experimental APIs, no layout shift) ----
+if _logout_clicked:
+    # 1) Try to revoke server token
     try:
         tok = st.session_state.get("session_token", "")
         if tok and "destroy_session_token" in globals():
             destroy_session_token(tok)
     except Exception as e:
-        st.warning(f"Logout warning (destroy token): {e}")
+        st.error(f"Logout failed (destroy token): {e}")
 
-    # 2) Expire cookies (if you use cookie_manager)
+    # 2) Expire cookies (library + host) – safe-guarded
     try:
-        if "cookie_manager" in globals():
-            expires_past = datetime.utcnow() - timedelta(seconds=1)
-            if "set_student_code_cookie" in globals():
-                set_student_code_cookie(cookie_manager, "", expires=expires_past)
-            if "set_session_token_cookie" in globals():
-                set_session_token_cookie(cookie_manager, "", expires=expires_past)
-            cookie_manager.delete("student_code")
-            cookie_manager.delete("session_token")
-            cookie_manager.save()
+        expires_past = datetime.utcnow() - timedelta(seconds=1)
+        if "set_student_code_cookie" in globals():
+            set_student_code_cookie(cookie_manager, "", expires=expires_past)
+        if "set_session_token_cookie" in globals():
+            set_session_token_cookie(cookie_manager, "", expires=expires_past)
     except Exception as e:
-        st.warning(f"Logout warning (cookies): {e}")
+        st.error(f"Logout failed (expire cookies): {e}")
 
-    # 3) Clear session state
+    try:
+        cookie_manager.delete("student_code")
+        cookie_manager.delete("session_token")
+        cookie_manager.save()
+    except Exception as e:
+        st.error(f"Logout failed (delete cookies): {e}")
+
+    # 3) Clear localStorage (no URL manipulation here to avoid pushing layout)
+    try:
+        import streamlit.components.v1 as components
+        components.html("""
+          <script>
+            try {
+              localStorage.removeItem('student_code');
+              localStorage.removeItem('session_token');
+            } catch(e) {}
+          </script>
+        """, height=0)
+    except Exception:
+        pass
+
+    # 4) Clear query params (replaces experimental_* calls)
+    qp_clear_keys("code", "state", "token")
+
+    # 5) Clear session state and stop
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1558,8 +1576,9 @@ def _do_logout():
     }.items():
         st.session_state[k] = v
 
-    # 4) Immediate rerun so auth guard below takes effect now
+    # 6) Rerun script to refresh UI (use non-experimental API)
     st.rerun()
+
 
 # ===== AUTH GUARD (place BEFORE rendering any header/UI for logged-in users) =====
 if not st.session_state.get("logged_in", False):
@@ -10391,6 +10410,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
