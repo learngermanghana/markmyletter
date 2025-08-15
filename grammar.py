@@ -4844,34 +4844,38 @@ if tab == "My Course":
 
         with c3:
             if _primary_cal:
-                # Safe copy-to-clipboard widget without %-formatting
+                # Safe copy-to-clipboard (keeps indentation + avoids %-formatting issues)
+                _cal_safe = (_primary_cal or "").replace("'", "\\'")
                 components.html(
-                    """
-                    <div id="calCopyWrap" style="width:100%">
+                    f"""
+                    <div style="width:100%">
                       <button id="calCopyBtn"
                               style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
                         Copy
                       </button>
                     </div>
                     <script>
-                      (function(){
-                        try {
+                      (function(){{
+                        try {{
                           var btn = document.getElementById('calCopyBtn');
                           if (!btn) return;
-                          var txt = 'REPL_URL';
-                          btn.addEventListener('click', function(){
-                            navigator.clipboard.writeText(txt).then(function(){
+                          var txt = '{_cal_safe}';
+                          btn.addEventListener('click', function(){{
+                            navigator.clipboard.writeText(txt).then(function(){{
                               btn.innerText = '✓ Copied';
-                              setTimeout(function(){ btn.innerText = 'Copy'; }, 1500);
-                            }).catch(function(){});
-                          });
-                        } catch(e) {}
-                      })();
+                              setTimeout(function(){{ btn.innerText = 'Copy'; }}, 1500);
+                            }}).catch(function(){{}});
+                          }});
+                        }} catch(e) {{}}
+                      }})();
                     </script>
-                    """.replace("REPL_URL", _primary_cal.replace("'", "\\'")),
+                    """,
                     height=60,
                 )
+            else:
+                st.empty()
 #
+
 
 
 
