@@ -5083,76 +5083,12 @@ if tab == "My Course":
 
         st.divider()
 
-        # ===================== CLASS META (safe resolver) =====================
-        import re as _re
 
-        def _norm_class_local(s: str) -> str:
-            return _re.sub(r"\s+", " ", (s or "").strip().lower())
-
-        # Define human-readable keys, then normalize once
-        __CLASS_FALLBACKS_RAW = {
-            "A2 Koln Klasse": {
-                "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
-                "contact_email": "learngermanghana@gmail.com",
-            },
-            "B1 Munich Klasse": {
-                "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/5aWmmumc7pVLCKJZ6",
-                "contact_email": "learngermanghana@gmail.com",
-            },
-            "A2 Munich Klasse": {
-                "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/hAQSZeDwKfm9aLTC8",
-                "contact_email": "learngermanghana@gmail.com",
-                "image_url": "https://i.imgur.com/7uJRrbr.png",
-            },
-            "A1 Munich Klasse": {
-                "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
-                "contact_email": "learngermanghana@gmail.com",
-            },
-            "A1 Koln Klasse": {
-                "tutors": ["Felix Asadu"],
-                "calendar_url": "https://calendar.app.google/ye4Xbe2K6LiWPtBR8",
-                "contact_email": "learngermanghana@gmail.com",
-            },
-        }
-
-        # Build normalized map AFTER function exists
-        __CLASS_FALLBACKS = { _norm_class_local(k): v for k, v in __CLASS_FALLBACKS_RAW.items() }
-
-        # Guard in case something shadows the dict later
-        _fallback_map = __CLASS_FALLBACKS if isinstance(__CLASS_FALLBACKS, dict) else {}
-
-        # ---- Merge Firestore → fallbacks (robust) ----
-        _meta = {}
+        # ===================== TUTORS • CONTACT • SCHEDULE (no shared calendar) =====================
         try:
-            _doc = db.collection("classes").document(class_name).get()
-            if getattr(_doc, "exists", False):
-                _meta.update(_doc.to_dict() or {})
+            import urllib.parse as _urllib
         except Exception:
-            pass
-
-        _fb = _fallback_map.get(_norm_class_local(class_name or ""), {})
-        _meta = {**_fb, **_meta}
-
-        tutors        = _meta.get("tutors", [])
-        calendar_url  = (_meta.get("calendar_url") or "").strip()
-        contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
-
-        # Optional global/general calendar (safe secrets/env access)
-        try:
-            _cal_secrets = st.secrets.get("calendars", {})
-            if not isinstance(_cal_secrets, dict):
-                _cal_secrets = {}
-        except Exception:
-            _cal_secrets = {}
-        GENERAL_CALENDAR_URL = (
-            (_cal_secrets.get("general") or os.getenv("GENERAL_CLASS_CALENDAR_URL", ""))
-        ).strip()
-
-        # ===================== TUTORS • CALENDAR • CONTACT (with general calendar fallback) =====================
+            import urllib as _urllib  # very defensive
 
         # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
@@ -5188,11 +5124,28 @@ if tab == "My Course":
         t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
         t_cotutor = _tutor_line(co_tutor)
 
-        # Choose the primary calendar to show (class-specific first, else general)
-        _class_cal = (calendar_url or "").strip()
-        _primary_cal = _class_cal or (GENERAL_CALENDAR_URL or "")
-        _has_general_extra = bool(GENERAL_CALENDAR_URL and _class_cal and GENERAL_CALENDAR_URL != _class_cal)
+        # Pull schedule from dashboard dictionary (GROUP_SCHEDULES) or fall back to any local vars
+        _SCHEDULES = globals().get("GROUP_SCHEDULES", {}) or {}
+        _sch = _SCHEDULES.get(class_name, {}) if isinstance(_SCHEDULES, dict) else {}
 
+        _days_list   = list((_sch.get("days") or []) if _sch else (days if 'days' in locals() and isinstance(days, list) else []))
+        _time_label  = str((_sch.get("time") or "") if _sch else (locals().get("time_str") or "")).strip()
+        _start_label = str((_sch.get("start_date") or "") if _sch else (locals().get("start_dt") or "")).strip()
+        _end_label   = str((_sch.get("end_date") or "") if _sch else (locals().get("end_dt") or "")).strip()
+
+        def _short_day(d: str) -> str:
+            m = {"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"}
+            return m.get(d, d)
+
+        _days_short = ", ".join(_short_day(d) for d in _days_list) if _days_list else ""
+        _schedule_line = (
+            (f"🗓️ <b>Schedule:</b> {_days_short} • <b>Time:</b> {_time_label}"
+             f"{' • <b>Start:</b> ' + _start_label if _start_label else ''}"
+             f"{' • <b>End:</b> ' + _end_label if _end_label else ''}")
+            if (_days_list and _time_label) else "🗓️ <span style='color:#64748b'>Schedule not set</span>"
+        )
+
+        # Render tutor + schedule card (no shared calendar links)
         st.markdown(
             f"""
             <div style="
@@ -5208,259 +5161,114 @@ if tab == "My Course":
                 👩‍🏫 <b>Tutor:</b> {t_primary}
               </div>
               {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
-              <div style="font-size:1.05rem;">
-                📅 <b>{'Class Calendar' if _class_cal else 'Calendar'}</b>:
-                {"<a href='"+_primary_cal+"' target='_blank'>Open calendar link</a>" if _primary_cal else "<span style='color:#64748b'>No calendar link yet</span>"}
+              <div style="font-size:1.05rem; margin-top:4px;">
+                {_schedule_line}
               </div>
-              <div style="margin-top:10px; color:#0369a1;">
-                Tip: Tap the calendar link and choose <b>Save/Accept</b> to add it to your Google/phone calendar.
-                You’ll then get reminders before every class.
+              <div style="margin-top:12px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:8px 10px; border-radius:8px;">
+                We don’t auto-add events to your phone. Use the guide below to create your own calendar reminders in 30 seconds.
               </div>
-              <div style="margin-top:14px;">
+              <div style="margin-top:12px;">
                 <a href="{_mailto}" target="_blank" style="
                    display:inline-block;padding:8px 12px;border-radius:8px;
                    background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
                    ✉️ Private message your tutor
                 </a>
-                &nbsp;&nbsp;
-                <span style="color:#0c4a6e;">For <b>general questions</b>, please post in <b>Class Q&A</b> below.</span>
               </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        # Buttons: Add to Calendar (primary), optional "All classes calendar", and a copy-link button (mobile-friendly)
-        c1, c2, c3 = st.columns([2, 2, 1])
-        with c1:
-            if _primary_cal:
-                try:
-                    st.link_button("📅 Add to Calendar", _primary_cal, use_container_width=True, key="btn_cal_primary")
-                except Exception:
-                    st.markdown(f"[📅 Add to Calendar]({_primary_cal})")
-            else:
-                st.info("No calendar link yet.")
-
-        with c2:
-            if _has_general_extra:
-                try:
-                    st.link_button("🗂 All Classes Calendar", GENERAL_CALENDAR_URL, use_container_width=True, key="btn_cal_general")
-                except Exception:
-                    st.markdown(f"[🗂 All Classes Calendar]({GENERAL_CALENDAR_URL})")
-            else:
-                st.markdown("")
-
-        with c3:
-            if _primary_cal:
-                # Safe copy-to-clipboard (mobile-friendly)
-                _cal_safe = (_primary_cal or "").replace("'", "\\'")
-                components.html(
-                    f"""
-                    <div style="width:100%">
-                      <button id="calCopyBtn"
-                              style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                        Copy
-                      </button>
-                    </div>
-                    <script>
-                      (function(){{
-                        try {{
-                          var btn = document.getElementById('calCopyBtn');
-                          if (!btn) return;
-                          var txt = '{_cal_safe}';
-                          btn.addEventListener('click', function(){{
-                            navigator.clipboard.writeText(txt).then(function(){{
-                              btn.innerText = '✓ Copied';
-                              setTimeout(function(){{ btn.innerText = 'Copy'; }}, 1500);
-                            }}).catch(function(){{}});
-                          }});
-                        }} catch(e) {{}}
-                      }})();
-                    </script>
-                    """,
-                    height=60,
-                )
-            else:
-                st.empty()
-
-        # >>> PASTE THIS BLOCK HERE <<<
-        # Seed schedule so the 🔔 expander appears (temporary; remove once wired to real data)
-        if 'days' not in locals() or not isinstance(locals().get('days'), list):
-            days = ["Monday", "Wednesday"]          # your real class days
-        if 'time_str' not in locals() or not locals().get('time_str'):
-            time_str = "6:00pm–7:00pm"              # your real class time range
-        if 'start_dt' not in locals() or not locals().get('start_dt'):
-            start_dt = date.today().strftime("%Y-%m-%d")
-        if 'end_dt' not in locals():
-            end_dt = ""                             # optional
-#
-
-        # --- One-tap reminders expander (auto-build a recurring series link + downloadable .ics with 30-min alert) ---
+        # --- Manual reminder setup (students create events on their own calendar) ---
         try:
-            # Prefer schedule values already computed earlier (from your schedule block):
-            _days_for_series  = days if 'days' in locals() and isinstance(days, list) else None
-            _time_for_series  = time_str if 'time_str' in locals() else None
-            _start_for_series = start_dt if 'start_dt' in locals() else None   # "YYYY-MM-DD"
-            _end_for_series   = end_dt if 'end_dt' in locals() else None       # "YYYY-MM-DD"
-            _zoom_link_series = ZOOM["link"] if isinstance(ZOOM, dict) else ""
+            _zoom_link = (ZOOM["link"] if isinstance(ZOOM, dict) else "") or ""
 
-            if _days_for_series and _time_for_series and _start_for_series:
-                import datetime as _dtm
-                import re as _re2
-                from urllib.parse import urlencode, quote
-                from uuid import uuid4
-
-                def _parse_simple_timerange(s: str):
-                    # Accepts '6:00pm–7:00pm' or '7:30pm-9:00pm'. Rejects multi-day strings.
-                    if not s or ("," in s) or any(w in s for w in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]):
-                        return None
-                    m = _re2.search(r"(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*[\u2013\-]\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)", s, _re2.I)
-                    if not m:
-                        return None
-                    def _to_24h(t):
-                        t = t.strip().lower()
-                        ampm = "am" if "am" in t else ("pm" if "pm" in t else None)
-                        hh, mm = t.replace("am","").replace("pm","").strip().split(":")
-                        h, m = int(hh), int(mm)
-                        if ampm == "pm" and h != 12: h += 12
-                        if ampm == "am" and h == 12: h = 0
-                        return h, m
-                    sh, sm = _to_24h(m.group(1))
-                    eh, em = _to_24h(m.group(2))
-                    return (sh, sm, eh, em)
-
-                def _byday_codes(days_list):
-                    codes = {"Monday":"MO","Tuesday":"TU","Wednesday":"WE","Thursday":"TH","Friday":"FR","Saturday":"SA","Sunday":"SU"}
-                    return ",".join([codes[d] for d in (days_list or []) if d in codes])
-
-                def _first_match_date(start_date_str, first_weekday_idx):
-                    try:
-                        sd = _dtm.datetime.strptime(start_date_str or "", "%Y-%m-%d").date()
-                    except Exception:
-                        sd = _dtm.date.today()
-                    d = sd
-                    while d.weekday() != first_weekday_idx:
-                        d += _dtm.timedelta(days=1)
-                    return d
-
-                def build_gcal_series_link(title: str, days: list, start_date: str, end_date: str, time_str: str, zoom_link: str):
-                    tr = _parse_simple_timerange(time_str)
-                    if not tr or not days:
-                        return None
-                    sh, sm, eh, em = tr
-                    first_weekday = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].index(days[0])
-                    d = _first_match_date(start_date, first_weekday)
-                    start_dt = _dtm.datetime(d.year, d.month, d.day, sh, sm, 0)
-                    end_dt   = _dtm.datetime(d.year, d.month, d.day, eh, em, 0)
-                    fmt = lambda dt: dt.strftime("%Y%m%dT%H%M%S")
-                    dates_param = f"{fmt(start_dt)}/{fmt(end_dt)}"
-                    byday = _byday_codes(days)
-                    until = ""
-                    if end_date:
-                        try:
-                            ed = _dtm.datetime.strptime(end_date, "%Y-%m-%d")
-                            until = ed.strftime("%Y%m%dT235959Z")
-                        except Exception:
-                            pass
-                    rrule = f"RRULE:FREQ=WEEKLY;BYDAY={byday}" + (f";UNTIL={until}" if until else "")
-                    params = {
-                        "action": "TEMPLATE",
-                        "text": title,
-                        "details": f"{zoom_link}\n\n(Added from My Course ▸ Classroom)",
-                        "location": "Zoom",
-                        "recur": rrule,
-                        "dates": dates_param,
-                    }
-                    qp = urlencode(params, quote_via=quote)
-                    return f"https://calendar.google.com/calendar/render?{qp}"
-
-                def build_ics_with_alarm(title: str, days: list, start_date: str, end_date: str, time_str: str, zoom_link: str):
-                    tr = _parse_simple_timerange(time_str)
-                    if not tr or not days:
-                        return None
-                    sh, sm, eh, em = tr
-                    first_weekday = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].index(days[0])
-                    d = _first_match_date(start_date, first_weekday)
-                    dtstart = _dtm.datetime(d.year, d.month, d.day, sh, sm, 0)
-                    dtend   = _dtm.datetime(d.year, d.month, d.day, eh, em, 0)
-                    byday = _byday_codes(days)
-                    until = ""
-                    if end_date:
-                        try:
-                            ed = _dtm.datetime.strptime(end_date, "%Y-%m-%d")
-                            until = ed.strftime("%Y%m%dT235959Z")
-                        except Exception:
-                            pass
-                    ics_fmt = lambda dt: dt.strftime("%Y%m%dT%H%M%S")
-                    uid = f"{uuid4()}@learngermanghana"
-                    now = _dtm.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-                    lines = [
-                        "BEGIN:VCALENDAR",
-                        "VERSION:2.0",
-                        "PRODID:-//LearnGermanGhana//Class//EN",
-                        "CALSCALE:GREGORIAN",
-                        "METHOD:PUBLISH",
-                        "BEGIN:VEVENT",
-                        f"UID:{uid}",
-                        f"DTSTAMP:{now}",
-                        f"SUMMARY:{title}",
-                        f"DESCRIPTION:{zoom_link}\\n(Added from My Course ▸ Classroom)",
-                        "LOCATION:Zoom",
-                        f"DTSTART:{ics_fmt(dtstart)}",
-                        f"DTEND:{ics_fmt(dtend)}",
-                        "BEGIN:VALARM",
-                        "TRIGGER:-PT30M",
-                        "ACTION:DISPLAY",
-                        "DESCRIPTION:Class starting soon",
-                        "END:VALARM",
-                        "RRULE:FREQ=WEEKLY;BYDAY=" + byday + (f";UNTIL={until}" if until else ""),
-                        "END:VEVENT",
-                        "END:VCALENDAR",
-                        "",
-                    ]
-                    return "\r\n".join(lines).encode("utf-8")
-
-                with st.expander("🔔 Prefer one-tap reminders?", expanded=False):
-                    gcal_link = build_gcal_series_link(
-                        title=f"{class_name} (Zoom)",
-                        days=_days_for_series,
-                        start_date=_start_for_series or "",
-                        end_date=_end_for_series or "",
-                        time_str=_time_for_series,
-                        zoom_link=_zoom_link_series,
+            if _days_list and _time_label:
+                with st.expander("🔔 Create your own reminders (Google / Apple / Outlook)", expanded=False):
+                    first_day = _days_list[0]
+                    choice = st.selectbox(
+                        "Choose your calendar app:",
+                        ["Google Calendar (Android/Web)", "Apple Calendar (iPhone/iPad/Mac)", "Outlook (Windows/Web)"],
+                        key="manual_reminder_app_v2",
                     )
-                    if gcal_link:
-                        try:
-                            st.link_button("🟢 Add to Google Calendar (series)", gcal_link, use_container_width=True, key="btn_gcal_series")
-                        except Exception:
-                            st.markdown(f"[🟢 Add to Google Calendar (series)]({gcal_link})")
 
-                    ics_bytes = build_ics_with_alarm(
-                        title=f"{class_name} (Zoom)",
-                        days=_days_for_series,
-                        start_date=_start_for_series or "",
-                        end_date=_end_for_series or "",
-                        time_str=_time_for_series,
-                        zoom_link=_zoom_link_series,
-                    )
-                    if ics_bytes:
-                        st.download_button(
-                            "📲 Add to Apple/Phone Calendar (.ics, 30-min alert)",
-                            data=ics_bytes,
-                            file_name=f"{class_name.replace(' ','_')}.ics",
-                            mime="text/calendar",
-                            use_container_width=True,
-                            key="btn_cal_ics_dl"
+                    if choice == "Google Calendar (Android/Web)":
+                        st.markdown(
+                            f"""
+                            1) Open **Google Calendar** → **Create** → **Event**  
+                            2) Title: **{class_name} (Zoom)**  
+                            3) Set the **first date** to the next **{first_day}**  
+                            4) Time: **{_time_label}**  
+                            5) **Does not repeat → Weekly**, select: **{_days_short}**  
+                            6) *(Optional)* **Ends**: **{_end_label or 'course end'}**  
+                            7) Location: **Zoom** • Description: paste the Zoom link  
+                            8) **Save** ✅
+                            """
+                        )
+                    elif choice == "Apple Calendar (iPhone/iPad/Mac)":
+                        st.markdown(
+                            f"""
+                            1) Open **Calendar** → **+** → **New Event**  
+                            2) Title: **{class_name} (Zoom)**  
+                            3) Start time: **{_time_label}** on the next **{first_day}**  
+                            4) **Repeat → Custom → Weekly**, select: **{_days_short}**  
+                            5) **End Repeat**: **{_end_label or 'choose a course end date'}**  
+                            6) URL/Notes: paste the Zoom link  
+                            7) Add an **Alert** (e.g., 30 minutes before) → **Add** ✅
+                            """
+                        )
+                    else:
+                        st.markdown(
+                            f"""
+                            1) Open **Outlook Calendar** → **New Event**  
+                            2) Title: **{class_name} (Zoom)**  
+                            3) Start time: **{_time_label}** on the next **{first_day}**  
+                            4) **Repeat → Weekly**, choose: **{_days_short}**  
+                            5) **End date**: **{_end_label or 'course end'}**  
+                            6) Location: **Zoom** • Body: paste the Zoom link  
+                            7) Add a reminder (e.g., 30 minutes) → **Save** ✅
+                            """
                         )
 
-                    st.markdown(
-                        "<div style='font-size:0.9rem;color:#475569;margin-top:6px;'>"
-                        "Tip: Google uses your default alert for new events; the .ics file includes a built-in 30-minute alert."
-                        "</div>",
-                        unsafe_allow_html=True,
+                    # One-click copy of exactly what they need to paste
+                    _copy_text = (
+                        f"{class_name} (Zoom)\n"
+                        f"Days: {', '.join(_days_list)}\n"
+                        f"Time: {_time_label}\n"
+                        f"Start: {_start_label}\n"
+                        f"End: {_end_label}\n"
+                        f"Zoom: {_zoom_link}"
+                    )
+                    _copy_js = _copy_text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                    components.html(
+                        f"""
+                        <div style="display:flex; gap:8px; align-items:center;">
+                          <button id="copySchedBtn2"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy schedule text
+                          </button>
+                          <span style="color:#64748b; font-size:0.9rem;">Paste into your event description.</span>
+                        </div>
+                        <script>
+                          (function(){{
+                            try {{
+                              var b = document.getElementById('copySchedBtn2');
+                              if (!b) return;
+                              var txt = '{_copy_js}';
+                              b.addEventListener('click', function(){{
+                                navigator.clipboard.writeText(txt).then(function(){{
+                                  b.innerText = '✓ Copied';
+                                  setTimeout(function(){{ b.innerText = 'Copy schedule text'; }}, 1500);
+                                }}).catch(function(){{}});
+                              }});
+                            }} catch(e) {{}}
+                          }})();
+                        </script>
+                        """,
+                        height=44,
                     )
         except Exception:
-            # Silently skip if schedule format is complex or variables are missing.
+            # Soft-fail: if schedule is missing or anything odd, we simply hide the expander
             pass
 
         st.divider()
