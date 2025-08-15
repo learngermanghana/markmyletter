@@ -4842,41 +4842,14 @@ if tab == "My Course":
                 st.session_state["__go_classroom"] = True
                 st.rerun()
 
-        with c3:
-            if _primary_cal:
-                # Safe copy-to-clipboard (keeps indentation + avoids %-formatting issues)
-                _cal_safe = (_primary_cal or "").replace("'", "\\'")
-                components.html(
-                    f"""
-                    <div style="width:100%">
-                      <button id="calCopyBtn"
-                              style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                        Copy
-                      </button>
-                    </div>
-                    <script>
-                      (function(){{
-                        try {{
-                          var btn = document.getElementById('calCopyBtn');
-                          if (!btn) return;
-                          var txt = '{_cal_safe}';
-                          btn.addEventListener('click', function(){{
-                            navigator.clipboard.writeText(txt).then(function(){{
-                              btn.innerText = '✓ Copied';
-                              setTimeout(function(){{ btn.innerText = 'Copy'; }}, 1500);
-                            }}).catch(function(){{}});
-                          }});
-                        }} catch(e) {{}}
-                      }})();
-                    </script>
-                    """,
-                    height=60,
-                )
-            else:
-                st.empty()
+        # --- Column 3: Add Notes (just jump to Notes tab) ---
+        with col3:
+            st.markdown("#### 📝 Add Notes")
+            if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
+                # set a jump flag; no prefills
+                st.session_state["__go_notes"] = True
+                st.rerun()
 #
-
-
 
 
         st.divider()
@@ -5057,7 +5030,7 @@ if tab == "My Course":
                 st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
                 st.write(f"**Passcode:** `{ZOOM['passcode']}`")
 
-                # Copy helpers (mobile-friendly) — use % formatting to avoid f-string brace escaping
+                # Copy helpers (mobile-friendly)
                 components.html(
                     """
                     <div style="display:flex;gap:8px;margin-top:8px;">
@@ -5090,8 +5063,10 @@ if tab == "My Course":
                 )
 
         st.divider()
+#
 
         # ===================== CLASS META (safe resolver) =====================
+
         def _norm_class_local(s: str) -> str:
             return re.sub(r"\s+", " ", (s or "").strip().lower())
 
@@ -5165,7 +5140,7 @@ if tab == "My Course":
         co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
 
         def _tutor_line(d):
-            if not d:
+            if not d: 
                 return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
@@ -5246,104 +5221,36 @@ if tab == "My Course":
 
         with c3:
             if _primary_cal:
-                # simple JS clipboard copy (works on mobile) — use % formatting to avoid f-string brace escaping
+                # Safe copy-to-clipboard (keeps indentation + avoids %-formatting issues)
+                _cal_safe = (_primary_cal or "").replace("'", "\\'")
                 components.html(
-                    """
-                    <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied'; setTimeout(()=>this.innerText='Copy',1500);})" 
-                            style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                    f"""
+                    <div style="width:100%">
+                      <button id="calCopyBtn"
+                              style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
                         Copy
-                    </button>
-                    """ % (_primary_cal.replace("'", "\\'")),
-                    height=40,
+                      </button>
+                    </div>
+                    <script>
+                      (function(){{
+                        try {{
+                          var btn = document.getElementById('calCopyBtn');
+                          if (!btn) return;
+                          var txt = '{_cal_safe}';
+                          btn.addEventListener('click', function(){{
+                            navigator.clipboard.writeText(txt).then(function(){{
+                              btn.innerText = '✓ Copied';
+                              setTimeout(function(){{ btn.innerText = 'Copy'; }}, 1500);
+                            }}).catch(function(){{}});
+                          }});
+                        }} catch(e) {{}}
+                      }})();
+                    </script>
+                    """,
+                    height=60,
                 )
-
-        # ===== Calendar reminders help & 1-minute test (compact expander) =====
-        with st.expander("🧭 Get calendar alerts (quick test inside)", expanded=False):
-            st.markdown(
-                """
-**To receive automatic reminders for class:**
-1) Tap **Add to Calendar** above (don’t just preview).  
-2) In Google Calendar app: **Settings → (Your Class) → Notifications: ON**.  
-3) Allow notifications for Google Calendar in your phone settings.  
-4) Check your time zone (e.g., **Africa/Accra**).  
-5) If you opened the link inside WhatsApp/Instagram, re-open it in your browser (Chrome/Safari).
-                """
-            )
-
-            # Optional: open the main calendar link again (kept subtle)
-            if _primary_cal:
-                try:
-                    st.link_button("📅 Open calendar link again", _primary_cal, use_container_width=False, key="btn_cal_helper_reopen")
-                except Exception:
-                    st.markdown(f"[📅 Open calendar link again]({_primary_cal})")
-
-            st.markdown("---")
-            st.markdown("**Quick test:** add a tiny event with alerts to confirm notifications work.")
-
-            from datetime import datetime as _dt_local_tz, timedelta as _td_local_tz, timezone as _tz_local
-            from uuid import uuid4 as _uuid4
-
-            now_utc   = _dt_local_tz.now(_tz_local.utc)
-            start_utc = now_utc + _td_local_tz(minutes=6)
-            end_utc   = start_utc + _td_local_tz(minutes=1)
-
-            def _fmt_ics(dt):
-                return dt.strftime("%Y%m%dT%H%M%SZ")
-
-            ics = f"""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Falowen//Class Test//EN
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-BEGIN:VEVENT
-UID:{_uuid4()}@falowen
-DTSTAMP:{_fmt_ics(now_utc)}
-DTSTART:{_fmt_ics(start_utc)}
-DTEND:{_fmt_ics(end_utc)}
-SUMMARY:Calendar Alert Test (Falowen)
-DESCRIPTION:1-minute test to confirm your class notifications are working.
-LOCATION:Online
-BEGIN:VALARM
-TRIGGER:-PT5M
-ACTION:DISPLAY
-DESCRIPTION:Class starts in 5 minutes
-END:VALARM
-BEGIN:VALARM
-TRIGGER:-PT1M
-ACTION:DISPLAY
-DESCRIPTION:Class starts in 1 minute
-END:VALARM
-END:VEVENT
-END:VCALENDAR
-"""
-
-            st.download_button(
-                "⬇️ Download Test (.ics) — Apple/Outlook",
-                data=ics,
-                file_name="falowen-alert-test.ics",
-                mime="text/calendar"
-            )
-
-            # Google Calendar template (reminders depend on per-calendar settings)
-            import urllib.parse as _uparse
-            gcal_base = "https://calendar.google.com/calendar/render?action=TEMPLATE"
-            gcal_params = {
-                "text": "Calendar Alert Test (Falowen)",
-                "dates": f"{_fmt_ics(start_utc)}/{_fmt_ics(end_utc)}",
-                "details": "1-minute test to confirm your class notifications are working.",
-                "location": "Online",
-                "sf": "true",
-                "output": "xml",
-            }
-            gcal_url = gcal_base + "&" + _uparse.urlencode(gcal_params, quote_via=_uparse.quote)
-            st.markdown(f"[➕ Add the test to **Google Calendar**]({gcal_url})")
-
-            st.info(
-                "Still no alerts? Open Google Calendar → **Settings → (Your Class) → Notifications: ON**, "
-                "and make sure phone notification permissions are enabled."
-            )
-
-        st.divider()
+            else:
+                st.empty()
 #
 
 
