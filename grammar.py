@@ -1899,51 +1899,7 @@ def render_dropdown_nav():
     - Remembers dismissal in session_state["nav_hint_dismissed"]
     - Syncs with URL query param ?tab=...
     - Keeps st.session_state["main_tab_select"] in sync
-    - Persists last choice to localStorage (and restores it if ?tab is missing)
     """
-    import json
-    import streamlit as st
-    import streamlit.components.v1 as components
-
-    # ---------- helpers: query params (new + legacy) ----------
-    def _qp_get_all():
-        try:
-            # New API (>=1.31)
-            return dict(st.query_params)
-        except Exception:
-            # Legacy
-            return dict(st.experimental_get_query_params())
-
-    def _qp_get_one(key, default=None):
-        vals = _qp_get_all().get(key, default)
-        if isinstance(vals, list):
-            return vals[0] if vals else default
-        return vals
-
-    def _qp_set_one(key, value):
-        try:
-            st.query_params[key] = value
-        except Exception:
-            current = _qp_get_all()
-            current[key] = value
-            st.experimental_set_query_params(**current)
-
-    # --- If no ?tab= in URL, restore last selection from localStorage (once) ---
-    if not _qp_get_one("tab") and not st.session_state.get("__nav_synced", False):
-        components.html("""
-        <script>
-          try {
-            const last = localStorage.getItem('last_tab');
-            const u = new URL(window.location);
-            if (last && !u.searchParams.get('tab')) {
-              u.searchParams.set('tab', last);
-              window.location.replace(u);
-            }
-          } catch(e) {}
-        </script>
-        """, height=0)
-        st.session_state["__nav_synced"] = True
-
     tabs = [
         "Dashboard",
         "My Course",
@@ -1976,7 +1932,10 @@ def render_dropdown_nav():
                 st.rerun()
 
     # --- Default from URL (?tab=...) or session ---
-    default = _qp_get_one("tab", st.session_state.get("main_tab_select", "Dashboard"))
+    default = st.query_params.get(
+        "tab",
+        [st.session_state.get("main_tab_select", "Dashboard")]
+    )[0]
     if default not in tabs:
         default = "Dashboard"
 
@@ -1995,18 +1954,8 @@ def render_dropdown_nav():
 
     # --- Persist selection to URL + session ---
     if sel != default:
-        _qp_set_one("tab", sel)
+        st.query_params["tab"] = sel
     st.session_state["main_tab_select"] = sel
-
-    # --- Persist to localStorage so we can restore if URL is clean next time ---
-    components.html(f"""
-    <script>
-      try {{
-        localStorage.setItem('last_tab', {json.dumps(sel)});
-      }} catch(e) {{}}
-    </script>
-    """, height=0)
-
     return sel
 
 # usage:
@@ -10448,7 +10397,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
