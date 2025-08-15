@@ -5415,7 +5415,7 @@ if tab == "My Course":
                 delta = (weekday_index - d.weekday()) % 7
                 return d + _td(days=delta)
 
-            # Build ICS (with 15-minute preset reminder + URL field)
+                 # Build ICS (with 15-minute preset reminder + URL field)
             _blocks = _parse_time_blocks(time_str, days)
             _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
             _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
@@ -5625,16 +5625,46 @@ if tab == "My Course":
                     unsafe_allow_html=True,
                 )
 
-            # Inline Android "create personal schedule" link for the install tips
-            _inline_link_md = ""
+            # ----- General "Create personal schedule (set repeat)" link for Android (single link) -----
+            _general_personal_url = (
+                "https://calendar.google.com/calendar/render"
+                f"?action=TEMPLATE"
+                f"&text={_urllib.quote(_summary)}"
+                f"&details={_urllib.quote(_details)}"
+                f"&location={_urllib.quote('Zoom')}"
+                f"&ctz={_urllib.quote('Africa/Accra')}"
+            )
             try:
-                if _gcal_repeat_links:
-                    # Use the first repeating block as the quick link
-                    _inline_link_md = f" or tap [**📲 Create personal schedule (repeating)**]({_gcal_repeat_links[0][1]}) to add it on your phone."
-                else:
-                    _inline_link_md = " or click **📲 Create personal schedule (repeating)** above to add it on your phone."
+                # Prefill a sensible start/end if we can (next class or first occurrence)
+                if _blocks:
+                    if next_date:
+                        _ref_date = next_date
+                        wcode = _WKD_ORDER[_ref_date.weekday()]
+                        _blk_match = None
+                        for blk in _blocks:
+                            if wcode in blk["byday"]:
+                                _blk_match = blk; break
+                        if _blk_match is None:
+                            _blk_match = _blocks[0]
+                        sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
+                    else:
+                        _blk_match = _blocks[0]
+                        sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
+                        _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+                        first_dates = []
+                        for code in _blk_match["byday"]:
+                            first_dates.append(_next_on_or_after(start_date_obj, _wmap[code]))
+                        _ref_date = min(first_dates) if first_dates else start_date_obj
+
+                    _sdt = _dt(_ref_date.year, _ref_date.month, _ref_date.day, sh, sm)
+                    _edt = _dt(_ref_date.year, _ref_date.month, _ref_date.day, eh, em)
+                    _general_personal_url += f"&dates={_sdt.strftime('%Y%m%dT%H%M%SZ')}/{_edt.strftime('%Y%m%dT%H%M%SZ')}"
             except Exception:
-                _inline_link_md = " or click **📲 Create personal schedule (repeating)** above to add it on your phone."
+                pass
+
+            # Inline Android "create personal schedule" link for the install tips
+            _inline_link_md = f" or tap [**📲 Create personal schedule (set repeat)**]({_general_personal_url}) to add it on your phone."
+            _also_repeating = " You can also expand **📲 Create personal schedule (repeating)** above for exact days/times." if _gcal_repeat_links else ""
 
             # Install tips + success check (final copy with inline Android link)
             st.markdown(
@@ -5642,7 +5672,7 @@ if tab == "My Course":
                 **How to install the calendar (.ics):**
                 - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
                   ✅ You should see a confirmation like **“Imported X of X events.”**
-                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync){_inline_link_md}
+                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync){_inline_link_md}{_also_repeating}
                 - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
                   ✅ On iPhone you’re done — the series appears in the Calendar app.
 
@@ -5654,6 +5684,7 @@ if tab == "My Course":
                 unsafe_allow_html=True,
             )
 #
+
 
 
 
