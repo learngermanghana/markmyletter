@@ -5083,41 +5083,49 @@ if tab == "My Course":
 
         st.divider()
 
-        # ---- Merge Firestore → fallbacks (robust) ----
-        # Use a private name to avoid accidental shadowing elsewhere.
-        __CLASS_FALLBACKS = {
-            _norm_class_local("A2 Koln Klasse"): {
+        # ===================== CLASS META (safe resolver) =====================
+        import re as _re
+
+        def _norm_class_local(s: str) -> str:
+            return _re.sub(r"\s+", " ", (s or "").strip().lower())
+
+        # Define human-readable keys, then normalize once
+        __CLASS_FALLBACKS_RAW = {
+            "A2 Koln Klasse": {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
                 "contact_email": "learngermanghana@gmail.com",
             },
-            _norm_class_local("B1 Munich Klasse"): {
+            "B1 Munich Klasse": {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/5aWmmumc7pVLCKJZ6",
                 "contact_email": "learngermanghana@gmail.com",
             },
-            _norm_class_local("A2 Munich Klasse"): {
+            "A2 Munich Klasse": {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/hAQSZeDwKfm9aLTC8",
                 "contact_email": "learngermanghana@gmail.com",
                 "image_url": "https://i.imgur.com/7uJRrbr.png",
             },
-            _norm_class_local("A1 Munich Klasse"): {
+            "A1 Munich Klasse": {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/N9iYk2ayNUut2zgB8",
                 "contact_email": "learngermanghana@gmail.com",
             },
-            _norm_class_local("A1 Koln Klasse"): {
+            "A1 Koln Klasse": {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/ye4Xbe2K6LiWPtBR8",
                 "contact_email": "learngermanghana@gmail.com",
             },
         }
 
-        # Guard: if something overwrote the constant, fall back to {}.
+        # Build normalized map AFTER function exists
+        __CLASS_FALLBACKS = { _norm_class_local(k): v for k, v in __CLASS_FALLBACKS_RAW.items() }
+
+        # Guard in case something shadows the dict later
         _fallback_map = __CLASS_FALLBACKS if isinstance(__CLASS_FALLBACKS, dict) else {}
 
-        # Start from Firestore metadata (if available)
+        # ---- Merge Firestore → fallbacks (robust) ----
         _meta = {}
         try:
             _doc = db.collection("classes").document(class_name).get()
@@ -5126,13 +5134,18 @@ if tab == "My Course":
         except Exception:
             pass
 
-        # Merge in our local defaults for THIS class
         _fb = _fallback_map.get(_norm_class_local(class_name or ""), {})
         _meta = {**_fb, **_meta}
 
-        tutors        = _meta.get("tutors", [])                    # list[str] or list[{name,email}]
+        tutors        = _meta.get("tutors", [])
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
+
+        # Optional global/general calendar
+        GENERAL_CALENDAR_URL = (
+            (st.secrets.get("calendars", {}).get("general", "") if hasattr(st, "secrets") else "")
+            or os.getenv("GENERAL_CLASS_CALENDAR_URL", "").strip()
+        )
 #
 
 
