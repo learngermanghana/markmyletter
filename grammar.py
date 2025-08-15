@@ -431,16 +431,19 @@ def qp_get():
     # returns a dict-like object
     return st.query_params
 
+def qp_clear():
+    # clears all query params from the URL
+    st.query_params.clear()
 
-# ---------- small query-param helpers ----------
 def qp_clear_keys(*keys):
+    # remove only the specified keys
     for k in keys:
         try:
             del st.query_params[k]
         except KeyError:
             pass
 
-# ---------- cookie low-level helpers ----------
+# ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
@@ -461,8 +464,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 180  # 180 days
     exp_str = _expire_str(expires)
-
-    # Encrypted library cookie (host-only)
+    # Library cookie (encrypted; host-only)
     try:
         cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -471,8 +473,7 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
             cookie_manager[key] = norm; cookie_manager.save()
         except Exception:
             pass
-
-    # JS host + base-domain cookie, plus localStorage mirror
+    # JS host-only + base-domain (guard invalid hosts)
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -500,8 +501,6 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 30  # 30 days
     exp_str = _expire_str(expires)
-
-    # Encrypted library cookie (host-only)
     try:
         cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -510,8 +509,6 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
             cookie_manager[key] = val; cookie_manager.save()
         except Exception:
             pass
-
-    # JS host + base-domain cookie, plus localStorage mirror
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -548,59 +545,29 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     </script>
     """, height=0)
 
-# ---------- Cookie manager init ----------
+# ==== Cookie manager init ====
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
     st.stop()
-
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# ---------- iOS Safari rehydrate bridge ----------
-# If cookies are missing but localStorage still has session_token,
-# push it once via ?token=… and reload. Guard with a one-time flag.
-components.html("""
-<script>
-(function(){
-  try{
-    var hasCookie = document.cookie.indexOf('session_token=') !== -1 ||
-                    document.cookie.indexOf('falowen_session_token=') !== -1;
-    var tok = localStorage.getItem('session_token');
-    var pushed = localStorage.getItem('st_token_pushed') === '1';
-    var u = new URL(window.location);
-    var qpTok = u.searchParams.get('token');
-
-    if (!hasCookie && tok && !qpTok && !pushed){
-      localStorage.setItem('st_token_pushed','1');
-      u.searchParams.set('token', tok);
-      // Single reload to let Python pick up ?token and restore cookies
-      window.location.replace(u.toString());
-    }
-  }catch(e){}
-})();
-</script>
-""", height=0)
-
-# ---------- Restore from cookie or from ?token ----------
+# ---- Restore from existing session token (cookie) ----
 restored = False
-
 if not st.session_state.get("logged_in", False):
-    # 1) Prefer URL token (iOS bridge)
-    qp_token = st.query_params.get("token", None)
-    if isinstance(qp_token, list):
-        qp_token = qp_token[0] if qp_token else None
-    if qp_token:
-        data = validate_session_token(qp_token, st.session_state.get("__ua_hash", ""))
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    if cookie_tok:
+        data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
+            # Validate the student still exists and contract active
             try:
                 df_students = load_student_data()
                 found = df_students[df_students["StudentCode"] == data.get("student_code","")]
             except Exception:
                 found = pd.DataFrame()
-
             if not found.empty and not is_contract_expired(found.iloc[0]):
                 row = found.iloc[0]
                 st.session_state.update({
@@ -608,49 +575,12 @@ if not st.session_state.get("logged_in", False):
                     "student_row": row.to_dict(),
                     "student_code": row["StudentCode"],
                     "student_name": row["Name"],
-                    "session_token": qp_token,
+                    "session_token": cookie_tok,
                 })
-                # Rotate + set cookies
-                new_tok = (refresh_or_rotate_session_token(qp_token) or qp_token)
+                new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
-                set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
                 restored = True
-
-                # Clean client "pushed" flag and remove token qp
-                components.html("<script>try{localStorage.removeItem('st_token_pushed');}catch(e){}</script>", height=0)
-                qp_clear_keys("token")
-
-    # 2) Fallback to library cookie if not yet restored
-    if not restored:
-        cookie_tok = (cookie_manager.get("session_token") or "").strip()
-        if cookie_tok:
-            data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
-            if data:
-                try:
-                    df_students = load_student_data()
-                    found = df_students[df_students["StudentCode"] == data.get("student_code","")]
-                except Exception:
-                    found = pd.DataFrame()
-                if not found.empty and not is_contract_expired(found.iloc[0]):
-                    row = found.iloc[0]
-                    st.session_state.update({
-                        "logged_in": True,
-                        "student_row": row.to_dict(),
-                        "student_code": row["StudentCode"],
-                        "student_name": row["Name"],
-                        "session_token": cookie_tok,
-                    })
-                    new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
-                    st.session_state["session_token"] = new_tok
-                    set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
-                    set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-                    restored = True
-                    components.html("<script>try{localStorage.removeItem('st_token_pushed');}catch(e){}</script>", height=0)
-
-# (Optional) if you want to surface that a restore happened for debugging:
-# if restored: st.info("Session restored.")
-
 
 
 # --- 2) Global CSS (tightened spacing) ---
@@ -1961,8 +1891,75 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # =========================================================
 # ===================== Tabs UI ===========================
 # =========================================================
+def render_dropdown_nav():
+    """
+    Mobile-friendly dropdown nav with a one-time coachmark that says:
+    'Tap the arrow ▾ to open the menu and see all sections.'
 
+    - Remembers dismissal in session_state["nav_hint_dismissed"]
+    - Syncs with URL query param ?tab=...
+    - Keeps st.session_state["main_tab_select"] in sync
+    """
+    tabs = [
+        "Dashboard",
+        "My Course",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+    ]
+    icons = {
+        "Dashboard": "🏠",
+        "My Course": "📚",
+        "My Results and Resources": "📊",
+        "Exams Mode & Custom Chat": "🤖",
+        "Vocab Trainer": "🗣️",
+        "Schreiben Trainer": "✍️",
+    }
 
+    # --- One-time coachmark (shows until dismissed) ---
+    if not st.session_state.get("nav_hint_dismissed", False):
+        with st.container():
+            st.markdown(
+                "<div style='background:#fff7ed;border:1px solid #fed7aa;"
+                "border-radius:10px;padding:8px 10px;margin:4px 0;'>"
+                "👉 <b>Tip:</b> Tap the arrow <b>▾</b> to open the menu and see all sections."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Got it", key="nav_hint_gotit"):
+                st.session_state["nav_hint_dismissed"] = True
+                st.rerun()
+
+    # --- Default from URL (?tab=...) or session ---
+    default = st.query_params.get(
+        "tab",
+        [st.session_state.get("main_tab_select", "Dashboard")]
+    )[0]
+    if default not in tabs:
+        default = "Dashboard"
+
+    # --- Selectbox with help tooltip and icons in labels ---
+    def _fmt(x: str) -> str:
+        return f"{icons.get(x,'•')}  {x}"
+
+    sel = st.selectbox(
+        "Choose a section (tap ▾)",
+        tabs,
+        index=tabs.index(default),
+        key="nav_dd",
+        format_func=_fmt,
+        help="Tap the arrow ▾ to open the menu and view all sections."
+    )
+
+    # --- Persist selection to URL + session ---
+    if sel != default:
+        st.query_params["tab"] = sel
+    st.session_state["main_tab_select"] = sel
+    return sel
+
+# usage:
+tab = render_dropdown_nav()
 
 # =========================================================
 # ===================== Dashboard =========================
@@ -10400,8 +10397,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
-
 
 
 
