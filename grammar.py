@@ -5149,6 +5149,9 @@ if tab == "My Course":
                 st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
 
         st.divider()
+#
+
+
 
 
         # ===================== CLASS ROSTER =====================
@@ -5173,7 +5176,7 @@ if tab == "My Course":
             st.warning("Couldn’t load the class roster right now.")
 
         st.divider()
-#
+
         # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
         st.markdown("### 📢 Announcements")
 
@@ -10394,7 +10397,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
