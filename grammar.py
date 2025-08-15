@@ -5083,6 +5083,44 @@ if tab == "My Course":
 
         st.divider()
 
+        # ---------- Class schedules ----------
+        with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
+            # Fallback safe_get so we don't crash if it's missing
+            if "safe_get" not in globals():
+                def safe_get(obj, key, default=""):
+                    try:
+                        if obj is None:
+                            return default
+                        if isinstance(obj, dict):
+                            return obj.get(key, default)
+                        if hasattr(obj, "get"):          # pandas Series / Mapping-like
+                            return obj.get(key, default)
+                        if hasattr(obj, key):            # attribute access
+                            return getattr(obj, key, default)
+                        if hasattr(obj, "to_dict"):      # pandas row -> dict
+                            try:
+                                return obj.to_dict().get(key, default)
+                            except Exception:
+                                pass
+                        return default
+                    except Exception:
+                        return default
+
+            # (optional) if student_row might not exist, avoid NameError
+            try:
+                student_row
+            except NameError:
+                student_row = {}
+
+            GROUP_SCHEDULES = {
+                # ... your schedules dict (unchanged) ...
+            }
+
+            from datetime import datetime as _dt_local, timedelta as _td_local
+            class_name = str(safe_get(student_row, "ClassName", "")).strip()
+            class_schedule = GROUP_SCHEDULES.get(class_name)
+#
+
 
         # ---------- Class schedules ----------
         with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
