@@ -5093,6 +5093,31 @@ if tab == "My Course":
 
         st.divider()
 
+       # ===================== CALENDAR TAB BANNER =====================
+        with st.container():
+            st.markdown(
+                '''
+                <div style="
+                    padding: 12px;
+                    background: #0ea5e9;
+                    color: #ffffff;
+                    border-radius: 8px;
+                    text-align: center;
+                    margin-bottom: 12px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                    font-weight: 600;
+                ">
+                    <span style="font-size:1.2rem;">📅 Calendar</span>
+                    <div style="font-weight:500; font-size:0.98rem; margin-top:2px;">
+                        You’re in the <u>Calendar</u> section — download the full course schedule or add reminders to your phone.
+                    </div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+        st.divider()
+#
+
         # ===================== CALENDAR QUICK ADD (no schedule/dictionary UI) =====================
         from datetime import datetime as _dt, timedelta as _td
         import re, uuid, json, io, requests
