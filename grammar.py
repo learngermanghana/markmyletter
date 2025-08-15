@@ -5625,13 +5625,24 @@ if tab == "My Course":
                     unsafe_allow_html=True,
                 )
 
-            # Install tips + success check (final copy)
+            # Inline Android "create personal schedule" link for the install tips
+            _inline_link_md = ""
+            try:
+                if _gcal_repeat_links:
+                    # Use the first repeating block as the quick link
+                    _inline_link_md = f" or tap [**📲 Create personal schedule (repeating)**]({_gcal_repeat_links[0][1]}) to add it on your phone."
+                else:
+                    _inline_link_md = " or click **📲 Create personal schedule (repeating)** above to add it on your phone."
+            except Exception:
+                _inline_link_md = " or click **📲 Create personal schedule (repeating)** above to add it on your phone."
+
+            # Install tips + success check (final copy with inline Android link)
             st.markdown(
                 f"""
                 **How to install the calendar (.ics):**
                 - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
                   ✅ You should see a confirmation like **“Imported X of X events.”**
-                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), **or click “📲 Create personal schedule (repeating)” above to add it on your phone.**
+                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync){_inline_link_md}
                 - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
                   ✅ On iPhone you’re done — the series appears in the Calendar app.
 
@@ -5643,6 +5654,7 @@ if tab == "My Course":
                 unsafe_allow_html=True,
             )
 #
+
 
 
 
