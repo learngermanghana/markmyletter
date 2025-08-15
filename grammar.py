@@ -1962,7 +1962,7 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # ===================== Tabs UI ===========================
 # =========================================================
 
-def render_dropdown_nav():
+def render_responsive_nav():
     tabs = [
         "Dashboard",
         "My Course",
@@ -1971,21 +1971,56 @@ def render_dropdown_nav():
         "Vocab Trainer",
         "Schreiben Trainer",
     ]
-    # read default from URL or session
-    default = st.query_params.get("tab", [st.session_state.get("main_tab_select", "Dashboard")])[0]
-    if default not in tabs:
-        default = "Dashboard"
+    icons = ["🏠","📚","📊","🤖","🗣️","✍️"]
 
-    sel = st.selectbox("How do you want to practice?", tabs, index=tabs.index(default), key="nav_dd")
+    # base selection
+    prev = st.session_state.get("main_tab_select", st.query_params.get("tab", ["Dashboard"])[0])
+    if prev not in tabs:
+        prev = "Dashboard"
 
-    # persist to URL + session
-    if sel != default:
-        st.query_params["tab"] = sel
+    # styles: hide/show by screen width
+    st.markdown("""
+    <style>
+      .nav-wide { display: none; }
+      @media (min-width: 640px){ .nav-wide { display:block; } .nav-narrow { display:none; } }
+      .pillbar{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px 0}
+      .pill{padding:7px 12px;border:1px solid #e5e7eb;border-radius:999px;font-weight:700;cursor:pointer; white-space:nowrap;}
+      .pill-active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # narrow: dropdown (visible on mobile)
+    with st.container():
+        st.markdown("<div class='nav-narrow'>", unsafe_allow_html=True)
+        dd_sel = st.selectbox("How do you want to practice?", tabs, index=tabs.index(prev), key="nav_dd_mobile")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # wide: pill buttons (visible on desktop)
+    with st.container():
+        st.markdown("<div class='nav-wide'>", unsafe_allow_html=True)
+        cols = st.columns(len(tabs))
+        pill_sel = prev
+        for i, t in enumerate(tabs):
+            label = f"{icons[i]} {t}"
+            with cols[i]:
+                if st.button(label, key=f"navpill_{i}", use_container_width=True):
+                    pill_sel = t
+        st.markdown(
+            "<div class='pillbar'>" +
+            "".join(f"<span class='pill {'pill-active' if tabs[i]==pill_sel else ''}' style='display:none'>{icons[i]} {tabs[i]}</span>" for i in range(len(tabs))) +
+            "</div>", unsafe_allow_html=True
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # resolve which control changed
+    sel = pill_sel if pill_sel != prev else dd_sel
     st.session_state["main_tab_select"] = sel
+    st.query_params["tab"] = sel
     return sel
 
 # usage
-tab = render_dropdown_nav()
+tab = render_responsive_nav()
+
 
 
 # =========================================================
@@ -10397,7 +10432,33 @@ if tab == "Schreiben Trainer":
                 st.rerun()
 
 
+# Inject PWA/meta link tags AFTER the hero (zero-height iframe)
+    _inject_meta_tags()
 
+    # Inject SEO head tags AFTER the hero (using components.html)
+    components.html("""
+    <script>
+      document.title = "Falowen – Learn German with Learn Language Education Academy";
+      const desc = "Falowen is the German learning companion from Learn Language Education Academy. Join live classes or self-study with A1–C1 courses, recorded lectures, and real progress tracking.";
+      let m = document.querySelector('meta[name="description"]');
+      if (!m) { m = document.createElement('meta'); m.name = "description"; document.head.appendChild(m); }
+      m.setAttribute("content", desc);
+      const canonicalHref = window.location.origin + "/";
+      let link = document.querySelector('link[rel="canonical"]');
+      if (!link) { link = document.createElement('link'); link.rel = "canonical"; document.head.appendChild(link); }
+      link.href = canonicalHref;
+      function setOG(p, v){ let t=document.querySelector(`meta[property="${p}"]`);
+        if(!t){ t=document.createElement('meta'); t.setAttribute('property', p); document.head.appendChild(t); }
+        t.setAttribute('content', v);
+      }
+      setOG("og:title", "Falowen – Learn German with Learn Language Education Academy");
+      setOG("og:description", desc);
+      setOG("og:type", "website");
+      setOG("og:url", canonicalHref);
+      const ld = {"@context":"https://schema.org","@type":"WebSite","name":"Falowen","alternateName":"Falowen by Learn Language Education Academy","url": canonicalHref};
+      const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
+    </script>
+    """, height=0)
 
 
 
