@@ -5283,6 +5283,18 @@ if tab == "My Course":
             else:
                 st.empty()
 
+        # >>> PASTE THIS BLOCK HERE <<<
+        # Seed schedule so the 🔔 expander appears (temporary; remove once wired to real data)
+        if 'days' not in locals() or not isinstance(locals().get('days'), list):
+            days = ["Monday", "Wednesday"]          # your real class days
+        if 'time_str' not in locals() or not locals().get('time_str'):
+            time_str = "6:00pm–7:00pm"              # your real class time range
+        if 'start_dt' not in locals() or not locals().get('start_dt'):
+            start_dt = date.today().strftime("%Y-%m-%d")
+        if 'end_dt' not in locals():
+            end_dt = ""                             # optional
+#
+
         # --- One-tap reminders expander (auto-build a recurring series link + downloadable .ics with 30-min alert) ---
         try:
             # Prefer schedule values already computed earlier (from your schedule block):
@@ -6062,9 +6074,6 @@ if tab == "My Course":
                     st.success("Reply sent!")
                     st.rerun()
 #
-
-
-
 
 
     # === LEARNING NOTES SUBTAB ===
