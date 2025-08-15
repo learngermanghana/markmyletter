@@ -5687,21 +5687,41 @@ if tab == "My Course":
             except Exception:
                 pass
 
-            # Inline Android "create personal schedule" link for the install tips
-            _inline_link_md = f" or tap [**📲 Create personal schedule (set repeat)**]({_general_personal_url}) to add it on your phone."
-            _also_repeating = " You can also expand **📲 Create personal schedule (repeating)** above for exact days/times." if _gcal_repeat_links else ""
+            # Install tips + success check (explicit phone links per class block)
+            # Build the per-block links list for Android users (fallback to general link)
+            _phone_links_ul = ""
+            try:
+                if _gcal_repeat_links:
+                    _items = "".join(
+                        f"<li style='margin:4px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>Tap here: {lbl}</a></li>"
+                        for (lbl, url) in _gcal_repeat_links
+                    )
+                    _phone_links_ul = f"<ul style='margin:6px 0 0 18px;padding:0;'>{_items}</ul>"
+                else:
+                    _phone_links_ul = (
+                        "<ul style='margin:6px 0 0 18px;padding:0;'>"
+                        f"<li><a href='{_general_personal_url.replace('&','&amp;')}' target='_blank'>Tap here: 📲 Create personal schedule (set repeat)</a></li>"
+                        "</ul>"
+                    )
+            except Exception:
+                _phone_links_ul = (
+                    "<ul style='margin:6px 0 0 18px;padding:0;'>"
+                    f"<li><a href='{_general_personal_url.replace('&','&amp;')}' target='_blank'>Tap here: 📲 Create personal schedule (set repeat)</a></li>"
+                    "</ul>"
+                )
 
-            # Install tips + success check (Android inline link + custom days + multi-time note)
             st.markdown(
                 f"""
                 **How to install the calendar (.ics):**
                 - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
                   ✅ You should see a confirmation like **“Imported X of X events.”**
-                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or **tap this link now**: [**📲 Create personal schedule (set repeat)**]({_general_personal_url}).  
-                  After it opens, tap **Repeat → Custom**, select your **class days**, set **Ends** to **{end_date_obj:%d %b %Y}**, then **Save**.  
-                  **If your class meets at different times on different days:** create a **separate repeating event** for each time block.  
-                  *Example:* Mon–Tue **11:00am–12:00pm** → create & save. Then open the link again and create **Saturday 3:00pm** as another repeating event.  
-                  {('<br/>Tip: you can also expand **📲 Create personal schedule (repeating)** above and tap each block separately.' if _gcal_repeat_links else '')}
+                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (with repeat):
+                  {_phone_links_ul}
+                  <div style="margin:6px 0 0 2px;">
+                    After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>, set <b>Ends</b> to <b>{end_date_obj:%d %b %Y}</b>, then <b>Save</b>.<br/>
+                    <b>If your class meets at different times on different days:</b> create a <b>separate repeating event</b> for each time block.<br/>
+                    <i>Example:</i> Mon–Tue <b>11:00am–12:00pm</b> → create & save. Then open the link again and create <b>Saturday 3:00pm</b> as another repeating event.
+                  </div>
                 - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
                   ✅ On iPhone you’re done — the series appears in the Calendar app.
 
@@ -5712,6 +5732,8 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
+#
+
 
         # ===================== CLASS ROSTER =====================
         with st.expander("👥 Class Members", expanded=False):
