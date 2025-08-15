@@ -5084,122 +5084,251 @@ if tab == "My Course":
         st.divider()
 
 
-        # ===================== STUDENT CALENDAR — Create your own reminder for the next class =====================
-        import uuid
-        from datetime import datetime, date, time, timedelta
-        import urllib.parse as _urllib
+            # ===================== ADD TO CALENDAR FROM DICTIONARY (full course + next session) =====================
+            import re, uuid
+            import urllib.parse as _urllib
+            from datetime import datetime as _dt, time as _time
 
-        with st.container():
-            st.markdown("### 📅 Create your own calendar reminder")
-            st.caption("Pick the date and time for the next class, then add it to your calendar.")
+            st.markdown("#### 📅 Add this course to your calendar")
 
-            # Defaults (can be overridden via secrets)
-            _tz = "Africa/Accra"
-            _default_hour = 18         # 6:00 PM
-            _default_min = 0
-            _default_duration = 90     # minutes
-            try:
-                _cls = st.secrets.get("class", {})
-                _tz = _cls.get("timezone", _tz)
-                _default_hour = int(_cls.get("default_hour", _default_hour))
-                _default_min = int(_cls.get("default_minute", _default_min))
-                _default_duration = int(_cls.get("duration_min", _default_duration))
-            except Exception:
-                pass
+            # Guard: need valid dates
+            if not start_date_obj or not end_date_obj:
+                st.warning("Start or end date is missing for this class. Please contact the office.", icon="⚠️")
+            else:
+                # ---------- helpers ----------
+                _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
+                _FULL_TO_CODE = {
+                    "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
+                    "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
+                }
 
-            # UI inputs
-            c1, c2 = st.columns([2, 1])
-            with c1:
-                _date = st.date_input("Date", value=date.today() + timedelta(days=1))
-            with c2:
-                _time = st.time_input("Start time", value=time(_default_hour, _default_min))
+                def _to_24h(h, m, ampm):
+                    h = int(h); m = int(m)
+                    ampm = ampm.lower()
+                    if ampm == "pm" and h != 12: h += 12
+                    if ampm == "am" and h == 12: h = 0
+                    return h, m
 
-            _duration_min = st.number_input("Duration (minutes)", min_value=30, max_value=240, step=15, value=_default_duration)
+                def _parse_time_component(s):
+                    # accepts 2pm | 2:00pm | 09am | 9:30am
+                    s = s.strip().lower()
+                    m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
+                    if not m: return None
+                    h = m.group(1); mm = m.group(2) or "0"; ap = m.group(3)
+                    return _to_24h(h, mm, ap)
 
-            try:
-                _default_title = f"{class_name} — Live German Class"
-            except Exception:
-                _default_title = "German Class — Live Session"
-            _title = st.text_input("Event title", value=_default_title)
+                def _parse_time_range(rng):
+                    # "6:00pm–7:00pm" | "2pm-3:30pm" | "9:30am-10am"
+                    rng = rng.strip().lower().replace("–","-").replace("—","-")
+                    parts = [p.strip() for p in rng.split("-")]
+                    if len(parts) != 2: return None
+                    a = _parse_time_component(parts[0]); b = _parse_time_component(parts[1])
+                    if not a or not b: return None
+                    return a, b  # ((h1,m1), (h2,m2))
 
-            # Build times (UTC for cross-calendar safety)
-            _start_local = datetime.combine(_date, _time)
-            _end_local = _start_local + timedelta(minutes=int(_duration_min))
-            _start_utc = _start_local  # Africa/Accra is UTC±0; safe to treat as UTC
-            _end_utc = _end_local
+                def _expand_day_token(tok):
+                    tok = tok.strip().lower().replace("–","-").replace("—","-")
+                    # range like mon-wed
+                    if "-" in tok:
+                        a, b = [t.strip() for t in tok.split("-", 1)]
+                        a_code = _FULL_TO_CODE.get(a, "")
+                        b_code = _FULL_TO_CODE.get(b, "")
+                        if a_code and b_code:
+                            ai = _WKD_ORDER.index(a_code); bi = _WKD_ORDER.index(b_code)
+                            if ai <= bi:
+                                return _WKD_ORDER[ai:bi+1]
+                            # wrap-around (rare)
+                            return _WKD_ORDER[ai:] + _WKD_ORDER[:bi+1]
+                        return []
+                    # single day (mon or monday)
+                    c = _FULL_TO_CODE.get(tok, "")
+                    return [c] if c else []
 
-            _start_gcal = _start_utc.strftime("%Y%m%dT%H%M%SZ")
-            _end_gcal   = _end_utc.strftime("%Y%m%dT%H%M%SZ")
-            _dtstamp    = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-            _uid        = f"{uuid.uuid4()}@falowen"
+                def _parse_time_blocks(time_str, days_list):
+                    """
+                    Returns list of blocks:
+                    [{'byday': ['MO','WE'], 'start':(18,0), 'end':(19,0)}]
+                    Handles:
+                      - single pattern for all days (e.g. '7:30pm–9:00pm' + days_list)
+                      - per-day groups (e.g. 'Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am')
+                      - day ranges (e.g. 'Mon–Wed: 11:00am–12:00pm')
+                    """
+                    if not (isinstance(time_str, str) and time_str.strip()):
+                        return []
+                    s = time_str.strip()
 
-            # Safe Zoom fields
-            _zoom_link = ZOOM.get("link", "")
-            _zoom_id   = ZOOM.get("meeting_id", "")
-            _zoom_pwd  = ZOOM.get("passcode", "")
+                    # detect "groups" syntax if there's a colon mapping days -> times
+                    if ":" in s:
+                        blocks = []
+                        # split by commas for groups, but keep "Wed: 2pm-3pm" parts intact
+                        groups = [g.strip() for g in s.split(",") if g.strip()]
+                        for g in groups:
+                            if ":" not in g:  # likely continuation without day part; skip
+                                continue
+                            left, right = [x.strip() for x in g.split(":", 1)]
+                            # left can be "Thu/Fri" or "Mon–Wed"
+                            day_tokens = re.split(r"[/]", left)
+                            codes = []
+                            for tok in day_tokens:
+                                codes.extend(_expand_day_token(tok))
+                            tr = _parse_time_range(right)
+                            if codes and tr:
+                                (sh, sm), (eh, em) = tr
+                                blocks.append({"byday": sorted(set(codes), key=_WKD_ORDER.index),
+                                               "start": (sh, sm), "end": (eh, em)})
+                        return blocks
 
-            # Mobile deep link (recompute safely)
-            _mid_digits = _zoom_id.replace(" ", "")
-            _pwd_enc = _urllib.quote(_zoom_pwd or "")
-            _zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+                    # otherwise: single time range applied to provided days list
+                    tr = _parse_time_range(s)
+                    if not tr: return []
+                    (sh, sm), (eh, em) = tr
+                    codes = []
+                    for d in (days_list or []):
+                        c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
+                        if c: codes.append(c)
+                    codes = sorted(set(codes), key=_WKD_ORDER.index)
+                    if not codes:  # fallback to all weekdays if none matched
+                        codes = _WKD_ORDER[:]
+                    return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
 
-            # Details text
-            _details_text = (
-                f"Zoom link: {_zoom_link}\\n"
-                f"Meeting ID: {_zoom_id}\\n"
-                f"Passcode: {_zoom_pwd}\\n\\n"
-                f"Mobile deep link: {_zoom_deeplink}"
-            )
+                def _next_on_or_after(d, weekday_index):
+                    # weekday_index: Mon=0 .. Sun=6
+                    delta = (weekday_index - d.weekday()) % 7
+                    return d + _td_local(days=delta)
 
-            # Google Calendar link
-            _gcal_url = (
-                "https://calendar.google.com/calendar/render"
-                f"?action=TEMPLATE"
-                f"&text={_urllib.quote(_title)}"
-                f"&dates={_start_gcal}/{_end_gcal}"
-                f"&details={_urllib.quote(_details_text)}"
-                f"&location={_urllib.quote('Zoom')}"
-                f"&ctz={_urllib.quote(_tz)}"
-            )
-
-            # ICS content (works with Apple Calendar / Outlook)
-            _ics = f"""BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Falowen//German Class//EN
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-BEGIN:VEVENT
-UID:{_uid}
-DTSTAMP:{_dtstamp}
-DTSTART:{_start_gcal}
-DTEND:{_end_gcal}
-SUMMARY:{_title}
-DESCRIPTION:{_details_text}
-LOCATION:Zoom
-END:VEVENT
-END:VCALENDAR
-"""
-
-            b1, b2 = st.columns([1, 1])
-            with b1:
+                # ---------- build ICS (recurring weekly, may create multiple VEVENTs) ----------
+                _blocks = _parse_time_blocks(time_str, days)
                 try:
-                    st.link_button("➕ Add to Google Calendar", _gcal_url, key="gcal_add_btn")
+                    _zl = ZOOM.get("link", "")
+                    _zid = ZOOM.get("meeting_id", "")
+                    _zpw = ZOOM.get("passcode", "")
                 except Exception:
-                    st.markdown(f"[➕ Add to Google Calendar]({_gcal_url})")
+                    _zl = _zid = _zpw = ""
 
-            with b2:
-                st.download_button(
-                    "⬇️ Download .ics (Apple/Outlook)",
-                    data=_ics,
-                    file_name=_title.replace(" ", "_") + ".ics",
-                    mime="text/calendar",
-                    key="ics_download_btn"
-                )
+                _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
+                _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
+                _summary = f"{class_name} — Live German Class"
 
-            st.info(
-                "Tip: After adding to your calendar, enable notifications to get reminders before class.",
-                icon="🔔",
-            )
+                _ics_lines = [
+                    "BEGIN:VCALENDAR",
+                    "VERSION:2.0",
+                    "PRODID:-//Falowen//Course Scheduler//EN",
+                    "CALSCALE:GREGORIAN",
+                    "METHOD:PUBLISH",
+                ]
+
+                if not _blocks:
+                    st.warning("Could not parse the time pattern. The .ics will be a single event on the start date.", icon="ℹ️")
+                    # Single fallback event at start_date (1 hour)
+                    _start_dt = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 18, 0)
+                    _end_dt   = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 19, 0)
+                    _ics_lines += [
+                        "BEGIN:VEVENT",
+                        f"UID:{uuid.uuid4()}@falowen",
+                        f"DTSTAMP:{_dtstamp}",
+                        f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                        f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                        f"SUMMARY:{_summary}",
+                        f"DESCRIPTION:{_details}",
+                        "LOCATION:Zoom",
+                        "END:VEVENT",
+                    ]
+                else:
+                    for blk in _blocks:
+                        byday_codes = blk["byday"]
+                        sh, sm = blk["start"]; eh, em = blk["end"]
+
+                        # pick the earliest first occurrence date among the BYDAY list
+                        first_dates = []
+                        for code in byday_codes:
+                            widx = _WKD_ORDER.index(code)  # 0..6
+                            first_dates.append(_next_on_or_after(start_date_obj, widx))
+                        first_date = min(first_dates)
+
+                        dt_start = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
+                        dt_end   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
+
+                        _ics_lines += [
+                            "BEGIN:VEVENT",
+                            f"UID:{uuid.uuid4()}@falowen",
+                            f"DTSTAMP:{_dtstamp}",
+                            f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}",
+                            f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}",
+                            f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
+                            f"SUMMARY:{_summary}",
+                            f"DESCRIPTION:{_details}",
+                            "LOCATION:Zoom",
+                            "END:VEVENT",
+                        ]
+
+                _ics_lines.append("END:VCALENDAR")
+                _course_ics = "\n".join(_ics_lines)
+
+                c1, c2 = st.columns([1, 1])
+                with c1:
+                    st.download_button(
+                        "⬇️ Download full course (.ics)",
+                        data=_course_ics,
+                        file_name=f"{class_name.replace(' ', '_')}_course.ics",
+                        mime="text/calendar",
+                        key="dl_course_ics"
+                    )
+
+                # ---------- Add NEXT session to Google Calendar (single event) ----------
+                with c2:
+                    if upcoming_sessions:
+                        _next_date = upcoming_sessions[0]
+                        # pick the time block matching that weekday (fallback: first block)
+                        _weekday_code = _WKD_ORDER[_next_date.weekday()]
+                        _blk_match = None
+                        for blk in _blocks:
+                            if _weekday_code in blk["byday"]:
+                                _blk_match = blk; break
+                        if _blk_match is None and _blocks:
+                            _blk_match = _blocks[0]
+
+                        if _blk_match:
+                            sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
+                        else:
+                            sh, sm, eh, em = 18, 0, 19, 0
+
+                        _start_dt = _dt(_next_date.year, _next_date.month, _next_date.day, sh, sm)
+                        _end_dt   = _dt(_next_date.year, _next_date.month, _next_date.day, eh, em)
+
+                        _start_gcal = _start_dt.strftime("%Y%m%dT%H%M%SZ")
+                        _end_gcal   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
+
+                        # Zoom details (safe)
+                        try:
+                            _mid_digits = str(_zid).replace(" ", "")
+                            _pwd_enc = _urllib.quote(_zpw or "")
+                            _zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+                        except Exception:
+                            _zoom_deeplink = ""
+
+                        _details_text = (
+                            f"Zoom link: {_zl}\\n"
+                            f"Meeting ID: {_zid}\\n"
+                            f"Passcode: {_zpw}\\n\\n"
+                            f"Mobile deep link: {_zoom_deeplink}"
+                        )
+
+                        _gcal_url = (
+                            "https://calendar.google.com/calendar/render"
+                            f"?action=TEMPLATE"
+                            f"&text={_urllib.quote(_summary)}"
+                            f"&dates={_start_gcal}/{_end_gcal}"
+                            f"&details={_urllib.quote(_details_text)}"
+                            f"&location={_urllib.quote('Zoom')}"
+                            f"&ctz={_urllib.quote('Africa/Accra')}"
+                        )
+                        try:
+                            st.link_button("➕ Next session → Google Calendar", _gcal_url, key="gcal_next_btn")
+                        except Exception:
+                            st.markdown(f"[➕ Next session → Google Calendar]({_gcal_url})")
+                    else:
+                        st.caption("No upcoming session detected to build a single-event link.")
 #
 
 
