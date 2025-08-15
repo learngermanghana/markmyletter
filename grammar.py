@@ -1891,11 +1891,7 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # =========================================================
 # ===================== Tabs UI ===========================
 # =========================================================
-# =========================================================
-# ===================== Tabs UI ===========================
-# =========================================================
 
-# 1) Declare the tabs once
 TABS = [
     "Dashboard",
     "My Course",
@@ -1905,39 +1901,38 @@ TABS = [
     "Schreiben Trainer",
 ]
 
-# 2) Small helpers
-def get_current_tab(default="Dashboard"):
-    val = st.query_params.get("tab")
-    # st.query_params may return str or list depending on how it was set
-    if isinstance(val, list):
-        val = val[0] if val else None
-    tab = val or default
-    return tab if tab in TABS else default
+def _tab_from_url(default="Dashboard"):
+    raw = st.query_params.get("tab")
+    if isinstance(raw, list):
+        raw = raw[0] if raw else None
+    return raw if raw in TABS else default
 
-def set_tab(tab: str):
+def _set_tab_url(tab: str):
     if tab in TABS:
         st.query_params["tab"] = tab
 
-# 3) Current tab comes from the URL (?tab=...)
-tab = get_current_tab()
+# 1) Sync URL -> session_state BEFORE drawing the widget
+_url_tab = _tab_from_url()
+if st.session_state.get("main_tab_select") not in TABS:
+    st.session_state["main_tab_select"] = _url_tab
+elif st.session_state["main_tab_select"] != _url_tab:
+    st.session_state["main_tab_select"] = _url_tab
 
-# 4) (Optional) Keep a radio for desktop users, but sync it to the URL
-new_tab = st.radio(
+# 2) Draw the control using the synced state
+tab = st.radio(
     "How do you want to practice?",
     TABS,
-    index=TABS.index(tab),
+    index=TABS.index(st.session_state["main_tab_select"]),
     key="main_tab_select",
 )
-if new_tab != tab:
-    set_tab(new_tab)
-    st.rerun()
 
-# 5) Use `tab` below in your routing:
-# if tab == "Dashboard":
-#     render_dashboard()
-# elif tab == "My Course":
-#     render_course()
-# ...
+# 3) Push changes back to URL (no explicit st.rerun needed)
+if tab != _url_tab:
+    _set_tab_url(tab)
+
+# Use `tab` (or st.session_state["main_tab_select"]) for routing below
+# if tab == "Dashboard": ...
+
 
 # =========================================================
 # ===================== Dashboard =========================
