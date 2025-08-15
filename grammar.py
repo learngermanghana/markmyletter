@@ -1983,116 +1983,115 @@ def render_duolingo_nav():
         "Schreiben Trainer": "✍️",
     }
 
-    # --- resolve current tab from URL or session
-    qp_tab = st.query_params.get("tab", [None])[0]
+    # ---- Resolve current tab from URL or session (robust to new Streamlit API) ----
+    qp_val = st.query_params.get("tab")
+    qp_tab = qp_val[0] if isinstance(qp_val, list) else qp_val
     sel = qp_tab or st.session_state.get("main_tab_select") or "Dashboard"
     if sel not in tabs:
         sel = "Dashboard"
 
-    # ---------- Desktop (pill bar) ----------
-    st.markdown("""
-    <style>
-      /* Show pills on desktop, hide on small screens */
-      .duo-top { display:none; }
-      @media (min-width: 720px){ .duo-top { display:block; } .duo-bottom-wrap { display:none; } }
+    # ---- Build item anchors once (for both desktop & mobile) ----
+    def _build_items_html(active):
+        items = []
+        for t in tabs:
+            aria = "true" if t == active else "false"
+            ico  = icons.get(t, "•")
+            items.append(
+                f'<a class="duo-item" role="tab" href="#" data-key="{t}" '
+                f'aria-current="{aria}"><span class="duo-ico">{ico}</span>{t}</a>'
+            )
+        return "".join(items)
 
-      .duo-pills { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0; }
-      .duo-pills button {
-        border:1px solid #e5e7eb; border-radius:999px; padding:8px 12px;
-        font-weight:800; background:#fff; cursor:pointer;
+    items_html = _build_items_html(sel)
+
+    # ---- Shared CSS + HTML (no f-strings; we inject items via .replace) ----
+    html_block = """
+    <style>
+      /* Desktop pill bar shows at >= 720px; mobile bottom bar otherwise */
+      .duo-top      { display:none; }
+      .duo-bottom-wrap { position: sticky; bottom: 0; z-index: 1000; margin-top: 8px; }
+      @media (min-width: 720px){
+        .duo-top { display:block; }
+        .duo-bottom-wrap { display:none; }
       }
-      .duo-pills button[data-active="true"]{
+
+      /* Desktop pills */
+      .duo-pills {
+        display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 10px 0;
+      }
+      .duo-pills .duo-item {
+        border:1px solid #e5e7eb; border-radius:999px; padding:8px 12px;
+        font-weight:800; background:#fff; color:#111827; text-decoration:none;
+        display:inline-flex; align-items:center; gap:8px; user-select:none;
+      }
+      .duo-pills .duo-item[aria-current="true"]{
         background:#22c55e; color:#fff; border-color:#22c55e;
       }
-      .duo-pills button:hover{ filter:brightness(0.98); }
+      .duo-pills .duo-item:hover{ filter:brightness(0.98); }
+
+      /* Mobile sticky bottom nav */
+      .duo-bottom {
+        display:flex; justify-content:space-between; gap:4px;
+        background:#ffffff; border-top:1px solid #e5e7eb;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+        box-shadow: 0 -8px 20px rgba(0,0,0,.06);
+      }
+      .duo-item {
+        flex:1 1 0; text-align:center; font-size:.78rem; font-weight:800;
+        color:#334155; text-decoration:none; user-select:none; -webkit-user-select:none;
+      }
+      .duo-ico { display:block; font-size:1.3rem; line-height:1; margin-bottom:3px; }
+      .duo-bottom .duo-item[aria-current="true"] { color:#16a34a; }
     </style>
-    """, unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown("<div class='duo-top'><div class='duo-pills'>", unsafe_allow_html=True)
-        cols = st.columns(len(tabs))
-        clicked = None
-        for i, t in enumerate(tabs):
-            label = f"{icons[t]} {t}"
-            # Use one button per column; style active via a tiny attribute marker div
-            with cols[i]:
-                if st.button(label, key=f"duo_top_{i}", use_container_width=True):
-                    clicked = t
-                # add an invisible marker div to toggle CSS for the active one
-                st.markdown(
-                    f"<div class='duo-marker' data-active={'true' if t==sel else 'false'}></div>",
-                    unsafe_allow_html=True
-                )
-        # turn the *next* sibling button active if marker says true
-        st.markdown("""
-        <script>
-          const markers = parent.document.querySelectorAll('.duo-top .duo-marker');
-          markers.forEach(m=>{
-            const btn = m.parentElement.querySelector('button');
-            if(btn) btn.setAttribute('data-active', m.getAttribute('data-active'));
+    <!-- Desktop pills -->
+    <div class="duo-top">
+      <nav class="duo-pills" role="tablist" aria-label="Main navigation (desktop)">
+        __ITEMS__
+      </nav>
+    </div>
+
+    <!-- Mobile sticky bottom -->
+    <div class="duo-bottom-wrap">
+      <nav class="duo-bottom" role="tablist" aria-label="Main navigation (mobile)">
+        __ITEMS__
+      </nav>
+    </div>
+
+    <script>
+      // Navigate by updating ?tab=... so Streamlit reruns with the new selection
+      (function(){
+        var items = Array.from(document.querySelectorAll('.duo-item'));
+        items.forEach(function(a){
+          a.addEventListener('click', function(e){
+            e.preventDefault();
+            var val = a.getAttribute('data-key');
+            try {
+              var u = new URL(window.location);
+              u.searchParams.set('tab', val);
+              window.location = u; // full reload keeps state consistent
+            } catch(err) {
+              window.location.search = '?tab=' + encodeURIComponent(val);
+            }
           });
-        </script>
-        """, unsafe_allow_html=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        });
+      })();
+    </script>
+    """
+    html_block = html_block.replace("__ITEMS__", items_html)
 
-    # ---------- Mobile (sticky bottom bar) ----------
-    # We use a small HTML block so we can make it sticky & icon-first (Duolingo vibe).
-    mob_items = [{"key": t, "icon": icons[t], "label": t} for t in tabs]
-    import json as _json
-    components.html(f"""
-      <style>
-        .duo-bottom-wrap {{
-          position: sticky; bottom: 0; z-index: 1000;
-          margin-top: 8px;
-        }}
-        .duo-bottom {{
-          display:flex; justify-content:space-between; gap:4px;
-          background:#ffffff; border-top:1px solid #e5e7eb; 
-          padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-          box-shadow: 0 -8px 20px rgba(0,0,0,.06);
-        }}
-        .duo-item {{
-          flex:1 1 0; text-align:center; font-size:.78rem; font-weight:800;
-          color:#334155; text-decoration:none; user-select:none; -webkit-user-select:none;
-        }}
-        .duo-ico {{ display:block; font-size:1.3rem; line-height:1; margin-bottom:3px; }}
-        .duo-item[aria-current="true"] {{ color:#16a34a; }}
-        @media (min-width: 720px){{ .duo-bottom-wrap {{ display:none; }} }}
-      </style>
-      <div class="duo-bottom-wrap">
-        <nav class="duo-bottom" role="tablist" aria-label="Main navigation">
-          {''.join(f'<a class="duo-item" role="tab" href="#" data-key="{it["key"]}" aria-current="{"true" if it["key"]==sel else "false"}"><span class="duo-ico">{it["icon"]}</span>{it["label"]}</a>' for it in mob_items)}
-        </nav>
-      </div>
-      <script>
-        const items = Array.from(document.querySelectorAll('.duo-item'));
-        items.forEach(a => a.addEventListener('click', (e)=>{
-          e.preventDefault();
-          const val = a.getAttribute('data-key');
-          try {{
-            const u = new URL(window.location);
-            u.searchParams.set('tab', val);
-            window.location = u; // reload to let Streamlit rerun
-          }} catch(e) {{
-            window.location.search = '?tab=' + encodeURIComponent(val);
-          }}
-        }));
-      </script>
-    """, height=76, scrolling=False)
+    # Render one component that handles both layouts responsively
+    components.html(html_block, height=90, scrolling=False)
 
-    # ---------- finalize selection ----------
-    if clicked:  # from desktop pills
-        sel = clicked
+    # Sync selection to session + URL if missing (no rerun loop)
+    if (st.query_params.get("tab") or "") != sel:
         st.query_params["tab"] = sel
-        st.session_state["main_tab_select"] = sel
-        st.rerun()
-
-    # keep in sync without rerun (when arriving with ?tab=…)
     st.session_state["main_tab_select"] = sel
     return sel
 
-# Usage:
+# --------- Use it like this ---------
 # tab = render_duolingo_nav()
+
 
 
 # =========================================================
