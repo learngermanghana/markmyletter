@@ -5149,33 +5149,35 @@ if tab == "My Course":
                 st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
 
         st.divider()
-#
-
-
-
 
         # ===================== CLASS ROSTER =====================
-        st.markdown("### 👥 Class Members")
-        try:
-            df_students = load_student_data()
-            if "ClassName" in df_students.columns:
-                df_students["ClassName"] = df_students["ClassName"].fillna("").str.strip()
-            else:
-                df_students["ClassName"] = ""
-            same_class = df_students[df_students["ClassName"] == class_name].copy()
-            cols_show = [c for c in ["Name", "Email", "StudentCode"] if c in same_class.columns]
-            if not same_class.empty and cols_show:
-                st.dataframe(
-                    same_class[cols_show].reset_index(drop=True),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-            else:
-                st.write("No members found for this class yet.")
-        except Exception:
-            st.warning("Couldn’t load the class roster right now.")
+        with st.expander("👥 Class Members", expanded=False):
+            try:
+                df_students = load_student_data()
 
-        st.divider()
+                # Normalize required columns
+                for col in ("ClassName", "Name", "Email", "Location"):
+                    if col not in df_students.columns:
+                        df_students[col] = ""
+                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
+
+                # Filter to this class
+                same_class = df_students[df_students["ClassName"] == class_name].copy()
+
+                # Columns to display (no StudentCode)
+                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
+
+                if not same_class.empty and cols_show:
+                    st.dataframe(
+                        same_class[cols_show].reset_index(drop=True),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                else:
+                    st.info("No members found for this class yet.")
+            except Exception as e:
+                st.warning(f"Couldn’t load the class roster right now. {e}")
+#
 
         # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
         st.markdown("### 📢 Announcements")
@@ -10397,6 +10399,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
