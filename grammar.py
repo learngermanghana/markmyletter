@@ -1429,13 +1429,11 @@ def login_page():
     st.stop()
 
 # =========================
-# Logged-in header + Logout (single source of truth)
+# Logged-in header + Logout (no callback; rerun works)
 # =========================
-from datetime import datetime, timedelta
-import streamlit as st
-import streamlit.components.v1 as components
 
-# --- tiny helper for query params ---
+
+# --- helper for query params ---
 def qp_clear_keys(*keys):
     for k in keys:
         try:
@@ -1443,7 +1441,7 @@ def qp_clear_keys(*keys):
         except KeyError:
             pass
 
-# --- inject client-side cleanup (runs right after a logout rerun) ---
+# --- run once right after a logout to clean client storage & URL ---
 if st.session_state.pop("_inject_logout_js", False):
     components.html("""
       <script>
@@ -1457,9 +1455,34 @@ if st.session_state.pop("_inject_logout_js", False):
       </script>
     """, height=0)
 
-# --- one logout function, reusable and atomic ---
-def _do_logout():
-    # 1) Revoke server token (if your backend exposes it)
+# ===== AUTH GUARD =====
+if not st.session_state.get("logged_in", False):
+    login_page()
+    st.stop()
+
+# ===== Header + plain button (no on_click) =====
+st.markdown("""
+<style>
+  .post-login-header { margin-top:0; margin-bottom:4px; }
+  .block-container { padding-top: 0.6rem !important; }
+  div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
+  .your-notifs { margin: 4px 0 !important; }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
+col1, col2 = st.columns([0.85, 0.15])
+with col1:
+    st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
+with col2:
+    st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
+    _logout_clicked = st.button("Log out", key="logout_btn")  # <-- no on_click
+    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ===== Logout handling (works in all versions) =====
+if _logout_clicked:
+    # 1) Revoke server token if available
     try:
         tok = st.session_state.get("session_token", "")
         if tok and "destroy_session_token" in globals():
@@ -1467,7 +1490,7 @@ def _do_logout():
     except Exception as e:
         st.warning(f"Logout warning (revoke): {e}")
 
-    # 2) Expire cookies (library + host)
+    # 2) Expire cookies
     try:
         expires_past = datetime.utcnow() - timedelta(seconds=1)
         if "set_student_code_cookie" in globals():
@@ -1484,11 +1507,11 @@ def _do_logout():
     except Exception:
         pass
 
-    # 3) Clear URL query params server-side (mirrors client cleanup)
+    # 3) Clean server-side URL params
     qp_clear_keys("code", "state", "token")
 
     # 4) Reset session state
-    for k, v in {
+    st.session_state.update({
         "logged_in": False,
         "student_row": None,
         "student_code": "",
@@ -1499,39 +1522,14 @@ def _do_logout():
         "__ua_hash": "",
         "_oauth_state": "",
         "_oauth_code_redeemed": "",
-    }.items():
-        st.session_state[k] = v
+    })
 
-    # 5) Flag to inject JS next render (clears localStorage + URL on client)
+    # 5) On next run, clear localStorage & URL on the client
     st.session_state["_inject_logout_js"] = True
 
-    # 6) Rerun to immediately refresh UI
+    # 6) Now safe to rerun (not in a callback)
     st.rerun()
 
-# ===== AUTH GUARD (stop before drawing any logged-in UI) =====
-if not st.session_state.get("logged_in", False):
-    login_page()
-    st.stop()
-
-# ===== Compact header + single logout button =====
-st.markdown("""
-<style>
-  .post-login-header { margin-top:0; margin-bottom:4px; }
-  .block-container { padding-top: 0.6rem !important; }
-  div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
-  .your-notifs { margin: 4px 0 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
-col1, col2 = st.columns([0.85, 0.15])
-with col1:
-    st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
-with col2:
-    st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-    st.button("Log out", key="logout_btn", on_click=_do_logout)
-    st.markdown("</div>", unsafe_allow_html=True)
-st.markdown("</div>", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -10335,6 +10333,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
