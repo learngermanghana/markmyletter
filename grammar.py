@@ -1961,11 +1961,102 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # =========================================================
 # ===================== Tabs UI ===========================
 # =========================================================
-tab = st.radio(
-    "How do you want to practice?",
-    ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"],
-    key="main_tab_select"
-)
+
+# --- Modern top navigation (icons + mobile-friendly) ---
+def render_main_nav():
+    tabs = [
+        "Dashboard",
+        "My Course",
+        "My Results and Resources",
+        "Exams Mode & Custom Chat",
+        "Vocab Trainer",
+        "Schreiben Trainer",
+    ]
+
+    # preferred index from session (keeps selection on reruns)
+    default_tab = st.session_state.get("main_tab_select", "Dashboard")
+    default_idx = tabs.index(default_tab) if default_tab in tabs else 0
+
+    # Try the nice icon menu first
+    try:
+        from streamlit_option_menu import option_menu
+
+        st.markdown("""
+        <style>
+          /* Make the nav look tight and modern */
+          .topnav { margin: 2px 0 8px 0; }
+          .topnav .nav-link { border-radius: 10px !important; font-weight: 700; }
+          .topnav .nav-link { padding: 8px 12px !important; margin: 0 4px !important; }
+          .topnav .nav-link:hover { filter: brightness(0.97); }
+          @media (max-width: 680px){
+            .topnav .nav { flex-wrap: nowrap !important; overflow-x: auto; white-space: nowrap; }
+          }
+        </style>
+        """, unsafe_allow_html=True)
+
+        with st.container():
+            selected = option_menu(
+                menu_title=None,
+                options=tabs,
+                icons=["house", "book", "bar-chart", "cpu", "chat-dots", "pencil-square"],
+                orientation="horizontal",
+                default_index=default_idx,
+                key="main_top_nav",
+                styles={
+                    "container": {"padding": "0px", "background-color": "rgba(0,0,0,0)"},
+                    "icon": {"font-size": "18px"},
+                    "nav": {"gap": "4px"},
+                    "nav-link": {
+                        "font-size": "15px",
+                        "padding": "8px 12px",
+                        "border-radius": "10px",
+                        "color": "#0f172a",
+                        "background-color": "#f1f5f9",
+                    },
+                    "nav-link-selected": {
+                        "background-color": "#1d4ed8",
+                        "color": "white",
+                    },
+                },
+            )
+    except Exception:
+        # Fallback: horizontal radio with emoji
+        emoji = {
+            "Dashboard": "🏠",
+            "My Course": "📚",
+            "My Results and Resources": "📊",
+            "Exams Mode & Custom Chat": "🤖",
+            "Vocab Trainer": "🗣️",
+            "Schreiben Trainer": "✍️",
+        }
+        display = [f"{emoji.get(t, '')} {t}" for t in tabs]
+
+        # light CSS facelift for radio
+        st.markdown("""
+        <style>
+          div[role="radiogroup"] > label { border: 1px solid #e5e7eb; padding: 6px 10px; border-radius: 10px; }
+          div[role="radiogroup"] { gap: 6px; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        selected_display = st.radio(
+            "How do you want to practice?",
+            options=display,
+            index=default_idx,
+            horizontal=True,
+            key="main_top_nav_fallback",
+        )
+        # map back to plain name
+        selected = tabs[display.index(selected_display)]
+
+    # Keep one canonical value in session so the rest of your app works unchanged
+    st.session_state["main_tab_select"] = selected
+    return selected
+
+
+# Use it:
+tab = render_main_nav()
+
 
 # =========================================================
 # ===================== Dashboard =========================
@@ -10403,6 +10494,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
