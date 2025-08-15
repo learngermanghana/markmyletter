@@ -5141,11 +5141,18 @@ if tab == "My Course":
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
 
-        # Optional global/general calendar (corrected)
+        # Optional global/general calendar (safe secrets/env access)
+        try:
+            _cal_secrets = st.secrets.get("calendars", {})
+            if not isinstance(_cal_secrets, dict):
+                _cal_secrets = {}
+        except Exception:
+            _cal_secrets = {}
         GENERAL_CALENDAR_URL = (
-            (st.secrets.get("calendars", {}).get("general", "") if hasattr(st, "secrets") else "")
-            or os.getenv("GENERAL_CLASS_CALENDAR_URL", "")
+            (_cal_secrets.get("general") or os.getenv("GENERAL_CLASS_CALENDAR_URL", ""))
         ).strip()
+#
+
 
 
         # ===================== TUTORS • CALENDAR • CONTACT (with general calendar fallback) =====================
