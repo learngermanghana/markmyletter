@@ -5085,9 +5085,6 @@ if tab == "My Course":
 
 
             # ===================== ADD TO CALENDAR FROM DICTIONARY (full course + next session) =====================
-            import re, uuid
-            import urllib.parse as _urllib
-            from datetime import datetime as _dt, time as _time
 
             st.markdown("#### 📅 Add this course to your calendar")
 
