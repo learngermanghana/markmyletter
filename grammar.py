@@ -5094,32 +5094,71 @@ if tab == "My Course":
         st.divider()
 
         # ===================== CALENDAR QUICK ADD (no schedule/dictionary UI) =====================
-        # Assumes GROUP_SCHEDULES is already defined elsewhere (front page). We won't display it here.
         from datetime import datetime as _dt, timedelta as _td
-        import re, uuid
+        import re, uuid, json
         import urllib.parse as _urllib
 
-        # Pull class config quietly from your existing GROUP_SCHEDULES
-        if "GROUP_SCHEDULES" not in globals():
-            st.warning("Calendar configuration is not loaded yet. Please navigate to the schedule page first.", icon="⚠️")
+        # Loader that finds GROUP_SCHEDULES from multiple sources and caches it
+        def _load_group_schedules():
+            # 1) global (already defined somewhere else)
+            cfg = globals().get("GROUP_SCHEDULES")
+            if isinstance(cfg, dict) and cfg:
+                return cfg
+            # 2) session_state cache
+            cfg = st.session_state.get("GROUP_SCHEDULES")
+            if isinstance(cfg, dict) and cfg:
+                globals()["GROUP_SCHEDULES"] = cfg  # promote to global for this page
+                return cfg
+            # 3) st.secrets (can be a dict or a JSON string)
+            try:
+                raw = st.secrets.get("group_schedules", None)
+                if raw:
+                    if isinstance(raw, str):
+                        cfg = json.loads(raw)
+                    elif isinstance(raw, dict):
+                        cfg = raw
+                    if isinstance(cfg, dict) and cfg:
+                        st.session_state["GROUP_SCHEDULES"] = cfg
+                        globals()["GROUP_SCHEDULES"] = cfg
+                        return cfg
+            except Exception:
+                pass
+            # 4) Firestore: config/group_schedules (expects dict or {"data": {...}})
+            try:
+                doc = db.collection("config").document("group_schedules").get()
+                if doc and getattr(doc, "exists", False):
+                    data = doc.to_dict() or {}
+                    cfg = data.get("data", data)
+                    if isinstance(cfg, dict) and cfg:
+                        st.session_state["GROUP_SCHEDULES"] = cfg
+                        globals()["GROUP_SCHEDULES"] = cfg
+                        return cfg
+            except Exception:
+                pass
+            return {}
+
+        GROUP_SCHEDULES = _load_group_schedules()
+        if not GROUP_SCHEDULES:
+            st.error("Calendar configuration couldn’t be loaded (GROUP_SCHEDULES). Ask the office/admin to set it in secrets or Firestore.", icon="⚠️")
         else:
-            class_cfg = GROUP_SCHEDULES.get(class_name, {})
-            days = class_cfg.get("days", [])
-            time_str = class_cfg.get("time", "")
-            start_dt_str = class_cfg.get("start_date", "")
-            end_dt_str   = class_cfg.get("end_date", "")
+            # Pull class config quietly
+            class_cfg   = GROUP_SCHEDULES.get(class_name, {})
+            days        = class_cfg.get("days", [])
+            time_str    = class_cfg.get("time", "")
+            start_str   = class_cfg.get("start_date", "")
+            end_str     = class_cfg.get("end_date", "")
 
             # Parse dates
             start_date_obj = None
-            end_date_obj = None
+            end_date_obj   = None
             try:
-                if start_dt_str:
-                    start_date_obj = _dt.strptime(start_dt_str, "%Y-%m-%d").date()
+                if start_str:
+                    start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
             except Exception:
                 pass
             try:
-                if end_dt_str:
-                    end_date_obj = _dt.strptime(end_dt_str, "%Y-%m-%d").date()
+                if end_str:
+                    end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
             except Exception:
                 pass
 
@@ -5304,8 +5343,8 @@ if tab == "My Course":
                         _end_gcal   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
 
                         try:
-                            _mid_digits = str(_zid).replace(" ", "")
-                            _pwd_enc = _urllib.quote(_zpw or "")
+                            _mid_digits = str((ZOOM or {}).get("meeting_id","")).replace(" ", "")
+                            _pwd_enc = _urllib.quote((ZOOM or {}).get("passcode","") or "")
                             _zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
                         except Exception:
                             _zoom_deeplink = ""
@@ -5345,6 +5384,7 @@ if tab == "My Course":
                     unsafe_allow_html=True,
                 )
 #
+
 
 
         # ===================== CLASS ROSTER =====================
