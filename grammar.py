@@ -2089,6 +2089,43 @@ def render_duolingo_nav():
     st.session_state["main_tab_select"] = sel
     return sel
 
+    # --- Tabs: define once before you branch on `tab` ---
+TABS = [
+    "Dashboard",
+    "My Course",
+    "My Results and Resources",
+    "Exams Mode & Custom Chat",
+    "Vocab Trainer",
+    "Schreiben Trainer",
+]
+ICONS = {
+    "Dashboard": "🏠",
+    "My Course": "📚",
+    "My Results and Resources": "📊",
+    "Exams Mode & Custom Chat": "🤖",
+    "Vocab Trainer": "🗣️",
+    "Schreiben Trainer": "✍️",
+}
+
+# default
+if "main_tab_select" not in st.session_state:
+    st.session_state["main_tab_select"] = "Dashboard"
+
+# Prefer Duolingo nav if you added render_duolingo_nav(); otherwise use radio
+_duo = globals().get("render_duolingo_nav")
+if callable(_duo):
+    tab = _duo()  # keeps URL ?tab=... and session in sync
+else:
+    # radio fallback (with icons in the labels)
+    def _fmt(x): return f"{ICONS.get(x,'•')}  {x}"
+    tab = st.radio(
+        "How do you want to practice?",
+        TABS,
+        key="main_tab_select",
+        format_func=_fmt
+    )
+
+
 # --------- Use it like this ---------
 # tab = render_duolingo_nav()
 
