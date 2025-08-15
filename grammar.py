@@ -5666,13 +5666,17 @@ if tab == "My Course":
             _inline_link_md = f" or tap [**📲 Create personal schedule (set repeat)**]({_general_personal_url}) to add it on your phone."
             _also_repeating = " You can also expand **📲 Create personal schedule (repeating)** above for exact days/times." if _gcal_repeat_links else ""
 
-            # Install tips + success check (final copy with inline Android link)
+            # Install tips + success check (Android inline link + custom days + multi-time note)
             st.markdown(
                 f"""
                 **How to install the calendar (.ics):**
                 - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
                   ✅ You should see a confirmation like **“Imported X of X events.”**
-                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync){_inline_link_md}{_also_repeating}
+                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync){_inline_link_md}
+                  <br/>After it opens, tap **Repeat → Custom**, select your **class days**, set **Ends** to **{end_date_obj:%d %b %Y}**, then **Save**.
+                  <br/>**If your class meets at different times on different days:** create a **separate repeating event** for each time block.  
+                  *Example:* Mon–Tue **11:00am–12:00pm** → create & save. Then open the link again and create **Saturday 3:00pm** as another repeating event.
+                  {'<br/>Tip: you can also expand **📲 Create personal schedule (repeating)** above and tap each block separately.' if _gcal_repeat_links else ''}
                 - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
                   ✅ On iPhone you’re done — the series appears in the Calendar app.
 
@@ -5684,9 +5688,6 @@ if tab == "My Course":
                 unsafe_allow_html=True,
             )
 #
-
-
-
 
 
         # ===================== CLASS ROSTER =====================
