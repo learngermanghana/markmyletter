@@ -1891,11 +1891,53 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # =========================================================
 # ===================== Tabs UI ===========================
 # =========================================================
-tab = st.radio(
+# =========================================================
+# ===================== Tabs UI ===========================
+# =========================================================
+
+# 1) Declare the tabs once
+TABS = [
+    "Dashboard",
+    "My Course",
+    "My Results and Resources",
+    "Exams Mode & Custom Chat",
+    "Vocab Trainer",
+    "Schreiben Trainer",
+]
+
+# 2) Small helpers
+def get_current_tab(default="Dashboard"):
+    val = st.query_params.get("tab")
+    # st.query_params may return str or list depending on how it was set
+    if isinstance(val, list):
+        val = val[0] if val else None
+    tab = val or default
+    return tab if tab in TABS else default
+
+def set_tab(tab: str):
+    if tab in TABS:
+        st.query_params["tab"] = tab
+
+# 3) Current tab comes from the URL (?tab=...)
+tab = get_current_tab()
+
+# 4) (Optional) Keep a radio for desktop users, but sync it to the URL
+new_tab = st.radio(
     "How do you want to practice?",
-    ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"],
-    key="main_tab_select"
+    TABS,
+    index=TABS.index(tab),
+    key="main_tab_select",
 )
+if new_tab != tab:
+    set_tab(new_tab)
+    st.rerun()
+
+# 5) Use `tab` below in your routing:
+# if tab == "Dashboard":
+#     render_dashboard()
+# elif tab == "My Course":
+#     render_course()
+# ...
 
 # =========================================================
 # ===================== Dashboard =========================
