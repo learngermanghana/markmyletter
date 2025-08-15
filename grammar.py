@@ -5083,13 +5083,9 @@ if tab == "My Course":
 
         st.divider()
 
-        # ===================== CLASS META (safe resolver) =====================
-
-        def _norm_class_local(s: str) -> str:
-            return re.sub(r"\s+", " ", (s or "").strip().lower())
-
-        # Fallbacks you can edit; Firestore values (if any) will override these.
-        CLASS_FALLBACKS_LOCAL = {
+        # ---- Merge Firestore → fallbacks (robust) ----
+        # Use a private name to avoid accidental shadowing elsewhere.
+        __CLASS_FALLBACKS = {
             _norm_class_local("A2 Koln Klasse"): {
                 "tutors": ["Felix Asadu"],
                 "calendar_url": "https://calendar.app.google/9yZFVfPSnHY6W4kH7",
@@ -5118,20 +5114,27 @@ if tab == "My Course":
             },
         }
 
-        # Merge Firestore -> fallbacks
+        # Guard: if something overwrote the constant, fall back to {}.
+        _fallback_map = __CLASS_FALLBACKS if isinstance(__CLASS_FALLBACKS, dict) else {}
+
+        # Start from Firestore metadata (if available)
         _meta = {}
         try:
-            doc = db.collection("classes").document(class_name).get()
-            if getattr(doc, "exists", False):
-                _meta.update(doc.to_dict() or {})
+            _doc = db.collection("classes").document(class_name).get()
+            if getattr(_doc, "exists", False):
+                _meta.update(_doc.to_dict() or {})
         except Exception:
             pass
-        _fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
+
+        # Merge in our local defaults for THIS class
+        _fb = _fallback_map.get(_norm_class_local(class_name or ""), {})
         _meta = {**_fb, **_meta}
 
-        tutors        = _meta.get("tutors", [])  # list of names or {name,email}
+        tutors        = _meta.get("tutors", [])                    # list[str] or list[{name,email}]
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
+#
+
 
         # ===================== TUTORS • CALENDAR • CONTACT (with general calendar fallback) =====================
 
