@@ -5084,6 +5084,260 @@ if tab == "My Course":
         st.divider()
 
 
+        # ===================== TUTORS • CONTACT • SCHEDULE (no shared calendar; robust, non-blocking) =====================
+        # Shows tutor/contact. Pulls schedule from GROUP_SCHEDULES[class_name] if available.
+        # Guides students to create their own reminders. Fully guarded so it never crashes the page.
+
+        try:
+            # ---- tiny, safe imports ----
+            import re as __re
+            from datetime import datetime as __dt, date as __date, timedelta as __td
+            try:
+                import urllib.parse as __urllib
+            except Exception:
+                import urllib as __urllib   # ultra-defensive
+            try:
+                import streamlit.components.v1 as __components
+            except Exception:
+                __components = None
+
+            # ---- grab core context (with safe fallbacks) ----
+            __meta = locals().get("_meta", {}) if isinstance(locals().get("_meta", {}), dict) else {}
+            __student_name = str(locals().get("student_name") or "Student")
+            __student_code = str(locals().get("student_code") or "demo001")
+            __class_name   = str(locals().get("class_name") or (__meta.get("class_name") or "My Class")).strip()
+            __contact_email = (
+                (locals().get("contact_email") or "") or (__meta.get("contact_email") or "") or "learngermanghana@gmail.com"
+            ).strip()
+            __IS_ADMIN = bool(locals().get("IS_ADMIN", False))
+
+            # ---- tutors: normalize to [{name,email}, ...] safely ----
+            def __as_dict(t):
+                if isinstance(t, dict):
+                    return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
+                return {"name": str(t or "").strip(), "email": ""}
+
+            __tutors_src = []
+            try:
+                if isinstance(locals().get("tutors"), (list, tuple)):
+                    __tutors_src = list(locals().get("tutors"))
+                elif isinstance(__meta.get("tutors"), (list, tuple)):
+                    __tutors_src = list(__meta.get("tutors"))
+            except Exception:
+                __tutors_src = []
+
+            __tutors = [__as_dict(t) for t in (__tutors_src or []) if __as_dict(t).get("name")]
+            __lead = __tutors[0] if __tutors else None
+            __co   = __tutors[1] if len(__tutors) > 1 else None
+
+            def __tutor_line(d):
+                if not d: return ""
+                return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
+
+            __t_primary = __tutor_line(__lead) if __lead else "<span style='color:#64748b'>Not set</span>"
+            __t_cotutor = __tutor_line(__co)
+
+            # ---- prefilled mailto ----
+            __subj = f"Private message from {__student_name} ({__student_code}) — {__class_name}"
+            __body = (
+                "Hello Tutor,\n\n"
+                f"This is a private message from {__student_name} ({__student_code}).\n"
+                f"Class: {__class_name}\n\n"
+                "Message:\n"
+            )
+            __mailto = f"mailto:{__contact_email}?{__urllib.urlencode({'subject': __subj, 'body': __body})}"
+
+            # ---- schedule resolution (uses GROUP_SCHEDULES if present, otherwise local fallbacks) ----
+            def __norm_key(s: str) -> str:
+                return __re.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+            # find GROUP_SCHEDULES in any scope; OK if missing
+            __GS = None
+            for __scope in (locals(), globals(), getattr(st, "session_state", {})):
+                try:
+                    __cand = __scope.get("GROUP_SCHEDULES")
+                    if isinstance(__cand, dict):
+                        __GS = __cand; break
+                except Exception:
+                    pass
+            __GS = __GS or {}
+
+            __idx = {__norm_key(k): v for k, v in __GS.items()}
+            __sch = __idx.get(__norm_key(__class_name), {}) if __idx else {}
+
+            __days = __sch.get("days") if isinstance(__sch.get("days"), list) else []
+            __time_label  = str(__sch.get("time") or "").strip()
+            __start_label = str(__sch.get("start_date") or "").strip()
+            __end_label   = str(__sch.get("end_date") or "").strip()
+
+            # fall back to any previously computed locals (won’t crash if missing)
+            if not __days:
+                __days = locals().get("days") if isinstance(locals().get("days"), list) else []
+            if not __time_label:
+                __time_label = str(locals().get("time_str") or "")
+            if not __start_label:
+                __start_label = str(locals().get("start_dt") or "")
+            if not __end_label and locals().get("end_dt") is not None:
+                __end_label = str(locals().get("end_dt") or "")
+
+            # pretty day labels
+            def __short(d):
+                m = {"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"}
+                return m.get(d, d)
+
+            __days_short = ", ".join(__short(d) for d in (__days or [])) if __days else ""
+            __schedule_line = (
+                (f"🗓️ <b>Schedule:</b> {__days_short} • <b>Time:</b> {__time_label}"
+                 f"{' • <b>Start:</b> ' + __start_label if __start_label else ''}"
+                 f"{' • <b>End:</b> ' + __end_label if __end_label else ''}")
+                if (__days and __time_label) else "🗓️ <span style='color:#64748b'>Schedule not set</span>"
+            )
+
+            # ---- render card (no shared calendar) ----
+            st.markdown(
+                f"""
+                <div style="
+                    padding: 14px;
+                    background: #ecfeff;
+                    border: 1px solid #bae6fd;
+                    color: #0c4a6e;
+                    border-radius: 10px;
+                    margin-bottom: 14px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,.05);
+                ">
+                  <div style="font-size:1.05rem; margin-bottom:8px;">
+                    👩‍🏫 <b>Tutor:</b> {__t_primary}
+                  </div>
+                  {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + __t_cotutor + "</div>" if __co else ""}
+                  <div style="font-size:1.05rem; margin-top:4px;">
+                    {__schedule_line}
+                  </div>
+                  <div style="margin-top:12px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:8px 10px; border-radius:8px;">
+                    We don’t auto-add events to your calendar. Use the guide below to create your own reminders in under a minute.
+                  </div>
+                  <div style="margin-top:12px;">
+                    <a href="{__mailto}" target="_blank" style="
+                       display:inline-block;padding:8px 12px;border-radius:8px;
+                       background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
+                       ✉️ Private message your tutor
+                    </a>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # ---- manual reminder guide (shows only if we have days + time) ----
+            if __days and __time_label:
+                __first_day = __days[0]
+                with st.expander("🔔 Create your own reminders (Google / Apple / Outlook)", expanded=False):
+                    __choice = st.selectbox(
+                        "Choose your calendar app:",
+                        ["Google Calendar (Android/Web)", "Apple Calendar (iPhone/iPad/Mac)", "Outlook (Windows/Web)"],
+                        key="manual_reminder_app_final",
+                    )
+
+                    __ds = ", ".join(__short(d) for d in __days)
+
+                    if __choice == "Google Calendar (Android/Web)":
+                        st.markdown(
+                            f"""
+                            1) Open **Google Calendar** → **Create** → **Event**  
+                            2) Title: **{__class_name} (Zoom)**  
+                            3) Set the **first date** to the next **{__first_day}**  
+                            4) Time: **{__time_label}**  
+                            5) **Does not repeat → Weekly**, select: **{__ds}**  
+                            6) *(Optional)* **Ends**: **{__end_label or 'course end'}**  
+                            7) Location: **Zoom** • Description: paste the Zoom link  
+                            8) **Save** ✅
+                            """
+                        )
+                    elif __choice == "Apple Calendar (iPhone/iPad/Mac)":
+                        st.markdown(
+                            f"""
+                            1) Open **Calendar** → **+** → **New Event**  
+                            2) Title: **{__class_name} (Zoom)**  
+                            3) Start time: **{__time_label}** on the next **{__first_day}**  
+                            4) **Repeat → Custom → Weekly**, select: **{__ds}**  
+                            5) **End Repeat**: **{__end_label or 'choose a course end date'}**  
+                            6) URL/Notes: paste the Zoom link  
+                            7) Add an **Alert** (e.g., 30 minutes before) → **Add** ✅
+                            """
+                        )
+                    else:
+                        st.markdown(
+                            f"""
+                            1) Open **Outlook Calendar** → **New Event**  
+                            2) Title: **{__class_name} (Zoom)**  
+                            3) Start time: **{__time_label}** on the next **{__first_day}**  
+                            4) **Repeat → Weekly**, choose: **{__ds}**  
+                            5) **End date**: **{__end_label or 'course end'}**  
+                            6) Location: **Zoom** • Body: paste the Zoom link  
+                            7) Add a reminder (e.g., 30 minutes) → **Save** ✅
+                            """
+                        )
+
+                    # one-click copy helper
+                    __zoom_link = (locals().get("ZOOM", {}).get("link") if isinstance(locals().get("ZOOM"), dict) else "") or ""
+                    __copy_text = (
+                        f"{__class_name} (Zoom)\n"
+                        f"Days: {', '.join(__days)}\n"
+                        f"Time: {__time_label}\n"
+                        f"Start: {__start_label}\n"
+                        f"End: {__end_label}\n"
+                        f"Zoom: {__zoom_link}"
+                    )
+                    __copy_js = __copy_text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+
+                    if __components:
+                        __components.html(
+                            f"""
+                            <div style="display:flex; gap:8px; align-items:center;">
+                              <button id="copySchedBtn_final"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy schedule text
+                              </button>
+                              <span style="color:#64748b; font-size:0.9rem;">Paste into your event description.</span>
+                            </div>
+                            <script>
+                              (function(){{
+                                try {{
+                                  var b = document.getElementById('copySchedBtn_final');
+                                  if (!b) return;
+                                  var txt = '{__copy_js}';
+                                  b.addEventListener('click', function(){{
+                                    navigator.clipboard.writeText(txt).then(function(){{
+                                      b.innerText = '✓ Copied';
+                                      setTimeout(function(){{ b.innerText = 'Copy schedule text'; }}, 1500);
+                                    }}).catch(function(){{}});
+                                  }});
+                                }} catch(e) {{}}
+                              }})();
+                            </script>
+                            """,
+                            height=44,
+                        )
+                    else:
+                        st.code(__copy_text, language="text")
+            else:
+                st.info("🗓️ Your class schedule isn’t set yet. Please contact your tutor or the office.")
+
+            # ---- optional tiny debug for admins only ----
+            if __IS_ADMIN:
+                with st.expander("⚙️ Debug: schedule resolution", expanded=False):
+                    st.write({
+                        "class_name": __class_name,
+                        "available_keys_in_GROUP_SCHEDULES": list(__GS.keys())[:10],
+                        "resolved_days": __days,
+                        "resolved_time": __time_label,
+                        "start": __start_label,
+                        "end": __end_label,
+                    })
+
+        except Exception as _fatal:
+            # absolutely never block the rest of the app
+            st.info("Schedule/tutor card is temporarily unavailable. (Safe fallback shown.)")
+#
 
 
         # ===================== CLASS ROSTER =====================
