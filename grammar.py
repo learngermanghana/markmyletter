@@ -5140,7 +5140,7 @@ if tab == "My Course":
         co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
 
         def _tutor_line(d):
-            if not d: 
+            if not d:
                 return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
@@ -5251,6 +5251,176 @@ if tab == "My Course":
                 )
             else:
                 st.empty()
+
+        # --- One-tap reminders expander (builds a personal recurring series or .ics with alert) ---
+        try:
+            # Prefer schedule values already computed earlier in your Classroom code:
+            _days_for_series  = days if 'days' in locals() and isinstance(days, list) else None
+            _time_for_series  = time_str if 'time_str' in locals() else None
+            _start_for_series = start_dt if 'start_dt' in locals() else None   # "YYYY-MM-DD"
+            _end_for_series   = end_dt if 'end_dt' in locals() else None       # "YYYY-MM-DD"
+            _zoom_link_series = ZOOM["link"] if isinstance(ZOOM, dict) else ""
+
+            if _days_for_series and _time_for_series and _start_for_series:
+                import datetime as _dtm
+                import re as _re
+                from urllib.parse import urlencode, quote
+                from uuid import uuid4
+
+                def _parse_simple_timerange(s: str):
+                    # Accepts '6:00pm–7:00pm' or '7:30pm-9:00pm'. Rejects multi-day strings.
+                    if not s or ("," in s) or any(w in s for w in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]):
+                        return None
+                    m = _re.search(r"(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*[\u2013\-]\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)", s, _re.I)
+                    if not m:
+                        return None
+                    def _to_24h(t):
+                        t = t.strip().lower()
+                        ampm = "am" if "am" in t else ("pm" if "pm" in t else None)
+                        hh, mm = t.replace("am","").replace("pm","").strip().split(":")
+                        h, m = int(hh), int(mm)
+                        if ampm == "pm" and h != 12: h += 12
+                        if ampm == "am" and h == 12: h = 0
+                        return h, m
+                    sh, sm = _to_24h(m.group(1))
+                    eh, em = _to_24h(m.group(2))
+                    return (sh, sm, eh, em)
+
+                def _byday_codes(days_list):
+                    codes = {"Monday":"MO","Tuesday":"TU","Wednesday":"WE","Thursday":"TH","Friday":"FR","Saturday":"SA","Sunday":"SU"}
+                    return ",".join([codes[d] for d in (days_list or []) if d in codes])
+
+                def _first_match_date(start_date_str, first_weekday_idx):
+                    try:
+                        sd = _dtm.datetime.strptime(start_date_str or "", "%Y-%m-%d").date()
+                    except Exception:
+                        sd = _dtm.date.today()
+                    d = sd
+                    while d.weekday() != first_weekday_idx:
+                        d += _dtm.timedelta(days=1)
+                    return d
+
+                def build_gcal_series_link(title: str, days: list, start_date: str, end_date: str, time_str: str, zoom_link: str):
+                    tr = _parse_simple_timerange(time_str)
+                    if not tr or not days:
+                        return None
+                    sh, sm, eh, em = tr
+                    first_weekday = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].index(days[0])
+                    d = _first_match_date(start_date, first_weekday)
+                    start_dt = _dtm.datetime(d.year, d.month, d.day, sh, sm, 0)
+                    end_dt   = _dtm.datetime(d.year, d.month, d.day, eh, em, 0)
+                    fmt = lambda dt: dt.strftime("%Y%m%dT%H%M%S")
+                    dates_param = f"{fmt(start_dt)}/{fmt(end_dt)}"
+                    byday = _byday_codes(days)
+                    until = ""
+                    if end_date:
+                        try:
+                            ed = _dtm.datetime.strptime(end_date, "%Y-%m-%d")
+                            until = ed.strftime("%Y%m%dT235959Z")
+                        except Exception:
+                            pass
+                    rrule = f"RRULE:FREQ=WEEKLY;BYDAY={byday}" + (f";UNTIL={until}" if until else "")
+                    params = {
+                        "action": "TEMPLATE",
+                        "text": title,
+                        "details": f"{zoom_link}\n\n(Added from My Course ▸ Classroom)",
+                        "location": "Zoom",
+                        "recur": rrule,
+                        "dates": dates_param,
+                    }
+                    qp = urlencode(params, quote_via=quote)
+                    return f"https://calendar.google.com/calendar/render?{qp}"
+
+                def build_ics_with_alarm(title: str, days: list, start_date: str, end_date: str, time_str: str, zoom_link: str):
+                    tr = _parse_simple_timerange(time_str)
+                    if not tr or not days:
+                        return None
+                    sh, sm, eh, em = tr
+                    first_weekday = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].index(days[0])
+                    d = _first_match_date(start_date, first_weekday)
+                    dtstart = _dtm.datetime(d.year, d.month, d.day, sh, sm, 0)
+                    dtend   = _dtm.datetime(d.year, d.month, d.day, eh, em, 0)
+                    byday = _byday_codes(days)
+                    until = ""
+                    if end_date:
+                        try:
+                            ed = _dtm.datetime.strptime(end_date, "%Y-%m-%d")
+                            until = ed.strftime("%Y%m%dT235959Z")
+                        except Exception:
+                            pass
+                    ics_fmt = lambda dt: dt.strftime("%Y%m%dT%H%M%S")
+                    uid = f"{uuid4()}@learngermanghana"
+                    now = _dtm.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+                    lines = [
+                        "BEGIN:VCALENDAR",
+                        "VERSION:2.0",
+                        "PRODID:-//LearnGermanGhana//Class//EN",
+                        "CALSCALE:GREGORIAN",
+                        "METHOD:PUBLISH",
+                        "BEGIN:VEVENT",
+                        f"UID:{uid}",
+                        f"DTSTAMP:{now}",
+                        f"SUMMARY:{title}",
+                        f"DESCRIPTION:{zoom_link}\\n(Added from My Course ▸ Classroom)",
+                        "LOCATION:Zoom",
+                        f"DTSTART:{ics_fmt(dtstart)}",
+                        f"DTEND:{ics_fmt(dtend)}",
+                        "BEGIN:VALARM",
+                        "TRIGGER:-PT30M",
+                        "ACTION:DISPLAY",
+                        "DESCRIPTION:Class starting soon",
+                        "END:VALARM",
+                        "RRULE:FREQ=WEEKLY;BYDAY=" + byday + (f";UNTIL={until}" if until else ""),
+                        "END:VEVENT",
+                        "END:VCALENDAR",
+                        "",
+                    ]
+                    return "\r\n".join(lines).encode("utf-8")
+
+                with st.expander("🔔 Prefer one-tap reminders?", expanded=False):
+                    gcal_link = build_gcal_series_link(
+                        title=f"{class_name} (Zoom)",
+                        days=_days_for_series,
+                        start_date=_start_for_series or "",
+                        end_date=_end_for_series or "",
+                        time_str=_time_for_series,
+                        zoom_link=_zoom_link_series,
+                    )
+                    if gcal_link:
+                        try:
+                            st.link_button("🟢 Add to Google Calendar (series)", gcal_link, use_container_width=True, key="btn_gcal_series")
+                        except Exception:
+                            st.markdown(f"[🟢 Add to Google Calendar (series)]({gcal_link})")
+
+                    ics_bytes = build_ics_with_alarm(
+                        title=f"{class_name} (Zoom)",
+                        days=_days_for_series,
+                        start_date=_start_for_series or "",
+                        end_date=_end_for_series or "",
+                        time_str=_time_for_series,
+                        zoom_link=_zoom_link_series,
+                    )
+                    if ics_bytes:
+                        st.download_button(
+                            "📲 Add to Apple/Phone Calendar (.ics, 30-min alert)",
+                            data=ics_bytes,
+                            file_name=f"{class_name.replace(' ','_')}.ics",
+                            mime="text/calendar",
+                            use_container_width=True,
+                            key="btn_cal_ics_dl"
+                        )
+
+                    st.markdown(
+                        "<div style='font-size:0.9rem;color:#475569;margin-top:6px;'>"
+                        "Tip: Google uses your default alert for new events; the .ics file includes a built-in 30-minute alert."
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+        except Exception:
+            # Silently skip if schedule format is complex or variables are missing.
+            pass
+
+        st.divider()
 #
 
 
