@@ -5095,8 +5095,14 @@ if tab == "My Course":
 
         # ===================== CALENDAR QUICK ADD (no schedule/dictionary UI) =====================
         from datetime import datetime as _dt, timedelta as _td
-        import re, uuid, json
+        import re, uuid, json, io, requests
         import urllib.parse as _urllib
+
+        # Try dateutil if available (for robust date parsing); fall back gracefully.
+        try:
+            from dateutil import parser as _dateparse
+        except Exception:
+            _dateparse = None
 
         def _load_group_schedules():
             # 1) global
@@ -5191,6 +5197,100 @@ if tab == "My Course":
                 },
             }
 
+        # ---------- helpers to fetch & parse dates from schedule PDF (Drive) ----------
+        def _gdrive_direct_download(url: str) -> bytes | None:
+            if not url:
+                return None
+            m = re.search(r"/file/d/([A-Za-z0-9_-]{20,})/", url) or re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", url)
+            file_id = m.group(1) if m else None
+            if not file_id:
+                return None
+            dl = f"https://drive.google.com/uc?export=download&id={file_id}"
+            try:
+                r = requests.get(dl, timeout=15)
+                if r.status_code == 200 and r.content:
+                    # If Google shows a confirmation page for large files, bail out (keep simple)
+                    if b"uc-download-link" in r.content[:4000] and b"confirm" in r.content[:4000]:
+                        return None
+                    return r.content
+            except Exception:
+                pass
+            return None
+
+        def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
+            # Try pypdf first
+            try:
+                from pypdf import PdfReader
+                t = []
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+                for p in reader.pages:
+                    try:
+                        t.append(p.extract_text() or "")
+                    except Exception:
+                        t.append("")
+                return "\n".join(t)
+            except Exception:
+                pass
+            # Fallback: pdfminer (if available)
+            try:
+                from pdfminer.high_level import extract_text
+                return extract_text(io.BytesIO(pdf_bytes)) or ""
+            except Exception:
+                return ""
+
+        _DATE_PATTERNS = [
+            r"\b(20\d{2}-\d{2}-\d{2})\b",  # 2025-08-15
+            r"\b(\d{1,2}/\d{1,2}/20\d{2})\b",  # 08/15/2025 or 15/08/2025
+            r"\b(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+20\d{2})\b",  # 15 Aug 2025
+            r"\b((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s*20\d{2})\b",  # Aug 15, 2025
+        ]
+
+        def _parse_any_date(raw: str):
+            # Prefer dateutil if present
+            if _dateparse:
+                for dayfirst in (False, True):
+                    try:
+                        return _dateparse.parse(raw, dayfirst=dayfirst, fuzzy=True).date()
+                    except Exception:
+                        pass
+            # Lightweight manual attempts
+            for fmt in ("%Y-%m-%d", "%d %b %Y", "%b %d, %Y", "%m/%d/%Y", "%d/%m/%Y"):
+                try:
+                    return _dt.strptime(raw, fmt).date()
+                except Exception:
+                    pass
+            return None
+
+        def _find_dates_in_text(txt: str):
+            found = []
+            if not txt:
+                return found
+            for pat in _DATE_PATTERNS:
+                for m in re.finditer(pat, txt, flags=re.IGNORECASE):
+                    d = _parse_any_date(m.group(1))
+                    if d:
+                        found.append(d)
+            # de-dup + sort
+            uniq = []
+            seen = set()
+            for d in sorted(found):
+                if d not in seen:
+                    seen.add(d)
+                    uniq.append(d)
+            return uniq
+
+        def infer_start_end_from_doc(doc_url: str):
+            pdf_bytes = _gdrive_direct_download(doc_url)
+            if not pdf_bytes:
+                return None, None
+            text = _extract_text_from_pdf(pdf_bytes)
+            dates = _find_dates_in_text(text)
+            if len(dates) >= 2:
+                return dates[0], dates[-1]
+            if len(dates) == 1:
+                return dates[0], None
+            return None, None
+
         GROUP_SCHEDULES = _load_group_schedules()
 
         # Pull class config quietly
@@ -5199,6 +5299,7 @@ if tab == "My Course":
         time_str    = class_cfg.get("time", "")
         start_str   = class_cfg.get("start_date", "")
         end_str     = class_cfg.get("end_date", "")
+        doc_url     = class_cfg.get("doc_url", "")
 
         # Parse dates
         start_date_obj = None
@@ -5214,9 +5315,30 @@ if tab == "My Course":
         except Exception:
             pass
 
+        # If missing, try to infer from the schedule PDF
+        _inferred_start = _inferred_end = False
+        if (not start_date_obj or not end_date_obj) and doc_url:
+            s, e = infer_start_end_from_doc(doc_url)
+            if s and not start_date_obj:
+                start_date_obj = s
+                _inferred_start = True
+            if e and not end_date_obj:
+                end_date_obj = e
+                _inferred_end = True
+
         if not (start_date_obj and end_date_obj and isinstance(time_str, str) and time_str.strip() and days):
             st.warning("This class doesn’t have a full calendar setup yet. Please contact the office.", icon="⚠️")
         else:
+            # Tell students clearly the course period (and note if inferred)
+            _note_bits = []
+            if _inferred_start or _inferred_end:
+                _note_bits.append("dates inferred from the schedule document")
+            _note = f" ({', '.join(_note_bits)})" if _note_bits else ""
+            st.info(
+                f"**Course period:** {start_date_obj.strftime('%d %b %Y')} → {end_date_obj.strftime('%d %b %Y')}{_note}",
+                icon="📅",
+            )
+
             # ---------- helpers ----------
             _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
             _FULL_TO_CODE = {
