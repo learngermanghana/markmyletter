@@ -5098,32 +5098,28 @@ if tab == "My Course":
         import re, uuid, json
         import urllib.parse as _urllib
 
-        # Loader that finds GROUP_SCHEDULES from multiple sources and caches it
         def _load_group_schedules():
-            # 1) global (already defined somewhere else)
+            # 1) global
             cfg = globals().get("GROUP_SCHEDULES")
             if isinstance(cfg, dict) and cfg:
                 return cfg
-            # 2) session_state cache
+            # 2) session_state
             cfg = st.session_state.get("GROUP_SCHEDULES")
             if isinstance(cfg, dict) and cfg:
-                globals()["GROUP_SCHEDULES"] = cfg  # promote to global for this page
+                globals()["GROUP_SCHEDULES"] = cfg
                 return cfg
-            # 3) st.secrets (can be a dict or a JSON string)
+            # 3) secrets
             try:
                 raw = st.secrets.get("group_schedules", None)
                 if raw:
-                    if isinstance(raw, str):
-                        cfg = json.loads(raw)
-                    elif isinstance(raw, dict):
-                        cfg = raw
+                    cfg = json.loads(raw) if isinstance(raw, str) else raw
                     if isinstance(cfg, dict) and cfg:
                         st.session_state["GROUP_SCHEDULES"] = cfg
                         globals()["GROUP_SCHEDULES"] = cfg
                         return cfg
             except Exception:
                 pass
-            # 4) Firestore: config/group_schedules (expects dict or {"data": {...}})
+            # 4) Firestore (optional)
             try:
                 doc = db.collection("config").document("group_schedules").get()
                 if doc and getattr(doc, "exists", False):
@@ -5135,254 +5131,303 @@ if tab == "My Course":
                         return cfg
             except Exception:
                 pass
-            return {}
+            # 5) BUILT-IN FALLBACK (kept private; we won't render it anywhere)
+            return {
+                "A1 Munich Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday"],
+                    "time": "6:00pm–7:00pm",
+                    "start_date": "2025-07-08",
+                    "end_date": "2025-09-02",
+                    "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+                },
+                "A1 Berlin Klasse": {
+                    "days": ["Thursday", "Friday", "Saturday"],
+                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+                    "start_date": "2025-06-14",
+                    "end_date": "2025-08-09",
+                    "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+                },
+                "A1 Koln Klasse": {
+                    "days": ["Thursday", "Friday", "Saturday"],
+                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+                    "start_date": "2025-08-15",
+                    "end_date": "2025-10-11",
+                    "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
+                },
+                "A2 Munich Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday"],
+                    "time": "7:30pm–9:00pm",
+                    "start_date": "2025-06-24",
+                    "end_date": "2025-08-26",
+                    "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
+                },
+                "A2 Berlin Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+                    "start_date": "",
+                    "end_date": "",
+                    "doc_url": ""
+                },
+                "A2 Koln Klasse": {
+                    "days": ["Wednesday", "Thursday", "Friday"],
+                    "time": "11:00am–12:00pm",
+                    "start_date": "2025-08-06",
+                    "end_date": "2025-10-08",
+                    "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
+                },
+                "B1 Munich Klasse": {
+                    "days": ["Thursday", "Friday"],
+                    "time": "7:30pm–9:00pm",
+                    "start_date": "2025-08-07",
+                    "end_date": "2025-11-07",
+                    "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+                },
+                "B2 Munich Klasse": {
+                    "days": ["Friday", "Saturday"],
+                    "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
+                    "start_date": "2025-08-08",
+                    "end_date": "2025-10-08",
+                    "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
+                },
+            }
 
         GROUP_SCHEDULES = _load_group_schedules()
-        if not GROUP_SCHEDULES:
-            st.error("Calendar configuration couldn’t be loaded (GROUP_SCHEDULES). Ask the office/admin to set it in secrets or Firestore.", icon="⚠️")
+
+        # Pull class config quietly
+        class_cfg   = GROUP_SCHEDULES.get(class_name, {})
+        days        = class_cfg.get("days", [])
+        time_str    = class_cfg.get("time", "")
+        start_str   = class_cfg.get("start_date", "")
+        end_str     = class_cfg.get("end_date", "")
+
+        # Parse dates
+        start_date_obj = None
+        end_date_obj   = None
+        try:
+            if start_str:
+                start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
+        try:
+            if end_str:
+                end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+        if not (start_date_obj and end_date_obj and isinstance(time_str, str) and time_str.strip() and days):
+            st.warning("This class doesn’t have a full calendar setup yet. Please contact the office.", icon="⚠️")
         else:
-            # Pull class config quietly
-            class_cfg   = GROUP_SCHEDULES.get(class_name, {})
-            days        = class_cfg.get("days", [])
-            time_str    = class_cfg.get("time", "")
-            start_str   = class_cfg.get("start_date", "")
-            end_str     = class_cfg.get("end_date", "")
+            # ---------- helpers ----------
+            _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
+            _FULL_TO_CODE = {
+                "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
+                "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
+            }
 
-            # Parse dates
-            start_date_obj = None
-            end_date_obj   = None
-            try:
-                if start_str:
-                    start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
-            except Exception:
-                pass
-            try:
-                if end_str:
-                    end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
-            except Exception:
-                pass
+            def _to_24h(h, m, ampm):
+                h = int(h); m = int(m); ap = ampm.lower()
+                if ap == "pm" and h != 12: h += 12
+                if ap == "am" and h == 12: h = 0
+                return h, m
 
-            if not (start_date_obj and end_date_obj and isinstance(time_str, str) and time_str.strip() and days):
-                st.warning("This class doesn’t have a full calendar setup yet. Please contact the office.", icon="⚠️")
-            else:
-                # ---------- helpers ----------
-                _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
-                _FULL_TO_CODE = {
-                    "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
-                    "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
-                }
+            def _parse_time_component(s):
+                s = s.strip().lower()
+                m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
+                if not m: return None
+                h = m.group(1); mm = m.group(2) or "0"; ap = m.group(3)
+                return _to_24h(h, mm, ap)
 
-                def _to_24h(h, m, ampm):
-                    h = int(h); m = int(m); ap = ampm.lower()
-                    if ap == "pm" and h != 12: h += 12
-                    if ap == "am" and h == 12: h = 0
-                    return h, m
+            def _parse_time_range(rng):
+                rng = rng.strip().lower().replace("–","-").replace("—","-")
+                parts = [p.strip() for p in rng.split("-")]
+                if len(parts) != 2: return None
+                a = _parse_time_component(parts[0]); b = _parse_time_component(parts[1])
+                if not a or not b: return None
+                return a, b
 
-                def _parse_time_component(s):
-                    s = s.strip().lower()
-                    m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
-                    if not m: return None
-                    h = m.group(1); mm = m.group(2) or "0"; ap = m.group(3)
-                    return _to_24h(h, mm, ap)
+            def _expand_day_token(tok):
+                tok = tok.strip().lower().replace("–","-").replace("—","-")
+                if "-" in tok:  # mon–wed
+                    a, b = [t.strip() for t in tok.split("-", 1)]
+                    a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
+                    if a_code and b_code:
+                        ai = _WKD_ORDER.index(a_code); bi = _WKD_ORDER.index(b_code)
+                        return _WKD_ORDER[ai:bi+1] if ai <= bi else _WKD_ORDER[ai:] + _WKD_ORDER[:bi+1]
+                    return []
+                c = _FULL_TO_CODE.get(tok, "")
+                return [c] if c else []
 
-                def _parse_time_range(rng):
-                    rng = rng.strip().lower().replace("–","-").replace("—","-")
-                    parts = [p.strip() for p in rng.split("-")]
-                    if len(parts) != 2: return None
-                    a = _parse_time_component(parts[0]); b = _parse_time_component(parts[1])
-                    if not a or not b: return None
-                    return a, b  # ((h1,m1), (h2,m2))
+            def _parse_time_blocks(time_str, days_list):
+                if not (isinstance(time_str, str) and time_str.strip()):
+                    return []
+                s = time_str.strip()
+                if ":" in s:  # grouped "Days: time"
+                    blocks = []
+                    groups = [g.strip() for g in s.split(",") if g.strip()]
+                    for g in groups:
+                        if ":" not in g:
+                            continue
+                        left, right = [x.strip() for x in g.split(":", 1)]
+                        day_tokens = re.split(r"/", left)
+                        codes = []
+                        for tok in day_tokens:
+                            codes.extend(_expand_day_token(tok))
+                        tr = _parse_time_range(right)
+                        if codes and tr:
+                            (sh, sm), (eh, em) = tr
+                            blocks.append({"byday": sorted(set(codes), key=_WKD_ORDER.index),
+                                           "start": (sh, sm), "end": (eh, em)})
+                    return blocks
+                # single time for given days[]
+                tr = _parse_time_range(s)
+                if not tr: return []
+                (sh, sm), (eh, em) = tr
+                codes = []
+                for d in (days_list or []):
+                    c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
+                    if c: codes.append(c)
+                codes = sorted(set(codes), key=_WKD_ORDER.index) or _WKD_ORDER[:]
+                return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
 
-                def _expand_day_token(tok):
-                    tok = tok.strip().lower().replace("–","-").replace("—","-")
-                    if "-" in tok:  # mon–wed
-                        a, b = [t.strip() for t in tok.split("-", 1)]
-                        a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
-                        if a_code and b_code:
-                            ai = _WKD_ORDER.index(a_code); bi = _WKD_ORDER.index(b_code)
-                            return _WKD_ORDER[ai:bi+1] if ai <= bi else _WKD_ORDER[ai:] + _WKD_ORDER[:bi+1]
-                        return []
-                    c = _FULL_TO_CODE.get(tok, "")
-                    return [c] if c else []
+            def _next_on_or_after(d, weekday_index):  # Mon=0..Sun=6
+                delta = (weekday_index - d.weekday()) % 7
+                return d + _td(days=delta)
 
-                def _parse_time_blocks(time_str, days_list):
-                    """
-                    Returns list of blocks:
-                    [{'byday': ['MO','WE'], 'start':(18,0), 'end':(19,0)}]
-                    Handles mixed patterns like 'Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am'
-                    """
-                    if not (isinstance(time_str, str) and time_str.strip()):
-                        return []
-                    s = time_str.strip()
-                    if ":" in s:
-                        blocks = []
-                        groups = [g.strip() for g in s.split(",") if g.strip()]
-                        for g in groups:
-                            if ":" not in g:
-                                continue
-                            left, right = [x.strip() for x in g.split(":", 1)]
-                            day_tokens = re.split(r"/", left)
-                            codes = []
-                            for tok in day_tokens:
-                                codes.extend(_expand_day_token(tok))
-                            tr = _parse_time_range(right)
-                            if codes and tr:
-                                (sh, sm), (eh, em) = tr
-                                blocks.append({"byday": sorted(set(codes), key=_WKD_ORDER.index),
-                                               "start": (sh, sm), "end": (eh, em)})
-                        return blocks
-                    # single time for given days[]
-                    tr = _parse_time_range(s)
-                    if not tr: return []
-                    (sh, sm), (eh, em) = tr
-                    codes = []
-                    for d in (days_list or []):
-                        c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
-                        if c: codes.append(c)
-                    codes = sorted(set(codes), key=_WKD_ORDER.index) or _WKD_ORDER[:]
-                    return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
+            # Build ICS
+            _blocks = _parse_time_blocks(time_str, days)
+            _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
+            _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
+            _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
+            _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
+            _summary = f"{class_name} — Live German Class"
 
-                def _next_on_or_after(d, weekday_index):  # Mon=0..Sun=6
-                    delta = (weekday_index - d.weekday()) % 7
-                    return d + _td(days=delta)
+            _ics_lines = [
+                "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Falowen//Course Scheduler//EN",
+                "CALSCALE:GREGORIAN","METHOD:PUBLISH",
+            ]
 
-                # Build ICS (Africa/Accra ~ UTC)
-                _blocks = _parse_time_blocks(time_str, days)
-                _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
-                _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
-                _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
-                _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
-                _summary = f"{class_name} — Live German Class"
-
-                _ics_lines = [
-                    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Falowen//Course Scheduler//EN",
-                    "CALSCALE:GREGORIAN","METHOD:PUBLISH",
+            if not _blocks:
+                _start_dt = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 18, 0)
+                _end_dt   = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 19, 0)
+                _ics_lines += [
+                    "BEGIN:VEVENT",
+                    f"UID:{uuid.uuid4()}@falowen",
+                    f"DTSTAMP:{_dtstamp}",
+                    f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                    f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                    f"SUMMARY:{_summary}",
+                    f"DESCRIPTION:{_details}",
+                    "LOCATION:Zoom",
+                    "END:VEVENT",
                 ]
-
-                if not _blocks:
-                    # Fallback: single event on start date (1h)
-                    _start_dt = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 18, 0)
-                    _end_dt   = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 19, 0)
+            else:
+                for blk in _blocks:
+                    byday_codes = blk["byday"]
+                    sh, sm = blk["start"]; eh, em = blk["end"]
+                    _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+                    first_dates = []
+                    for code in byday_codes:
+                        widx = _wmap[code]
+                        first_dates.append(_next_on_or_after(start_date_obj, widx))
+                    first_date = min(first_dates)
+                    dt_start = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
+                    dt_end   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
                     _ics_lines += [
                         "BEGIN:VEVENT",
                         f"UID:{uuid.uuid4()}@falowen",
                         f"DTSTAMP:{_dtstamp}",
-                        f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}",
-                        f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                        f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}",
+                        f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}",
+                        f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
                         f"SUMMARY:{_summary}",
                         f"DESCRIPTION:{_details}",
                         "LOCATION:Zoom",
                         "END:VEVENT",
                     ]
-                else:
-                    for blk in _blocks:
-                        byday_codes = blk["byday"]
-                        sh, sm = blk["start"]; eh, em = blk["end"]
-                        _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-                        first_dates = []
-                        for code in byday_codes:
-                            widx = _wmap[code]
-                            first_dates.append(_next_on_or_after(start_date_obj, widx))
-                        first_date = min(first_dates)
-                        dt_start = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
-                        dt_end   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
-                        _ics_lines += [
-                            "BEGIN:VEVENT",
-                            f"UID:{uuid.uuid4()}@falowen",
-                            f"DTSTAMP:{_dtstamp}",
-                            f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}",
-                            f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}",
-                            f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
-                            f"SUMMARY:{_summary}",
-                            f"DESCRIPTION:{_details}",
-                            "LOCATION:Zoom",
-                            "END:VEVENT",
-                        ]
 
-                _ics_lines.append("END:VCALENDAR")
-                _course_ics = "\n".join(_ics_lines)
+            _ics_lines.append("END:VCALENDAR")
+            _course_ics = "\n".join(_ics_lines)
 
-                # Compute the very next session date to offer a 1-click Google Calendar link
-                today = _dt.today().date()
-                next_date = None
-                if _blocks:
-                    codes_all = sorted({c for blk in _blocks for c in blk["byday"]}, key=_WKD_ORDER.index)
-                    probe = max(today, start_date_obj)
-                    for i in range(0, 40):  # look ahead ~6 weeks
-                        d = probe + _td(days=i)
-                        if d > end_date_obj:
-                            break
-                        if _WKD_ORDER[d.weekday()] in codes_all:
-                            next_date = d
-                            break
+            # Next session for 1-click Google Calendar
+            today = _dt.today().date()
+            next_date = None
+            if _blocks:
+                codes_all = sorted({c for blk in _blocks for c in blk["byday"]}, key=_WKD_ORDER.index)
+                probe = max(today, start_date_obj)
+                for i in range(0, 40):
+                    d = probe + _td(days=i)
+                    if d > end_date_obj:
+                        break
+                    if _WKD_ORDER[d.weekday()] in codes_all:
+                        next_date = d
+                        break
 
-                # UI buttons (no schedule/dictionary shown)
-                c1, c2 = st.columns([1, 1])
-                with c1:
-                    st.download_button(
-                        "⬇️ Download full course (.ics)",
-                        data=_course_ics,
-                        file_name=f"{class_name.replace(' ', '_')}_course.ics",
-                        mime="text/calendar",
-                        key="dl_course_ics"
-                    )
-                with c2:
-                    if next_date and _blocks:
-                        # pick block matching that weekday (fallback first)
-                        wcode = _WKD_ORDER[next_date.weekday()]
-                        _blk_match = None
-                        for blk in _blocks:
-                            if wcode in blk["byday"]:
-                                _blk_match = blk; break
-                        if _blk_match is None:
-                            _blk_match = _blocks[0]
-                        sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
-                        _start_dt = _dt(next_date.year, next_date.month, next_date.day, sh, sm)
-                        _end_dt   = _dt(next_date.year, next_date.month, next_date.day, eh, em)
-                        _start_gcal = _start_dt.strftime("%Y%m%dT%H%M%SZ")
-                        _end_gcal   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
-
-                        try:
-                            _mid_digits = str((ZOOM or {}).get("meeting_id","")).replace(" ", "")
-                            _pwd_enc = _urllib.quote((ZOOM or {}).get("passcode","") or "")
-                            _zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-                        except Exception:
-                            _zoom_deeplink = ""
-
-                        _details_text = (
-                            f"Zoom link: {_zl}\\n"
-                            f"Meeting ID: {_zid}\\n"
-                            f"Passcode: {_zpw}\\n\\n"
-                            f"Mobile deep link: {_zoom_deeplink}"
-                        )
-
-                        _gcal_url = (
-                            "https://calendar.google.com/calendar/render"
-                            f"?action=TEMPLATE"
-                            f"&text={_urllib.quote(_summary)}"
-                            f"&dates={_start_gcal}/{_end_gcal}"
-                            f"&details={_urllib.quote(_details_text)}"
-                            f"&location={_urllib.quote('Zoom')}"
-                            f"&ctz={_urllib.quote('Africa/Accra')}"
-                        )
-                        try:
-                            st.link_button("➕ Next session → Google Calendar", _gcal_url, key="gcal_next_btn")
-                        except Exception:
-                            st.markdown(f"[➕ Next session → Google Calendar]({_gcal_url})")
-                    else:
-                        st.caption("Calendar created. Use the download button to import the full course.")
-
-                # Short install tips (no duplication of schedule)
-                st.markdown(
-                    """
-                    **How to install the calendar:**
-                    - **Google Calendar (web):** Settings → **Import & export** → **Import** → choose the downloaded `.ics`.
-                    - **Google Calendar (mobile):** Use the **Next session** link above, or import on web (mobile apps don’t import `.ics`).
-                    - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add**.
-                    - **Outlook:** Open the `.ics` file and choose **Save & Close**.
-                    """,
-                    unsafe_allow_html=True,
+            # UI
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                st.download_button(
+                    "⬇️ Download full course (.ics)",
+                    data=_course_ics,
+                    file_name=f"{class_name.replace(' ', '_')}_course.ics",
+                    mime="text/calendar",
+                    key="dl_course_ics"
                 )
+            with c2:
+                if next_date and _blocks:
+                    wcode = _WKD_ORDER[next_date.weekday()]
+                    _blk_match = None
+                    for blk in _blocks:
+                        if wcode in blk["byday"]:
+                            _blk_match = blk; break
+                    if _blk_match is None:
+                        _blk_match = _blocks[0]
+                    sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
+                    _start_dt = _dt(next_date.year, next_date.month, next_date.day, sh, sm)
+                    _end_dt   = _dt(next_date.year, next_date.month, next_date.day, eh, em)
+                    _start_gcal = _start_dt.strftime("%Y%m%dT%H%M%SZ")
+                    _end_gcal   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
+
+                    try:
+                        _mid_digits = str((ZOOM or {}).get("meeting_id","")).replace(" ", "")
+                        _pwd_enc = _urllib.quote((ZOOM or {}).get("passcode","") or "")
+                        _zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+                    except Exception:
+                        _zoom_deeplink = ""
+
+                    _details_text = (
+                        f"Zoom link: {_zl}\\n"
+                        f"Meeting ID: {_zid}\\n"
+                        f"Passcode: {_zpw}\\n\\n"
+                        f"Mobile deep link: {_zoom_deeplink}"
+                    )
+
+                    _gcal_url = (
+                        "https://calendar.google.com/calendar/render"
+                        f"?action=TEMPLATE"
+                        f"&text={_urllib.quote(_summary)}"
+                        f"&dates={_start_gcal}/{_end_gcal}"
+                        f"&details={_urllib.quote(_details_text)}"
+                        f"&location={_urllib.quote('Zoom')}"
+                        f"&ctz={_urllib.quote('Africa/Accra')}"
+                    )
+                    try:
+                        st.link_button("➕ Next session → Google Calendar", _gcal_url, key="gcal_next_btn")
+                    except Exception:
+                        st.markdown(f"[➕ Next session → Google Calendar]({_gcal_url})")
+                else:
+                    st.caption("Calendar created. Use the download button to import the full course.")
+
+            # Install tips
+            st.markdown(
+                """
+                **How to install the calendar:**
+                - **Google Calendar (web):** Settings → **Import & export** → **Import** → choose the downloaded `.ics`.
+                - **Google Calendar (mobile):** Use the **Next session** link above, or import on web (mobile apps don’t import `.ics`).
+                - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add**.
+                - **Outlook:** Open the `.ics` file and choose **Save & Close**.
+                """,
+                unsafe_allow_html=True,
+            )
 #
 
 
