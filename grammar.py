@@ -5712,9 +5712,6 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
-#
-
-
 
         # ===================== CLASS ROSTER =====================
         with st.expander("👥 Class Members", expanded=False):
@@ -5745,8 +5742,7 @@ if tab == "My Course":
                 st.warning(f"Couldn’t load the class roster right now. {e}")
 #
 
-        # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
-        st.markdown("### 📢 Announcements")
+          # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
 
         # Prefer cached helper if exists; else fallback to direct CSV
         try:
@@ -5762,6 +5758,60 @@ if tab == "My Course":
 
         # Helpers (links, parsing, ids)
         URL_RE = re.compile(r"(https?://[^\s]+)")
+
+        # ---------- Announcement banner (with NEW count) ----------
+        _new_badge_html = ""
+        try:
+            from datetime import datetime as _dt
+            _today = _dt.today().date()
+            _recent = 0
+            if not df.empty and "Date" in df.columns:
+                # Try dateutil if available from earlier; fall back to common formats
+                def _parse_date_any(s: str):
+                    s = str(s).strip()
+                    if not s:
+                        return None
+                    if 'dateutil' in globals() and _dateparse:
+                        try:
+                            return _dateparse.parse(s).date()
+                        except Exception:
+                            pass
+                    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+                        try:
+                            return _dt.strptime(s, fmt).date()
+                        except Exception:
+                            continue
+                    return None
+
+                for v in df["Date"].astype(str).tolist():
+                    d = _parse_date_any(v)
+                    if d and (_today - d).days <= 7:
+                        _recent += 1
+
+            if _recent > 0:
+                _new_badge_html = f"<span style='margin-left:8px;background:#16a34a;color:#fff;padding:2px 8px;border-radius:999px;font-size:0.8rem;'>NEW · {_recent}</span>"
+        except Exception:
+            pass
+
+        with st.container():
+            st.markdown(
+                f'''
+                <div style="
+                    padding:12px;
+                    background: linear-gradient(90deg,#0ea5e9,#22c55e);
+                    color:#ffffff;
+                    border-radius:8px;
+                    margin-bottom:12px;
+                    box-shadow:0 2px 6px rgba(0,0,0,0.08);
+                    display:flex;align-items:center;justify-content:space-between;">
+                    <div style="font-weight:700;font-size:1.15rem;">📢 Announcements {_new_badge_html}</div>
+                    <div style="font-size:0.92rem;opacity:.9;">Latest class updates, deadlines & links</div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+#
+
 
         def _short_label_from_url(u: str) -> str:
             try:
