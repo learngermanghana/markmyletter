@@ -1962,16 +1962,34 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # ===================== Tabs UI ===========================
 # =========================================================
 
-# --- Modern top navigation (icons + mobile-friendly) ---
-def render_main_nav():
-    tabs = [
-        "Dashboard",
-        "My Course",
-        "My Results and Resources",
-        "Exams Mode & Custom Chat",
-        "Vocab Trainer",
-        "Schreiben Trainer",
-    ]
+def render_pill_nav():
+    tabs = ["Dashboard","My Course","My Results and Resources","Exams Mode & Custom Chat","Vocab Trainer","Schreiben Trainer"]
+    icons = ["🏠","📚","📊","🤖","🗣️","✍️"]
+    sel = st.session_state.get("main_tab_select", "Dashboard")
+
+    st.markdown("""
+    <style>
+      .pillbar{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px 0}
+      .pill{padding:7px 12px;border:1px solid #e5e7eb;border-radius:999px;font-weight:700;cursor:pointer}
+      .pill-active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+    </style>
+    """, unsafe_allow_html=True)
+
+    cols = st.columns(len(tabs))
+    for i, t in enumerate(tabs):
+        label = f"{icons[i]} {t}"
+        active = (t == sel)
+        with cols[i]:
+            if st.button(label, key=f"navpill_{i}", use_container_width=True):
+                sel = t
+        st.markdown(
+            f"<div class='pill {'pill-active' if active else 'pill'}' style='display:none'></div>",
+            unsafe_allow_html=True
+        )
+
+    st.session_state["main_tab_select"] = sel
+    return sel
+
 
     # preferred index from session (keeps selection on reruns)
     default_tab = st.session_state.get("main_tab_select", "Dashboard")
