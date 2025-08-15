@@ -4981,23 +4981,25 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER =====================
+        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
         with st.container():
             st.markdown(
                 """
                 <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 500;">
-                  📣 <b>Zoom Classroom</b><br>
-                  Join our live class using the details below.
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                  📣 <b>Zoom Classroom (Official)</b><br>
+                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
+
             ZOOM = {
                 "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
                 "meeting_id": "688 690 0916",
                 "passcode": "german",
             }
+            # Allow secrets override
             try:
                 zs = st.secrets.get("zoom", {})
                 if zs.get("link"):       ZOOM["link"]       = zs["link"]
@@ -5006,18 +5008,62 @@ if tab == "My Course":
             except Exception:
                 pass
 
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+
             z1, z2 = st.columns([3, 2])
             with z1:
+                # Primary join button (browser)
                 try:
-                    st.link_button("➡️ Join Zoom Meeting", ZOOM["link"], key="zoom_join_btn")
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
                 except Exception:
-                    st.markdown(f"[➡️ Join Zoom Meeting]({ZOOM['link']})")
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                # Secondary: open in Zoom app (mobile deep link)
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
                 st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
                 st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+
+                # Copy helpers (mobile-friendly)
+                components.html(
+                    """
+                    <div style="display:flex;gap:8px;margin-top:8px;">
+                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied Link'; setTimeout(()=>this.innerText='Copy Link',1500);})"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy Link
+                      </button>
+                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied ID'; setTimeout(()=>this.innerText='Copy ID',1500);})"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy ID
+                      </button>
+                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied Passcode'; setTimeout(()=>this.innerText='Copy Passcode',1500);})"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy Passcode
+                      </button>
+                    </div>
+                    """ % (
+                        ZOOM["link"].replace("'", "\\'"),
+                        ZOOM["meeting_id"].replace("'", "\\'"),
+                        ZOOM["passcode"].replace("'", "\\'")
+                    ),
+                    height=48,
+                )
+
             with z2:
-                st.info(f"You’re viewing: **{class_name}**")
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n\n"
+                    "✅ Use the **calendar below** to receive automatic class reminders.",
+                    icon="📅",
+                )
 
         st.divider()
+#
 
         # ===================== CLASS META (safe resolver) =====================
 
