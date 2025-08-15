@@ -5553,13 +5553,85 @@ if tab == "My Course":
                 else:
                     st.caption("Calendar created. Use the download button to import the full course.")
 
+            # ----- (Hidden) Create-your-own recurring schedule: click to reveal -----
+            # Build Google Calendar recurring links (one per distinct time block)
+            _gcal_repeat_links = []
+            if _blocks:
+                _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+                _code_to_pretty = {"MO":"Mon","TU":"Tue","WE":"Wed","TH":"Thu","FR":"Fri","SA":"Sat","SU":"Sun"}
+
+                def _fmt_time(h, m):
+                    ap = "AM" if h < 12 else "PM"
+                    hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                    return f"{hh}:{m:02d}{ap}"
+
+                for blk in _blocks:
+                    byday_codes = blk["byday"]
+                    sh, sm = blk["start"]; eh, em = blk["end"]
+
+                    # First occurrence on/after course start for this block
+                    first_dates = []
+                    for code in byday_codes:
+                        widx = _wmap[code]
+                        first_dates.append(_next_on_or_after(start_date_obj, widx))
+                    first_date = min(first_dates)
+
+                    _start_dt = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
+                    _end_dt   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
+                    _start_str = _start_dt.strftime("%Y%m%dT%H%M%SZ")
+                    _end_str   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
+
+                    # RRULE weekly until course end
+                    _rrule = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}"
+
+                    # Friendly label like "Mon/Tue/Wed 6:00PM–7:00PM"
+                    _days_pretty = "/".join(_code_to_pretty[c] for c in byday_codes)
+                    _label = f"{_days_pretty} {_fmt_time(sh, sm)}–{_fmt_time(eh, em)}"
+
+                    _recur_url = (
+                        "https://calendar.google.com/calendar/render"
+                        f"?action=TEMPLATE"
+                        f"&text={_urllib.quote(_summary)}"
+                        f"&dates={_start_str}/{_end_str}"
+                        f"&details={_urllib.quote(_details)}"
+                        f"&location={_urllib.quote('Zoom')}"
+                        f"&ctz={_urllib.quote('Africa/Accra')}"
+                        f"&recur={_urllib.quote(_rrule)}"
+                        f"&sf=true"
+                    )
+                    _gcal_repeat_links.append((_label, _recur_url))
+
+            if _gcal_repeat_links:
+                _items_html = "".join(
+                    f"<li style='margin:6px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>{lbl}</a></li>"
+                    for (lbl, url) in _gcal_repeat_links
+                )
+                st.markdown(
+                    f"""
+                    <details style="margin-top:8px;">
+                      <summary style="cursor:pointer; font-weight:600;">📲 Create personal schedule (repeating) — tap to open</summary>
+                      <div style="margin-top:8px;">
+                        <ul style="padding-left:18px; margin:0;">
+                          {_items_html}
+                        </ul>
+                        <div style="font-size:0.92em; color:#444; margin-top:6px;">
+                          Each link opens Google Calendar on your phone with <b>weekly repeat pre-filled</b>.
+                          If your class has different times on different days, tap each block.
+                          You can adjust alerts after saving.
+                        </div>
+                      </div>
+                    </details>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             # Install tips + success check (final copy)
             st.markdown(
                 f"""
                 **How to install the calendar (.ics):**
                 - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
                   ✅ You should see a confirmation like **“Imported X of X events.”**
-                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Do the web steps above; events will sync to your phone automatically.
+                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), **or click “📲 Create personal schedule (repeating)” above to add it on your phone.**
                 - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
                   ✅ On iPhone you’re done — the series appears in the Calendar app.
 
