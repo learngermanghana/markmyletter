@@ -1962,7 +1962,7 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # ===================== Tabs UI ===========================
 # =========================================================
 
-def render_responsive_nav():
+def render_dropdown_nav():
     tabs = [
         "Dashboard",
         "My Course",
@@ -1971,56 +1971,21 @@ def render_responsive_nav():
         "Vocab Trainer",
         "Schreiben Trainer",
     ]
-    icons = ["🏠","📚","📊","🤖","🗣️","✍️"]
+    # read default from URL or session
+    default = st.query_params.get("tab", [st.session_state.get("main_tab_select", "Dashboard")])[0]
+    if default not in tabs:
+        default = "Dashboard"
 
-    # base selection
-    prev = st.session_state.get("main_tab_select", st.query_params.get("tab", ["Dashboard"])[0])
-    if prev not in tabs:
-        prev = "Dashboard"
+    sel = st.selectbox("How do you want to practice?", tabs, index=tabs.index(default), key="nav_dd")
 
-    # styles: hide/show by screen width
-    st.markdown("""
-    <style>
-      .nav-wide { display: none; }
-      @media (min-width: 640px){ .nav-wide { display:block; } .nav-narrow { display:none; } }
-      .pillbar{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px 0}
-      .pill{padding:7px 12px;border:1px solid #e5e7eb;border-radius:999px;font-weight:700;cursor:pointer; white-space:nowrap;}
-      .pill-active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
-    </style>
-    """, unsafe_allow_html=True)
-
-    # narrow: dropdown (visible on mobile)
-    with st.container():
-        st.markdown("<div class='nav-narrow'>", unsafe_allow_html=True)
-        dd_sel = st.selectbox("How do you want to practice?", tabs, index=tabs.index(prev), key="nav_dd_mobile")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # wide: pill buttons (visible on desktop)
-    with st.container():
-        st.markdown("<div class='nav-wide'>", unsafe_allow_html=True)
-        cols = st.columns(len(tabs))
-        pill_sel = prev
-        for i, t in enumerate(tabs):
-            label = f"{icons[i]} {t}"
-            with cols[i]:
-                if st.button(label, key=f"navpill_{i}", use_container_width=True):
-                    pill_sel = t
-        st.markdown(
-            "<div class='pillbar'>" +
-            "".join(f"<span class='pill {'pill-active' if tabs[i]==pill_sel else ''}' style='display:none'>{icons[i]} {tabs[i]}</span>" for i in range(len(tabs))) +
-            "</div>", unsafe_allow_html=True
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # resolve which control changed
-    sel = pill_sel if pill_sel != prev else dd_sel
+    # persist to URL + session
+    if sel != default:
+        st.query_params["tab"] = sel
     st.session_state["main_tab_select"] = sel
-    st.query_params["tab"] = sel
     return sel
 
 # usage
-tab = render_responsive_nav()
-
+tab = render_dropdown_nav()
 
 
 # =========================================================
