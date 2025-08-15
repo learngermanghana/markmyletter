@@ -5465,12 +5465,18 @@ if tab == "My Course":
 
 
         # ===================== TUTORS • CALENDAR • CONTACT (with general calendar fallback) =====================
-
-        # 1) Optional global/general calendar (set in secrets or env, else leave blank)
+        # Optional global/general calendar (safe secrets/env access)
+        try:
+            _cal_secrets = st.secrets.get("calendars", {})
+            if not isinstance(_cal_secrets, dict):
+                _cal_secrets = {}
+        except Exception:
+            _cal_secrets = {}
         GENERAL_CALENDAR_URL = (
-            (st.secrets.get("calendars", {{}}).get("general", "") if hasattr(st, "secrets") else "")
-            or os.getenv("GENERAL_CLASS_CALENDAR_URL", "").strip()
-        )
+            (_cal_secrets.get("general") or os.getenv("GENERAL_CLASS_CALENDAR_URL", ""))
+        ).strip()
+#
+
 
         # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
