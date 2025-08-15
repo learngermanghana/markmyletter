@@ -5069,8 +5069,13 @@ if tab == "My Course":
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
 
-        # ===================== TUTORS • CALENDAR • CONTACT (no image) =====================
+        # ===================== TUTORS • CALENDAR • CONTACT (with general calendar fallback) =====================
 
+        # 1) Optional global/general calendar (set in secrets or env, else leave blank)
+        GENERAL_CALENDAR_URL = (
+            (st.secrets.get("calendars", {}).get("general", "") if hasattr(st, "secrets") else "")
+            or os.getenv("GENERAL_CLASS_CALENDAR_URL", "").strip()
+        )
 
         # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
@@ -5089,7 +5094,8 @@ if tab == "My Course":
         co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
 
         def _tutor_line(d):
-            if not d: return ""
+            if not d: 
+                return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
         # Private email (prefill subject/body)
@@ -5104,6 +5110,11 @@ if tab == "My Course":
 
         t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
         t_cotutor = _tutor_line(co_tutor)
+
+        # 2) Choose the primary calendar to show (class-specific first, else general)
+        _class_cal = (calendar_url or "").strip()
+        _primary_cal = _class_cal or (GENERAL_CALENDAR_URL or "")
+        _has_general_extra = bool(GENERAL_CALENDAR_URL and _class_cal and GENERAL_CALENDAR_URL != _class_cal)
 
         st.markdown(
             f"""
@@ -5121,12 +5132,12 @@ if tab == "My Course":
               </div>
               {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
               <div style="font-size:1.05rem;">
-                📅 <b>Class Calendar:</b>
-                {"<a href='"+calendar_url+"' target='_blank'>Open calendar link</a>" if calendar_url else "<span style='color:#64748b'>No calendar link yet</span>"}
+                📅 <b>{'Class Calendar' if _class_cal else 'Calendar'}</b>:
+                {"<a href='"+_primary_cal+"' target='_blank'>Open calendar link</a>" if _primary_cal else "<span style='color:#64748b'>No calendar link yet</span>"}
               </div>
               <div style="margin-top:10px; color:#0369a1;">
-                Tip: Click the calendar link and choose <b>Save/Accept</b> to add it to your Google Calendar.
-                This ensures you get reminders for every class session.
+                Tip: Tap the calendar link and choose <b>Save/Accept</b> to add it to your Google/phone calendar.
+                You’ll then get reminders before every class.
               </div>
               <div style="margin-top:14px;">
                 <a href="{_mailto}" target="_blank" style="
@@ -5142,13 +5153,41 @@ if tab == "My Course":
             unsafe_allow_html=True
         )
 
-        if calendar_url:
-            try:
-                st.link_button("📅 Add Class Calendar (Google)", calendar_url, use_container_width=False)
-            except Exception:
-                st.markdown(f"[📅 Add Class Calendar (Google)]({calendar_url})")
+        # 3) Buttons: Add to Calendar (primary), optional "All classes calendar", and a copy-link button (mobile-friendly)
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            if _primary_cal:
+                try:
+                    st.link_button("📅 Add to Calendar", _primary_cal, use_container_width=True, key="btn_cal_primary")
+                except Exception:
+                    st.markdown(f"[📅 Add to Calendar]({_primary_cal})")
+            else:
+                st.info("No calendar link yet.")
+
+        with c2:
+            if _has_general_extra:
+                try:
+                    st.link_button("🗂 All Classes Calendar", GENERAL_CALENDAR_URL, use_container_width=True, key="btn_cal_general")
+                except Exception:
+                    st.markdown(f"[🗂 All Classes Calendar]({GENERAL_CALENDAR_URL})")
+            else:
+                st.markdown("")
+
+        with c3:
+            if _primary_cal:
+                # simple JS clipboard copy (works on mobile)
+                components.html(
+                    f"""
+                    <button onclick="navigator.clipboard.writeText('{_primary_cal.replace("'", "\\'")}').then(()=>{{this.innerText='✓ Copied'; setTimeout(()=>this.innerText='Copy',1500);}})" 
+                            style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy
+                    </button>
+                    """,
+                    height=40,
+                )
 
         st.divider()
+#
 
         # ===================== CLASS ROSTER =====================
         with st.expander("👥 Class Members", expanded=False):
