@@ -5415,7 +5415,7 @@ if tab == "My Course":
                 delta = (weekday_index - d.weekday()) % 7
                 return d + _td(days=delta)
 
-            # Build ICS
+            # Build ICS (with 15-minute preset reminder + URL field)
             _blocks = _parse_time_blocks(time_str, days)
             _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
             _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
@@ -5439,7 +5439,14 @@ if tab == "My Course":
                     f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}",
                     f"SUMMARY:{_summary}",
                     f"DESCRIPTION:{_details}",
+                    f"URL:{_zl}",
                     "LOCATION:Zoom",
+                    # preset alert 15 minutes before
+                    "BEGIN:VALARM",
+                    "ACTION:DISPLAY",
+                    "DESCRIPTION:Class starts soon",
+                    "TRIGGER:-PT15M",
+                    "END:VALARM",
                     "END:VEVENT",
                 ]
             else:
@@ -5463,7 +5470,14 @@ if tab == "My Course":
                         f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
                         f"SUMMARY:{_summary}",
                         f"DESCRIPTION:{_details}",
+                        f"URL:{_zl}",
                         "LOCATION:Zoom",
+                        # preset alert 15 minutes before
+                        "BEGIN:VALARM",
+                        "ACTION:DISPLAY",
+                        "DESCRIPTION:Class starts soon",
+                        "TRIGGER:-PT15M",
+                        "END:VALARM",
                         "END:VEVENT",
                     ]
 
@@ -5539,14 +5553,20 @@ if tab == "My Course":
                 else:
                     st.caption("Calendar created. Use the download button to import the full course.")
 
-            # Install tips
+            # Install tips + success check (final copy)
             st.markdown(
-                """
-                **How to install the calendar:**
-                - **Google Calendar (web):** Settings → **Import & export** → **Import** → choose the downloaded `.ics`.
-                - **Google Calendar (mobile):** Use the **Next session** link above, or import on web (mobile apps don’t import `.ics`).
-                - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add**.
-                - **Outlook:** Open the `.ics` file and choose **Save & Close**.
+                f"""
+                **How to install the calendar (.ics):**
+                - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
+                  ✅ You should see a confirmation like **“Imported X of X events.”**
+                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Do the web steps above; events will sync to your phone automatically.
+                - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
+                  ✅ On iPhone you’re done — the series appears in the Calendar app.
+
+                **How to confirm it worked:**
+                - On the calendar between **{start_date_obj:%d %b %Y} → {end_date_obj:%d %b %Y}**, you should see events titled **{_summary}**.
+                - Use the calendar search for **{_summary}** or Zoom ID **`{_zid}`** — matching events should show up.
+                - Make sure the **destination calendar** you imported into is **checked/visible** in the sidebar (Google) or enabled (iPhone).
                 """,
                 unsafe_allow_html=True,
             )
