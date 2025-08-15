@@ -443,18 +443,7 @@ def qp_clear_keys(*keys):
         except KeyError:
             pass
 
-
-# Fallbacks for modules used below (safe if already imported elsewhere)
-try:
-    _ = components  # noqa
-except NameError:
-    import streamlit.components.v1 as components  # type: ignore
-
-try:
-    _ = _urllib  # noqa
-except NameError:
-    import urllib.parse as _urllib  # type: ignore
-
+# ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
@@ -465,7 +454,6 @@ def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, se
         f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
     )
     if domain:
-        # "domain" can be the JS variable name "base" to use the computed base-domain in the snippet below
         base += f'c += "; Domain=" + {domain};\n'
     base += "document.cookie = c;\n"
     return base
@@ -557,102 +545,30 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     </script>
     """, height=0)
 
-# ---- PATCH A: iPhone/Safari restore from URL token BEFORE cookie restore/login guard ----
-try:
-    _params = st.experimental_get_query_params()
-    _url_token = (_params.get("token") or [None])[0]
-except Exception:
-    _url_token = None
-
-if _url_token and not st.session_state.get("session_token"):
-    try:
-        _ua = st.session_state.get("__ua_hash", "")
-        if "validate_session_token" in globals():
-            _data = validate_session_token(_url_token, _ua)
-        else:
-            _data = {"student_code": st.session_state.get("student_code","")}  # optimistic
-
-        if _data is not None:
-            # optional: fetch student row for immediate header rendering
-            _row = None
-            try:
-                if "load_student_data" in globals():
-                    _df_students = load_student_data()
-                    if not _df_students.empty:
-                        _f = _df_students[_df_students["StudentCode"] == _data.get("student_code","")]
-                        if not _f.empty:
-                            _row = _f.iloc[0]
-            except Exception:
-                _row = None
-
-            st.session_state.update({
-                "session_token": _url_token,
-                "logged_in": True,
-                "student_code": (_row["StudentCode"] if _row is not None else st.session_state.get("student_code","")),
-                "student_name": (_row["Name"] if _row is not None else st.session_state.get("student_name","")),
-                "student_row": (_row.to_dict() if _row is not None else st.session_state.get("student_row")),
-            })
-
-            # write a cookie so refresh works even if URL token is removed later
-            try:
-                set_session_token_cookie(
-                    cookie_manager, _url_token, expires=datetime.utcnow() + timedelta(days=30)
-                )
-            except Exception:
-                pass
-            # keep token in URL (already there) and mirror to localStorage
-            try:
-                _persist_session_client(_url_token, st.session_state.get("student_code",""))
-            except Exception:
-                pass
-    except Exception as e:
-        st.warning(f"Could not restore session from URL token: {e}")
-
 # ==== Cookie manager init ====
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
     st.stop()
-
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
-
-# ---- PATCH B: If session_token exists in memory but cookie missing, write it (helps iPhone/Safari) ----
-if st.session_state.get("session_token") and not (cookie_manager.get("session_token") or "").strip():
-    try:
-        set_session_token_cookie(
-            cookie_manager,
-            st.session_state["session_token"],
-            expires=datetime.utcnow() + timedelta(days=30)
-        )
-    except Exception as e:
-        st.warning(f"Could not persist token cookie: {e}")
 
 # ---- Restore from existing session token (cookie) ----
 restored = False
 if not st.session_state.get("logged_in", False):
     cookie_tok = (cookie_manager.get("session_token") or "").strip()
     if cookie_tok:
-        try:
-            data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
-        except Exception:
-            data = None
+        data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
             # Validate the student still exists and contract active
             try:
                 df_students = load_student_data()
-                found = df_students[df_students["StudentCode"] == data.get("student_code", "")]
+                found = df_students[df_students["StudentCode"] == data.get("student_code","")]
             except Exception:
                 found = pd.DataFrame()
-            _ok_contract = True
-            try:
-                if "is_contract_expired" in globals():
-                    _ok_contract = not is_contract_expired(found.iloc[0]) if not found.empty else False
-            except Exception:
-                pass
-            if not found.empty and _ok_contract:
+            if not found.empty and not is_contract_expired(found.iloc[0]):
                 row = found.iloc[0]
                 st.session_state.update({
                     "logged_in": True,
@@ -661,15 +577,10 @@ if not st.session_state.get("logged_in", False):
                     "student_name": row["Name"],
                     "session_token": cookie_tok,
                 })
-                try:
-                    new_tok = refresh_or_rotate_session_token(cookie_tok) if "refresh_or_rotate_session_token" in globals() else cookie_tok
-                    if new_tok:
-                        st.session_state["session_token"] = new_tok
-                        set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
-                except Exception:
-                    pass
+                new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
+                st.session_state["session_token"] = new_tok
+                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
-
 
 
 # --- 2) Global CSS (tightened spacing) ---
@@ -1623,9 +1534,6 @@ with col2:
 st.markdown("</div>", unsafe_allow_html=True)
 
 
-
-
-
 # =========================================================
 # ============= Announcements (mobile-friendly) ===========
 # =========================================================
@@ -1873,7 +1781,7 @@ announcements = [
     },
     {
         "title": "Calendar & Zoom in My Course → Classroom (no WhatsApp)",
-        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom. We’re discontinuing WhatsApp for announcements.",
+        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom.",
         "tag":   "Action"
     },
     {
@@ -10427,7 +10335,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
