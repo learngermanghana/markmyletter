@@ -1614,12 +1614,6 @@ if st.session_state.get("logged_in", False) and _logout_clicked:
 
 
 
-# ===== AUTH GUARD (place BEFORE rendering any header/UI for logged-in users) =====
-if not st.session_state.get("logged_in", False):
-    # Show your login page and stop execution so no header is drawn
-    login_page()
-    st.stop()
-
 # ===== Compact header + logout button (only runs when logged in) =====
 st.markdown("""
 <style>
