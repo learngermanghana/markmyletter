@@ -1517,8 +1517,45 @@ def login_page():
 
     st.stop()
 
-# ---- Logout handling (no experimental APIs, no layout shift) ----
-if _logout_clicked:
+# =========================
+# Logged-in header + Logout
+# =========================
+
+
+# Helpers for query params if you don't already have them
+def qp_clear_keys(*keys):
+    for k in keys:
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
+
+# Always define this so we never hit NameError
+_logout_clicked = False
+
+if st.session_state.get("logged_in", False):
+    # Compact header + logout button
+    st.markdown("""
+    <style>
+      .post-login-header { margin-top:0; margin-bottom:4px; }
+      .block-container { padding-top: 0.6rem !important; }
+      div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
+      .your-notifs { margin: 4px 0 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
+    col1, col2 = st.columns([0.85, 0.15])
+    with col1:
+        st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
+    with col2:
+        st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
+        _logout_clicked = st.button("Log out", key="logout_btn")
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ---- Logout handling (runs only when logged in AND clicked) ----
+if st.session_state.get("logged_in", False) and _logout_clicked:
     # 1) Try to revoke server token
     try:
         tok = st.session_state.get("session_token", "")
@@ -1544,24 +1581,20 @@ if _logout_clicked:
     except Exception as e:
         st.error(f"Logout failed (delete cookies): {e}")
 
-    # 3) Clear localStorage (no URL manipulation here to avoid pushing layout)
-    try:
-        import streamlit.components.v1 as components
-        components.html("""
-          <script>
-            try {
-              localStorage.removeItem('student_code');
-              localStorage.removeItem('session_token');
-            } catch(e) {}
-          </script>
-        """, height=0)
-    except Exception:
-        pass
+    # 3) Clear localStorage (no layout shift)
+    components.html("""
+      <script>
+        try {
+          localStorage.removeItem('student_code');
+          localStorage.removeItem('session_token');
+        } catch(e) {}
+      </script>
+    """, height=0)
 
-    # 4) Clear query params (replaces experimental_* calls)
+    # 4) Clean URL query params (no experimental API)
     qp_clear_keys("code", "state", "token")
 
-    # 5) Clear session state and stop
+    # 5) Reset session state
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1576,8 +1609,9 @@ if _logout_clicked:
     }.items():
         st.session_state[k] = v
 
-    # 6) Rerun script to refresh UI (use non-experimental API)
+    # 6) Rerun to refresh UI immediately
     st.rerun()
+
 
 
 # ===== AUTH GUARD (place BEFORE rendering any header/UI for logged-in users) =====
