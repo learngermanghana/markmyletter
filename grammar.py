@@ -4842,14 +4842,37 @@ if tab == "My Course":
                 st.session_state["__go_classroom"] = True
                 st.rerun()
 
-        # --- Column 3: Add Notes (just jump to Notes tab) ---
-        with col3:
-            st.markdown("#### 📝 Add Notes")
-            if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                # set a jump flag; no prefills
-                st.session_state["__go_notes"] = True
-                st.rerun()
+        with c3:
+            if _primary_cal:
+                # Safe copy-to-clipboard widget without %-formatting
+                components.html(
+                    """
+                    <div id="calCopyWrap" style="width:100%">
+                      <button id="calCopyBtn"
+                              style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy
+                      </button>
+                    </div>
+                    <script>
+                      (function(){
+                        try {
+                          var btn = document.getElementById('calCopyBtn');
+                          if (!btn) return;
+                          var txt = 'REPL_URL';
+                          btn.addEventListener('click', function(){
+                            navigator.clipboard.writeText(txt).then(function(){
+                              btn.innerText = '✓ Copied';
+                              setTimeout(function(){ btn.innerText = 'Copy'; }, 1500);
+                            }).catch(function(){});
+                          });
+                        } catch(e) {}
+                      })();
+                    </script>
+                    """.replace("REPL_URL", _primary_cal.replace("'", "\\'")),
+                    height=60,
+                )
 #
+
 
 
         st.divider()
