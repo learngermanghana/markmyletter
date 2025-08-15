@@ -1518,11 +1518,13 @@ def login_page():
     st.stop()
 
 # =========================
-# Logged-in header + Logout
+# Logged-in header + Logout (single source of truth)
 # =========================
+from datetime import datetime, timedelta
+import streamlit as st
+import streamlit.components.v1 as components
 
-
-# Helpers for query params if you don't already have them
+# --- tiny helper for query params ---
 def qp_clear_keys(*keys):
     for k in keys:
         try:
@@ -1530,41 +1532,31 @@ def qp_clear_keys(*keys):
         except KeyError:
             pass
 
-# Always define this so we never hit NameError
-_logout_clicked = False
+# --- inject client-side cleanup (runs right after a logout rerun) ---
+if st.session_state.pop("_inject_logout_js", False):
+    components.html("""
+      <script>
+        try {
+          localStorage.removeItem('student_code');
+          localStorage.removeItem('session_token');
+          const u = new URL(window.location);
+          ['code','state','token'].forEach(k => u.searchParams.delete(k));
+          window.history.replaceState({}, '', u);
+        } catch(e) {}
+      </script>
+    """, height=0)
 
-if st.session_state.get("logged_in", False):
-    # Compact header + logout button
-    st.markdown("""
-    <style>
-      .post-login-header { margin-top:0; margin-bottom:4px; }
-      .block-container { padding-top: 0.6rem !important; }
-      div[data-testid="stExpander"] { margin-top: 6px !important; margin-bottom: 6px !important; }
-      .your-notifs { margin: 4px 0 !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<div class='post-login-header'>", unsafe_allow_html=True)
-    col1, col2 = st.columns([0.85, 0.15])
-    with col1:
-        st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
-    with col2:
-        st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-        _logout_clicked = st.button("Log out", key="logout_btn")
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ---- Logout handling (runs only when logged in AND clicked) ----
-if st.session_state.get("logged_in", False) and _logout_clicked:
-    # 1) Try to revoke server token
+# --- one logout function, reusable and atomic ---
+def _do_logout():
+    # 1) Revoke server token (if your backend exposes it)
     try:
         tok = st.session_state.get("session_token", "")
         if tok and "destroy_session_token" in globals():
             destroy_session_token(tok)
     except Exception as e:
-        st.error(f"Logout failed (destroy token): {e}")
+        st.warning(f"Logout warning (revoke): {e}")
 
-    # 2) Expire cookies (library + host) – safe-guarded
+    # 2) Expire cookies (library + host)
     try:
         expires_past = datetime.utcnow() - timedelta(seconds=1)
         if "set_student_code_cookie" in globals():
@@ -1572,29 +1564,19 @@ if st.session_state.get("logged_in", False) and _logout_clicked:
         if "set_session_token_cookie" in globals():
             set_session_token_cookie(cookie_manager, "", expires=expires_past)
     except Exception as e:
-        st.error(f"Logout failed (expire cookies): {e}")
+        st.warning(f"Logout warning (expire cookies): {e}")
 
     try:
         cookie_manager.delete("student_code")
         cookie_manager.delete("session_token")
         cookie_manager.save()
-    except Exception as e:
-        st.error(f"Logout failed (delete cookies): {e}")
+    except Exception:
+        pass
 
-    # 3) Clear localStorage (no layout shift)
-    components.html("""
-      <script>
-        try {
-          localStorage.removeItem('student_code');
-          localStorage.removeItem('session_token');
-        } catch(e) {}
-      </script>
-    """, height=0)
-
-    # 4) Clean URL query params (no experimental API)
+    # 3) Clear URL query params server-side (mirrors client cleanup)
     qp_clear_keys("code", "state", "token")
 
-    # 5) Reset session state
+    # 4) Reset session state
     for k, v in {
         "logged_in": False,
         "student_row": None,
@@ -1609,12 +1591,18 @@ if st.session_state.get("logged_in", False) and _logout_clicked:
     }.items():
         st.session_state[k] = v
 
-    # 6) Rerun to refresh UI immediately
+    # 5) Flag to inject JS next render (clears localStorage + URL on client)
+    st.session_state["_inject_logout_js"] = True
+
+    # 6) Rerun to immediately refresh UI
     st.rerun()
 
+# ===== AUTH GUARD (stop before drawing any logged-in UI) =====
+if not st.session_state.get("logged_in", False):
+    login_page()
+    st.stop()
 
-
-# ===== Compact header + logout button (only runs when logged in) =====
+# ===== Compact header + single logout button =====
 st.markdown("""
 <style>
   .post-login-header { margin-top:0; margin-bottom:4px; }
@@ -1633,6 +1621,7 @@ with col2:
     st.button("Log out", key="logout_btn", on_click=_do_logout)
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 
