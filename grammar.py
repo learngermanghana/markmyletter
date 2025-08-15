@@ -5030,29 +5030,48 @@ if tab == "My Course":
                 st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
                 st.write(f"**Passcode:** `{ZOOM['passcode']}`")
 
-                # Copy helpers (mobile-friendly)
+                # Copy helpers (mobile-friendly, safe escaping)
+                _link_safe = ZOOM["link"].replace("'", "\\'")
+                _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
                 components.html(
-                    """
+                    f"""
                     <div style="display:flex;gap:8px;margin-top:8px;">
-                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied Link'; setTimeout(()=>this.innerText='Copy Link',1500);})"
+                      <button id="zCopyLink"
                               style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
                         Copy Link
                       </button>
-                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied ID'; setTimeout(()=>this.innerText='Copy ID',1500);})"
+                      <button id="zCopyId"
                               style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
                         Copy ID
                       </button>
-                      <button onclick="navigator.clipboard.writeText('%s').then(()=>{this.innerText='✓ Copied Passcode'; setTimeout(()=>this.innerText='Copy Passcode',1500);})"
+                      <button id="zCopyPwd"
                               style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
                         Copy Passcode
                       </button>
                     </div>
-                    """ % (
-                        ZOOM["link"].replace("'", "\\'"),
-                        ZOOM["meeting_id"].replace("'", "\\'"),
-                        ZOOM["passcode"].replace("'", "\\'")
-                    ),
-                    height=48,
+                    <script>
+                      (function(){{
+                        try {{
+                          var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                          function wire(btnId, txt, label) {{
+                            var b = document.getElementById(btnId);
+                            if (!b) return;
+                            b.addEventListener('click', function(){{
+                              navigator.clipboard.writeText(txt).then(function(){{
+                                b.innerText = '✓ Copied ' + label;
+                                setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                              }}).catch(function(){{}});
+                            }});
+                          }}
+                          wire('zCopyLink', link, 'Link');
+                          wire('zCopyId',   mid,  'ID');
+                          wire('zCopyPwd',  pwd,  'Passcode');
+                        }} catch(e) {{}}
+                      }})();
+                    </script>
+                    """,
+                    height=72,
                 )
 
             with z2:
@@ -5063,12 +5082,10 @@ if tab == "My Course":
                 )
 
         st.divider()
-#
-
         # ===================== CLASS META (safe resolver) =====================
 
         def _norm_class_local(s: str) -> str:
-            return re.sub(r"\s+", " ", (s or "").strip().lower())
+            return re.sub(r"\\s+", " ", (s or "").strip().lower())
 
         # Fallbacks you can edit; Firestore values (if any) will override these.
         CLASS_FALLBACKS_LOCAL = {
@@ -5109,9 +5126,9 @@ if tab == "My Course":
         except Exception:
             pass
         _fb = CLASS_FALLBACKS_LOCAL.get(_norm_class_local(class_name), {})
-        _meta = {**_fb, **_meta}
+        _meta = {{**_fb, **_meta}}
 
-        tutors        = _meta.get("tutors", [])  # list of names or {name,email}
+        tutors        = _meta.get("tutors", [])  # list of names or {{name,email}}
         calendar_url  = (_meta.get("calendar_url") or "").strip()
         contact_email = (_meta.get("contact_email") or "learngermanghana@gmail.com").strip()
 
@@ -5119,15 +5136,15 @@ if tab == "My Course":
 
         # 1) Optional global/general calendar (set in secrets or env, else leave blank)
         GENERAL_CALENDAR_URL = (
-            (st.secrets.get("calendars", {}).get("general", "") if hasattr(st, "secrets") else "")
+            (st.secrets.get("calendars", {{}}).get("general", "") if hasattr(st, "secrets") else "")
             or os.getenv("GENERAL_CLASS_CALENDAR_URL", "").strip()
         )
 
         # Normalize tutors into dicts and pick lead / co-tutor
         def _as_dict(t):
             if isinstance(t, dict):
-                return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
-            return {"name": str(t or "").strip(), "email": ""}
+                return {{"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}}
+            return {{"name": str(t or "").strip(), "email": ""}}
 
         _tutors_raw = tutors or []
         _tutors = []
@@ -5142,17 +5159,17 @@ if tab == "My Course":
         def _tutor_line(d):
             if not d:
                 return ""
-            return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
+            return d["name"] + (f" <span style='color:#64748b'>&lt;{{d['email']}}&gt;</span>" if d.get("email") else "")
 
         # Private email (prefill subject/body)
-        _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
+        _subj = f"Private message from {{student_name}} ({{student_code}}) — {{class_name}}"
         _body = (
-            "Hello Tutor,\n\n"
-            f"This is a private message from {student_name} ({student_code}).\n"
-            f"Class: {class_name}\n\n"
-            "Message:\n"
+            "Hello Tutor,\\n\\n"
+            f"This is a private message from {{student_name}} ({{student_code}}).\\n"
+            f"Class: {{class_name}}\\n\\n"
+            "Message:\\n"
         )
-        _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
+        _mailto = f"mailto:{{contact_email}}?{{_urllib.urlencode({{'subject': _subj, 'body': _body}})}}"
 
         t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
         t_cotutor = _tutor_line(co_tutor)
@@ -5174,25 +5191,25 @@ if tab == "My Course":
                 box-shadow: 0 2px 6px rgba(0,0,0,.05);
             ">
               <div style="font-size:1.05rem; margin-bottom:8px;">
-                👩‍🏫 <b>Tutor:</b> {t_primary}
+                👩‍🏫 <b>Tutor:</b> {{t_primary}}
               </div>
-              {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
+              {{"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}}
               <div style="font-size:1.05rem;">
-                📅 <b>{'Class Calendar' if _class_cal else 'Calendar'}</b>:
-                {"<a href='"+_primary_cal+"' target='_blank'>Open calendar link</a>" if _primary_cal else "<span style='color:#64748b'>No calendar link yet</span>"}
+                📅 <b>{{'Class Calendar' if _class_cal else 'Calendar'}}</b>:
+                {{"<a href='"+_primary_cal+"' target='_blank'>Open calendar link</a>" if _primary_cal else "<span style='color:#64748b'>No calendar link yet</span>"}}
               </div>
               <div style="margin-top:10px; color:#0369a1;">
                 Tip: Tap the calendar link and choose <b>Save/Accept</b> to add it to your Google/phone calendar.
                 You’ll then get reminders before every class.
               </div>
               <div style="margin-top:14px;">
-                <a href="{_mailto}" target="_blank" style="
+                <a href="{{_mailto}}" target="_blank" style="
                    display:inline-block;padding:8px 12px;border-radius:8px;
                    background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
                    ✉️ Private message your tutor
                 </a>
                 &nbsp;&nbsp;
-                <span style="color:#0c4a6e;">For <b>general questions</b>, please post in <b>Class Q&A</b> below.</span>
+                <span style="color:#0c4a6e;">For <b>general questions</b>, please post in <b>Class Q&amp;A</b> below.</span>
               </div>
             </div>
             """,
@@ -5206,7 +5223,7 @@ if tab == "My Course":
                 try:
                     st.link_button("📅 Add to Calendar", _primary_cal, use_container_width=True, key="btn_cal_primary")
                 except Exception:
-                    st.markdown(f"[📅 Add to Calendar]({_primary_cal})")
+                    st.markdown(f"[📅 Add to Calendar]({{_primary_cal}})")
             else:
                 st.info("No calendar link yet.")
 
@@ -5215,7 +5232,7 @@ if tab == "My Course":
                 try:
                     st.link_button("🗂 All Classes Calendar", GENERAL_CALENDAR_URL, use_container_width=True, key="btn_cal_general")
                 except Exception:
-                    st.markdown(f"[🗂 All Classes Calendar]({GENERAL_CALENDAR_URL})")
+                    st.markdown(f"[🗂 All Classes Calendar]({{GENERAL_CALENDAR_URL}})")
             else:
                 st.markdown("")
 
@@ -5252,9 +5269,9 @@ if tab == "My Course":
             else:
                 st.empty()
 
-        # --- One-tap reminders expander (builds a personal recurring series or .ics with alert) ---
+        # --- One-tap reminders expander (auto-build a recurring series link + downloadable .ics with 30-min alert) ---
         try:
-            # Prefer schedule values already computed earlier in your Classroom code:
+            # Prefer schedule values already computed earlier (from your schedule block):
             _days_for_series  = days if 'days' in locals() and isinstance(days, list) else None
             _time_for_series  = time_str if 'time_str' in locals() else None
             _start_for_series = start_dt if 'start_dt' in locals() else None   # "YYYY-MM-DD"
@@ -5271,7 +5288,7 @@ if tab == "My Course":
                     # Accepts '6:00pm–7:00pm' or '7:30pm-9:00pm'. Rejects multi-day strings.
                     if not s or ("," in s) or any(w in s for w in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]):
                         return None
-                    m = _re.search(r"(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*[\u2013\-]\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)", s, _re.I)
+                    m = _re.search(r"(\\d{{1,2}}:\\d{{2}}\\s*(?:am|pm)?)\\s*[\\u2013\\-]\\s*(\\d{{1,2}}:\\d{{2}}\\s*(?:am|pm)?)", s, _re.I)
                     if not m:
                         return None
                     def _to_24h(t):
@@ -5287,7 +5304,7 @@ if tab == "My Course":
                     return (sh, sm, eh, em)
 
                 def _byday_codes(days_list):
-                    codes = {"Monday":"MO","Tuesday":"TU","Wednesday":"WE","Thursday":"TH","Friday":"FR","Saturday":"SA","Sunday":"SU"}
+                    codes = {{"Monday":"MO","Tuesday":"TU","Wednesday":"WE","Thursday":"TH","Friday":"FR","Saturday":"SA","Sunday":"SU"}}
                     return ",".join([codes[d] for d in (days_list or []) if d in codes])
 
                 def _first_match_date(start_date_str, first_weekday_idx):
@@ -5320,16 +5337,16 @@ if tab == "My Course":
                         except Exception:
                             pass
                     rrule = f"RRULE:FREQ=WEEKLY;BYDAY={byday}" + (f";UNTIL={until}" if until else "")
-                    params = {
+                    params = {{
                         "action": "TEMPLATE",
                         "text": title,
-                        "details": f"{zoom_link}\n\n(Added from My Course ▸ Classroom)",
+                        "details": f"{{zoom_link}}\\n\\n(Added from My Course ▸ Classroom)",
                         "location": "Zoom",
                         "recur": rrule,
                         "dates": dates_param,
-                    }
+                    }}
                     qp = urlencode(params, quote_via=quote)
-                    return f"https://calendar.google.com/calendar/render?{qp}"
+                    return f"https://calendar.google.com/calendar/render?{{qp}}"
 
                 def build_ics_with_alarm(title: str, days: list, start_date: str, end_date: str, time_str: str, zoom_link: str):
                     tr = _parse_simple_timerange(time_str)
@@ -5349,7 +5366,7 @@ if tab == "My Course":
                         except Exception:
                             pass
                     ics_fmt = lambda dt: dt.strftime("%Y%m%dT%H%M%S")
-                    uid = f"{uuid4()}@learngermanghana"
+                    uid = f"{{uuid4()}}@learngermanghana"
                     now = _dtm.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
                     lines = [
                         "BEGIN:VCALENDAR",
@@ -5358,28 +5375,28 @@ if tab == "My Course":
                         "CALSCALE:GREGORIAN",
                         "METHOD:PUBLISH",
                         "BEGIN:VEVENT",
-                        f"UID:{uid}",
-                        f"DTSTAMP:{now}",
-                        f"SUMMARY:{title}",
-                        f"DESCRIPTION:{zoom_link}\\n(Added from My Course ▸ Classroom)",
+                        f"UID:{{uid}}",
+                        f"DTSTAMP:{{now}}",
+                        f"SUMMARY:{{title}}",
+                        f"DESCRIPTION:{{zoom_link}}\\\\n(Added from My Course ▸ Classroom)",
                         "LOCATION:Zoom",
-                        f"DTSTART:{ics_fmt(dtstart)}",
-                        f"DTEND:{ics_fmt(dtend)}",
+                        f"DTSTART:{{ics_fmt(dtstart)}}",
+                        f"DTEND:{{ics_fmt(dtend)}}",
                         "BEGIN:VALARM",
                         "TRIGGER:-PT30M",
                         "ACTION:DISPLAY",
                         "DESCRIPTION:Class starting soon",
                         "END:VALARM",
-                        "RRULE:FREQ=WEEKLY;BYDAY=" + byday + (f";UNTIL={until}" if until else ""),
+                        "RRULE:FREQ=WEEKLY;BYDAY=" + byday + (f";UNTIL={{until}}" if until else ""),
                         "END:VEVENT",
                         "END:VCALENDAR",
                         "",
                     ]
-                    return "\r\n".join(lines).encode("utf-8")
+                    return "\\r\\n".join(lines).encode("utf-8")
 
                 with st.expander("🔔 Prefer one-tap reminders?", expanded=False):
                     gcal_link = build_gcal_series_link(
-                        title=f"{class_name} (Zoom)",
+                        title=f"{{class_name}} (Zoom)",
                         days=_days_for_series,
                         start_date=_start_for_series or "",
                         end_date=_end_for_series or "",
@@ -5390,10 +5407,10 @@ if tab == "My Course":
                         try:
                             st.link_button("🟢 Add to Google Calendar (series)", gcal_link, use_container_width=True, key="btn_gcal_series")
                         except Exception:
-                            st.markdown(f"[🟢 Add to Google Calendar (series)]({gcal_link})")
+                            st.markdown(f"[🟢 Add to Google Calendar (series)]({{gcal_link}})")
 
                     ics_bytes = build_ics_with_alarm(
-                        title=f"{class_name} (Zoom)",
+                        title=f"{{class_name}} (Zoom)",
                         days=_days_for_series,
                         start_date=_start_for_series or "",
                         end_date=_end_for_series or "",
@@ -5404,7 +5421,7 @@ if tab == "My Course":
                         st.download_button(
                             "📲 Add to Apple/Phone Calendar (.ics, 30-min alert)",
                             data=ics_bytes,
-                            file_name=f"{class_name.replace(' ','_')}.ics",
+                            file_name=f"{{class_name.replace(' ','_')}}.ics",
                             mime="text/calendar",
                             use_container_width=True,
                             key="btn_cal_ics_dl"
