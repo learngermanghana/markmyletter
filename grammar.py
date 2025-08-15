@@ -4981,236 +4981,974 @@ if tab == "My Course":
             except Exception:
                 pass
 
-       # ===================== ONE-CLICK CALENDAR CREATE LINKS (Google / Outlook / ICS) =====================
-    try:
-        import re
-        from datetime import datetime, date, time as _time, timedelta
-        from uuid import uuid4
-        import urllib.parse as _urllib
-    except Exception:
-        pass
+        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+        with st.container():
+            st.markdown(
+                """
+                <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                  📣 <b>Zoom Classroom (Official)</b><br>
+                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-    # Pull schedule for this class from the global dictionary
-    _SCHEDULES = globals().get("GROUP_SCHEDULES", {}) or {}
-    _sch = _SCHEDULES.get(class_name, {}) if isinstance(_SCHEDULES, dict) else {}
-
-    _days_list   = list(_sch.get("days") or [])
-    _time_label  = str(_sch.get("time") or "").strip()
-    _start_label = str(_sch.get("start_date") or "").strip()
-    _end_label   = str(_sch.get("end_date") or "").strip()
-
-    # If missing, try locals as fallback (keeps your previous behavior)
-    if not _days_list:   _days_list   = list(locals().get("days") or [])
-    if not _time_label:  _time_label  = str(locals().get("time_str") or "").strip()
-    if not _start_label: _start_label = str(locals().get("start_dt") or "").strip()
-    if not _end_label:   _end_label   = str(locals().get("end_dt") or "").strip()
-
-    # Helpers
-    DAY_TO_CODE = {"Monday":"MO","Tuesday":"TU","Wednesday":"WE","Thursday":"TH","Friday":"FR","Saturday":"SA","Sunday":"SU"}
-    ABBR_TO_IDX = {"Mon":0,"Tue":1,"Wed":2,"Thu":3,"Fri":4,"Sat":5,"Sun":6}
-    IDX_TO_ABBR = {v:k for k,v in ABBR_TO_IDX.items()}
-
-    def _parse_time_range(label: str):
-        """Return ((sh, sm), (eh, em)) in 24h. Supports '6pm-7:30pm', '6:00pm–7:00pm', etc."""
-        if not label: 
-            return None
-        s = label.lower().replace("–","-").replace("—","-").strip()
-        m = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', s)
-        if not m:
-            return None
-        sh, sm, samp, eh, em, eamp = m.groups()
-        sh, sm, eh, em = int(sh), int(sm or 0), int(eh), int(em or 0)
-        if not samp and eamp: samp = eamp
-        if not eamp and samp: eamp = samp
-        def _to24(h, ap):
-            if not ap: return h
-            ap = ap.lower()
-            if ap == "pm" and h != 12: return h + 12
-            if ap == "am" and h == 12: return 0
-            return h
-        return (_to24(sh, samp), sm), (_to24(eh, eamp), em)
-
-    def _expand_day_group(token: str):
-        """'Thu/Fri' -> [3,4], 'Mon–Wed' -> [0,1,2], 'Wed' -> [2] using 0=Mon."""
-        t = token.strip()
-        t = t.replace("–","-").replace("—","-").replace(" ", "")
-        if "-" in t:
-            a,b = t.split("-",1)
-            ai, bi = ABBR_TO_IDX[a[:3]], ABBR_TO_IDX[b[:3]]
-            if ai <= bi:
-                return list(range(ai, bi+1))
-            return list(range(ai,7)) + list(range(0, bi+1))
-        if "/" in t:
-            return [ABBR_TO_IDX[x[:3]] for x in t.split("/")]
-        return [ABBR_TO_IDX[t[:3]]]
-
-    def _first_on_or_after(base_date: date, weekday_index: int) -> date:
-        delta = (weekday_index - base_date.weekday()) % 7
-        return base_date + timedelta(days=delta)
-
-    def _byday_codes_from_indices(indices):
-        full = {0:"MO",1:"TU",2:"WE",3:"TH",4:"FR",5:"SA",6:"SU"}
-        return [full[i] for i in sorted(set(indices))]
-
-    def _build_google_link(title, start_dt, end_dt, byday_codes, details, tz="Africa/Accra", until_utc=None):
-        params = {
-            "action":"TEMPLATE",
-            "text": title,
-            "details": details,
-            "location":"Zoom",
-            "ctz": tz,
-            "dates": f"{start_dt.strftime('%Y%m%dT%H%M%S')}/{end_dt.strftime('%Y%m%dT%H%M%S')}",
-        }
-        if byday_codes:
-            rrule = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)}"
-            if until_utc:
-                rrule += f";UNTIL={until_utc}"
-            params["recur"] = rrule
-        return "https://calendar.google.com/calendar/render?" + _urllib.urlencode(params, quote_via=_urllib.quote)
-
-    def _build_outlook_link(title, start_dt, end_dt, details):
-        params = {
-            "path":"/calendar/action/compose",
-            "rru":"addevent",
-            "startdt": start_dt.strftime('%Y-%m-%dT%H:%M:%S'),
-            "enddt": end_dt.strftime('%Y-%m-%dT%H:%M:%S'),
-            "subject": title,
-            "body": details,
-            "location":"Zoom",
-        }
-        return "https://outlook.live.com/calendar/0/deeplink/compose?" + _urllib.urlencode(params, quote_via=_urllib.quote)
-
-    def _make_ics(title, start_dt, end_dt, byday_codes, details, tz="Africa/Accra", until_utc=None):
-        uid = f"{uuid4()}@falowen"
-        dtstamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-        lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//LLEA//Class Scheduler//EN",
-            "CALSCALE:GREGORIAN",
-            f"X-WR-TIMEZONE:{tz}",
-            "BEGIN:VEVENT",
-            f"UID:{uid}",
-            f"DTSTAMP:{dtstamp}",
-            f"SUMMARY:{title}",
-            f"DTSTART;TZID={tz}:{start_dt.strftime('%Y%m%dT%H%M%S')}",
-            f"DTEND;TZID={tz}:{end_dt.strftime('%Y%m%dT%H%M%S')}",
-            "LOCATION:Zoom",
-        ]
-        if byday_codes:
-            r = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)}"
-            if until_utc:
-                r += f";UNTIL={until_utc}"
-            lines.append(r)
-        for L in (details or "").splitlines():
-            # Escape per RFC 5545 (basic)
-            lines.append("DESCRIPTION:" + L.replace("\\","\\\\").replace(",","\\,"))
-        lines.extend(["END:VEVENT","END:VCALENDAR"])
-        return "\r\n".join(lines).encode("utf-8")
-
-    # Build groups (supports uniform time or 'Thu/Fri: 6-7pm, Sat: 8-9am')
-    _groups = []  # list of (weekday_indices, ((sh,sm),(eh,em)), label)
-    if _time_label and (":" in _time_label and ("," in _time_label or ":" in _time_label.split(":")[0])):
-        # Complex: e.g., "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am"
-        parts = [p.strip() for p in _time_label.split(",") if p.strip()]
-        for p in parts:
-            if ":" not in p:  # malformed; skip
-                continue
-            left, right = p.split(":", 1)
+            ZOOM = {
+                "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+                "meeting_id": "688 690 0916",
+                "passcode": "german",
+            }
+            # Allow secrets override
             try:
-                idxs = []
-                for token in re.split(r'\s*/\s*', left.strip()):
-                    idxs.extend(_expand_day_group(token))
-                tr = _parse_time_range(right)
-                if tr:
-                    _groups.append((sorted(set(idxs)), tr, left.strip()))
+                zs = st.secrets.get("zoom", {})
+                if zs.get("link"):       ZOOM["link"]       = zs["link"]
+                if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
             except Exception:
-                continue
-    else:
-        # Uniform: same time across all _days_list
-        tr = _parse_time_range(_time_label)
-        if tr and _days_list:
-            week_map = {"Monday":0,"Tuesday":1,"Wednesday":2,"Thursday":3,"Friday":4,"Saturday":5,"Sunday":6}
-            idxs = [week_map[d] for d in _days_list if d in week_map]
-            _groups.append((sorted(set(idxs)), tr, ", ".join([IDX_TO_ABBR[i] for i in idxs])))
+                pass
 
-    # Only render UI if we have at least one valid group
-    if _groups:
-        # Core dates
-        tz = "Africa/Accra"
-        today = date.today()
-        start_date_obj = None
-        end_date_obj = None
-        try:
-            if _start_label:
-                start_date_obj = datetime.strptime(_start_label, "%Y-%m-%d").date()
-        except Exception:
-            start_date_obj = None
-        try:
-            if _end_label:
-                end_date_obj = datetime.strptime(_end_label, "%Y-%m-%d").date()
-        except Exception:
-            end_date_obj = None
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
 
-        base_date = max(d for d in [today, start_date_obj] if d) if (today or start_date_obj) else today
-
-        # Zoom details for descriptions
-        _z = locals().get("ZOOM", {}) if isinstance(locals().get("ZOOM"), dict) else {}
-        _zoom_link = _z.get("link","")
-        _zoom_mid  = _z.get("meeting_id","")
-        _zoom_pwd  = _z.get("passcode","")
-        desc = f"Zoom: {_zoom_link}\nMeeting ID: {_zoom_mid}\nPasscode: {_zoom_pwd}\nClass: {class_name}"
-
-        st.markdown("#### ➕ Quick Calendar links (create manually)")
-        st.caption("We don’t add anything automatically. Use a link below to create your own reminder (recommended).")
-
-        # Render one row per time-group (so mixed schedules get separate links)
-        for idxs, tr, label in _groups:
-            if not idxs or not tr:
-                continue
-            (sh, sm), (eh, em) = tr
-            # the first upcoming date among this group's weekdays
-            first_dates = [_first_on_or_after(base_date, i) for i in idxs]
-            first_date  = min(first_dates) if first_dates else base_date
-
-            start_dt = datetime.combine(first_date, _time(hour=sh, minute=sm))
-            end_dt   = datetime.combine(first_date, _time(hour=eh, minute=em))
-
-            byday_codes = _byday_codes_from_indices(idxs)
-
-            until_utc = None
-            if end_date_obj:
-                # Ghana is UTC+0 (no DST), so use Z times directly
-                until_utc = end_date_obj.strftime("%Y%m%dT235959Z")
-
-            title = f"{class_name} (Zoom)"
-
-            g_link = _build_google_link(title, start_dt, end_dt, byday_codes, desc, tz=tz, until_utc=until_utc)
-            o_link = _build_outlook_link(title, start_dt, end_dt, desc)
-            ics_bytes = _make_ics(title, start_dt, end_dt, byday_codes, desc, tz=tz, until_utc=until_utc)
-
-            c1, c2, c3 = st.columns([1.5,1.2,1.6])
-            with c1:
+            z1, z2 = st.columns([3, 2])
+            with z1:
+                # Primary join button (browser)
                 try:
-                    st.link_button(f"Google Calendar ({label})", g_link, key=f"cal_g_{label}_{sh}{sm}")
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
                 except Exception:
-                    st.markdown(f"[Google Calendar ({label})]({g_link})")
-            with c2:
-                st.download_button(
-                    f"Download .ics ({label})",
-                    data=ics_bytes,
-                    file_name=f"{class_name}_{label.replace(' ','')}.ics",
-                    mime="text/calendar",
-                    key=f"cal_ics_{label}_{sh}{sm}"
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                # Secondary: open in Zoom app (mobile deep link)
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+
+                # Copy helpers (mobile-friendly, safe escaping)
+                _link_safe = ZOOM["link"].replace("'", "\\'")
+                _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
+                components.html(
+                    f"""
+                    <div style="display:flex;gap:8px;margin-top:8px;">
+                      <button id="zCopyLink"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy Link
+                      </button>
+                      <button id="zCopyId"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy ID
+                      </button>
+                      <button id="zCopyPwd"
+                              style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                        Copy Passcode
+                      </button>
+                    </div>
+                    <script>
+                      (function(){{
+                        try {{
+                          var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                          function wire(btnId, txt, label) {{
+                            var b = document.getElementById(btnId);
+                            if (!b) return;
+                            b.addEventListener('click', function(){{
+                              navigator.clipboard.writeText(txt).then(function(){{
+                                b.innerText = '✓ Copied ' + label;
+                                setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                              }}).catch(function(){{}});
+                            }});
+                          }}
+                          wire('zCopyLink', link, 'Link');
+                          wire('zCopyId',   mid,  'ID');
+                          wire('zCopyPwd',  pwd,  'Passcode');
+                        }} catch(e) {{}}
+                      }})();
+                    </script>
+                    """,
+                    height=72,
                 )
-            with c3:
-                try:
-                    st.link_button(f"Outlook ({label})", o_link, key=f"cal_o_{label}_{sh}{sm}")
-                except Exception:
-                    st.markdown(f"[Outlook ({label})]({o_link})")
 
-        st.info("If your schedule changes mid-course, just create a new event with the updated days/time.", icon="🛠️")
+            with z2:
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n\n"
+                    "✅ Use the **calendar below** to receive automatic class reminders.",
+                    icon="📅",
+                )
+
+        st.divider()
+
+        # ===================== TUTORS • CONTACT • SCHEDULE (no shared calendar; robust lookup) =====================
+        # Shows tutor/contact. Pulls schedule from GROUP_SCHEDULES[class_name] if available, otherwise falls back.
+        # Students are guided to create their own calendar reminders.
+
+        # ---- Safe imports ----
+        try:
+            import urllib.parse as _urllib
+        except Exception:
+            import urllib as _urllib  # ultra defensive
+        try:
+            import streamlit.components.v1 as components
+        except Exception:
+            components = None
+        import re as _re3
+
+        # ---- Core context (safe fallbacks) ----
+        _meta_local   = locals().get("_meta", {}) if isinstance(locals().get("_meta", {}), dict) else {}
+        student_name  = locals().get("student_name", "Student")
+        student_code  = locals().get("student_code", "demo001")
+        class_name    = locals().get("class_name", "My Class")
+        contact_email = (
+            (locals().get("contact_email") or "")
+            or (_meta_local.get("contact_email") or "")
+            or "learngermanghana@gmail.com"
+        ).strip()
+        IS_ADMIN = bool(locals().get("IS_ADMIN", False))
+
+        # ---- Tutors normalize & pick lead/co-tutor ----
+        def _as_dict(t):
+            if isinstance(t, dict):
+                return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
+            return {"name": str(t or "").strip(), "email": ""}
+
+        _tutors_raw = []
+        try:
+            if "tutors" in locals():
+                _tutors_raw = (locals().get("tutors") or [])
+            elif _meta_local:
+                _tutors_raw = (_meta_local.get("tutors") or [])
+        except Exception:
+            _tutors_raw = []
+
+        _tutors = []
+        for t in _tutors_raw or []:
+            d = _as_dict(t)
+            if d["name"]:
+                _tutors.append(d)
+
+        lead_tutor = _tutors[0] if _tutors else None
+        co_tutor   = _tutors[1] if len(_tutors) > 1 else None  # only show if exists
+
+        def _tutor_line(d):
+            if not d:
+                return ""
+            return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
+
+        t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
+        t_cotutor = _tutor_line(co_tutor)
+
+        # ---- Private mailto with prefilled subject/body ----
+        _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
+        _body = (
+            "Hello Tutor,\n\n"
+            f"This is a private message from {student_name} ({student_code}).\n"
+            f"Class: {class_name}\n\n"
+            "Message:\n"
+        )
+        _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
+
+        # ---- Schedule source (robust pick + normalization) ----
+        def _norm_key(s: str) -> str:
+            # remove non-alnum, collapse, lowercase
+            return _re3.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+        # NOTE: Your GROUP_SCHEDULES must be defined ABOVE this block.
+        # We try both locals() and globals() just in case.
+        _sched_src = None
+        for _scope in (locals(), globals(), getattr(st, "session_state", {})):
+            try:
+                if isinstance(_scope, dict) and isinstance(_scope.get("GROUP_SCHEDULES"), dict):
+                    _sched_src = _scope["GROUP_SCHEDULES"]
+                    break
+            except Exception:
+                pass
+        GROUP_SCHEDULES_SAFE = _sched_src or {}
+
+        _idx = { _norm_key(k): v for k, v in GROUP_SCHEDULES_SAFE.items() }
+        _sch = _idx.get(_norm_key(class_name), {})
+
+        # Fallback to any precomputed schedule vars if dict has no match
+        _days_list   = list(_sch.get("days") or (locals().get("days") if isinstance(locals().get("days"), list) else []))
+        _time_label  = str((_sch.get("time") or locals().get("time_str") or "")).strip()
+        _start_label = str((_sch.get("start_date") or locals().get("start_dt") or "")).strip()
+        _end_label   = str((_sch.get("end_date") or locals().get("end_dt") or "")).strip()
+
+        def _short_day(d: str) -> str:
+            m = {"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"}
+            return m.get(d, d)
+
+        _days_short = ", ".join(_short_day(d) for d in _days_list) if _days_list else ""
+        _schedule_line = (
+            (f"🗓️ <b>Schedule:</b> {_days_short} • <b>Time:</b> {_time_label}"
+             f"{' • <b>Start:</b> ' + _start_label if _start_label else ''}"
+             f"{' • <b>End:</b> ' + _end_label if _end_label else ''}")
+            if (_days_list and _time_label) else "🗓️ <span style='color:#64748b'>Schedule not set</span>"
+        )
+
+        # ---- Render tutor card + schedule (no shared calendar) ----
+        st.markdown(
+            f"""
+            <div style="
+                padding: 14px;
+                background: #ecfeff;
+                border: 1px solid #bae6fd;
+                color: #0c4a6e;
+                border-radius: 10px;
+                margin-bottom: 14px;
+                box-shadow: 0 2px 6px rgba(0,0,0,.05);
+            ">
+              <div style="font-size:1.05rem; margin-bottom:8px;">
+                👩‍🏫 <b>Tutor:</b> {t_primary}
+              </div>
+              {"<div style='font-size:1.05rem; margin-bottom:8px;'>🤝 <b>Co-Tutor:</b> " + t_cotutor + "</div>" if co_tutor else ""}
+              <div style="font-size:1.05rem; margin-top:4px;">
+                {_schedule_line}
+              </div>
+              <div style="margin-top:12px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:8px 10px; border-radius:8px;">
+                We don’t auto-add events to your phone. Use the guide below to create your own calendar reminders in under a minute.
+              </div>
+              <div style="margin-top:12px;">
+                <a href="{_mailto}" target="_blank" style="
+                   display:inline-block;padding:8px 12px;border-radius:8px;
+                   background:#0ea5e9;color:#fff;text-decoration:none;font-weight:600;">
+                   ✉️ Private message your tutor
+                </a>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # ---- Manual reminder setup (students create events on their own calendar) ----
+        try:
+            if _days_list and _time_label:
+                first_day = _days_list[0]
+                with st.expander("🔔 Create your own reminders (Google / Apple / Outlook)", expanded=False):
+                    choice = st.selectbox(
+                        "Choose your calendar app:",
+                        ["Google Calendar (Android/Web)", "Apple Calendar (iPhone/iPad/Mac)", "Outlook (Windows/Web)"],
+                        key="manual_reminder_app_v4",
+                    )
+
+                    _ds = ", ".join(_short_day(d) for d in _days_list)
+
+                    if choice == "Google Calendar (Android/Web)":
+                        st.markdown(
+                            f"""
+                            1) Open **Google Calendar** → **Create** → **Event**  
+                            2) Title: **{class_name} (Zoom)**  
+                            3) Set the **first date** to the next **{first_day}**  
+                            4) Time: **{_time_label}**  
+                            5) **Does not repeat → Weekly**, select: **{_ds}**  
+                            6) *(Optional)* **Ends**: **{_end_label or 'course end'}**  
+                            7) Location: **Zoom** • Description: paste the Zoom link  
+                            8) **Save** ✅
+                            """
+                        )
+                    elif choice == "Apple Calendar (iPhone/iPad/Mac)":
+                        st.markdown(
+                            f"""
+                            1) Open **Calendar** → **+** → **New Event**  
+                            2) Title: **{class_name} (Zoom)**  
+                            3) Start time: **{_time_label}** on the next **{first_day}**  
+                            4) **Repeat → Custom → Weekly**, select: **{_ds}**  
+                            5) **End Repeat**: **{_end_label or 'choose a course end date'}**  
+                            6) URL/Notes: paste the Zoom link  
+                            7) Add an **Alert** (e.g., 30 minutes before) → **Add** ✅
+                            """
+                        )
+                    else:
+                        st.markdown(
+                            f"""
+                            1) Open **Outlook Calendar** → **New Event**  
+                            2) Title: **{class_name} (Zoom)**  
+                            3) Start time: **{_time_label}** on the next **{first_day}**  
+                            4) **Repeat → Weekly**, choose: **{_ds}**  
+                            5) **End date**: **{_end_label or 'course end'}**  
+                            6) Location: **Zoom** • Body: paste the Zoom link  
+                            7) Add a reminder (e.g., 30 minutes) → **Save** ✅
+                            """
+                        )
+
+                    # One-click copy of the schedule text
+                    _zoom_link = (locals().get("ZOOM", {}).get("link") if isinstance(locals().get("ZOOM"), dict) else "") or ""
+                    _copy_text = (
+                        f"{class_name} (Zoom)\n"
+                        f"Days: {', '.join(_days_list)}\n"
+                        f"Time: {_time_label}\n"
+                        f"Start: {_start_label}\n"
+                        f"End: {_end_label}\n"
+                        f"Zoom: {_zoom_link}"
+                    )
+                    _copy_js = _copy_text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+
+                    if components:
+                        components.html(
+                            f"""
+                            <div style="display:flex; gap:8px; align-items:center;">
+                              <button id="copySchedBtn2"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy schedule text
+                              </button>
+                              <span style="color:#64748b; font-size:0.9rem;">Paste into your event description.</span>
+                            </div>
+                            <script>
+                              (function(){{
+                                try {{
+                                  var b = document.getElementById('copySchedBtn2');
+                                  if (!b) return;
+                                  var txt = '{_copy_js}';
+                                  b.addEventListener('click', function(){{
+                                    navigator.clipboard.writeText(txt).then(function(){{
+                                      b.innerText = '✓ Copied';
+                                      setTimeout(function(){{ b.innerText = 'Copy schedule text'; }}, 1500);
+                                    }}).catch(function(){{}});
+                                  }});
+                                }} catch(e) {{}}
+                              }})();
+                            </script>
+                            """,
+                            height=44,
+                        )
+                    else:
+                        st.code(_copy_text, language="text")
+            else:
+                st.info("🗓️ Your class schedule isn’t set yet. Please contact your tutor or the office.")
+        except Exception:
+            # If schedule info is missing or any UI glue fails, just skip the expander gracefully.
+            pass
+
+        # ---- (Optional) tiny debug (only for admins) ----
+        if IS_ADMIN:
+            with st.expander("⚙️ Debug: schedule resolution", expanded=False):
+                st.write({
+                    "class_name": class_name,
+                    "norm_key(class_name)": _norm_key(class_name),
+                    "has_GROUP_SCHEDULES": isinstance(GROUP_SCHEDULES_SAFE, dict) and bool(GROUP_SCHEDULES_SAFE),
+                    "available_keys": list(GROUP_SCHEDULES_SAFE.keys())[:8],
+                    "resolved_days": _days_list,
+                    "resolved_time": _time_label,
+                    "start": _start_label,
+                    "end": _end_label,
+                })
+
+        st.divider()
 #
+
+
+
+        # ===================== CLASS ROSTER =====================
+        with st.expander("👥 Class Members", expanded=False):
+            try:
+                df_students = load_student_data()
+
+                # Normalize required columns
+                for col in ("ClassName", "Name", "Email", "Location"):
+                    if col not in df_students.columns:
+                        df_students[col] = ""
+                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
+
+                # Filter to this class
+                same_class = df_students[df_students["ClassName"] == class_name].copy()
+
+                # Columns to display (no StudentCode)
+                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
+
+                if not same_class.empty and cols_show:
+                    st.dataframe(
+                        same_class[cols_show].reset_index(drop=True),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                else:
+                    st.info("No members found for this class yet.")
+            except Exception as e:
+                st.warning(f"Couldn’t load the class roster right now. {e}")
+#
+
+        # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
+        st.markdown("### 📢 Announcements")
+
+        # Prefer cached helper if exists; else fallback to direct CSV
+        try:
+            df = fetch_announcements_csv()
+        except Exception:
+            df = pd.DataFrame()
+        if df.empty:
+            CSV_URL = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
+            try:
+                df = pd.read_csv(CSV_URL)
+            except Exception:
+                df = pd.DataFrame()
+
+        # Helpers (links, parsing, ids)
+        URL_RE = re.compile(r"(https?://[^\s]+)")
+
+        def _short_label_from_url(u: str) -> str:
+            try:
+                p = urllib.parse.urlparse(u)
+                host = (p.netloc or "").replace("www.", "")
+                path = (p.path or "").strip("/")
+                label = host if not path else f"{host}/{path}"
+                return label[:60] + ("…" if len(label) > 60 else "")
+            except Exception:
+                return u[:60] + ("…" if len(u) > 60 else "")
+
+        def _guess_link_emoji_and_label(u: str):
+            lu = u.lower()
+            if "zoom.us" in lu: return "🎦", None
+            if "youtu" in lu:   return "▶️", None
+            if lu.endswith(".pdf"): return "📄", None
+            if "drive.google" in lu: return "🟢", None
+            if "deepl.com" in lu: return "🌐", None
+            if "google.com" in lu: return "🔗", None
+            return "🔗", None
+
+        # Normalize CSV into canonical columns
+        if not df.empty:
+            df.columns = [str(c).strip() for c in df.columns]
+            lower_map = {c.lower(): c for c in df.columns}
+
+            def _col(name: str):
+                return lower_map.get(name.lower())
+
+            for logical in ("announcement", "class", "date", "pinned"):
+                if _col(logical) is None:
+                    df[logical] = ""
+
+            rename_map = {}
+            if _col("announcement"): rename_map[_col("announcement")] = "Announcement"
+            if _col("class"):        rename_map[_col("class")]        = "Class"
+            if _col("date"):         rename_map[_col("date")]         = "Date"
+            if _col("pinned"):       rename_map[_col("pinned")]       = "Pinned"
+            df = df.rename(columns=rename_map)
+
+            for c in ("Announcement", "Class", "Date", "Pinned"):
+                if c not in df.columns:
+                    df[c] = ""
+
+            # Optional Link/Links column
+            link_key = lower_map.get("link") or lower_map.get("links")
+            df["Links"] = [[] for _ in range(len(df))]
+            if link_key:
+                def _split_links(val):
+                    s = str(val or "").strip()
+                    if not s:
+                        return []
+                    parts = [p for chunk in s.split(",") for p in chunk.split()]
+                    return [p.strip() for p in parts if p.strip().lower().startswith(("http://", "https://"))]
+                df["Links"] = df[link_key].apply(_split_links)
+
+            # Normalize pinned
+            def _norm_pinned(v) -> bool:
+                s = str(v).strip().lower()
+                return s in {"true", "yes", "1"}
+            df["Pinned"] = df["Pinned"].apply(_norm_pinned)
+
+            # Parse dates
+            def _parse_dt(x):
+                for fmt in ("%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%d/%m/%Y %H:%M", "%Y-%m-%d", "%d/%m/%Y"):
+                    try:
+                        return datetime.strptime(str(x), fmt)
+                    except Exception:
+                        continue
+                try:
+                    return pd.to_datetime(x, errors="coerce")
+                except Exception:
+                    return pd.NaT
+            df["__dt"] = df["Date"].apply(_parse_dt)
+
+            # Append auto-detected links
+            def _append_detected_links(row):
+                txt = str(row.get("Announcement", "") or "")
+                found = URL_RE.findall(txt)
+                existing = list(row.get("Links", []) or [])
+                merged, seen = [], set()
+                for url in existing + found:
+                    if url not in seen:
+                        merged.append(url); seen.add(url)
+                return merged
+            df["Links"] = df.apply(_append_detected_links, axis=1)
+
+            # Stable ID
+            def _ann_id(row):
+                try:
+                    raw = f"{row.get('Class','')}|{row.get('Date','')}|{row.get('Announcement','')}".encode("utf-8")
+                    return hashlib.sha1(raw).hexdigest()[:16]
+                except Exception:
+                    return str(uuid4()).replace("-", "")[:16]
+            df["__id"] = df.apply(_ann_id, axis=1)
+
+        # Firestore reply helpers (with IDs for edit/delete)
+        def _ann_reply_coll(ann_id: str):
+            return (db.collection("class_announcements")
+                     .document(class_name)
+                     .collection("replies")
+                     .document(ann_id)
+                     .collection("posts"))
+
+        def _load_replies_with_ids(ann_id: str):
+            try:
+                docs = list(_ann_reply_coll(ann_id).order_by("timestamp").stream())
+            except Exception:
+                docs = list(_ann_reply_coll(ann_id).stream())
+                docs.sort(key=lambda d: (d.to_dict() or {}).get("timestamp"))
+            out = []
+            for d in docs:
+                x = d.to_dict() or {}
+                x["__id"] = d.id
+                out.append(x)
+            return out
+
+        def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
+            _ann_reply_coll(ann_id).document(reply_id).update({
+                "text": new_text.strip(),
+                "edited_at": datetime.utcnow(),
+                "edited_by": student_name,
+                "edited_by_code": student_code,
+            })
+
+        def _delete_reply(ann_id: str, reply_id: str):
+            _ann_reply_coll(ann_id).document(reply_id).delete()
+
+        # Controls + render
+        if df.empty:
+            st.info("No announcements yet.")
+        else:
+            c1, c2, c3 = st.columns([1, 2, 1])
+            with c1:
+                show_only_pinned = st.checkbox("Show only pinned", value=False, key="ann_only_pinned")
+            with c2:
+                search_term = st.text_input("Search announcements…", "", key="ann_search")
+            with c3:
+                if st.button("↻ Refresh", key="ann_refresh"):
+                    try:
+                        st.cache_data.clear()
+                    except Exception:
+                        pass
+                    st.rerun()
+
+            # Filter for this class
+            df["__class_norm"] = (
+                df["Class"].astype(str)
+                .str.replace(r"\s+", " ", regex=True)
+                .str.strip()
+                .str.lower()
+            )
+            class_norm = re.sub(r"\s+", " ", class_name.strip().lower())
+            view = df[df["__class_norm"] == class_norm].copy()
+
+            if show_only_pinned:
+                view = view[view["Pinned"] == True]
+            if search_term.strip():
+                q = search_term.lower()
+                view = view[view["Announcement"].astype(str).str.lower().str.contains(q)]
+
+            view.sort_values("__dt", ascending=False, inplace=True, na_position="last")
+            pinned_df = view[view["Pinned"] == True]
+            latest_df = view[view["Pinned"] == False]
+
+            def render_announcement(row, is_pinned=False):
+                # teacher card
+                try:
+                    ts_label = row.get("__dt").strftime("%d %b %H:%M")
+                except Exception:
+                    ts_label = ""
+                st.markdown(
+                    f"<div style='padding:10px 12px; background:{'#fff7ed' if is_pinned else '#f8fafc'}; "
+                    f"border:1px solid #e5e7eb; border-radius:8px; margin:8px 0;'>"
+                    f"{'📌 <b>Pinned</b> • ' if is_pinned else ''}"
+                    f"<b>Teacher</b> <span style='color:#888;'>{ts_label} GMT</span><br>"
+                    f"{row.get('Announcement','')}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
+                # links
+                links = row.get("Links") or []
+                if isinstance(links, str):
+                    links = [links] if links.strip() else []
+                if links:
+                    st.markdown("**🔗 Links:**")
+                    for u in links:
+                        emoji, label = _guess_link_emoji_and_label(u)
+                        label = label or _short_label_from_url(u)
+                        st.markdown(f"- {emoji} [{label}]({u})")
+
+                # replies
+                ann_id = row.get("__id")
+                replies = _load_replies_with_ids(ann_id)
+                if replies:
+                    for r in replies:
+                        ts = r.get("timestamp")
+                        when = ""
+                        try:
+                            when = ts.strftime("%d %b %H:%M") + " UTC"
+                        except Exception:
+                            pass
+                        edited_badge = ""
+                        if r.get("edited_at"):
+                            try:
+                                edited_badge = f" <span style='color:#aaa;'>(edited {r['edited_at'].strftime('%d %b %H:%M')} UTC)</span>"
+                            except Exception:
+                                edited_badge = " <span style='color:#aaa;'>(edited)</span>"
+
+                        st.markdown(
+                            f"<div style='margin-left:20px; color:#444;'>↳ <b>{r.get('student_name','')}</b> "
+                            f"<span style='color:#bbb;'>{when}</span>{edited_badge}<br>"
+                            f"{r.get('text','')}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                        # edit/delete (own or admin)
+                        can_edit = IS_ADMIN or (r.get("student_code") == student_code)
+                        if can_edit:
+                            c_ed, c_del = st.columns([1, 1])
+                            with c_ed:
+                                if st.button("✏️ Edit", key=f"ann_edit_reply_{ann_id}_{r['__id']}"):
+                                    st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
+                                    st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text", "")
+                                    st.rerun()
+                            with c_del:
+                                if st.button("🗑️ Delete", key=f"ann_del_reply_{ann_id}_{r['__id']}"):
+                                    _delete_reply(ann_id, r["__id"])
+                                    _notify_slack(
+                                        f"🗑️ *Announcement reply deleted* — {class_name}\n"
+                                        f"*By:* {student_name} ({student_code})\n"
+                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                    )
+                                    st.success("Reply deleted.")
+                                    st.rerun()
+
+                            # inline editor
+                            if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
+                                new_txt = st.text_area(
+                                    "Edit reply",
+                                    key=f"ann_editbox_{ann_id}_{r['__id']}",
+                                    value=st.session_state.get(f"edit_text_{ann_id}_{r['__id']}", r.get("text", "")),
+                                    height=100,
+                                )
+                                ec1, ec2 = st.columns([1, 1])
+                                with ec1:
+                                    if st.button("💾 Save", key=f"ann_save_reply_{ann_id}_{r['__id']}"):
+                                        if new_txt.strip():
+                                            _update_reply_text(ann_id, r["__id"], new_txt)
+                                            _notify_slack(
+                                                f"✏️ *Announcement reply edited* — {class_name}\n"
+                                                f"*By:* {student_name} ({student_code})\n"
+                                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                                f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
+                                            )
+                                            st.success("Reply updated.")
+                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
+                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
+                                        st.rerun()
+                                with ec2:
+                                    if st.button("❌ Cancel", key=f"ann_cancel_reply_{ann_id}_{r['__id']}"):
+                                        st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
+                                        st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
+                                        st.rerun()
+
+                # new reply (single click -> rerun)
+                with st.expander(f"Reply ({ann_id[:6]})", expanded=False):
+                    ta_key = f"ann_reply_box_{ann_id}"
+                    flag_key = f"__clear_{ta_key}"
+                    if st.session_state.get(flag_key):
+                        st.session_state.pop(flag_key, None)
+                        st.session_state[flag_key] = True
+                    reply_text = st.text_area(
+                        f"Reply to {ann_id}",
+                        key=ta_key,
+                        height=90,
+                        placeholder="Write your reply…"
+                    )
+                    if st.button("Send Reply", key=f"ann_send_reply_{ann_id}") and reply_text.strip():
+                        payload = {
+                            "student_code": student_code,
+                            "student_name": student_name,
+                            "text": reply_text.strip(),
+                            "timestamp": datetime.utcnow(),
+                        }
+                        _ann_reply_coll(ann_id).add(payload)
+                        _notify_slack(
+                            f"💬 *New announcement reply* — {class_name}\n"
+                            f"*By:* {student_name} ({student_code})\n"
+                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
+                        )
+                        st.session_state[flag_key] = True
+                        st.success("Reply sent!")
+                        st.rerun()
+
+            # render all
+            for _, row in pinned_df.iterrows():
+                render_announcement(row, is_pinned=True)
+            for _, row in latest_df.iterrows():
+                render_announcement(row, is_pinned=False)
+
+        st.divider()
+
+        # ===================== CLASS Q&A (POST / REPLY + EDIT/DELETE) =====================
+        st.markdown("### 💬 Class Q&A")
+
+        q_base = db.collection("class_qna").document(class_name).collection("questions")
+
+        def _fmt_ts(ts):
+            try:
+                return ts.strftime("%d %b %H:%M")
+            except Exception:
+                return ""
+
+        # Post a new question (single click -> rerun)
+        with st.expander("➕ Ask a new question", expanded=False):
+            # clear form values on next run if flagged
+            if st.session_state.get("__clear_q_form"):
+                st.session_state.pop("__clear_q_form", None)
+                st.session_state["q_topic"] = ""
+                st.session_state["q_text"] = ""
+            topic = st.text_input("Topic (optional)", key="q_topic")
+            new_q = st.text_area("Your question", key="q_text", height=80)
+            if st.button("Post Question", key="qna_post_question") and new_q.strip():
+                q_id = str(uuid4())[:8]
+                payload = {
+                    "question": new_q.strip(),
+                    "asked_by_name": student_name,
+                    "asked_by_code": student_code,
+                    "timestamp": datetime.utcnow(),
+                    "topic": (topic or "").strip(),
+                }
+                q_base.document(q_id).set(payload)
+                preview = (payload["question"][:180] + "…") if len(payload["question"]) > 180 else payload["question"]
+                topic_tag = f" • Topic: {payload['topic']}" if payload["topic"] else ""
+                _notify_slack(
+                    f"❓ *New class question* — {class_name}{topic_tag}\n"
+                    f"*From:* {student_name} ({student_code})\n"
+                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                    f"*Q:* {preview}"
+                )
+                # clear and rerun
+                st.session_state["__clear_q_form"] = True
+                st.success("Question posted!")
+                st.rerun()
+
+        # Controls
+        colsa, colsb, colsc = st.columns([2, 1, 1])
+        with colsa:
+            q_search = st.text_input("Search questions (text or topic)…", key="q_search")
+        with colsb:
+            show_latest = st.toggle("Newest first", value=True, key="q_show_latest")
+        with colsc:
+            if st.button("↻ Refresh", key="qna_refresh"):
+                st.rerun()
+
+        # Load questions (fresh each run)
+        try:
+            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+            questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+        except Exception:
+            q_docs = list(q_base.stream())
+            questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
+            questions.sort(key=lambda x: x.get("timestamp"), reverse=True)
+
+        # Filter & order
+        if q_search.strip():
+            ql = q_search.lower()
+            questions = [
+                q for q in questions
+                if ql in str(q.get("question", "")).lower() or ql in str(q.get("topic", "")).lower()
+            ]
+        if not show_latest:
+            questions = list(reversed(questions))
+
+        # Render questions
+        if not questions:
+            st.info("No questions yet.")
+        else:
+            for q in questions:
+                q_id = q.get("id", "")
+                ts = q.get("timestamp")
+                ts_label = _fmt_ts(ts)
+
+                topic_html = (
+                    f"<div style='font-size:0.9em;color:#666;'>{q.get('topic','')}</div>"
+                    if q.get("topic") else ""
+                )
+                st.markdown(
+                    f"<div style='padding:10px;background:#f8fafc;border:1px solid #ddd;border-radius:6px;margin:6px 0;'>"
+                    f"<b>{q.get('asked_by_name','')}</b>"
+                    f"<span style='color:#aaa;'> • {ts_label}</span>"
+                    f"{topic_html}"
+                    f"{q.get('question','')}"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+                # Edit/Delete controls for the question
+                can_modify_q = (q.get("asked_by_code") == student_code) or IS_ADMIN
+                if can_modify_q:
+                    qc1, qc2, _ = st.columns([1, 1, 6])
+                    with qc1:
+                        if st.button("✏️ Edit", key=f"q_edit_btn_{q_id}"):
+                            st.session_state[f"q_editing_{q_id}"] = True
+                            st.session_state[f"q_edit_text_{q_id}"] = q.get("question", "")
+                            st.session_state[f"q_edit_topic_{q_id}"] = q.get("topic", "")
+                    with qc2:
+                        if st.button("🗑️ Delete", key=f"q_del_btn_{q_id}"):
+                            # delete replies first
+                            try:
+                                r_ref = q_base.document(q_id).collection("replies")
+                                for rdoc in r_ref.stream():
+                                    rdoc.reference.delete()
+                            except Exception:
+                                pass
+                            q_base.document(q_id).delete()
+                            _notify_slack(
+                                f"🗑️ *Q&A question deleted* — {class_name}\n"
+                                f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                            )
+                            st.success("Question deleted.")
+                            st.rerun()
+
+                    # Inline edit form
+                    if st.session_state.get(f"q_editing_{q_id}", False):
+                        with st.form(f"q_edit_form_{q_id}"):
+                            new_topic = st.text_input(
+                                "Edit topic (optional)",
+                                value=st.session_state.get(f"q_edit_topic_{q_id}", ""),
+                                key=f"q_edit_topic_input_{q_id}"
+                            )
+                            new_text = st.text_area(
+                                "Edit question",
+                                value=st.session_state.get(f"q_edit_text_{q_id}", ""),
+                                key=f"q_edit_text_input_{q_id}",
+                                height=100
+                            )
+                            save_edit = st.form_submit_button("💾 Save")
+                            cancel_edit = st.form_submit_button("❌ Cancel")
+                        if save_edit and new_text.strip():
+                            q_base.document(q_id).update({
+                                "question": new_text.strip(),
+                                "topic": (new_topic or "").strip(),
+                                "edited_at": datetime.utcnow(),
+                            })
+                            _notify_slack(
+                                f"✏️ *Q&A question edited* — {class_name}\n"
+                                f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
+                            )
+                            st.session_state[f"q_editing_{q_id}"] = False
+                            st.success("Question updated.")
+                            st.rerun()
+                        if cancel_edit:
+                            st.session_state[f"q_editing_{q_id}"] = False
+                            st.rerun()
+
+                # Load replies
+                r_ref = q_base.document(q_id).collection("replies")
+                try:
+                    replies_docs = list(r_ref.order_by("timestamp").stream())
+                except Exception:
+                    replies_docs = list(r_ref.stream())
+                    replies_docs.sort(key=lambda r: (r.to_dict() or {}).get("timestamp"))
+
+                if replies_docs:
+                    for r in replies_docs:
+                        rid = r.id
+                        r_data = r.to_dict() or {}
+                        r_label = _fmt_ts(r_data.get("timestamp"))
+                        st.markdown(
+                            f"<div style='margin-left:20px;color:#444;'>↳ <b>{r_data.get('replied_by_name','')}</b> "
+                            f"<span style='color:#bbb;'>{r_label}</span><br>"
+                            f"{r_data.get('reply_text','')}</div>",
+                            unsafe_allow_html=True
+                        )
+
+                        # Edit/Delete for replies
+                        can_modify_r = (r_data.get("replied_by_code") == student_code) or IS_ADMIN
+                        if can_modify_r:
+                            rc1, rc2, _ = st.columns([1, 1, 6])
+                            with rc1:
+                                if st.button("✏️ Edit", key=f"r_edit_btn_{q_id}_{rid}"):
+                                    st.session_state[f"r_editing_{q_id}_{rid}"] = True
+                                    st.session_state[f"r_edit_text_{q_id}_{rid}"] = r_data.get("reply_text", "")
+                            with rc2:
+                                if st.button("🗑️ Delete", key=f"r_del_btn_{q_id}_{rid}"):
+                                    r.reference.delete()
+                                    _notify_slack(
+                                        f"🗑️ *Q&A reply deleted* — {class_name}\n"
+                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                    )
+                                    st.success("Reply deleted.")
+                                    st.rerun()
+
+                            if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
+                                with st.form(f"r_edit_form_{q_id}_{rid}"):
+                                    new_rtext = st.text_area(
+                                        "Edit reply",
+                                        value=st.session_state.get(f"r_edit_text_{q_id}_{rid}", ""),
+                                        key=f"r_edit_text_input_{q_id}_{rid}",
+                                        height=80
+                                    )
+                                    rsave = st.form_submit_button("💾 Save")
+                                    rcancel = st.form_submit_button("❌ Cancel")
+                                if rsave and new_rtext.strip():
+                                    r.reference.update({
+                                        "reply_text": new_rtext.strip(),
+                                        "edited_at": datetime.utcnow(),
+                                    })
+                                    _notify_slack(
+                                        f"✏️ *Q&A reply edited* — {class_name}\n"
+                                        f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
+                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                        f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
+                                    )
+                                    st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                    st.success("Reply updated.")
+                                    st.rerun()
+                                if rcancel:
+                                    st.session_state[f"r_editing_{q_id}_{rid}"] = False
+                                    st.rerun()
+
+                # Reply form (anyone can answer) — single click -> rerun
+                input_key = f"q_reply_box_{q_id}"
+                clear_key = f"__clear_{input_key}"
+                if st.session_state.get(clear_key):
+                    st.session_state.pop(clear_key, None)
+                    st.session_state[clear_key] = True
+                reply_text = st.text_input(
+                    f"Reply to Q{q_id}",
+                    key=input_key,
+                    placeholder="Write your reply…"
+                )
+                if st.button(f"Send Reply {q_id}", key=f"q_reply_btn_{q_id}") and reply_text.strip():
+                    reply_payload = {
+                        "reply_text": reply_text.strip(),
+                        "replied_by_name": student_name,
+                        "replied_by_code": student_code,
+                        "timestamp": datetime.utcnow(),
+                    }
+                    r_ref = q_base.document(q_id).collection("replies")
+                    r_ref.document(str(uuid4())[:8]).set(reply_payload)
+                    prev = (reply_payload["reply_text"][:180] + "…") if len(reply_payload["reply_text"]) > 180 else reply_payload["reply_text"]
+                    _notify_slack(
+                        f"💬 *New Q&A reply* — {class_name}\n"
+                        f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
+                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                        f"*Reply:* {prev}"
+                    )
+                    st.session_state[clear_key] = True
+                    st.success("Reply sent!")
+                    st.rerun()
+#
+
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
