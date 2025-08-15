@@ -5084,21 +5084,45 @@ if tab == "My Course":
         st.divider()
 
 
-        # ===================== TUTORS • CONTACT • SCHEDULE (no shared calendar) =====================
+        # ===================== TUTORS • CONTACT • SCHEDULE (no shared calendar; safe guards) =====================
+        # This block does NOT depend on a shared calendar. It reads tutors/contact_email from either
+        # existing locals (tutors/contact_email), or from _meta (if present), or falls back to defaults.
+
+        # ---- Safe imports ----
         try:
             import urllib.parse as _urllib
         except Exception:
-            import urllib as _urllib  # very defensive
+            import urllib as _urllib  # ultra defensive
 
-        # Normalize tutors into dicts and pick lead / co-tutor
+        # ---- Core context (safe fallbacks) ----
+        _meta_local     = locals().get("_meta", {}) if isinstance(locals().get("_meta", {}), dict) else {}
+        student_name    = locals().get("student_name", "Student")
+        student_code    = locals().get("student_code", "demo001")
+        class_name      = locals().get("class_name", "My Class")
+        contact_email   = (
+            (locals().get("contact_email") or "") 
+            or (_meta_local.get("contact_email") or "")
+            or "learngermanghana@gmail.com"
+        ).strip()
+
+        # Tutors list (from locals.tutors OR _meta.tutors OR empty)
+        _tutors_raw = []
+        try:
+            if "tutors" in locals():
+                _tutors_raw = (locals().get("tutors") or [])
+            elif _meta_local:
+                _tutors_raw = (_meta_local.get("tutors") or [])
+        except Exception:
+            _tutors_raw = []
+
+        # ---- Tutors normalize & pick lead/co-tutor ----
         def _as_dict(t):
             if isinstance(t, dict):
                 return {"name": (t.get("name") or "").strip(), "email": (t.get("email") or "").strip()}
             return {"name": str(t or "").strip(), "email": ""}
 
-        _tutors_raw = tutors or []
         _tutors = []
-        for t in _tutors_raw:
+        for t in _tutors_raw or []:
             d = _as_dict(t)
             if d["name"]:
                 _tutors.append(d)
@@ -5111,7 +5135,10 @@ if tab == "My Course":
                 return ""
             return d["name"] + (f" <span style='color:#64748b'>&lt;{d['email']}&gt;</span>" if d.get("email") else "")
 
-        # Private email (prefill subject/body)
+        t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
+        t_cotutor = _tutor_line(co_tutor)
+
+        # ---- Private mailto with prefilled subject/body ----
         _subj = f"Private message from {student_name} ({student_code}) — {class_name}"
         _body = (
             "Hello Tutor,\n\n"
@@ -5121,17 +5148,14 @@ if tab == "My Course":
         )
         _mailto = f"mailto:{contact_email}?{_urllib.urlencode({'subject': _subj, 'body': _body})}"
 
-        t_primary = _tutor_line(lead_tutor) if lead_tutor else "<span style='color:#64748b'>Not set</span>"
-        t_cotutor = _tutor_line(co_tutor)
-
-        # Pull schedule from dashboard dictionary (GROUP_SCHEDULES) or fall back to any local vars
+        # ---- Schedule source: dashboard GROUP_SCHEDULES (preferred) or existing local vars ----
         _SCHEDULES = globals().get("GROUP_SCHEDULES", {}) or {}
         _sch = _SCHEDULES.get(class_name, {}) if isinstance(_SCHEDULES, dict) else {}
 
-        _days_list   = list((_sch.get("days") or []) if _sch else (days if 'days' in locals() and isinstance(days, list) else []))
-        _time_label  = str((_sch.get("time") or "") if _sch else (locals().get("time_str") or "")).strip()
-        _start_label = str((_sch.get("start_date") or "") if _sch else (locals().get("start_dt") or "")).strip()
-        _end_label   = str((_sch.get("end_date") or "") if _sch else (locals().get("end_dt") or "")).strip()
+        _days_list   = list(_sch.get("days") or (locals().get("days") if isinstance(locals().get("days"), list) else []))
+        _time_label  = str((_sch.get("time") or locals().get("time_str") or "")).strip()
+        _start_label = str((_sch.get("start_date") or locals().get("start_dt") or "")).strip()
+        _end_label   = str((_sch.get("end_date") or locals().get("end_dt") or "")).strip()
 
         def _short_day(d: str) -> str:
             m = {"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"}
@@ -5145,7 +5169,7 @@ if tab == "My Course":
             if (_days_list and _time_label) else "🗓️ <span style='color:#64748b'>Schedule not set</span>"
         )
 
-        # Render tutor + schedule card (no shared calendar links)
+        # ---- Render tutor card + schedule (no shared calendar) ----
         st.markdown(
             f"""
             <div style="
@@ -5165,7 +5189,7 @@ if tab == "My Course":
                 {_schedule_line}
               </div>
               <div style="margin-top:12px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:8px 10px; border-radius:8px;">
-                We don’t auto-add events to your phone. Use the guide below to create your own calendar reminders in 30 seconds.
+                We don’t auto-add events to your phone. Use the guide below to create your own calendar reminders in under a minute.
               </div>
               <div style="margin-top:12px;">
                 <a href="{_mailto}" target="_blank" style="
@@ -5179,18 +5203,23 @@ if tab == "My Course":
             unsafe_allow_html=True
         )
 
-        # --- Manual reminder setup (students create events on their own calendar) ---
+        # ---- Manual reminder setup (students create events on their own calendar) ----
         try:
-            _zoom_link = (ZOOM["link"] if isinstance(ZOOM, dict) else "") or ""
+            import streamlit.components.v1 as components  # in case not imported above
+        except Exception:
+            pass
 
+        try:
             if _days_list and _time_label:
+                first_day = _days_list[0]
                 with st.expander("🔔 Create your own reminders (Google / Apple / Outlook)", expanded=False):
-                    first_day = _days_list[0]
                     choice = st.selectbox(
                         "Choose your calendar app:",
                         ["Google Calendar (Android/Web)", "Apple Calendar (iPhone/iPad/Mac)", "Outlook (Windows/Web)"],
-                        key="manual_reminder_app_v2",
+                        key="manual_reminder_app_v3",
                     )
+
+                    _ds = ", ".join(_short_day(d) for d in _days_list)
 
                     if choice == "Google Calendar (Android/Web)":
                         st.markdown(
@@ -5199,7 +5228,7 @@ if tab == "My Course":
                             2) Title: **{class_name} (Zoom)**  
                             3) Set the **first date** to the next **{first_day}**  
                             4) Time: **{_time_label}**  
-                            5) **Does not repeat → Weekly**, select: **{_days_short}**  
+                            5) **Does not repeat → Weekly**, select: **{_ds}**  
                             6) *(Optional)* **Ends**: **{_end_label or 'course end'}**  
                             7) Location: **Zoom** • Description: paste the Zoom link  
                             8) **Save** ✅
@@ -5211,7 +5240,7 @@ if tab == "My Course":
                             1) Open **Calendar** → **+** → **New Event**  
                             2) Title: **{class_name} (Zoom)**  
                             3) Start time: **{_time_label}** on the next **{first_day}**  
-                            4) **Repeat → Custom → Weekly**, select: **{_days_short}**  
+                            4) **Repeat → Custom → Weekly**, select: **{_ds}**  
                             5) **End Repeat**: **{_end_label or 'choose a course end date'}**  
                             6) URL/Notes: paste the Zoom link  
                             7) Add an **Alert** (e.g., 30 minutes before) → **Add** ✅
@@ -5223,14 +5252,15 @@ if tab == "My Course":
                             1) Open **Outlook Calendar** → **New Event**  
                             2) Title: **{class_name} (Zoom)**  
                             3) Start time: **{_time_label}** on the next **{first_day}**  
-                            4) **Repeat → Weekly**, choose: **{_days_short}**  
+                            4) **Repeat → Weekly**, choose: **{_ds}**  
                             5) **End date**: **{_end_label or 'course end'}**  
                             6) Location: **Zoom** • Body: paste the Zoom link  
                             7) Add a reminder (e.g., 30 minutes) → **Save** ✅
                             """
                         )
 
-                    # One-click copy of exactly what they need to paste
+                    # One-click copy of the schedule text
+                    _zoom_link = (locals().get("ZOOM", {}).get("link") if isinstance(locals().get("ZOOM"), dict) else "") or ""
                     _copy_text = (
                         f"{class_name} (Zoom)\n"
                         f"Days: {', '.join(_days_list)}\n"
@@ -5240,35 +5270,39 @@ if tab == "My Course":
                         f"Zoom: {_zoom_link}"
                     )
                     _copy_js = _copy_text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-                    components.html(
-                        f"""
-                        <div style="display:flex; gap:8px; align-items:center;">
-                          <button id="copySchedBtn2"
-                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                            Copy schedule text
-                          </button>
-                          <span style="color:#64748b; font-size:0.9rem;">Paste into your event description.</span>
-                        </div>
-                        <script>
-                          (function(){{
-                            try {{
-                              var b = document.getElementById('copySchedBtn2');
-                              if (!b) return;
-                              var txt = '{_copy_js}';
-                              b.addEventListener('click', function(){{
-                                navigator.clipboard.writeText(txt).then(function(){{
-                                  b.innerText = '✓ Copied';
-                                  setTimeout(function(){{ b.innerText = 'Copy schedule text'; }}, 1500);
-                                }}).catch(function(){{}});
-                              }});
-                            }} catch(e) {{}}
-                          }})();
-                        </script>
-                        """,
-                        height=44,
-                    )
+
+                    try:
+                        components.html(
+                            f"""
+                            <div style="display:flex; gap:8px; align-items:center;">
+                              <button id="copySchedBtn2"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy schedule text
+                              </button>
+                              <span style="color:#64748b; font-size:0.9rem;">Paste into your event description.</span>
+                            </div>
+                            <script>
+                              (function(){{
+                                try {{
+                                  var b = document.getElementById('copySchedBtn2');
+                                  if (!b) return;
+                                  var txt = '{_copy_js}';
+                                  b.addEventListener('click', function(){{
+                                    navigator.clipboard.writeText(txt).then(function(){{
+                                      b.innerText = '✓ Copied';
+                                      setTimeout(function(){{ b.innerText = 'Copy schedule text'; }}, 1500);
+                                    }}).catch(function(){{}});
+                                  }});
+                                }} catch(e) {{}}
+                              }})();
+                            </script>
+                            """,
+                            height=44,
+                        )
+                    except Exception:
+                        st.code(_copy_text, language="text")
         except Exception:
-            # Soft-fail: if schedule is missing or anything odd, we simply hide the expander
+            # If schedule info is missing or any UI glue fails, just skip the expander gracefully.
             pass
 
         st.divider()
