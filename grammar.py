@@ -6118,15 +6118,113 @@ if tab == "My Course":
         st.divider()
 
         # ===================== CLASS Q&A (POST / REPLY + EDIT/DELETE) =====================
-        st.markdown("### 💬 Class Q&A")
 
+        # Firestore collection handle
         q_base = db.collection("class_qna").document(class_name).collection("questions")
 
+        # --- Compute NEW (≤7 days) and UNANSWERED counts for badges ---
+        _new7, _unans, _total = 0, 0, 0
+        try:
+            from datetime import datetime as _dt
+            _now = _dt.utcnow()
+
+            # Try ordered fetch first; fall back to basic stream
+            try:
+                _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
+            except Exception:
+                _qdocs = list(q_base.stream())
+
+            def _to_datetime_any(v):
+                if v is None:
+                    return None
+                # Firestore Timestamp object?
+                try:
+                    if hasattr(v, "to_datetime"):
+                        return v.to_datetime()
+                except Exception:
+                    pass
+                # Seconds/nanos style?
+                try:
+                    if hasattr(v, "seconds"):
+                        return _dt.utcfromtimestamp(int(v.seconds))
+                except Exception:
+                    pass
+                # String parse
+                try:
+                    if 'dateutil' in globals() and _dateparse:
+                        return _dateparse.parse(str(v))
+                except Exception:
+                    pass
+                for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+                    try:
+                        return _dt.strptime(str(v), fmt)
+                    except Exception:
+                        continue
+                return None
+
+            for _doc in _qdocs:
+                _d = (_doc.to_dict() or {})
+                _total += 1
+
+                # Replies count (supports several schema styles)
+                _rc = 0
+                if isinstance(_d.get("answers"), list):
+                    _rc = len(_d["answers"])
+                elif isinstance(_d.get("replies"), list):
+                    _rc = len(_d["replies"])
+                elif isinstance(_d.get("reply_count"), int):
+                    _rc = int(_d["reply_count"])
+                if _rc == 0:
+                    _unans += 1
+
+                # New in last 7 days?
+                _created = _to_datetime_any(_d.get("created_at") or _d.get("ts") or _d.get("timestamp"))
+                if _created and (_now - _created).days <= 7:
+                    _new7 += 1
+        except Exception:
+            pass
+
+        # --- Render banner with badges ---
+        _badges = []
+        if _new7 > 0:
+            _badges.append(
+                f"<span style='margin-left:8px;background:#16a34a;color:#fff;padding:2px 8px;"
+                f"border-radius:999px;font-size:0.8rem;'>NEW · {_new7}</span>"
+            )
+        if _unans > 0:
+            _badges.append(
+                f"<span style='margin-left:8px;background:#f97316;color:#fff;padding:2px 8px;"
+                f"border-radius:999px;font-size:0.8rem;'>UNANSWERED · {_unans}</span>"
+            )
+        _badge_html = "".join(_badges)
+
+        with st.container():
+            st.markdown(
+                f'''
+                <div style="
+                    padding:12px;
+                    background: linear-gradient(90deg,#6366f1,#0ea5e9);
+                    color:#ffffff;
+                    border-radius:8px;
+                    margin-bottom:12px;
+                    box-shadow:0 2px 6px rgba(0,0,0,0.08);
+                    display:flex;align-items:center;justify-content:space-between;">
+                    <div style="font-weight:700;font-size:1.15rem;">💬 Class Q&amp;A {_badge_html}</div>
+                    <div style="font-size:0.92rem;opacity:.9;">
+                        Ask a question • Help classmates with answers
+                    </div>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
+
+        # (keep your formatter as-is)
         def _fmt_ts(ts):
             try:
                 return ts.strftime("%d %b %H:%M")
             except Exception:
                 return ""
+#
 
         # Post a new question (single click -> rerun)
         with st.expander("➕ Ask a new question", expanded=False):
