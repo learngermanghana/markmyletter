@@ -5599,8 +5599,6 @@ if tab == "My Course":
                 **Android (Google Calendar app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (**with repeat**):
                 {_phone_links_ul}
                 <div style="margin:8px 0 0 2px;">
-                  After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>{f", set <b>Ends</b> to <b>{_end_str}</b>" if _end_str else ""}, then <b>Save</b>.<br/>
-                  <b>Different times on different days?</b> Create a <b>separate repeating event</b> for each time block.
                 </div>
                 """,
                 unsafe_allow_html=True,
