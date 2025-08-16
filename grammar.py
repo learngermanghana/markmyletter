@@ -7982,24 +7982,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (with DEBUG)
-    if st.session_state.get("falowen_stage") == 99:
-        import datetime as _dt
-        from io import BytesIO
-
-        today_str = _dt.date.today().isoformat()
-        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
-        doc = uploads_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        last_date = data.get("date")
-        count = data.get("count", 0)
-
-        if last_date != today_str:
-            count = 0
-        if count >= 3:
-            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
-            st.stop()
-
     # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
@@ -8027,7 +8009,7 @@ if tab == "Exams Mode & Custom Chat":
             "2) Come back here and press **Fetch latest** to transcribe & get feedback."
         )
 
-        # Launch the tiny web recorder (passes student code + return URL)
+        # Open the external recorder (GitHub Pages) with query params
         recorder_url = (
             "https://learngermanghana.github.io/a1spreche/"
             f"?code={st.session_state.get('student_code','')}"
@@ -8035,7 +8017,6 @@ if tab == "Exams Mode & Custom Chat":
         )
         st.link_button("🎤 Open Web Recorder", recorder_url)
 
-        # ---- Cloud fetch path (reads the inbox doc written by the recorder page)
         with st.expander("⬇️ Or fetch my cloud upload", expanded=True):
             if st.button("🔄 Fetch latest"):
                 try:
@@ -8057,30 +8038,29 @@ if tab == "Exams Mode & Custom Chat":
                         url = rec.get("url")
                         ct = (rec.get("contentType") or "").lower()
 
-                        # Download audio from Firebase Storage (signed URL)
+                        # Download audio (Storage signed URL)
                         r = requests.get(url, timeout=30)
                         r.raise_for_status()
 
-                        # Guess an extension for Whisper
-                        ext = "webm"
-                        if "wav" in ct:
-                            ext = "wav"
-                        elif "mpeg" in ct or "mp3" in ct:
-                            ext = "mp3"
-                        elif "m4a" in ct or "mp4" in ct or "aac" in ct:
-                            ext = "m4a"
-                        elif "ogg" in ct:
-                            ext = "ogg"
+                        # Pick an extension for Whisper
+                        ext = (
+                            "wav" if "wav" in ct else
+                            "mp3" if ("mpeg" in ct or "mp3" in ct) else
+                            "m4a" if ("m4a" in ct or "mp4" in ct or "aac" in ct) else
+                            "ogg" if "ogg" in ct else
+                            "webm"
+                        )
 
                         bio = io.BytesIO(r.content)
                         bio.name = f"cloud_upload.{ext}"
                         st.audio(bio)
 
-                        # -------- Transcribe (German only)
+                        # --- Transcribe (German only)
                         try:
                             bio.seek(0)
                         except Exception:
                             pass
+
                         try:
                             transcript_resp = client.audio.transcriptions.create(
                                 file=bio,
@@ -8096,7 +8076,7 @@ if tab == "Exams Mode & Custom Chat":
 
                         st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-                        # -------- Evaluate in English (same rubric as before)
+                        # --- Evaluate in English
                         eval_prompt = (
                             "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                             f'The student said (in German): "{transcript_text}"\n\n'
@@ -8133,9 +8113,7 @@ if tab == "Exams Mode & Custom Chat":
 
                         if result_text:
                             st.markdown(result_text)
-                            # Increment daily usage counter
                             uploads_ref.set({"count": count + 1, "date": today_str})
-                            # Mark inbox item as processed (optional)
                             try:
                                 _doc.reference.update({"status": "done"})
                             except Exception:
@@ -8152,6 +8130,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 
