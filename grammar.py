@@ -1890,32 +1890,30 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 
 from urllib.parse import unquote_plus
 
-# 1) Define your top-level tabs EXACTLY as your code uses them
-TABS = ["Home", "My Course", "Vocab Trainer", "Dictionary"]  # <-- adjust to your real list/order
+# EXACTLY match your real tab labels/order:
+TABS = ["Dashboard", "My Course", "Vocab Trainer", "Dictionary"]
 
-# 2) Read the deep link (?tab=...) and normalize it
-def _get_deeplink_tab(default="Home"):
-    try:
-        params = st.experimental_get_query_params()  # works on all current Streamlit versions
-        raw = params.get("tab", [default])[0]
-        return unquote_plus(str(raw)).strip()
-    except Exception:
-        return default
+def render_dropdown_nav():
+    # 1) Read ?tab=... from URL (new API only)
+    raw = st.query_params.get("tab", None)
+    if isinstance(raw, list):              # be robust across versions
+        raw = raw[0] if raw else None
+    deeplink = unquote_plus(raw).strip() if raw else None
 
-# 3) Initialize and/or override the selected tab from the URL if valid
-if "main_tab" not in st.session_state:
-    st.session_state["main_tab"] = TABS[0]
+    # 2) Choose default (deeplink wins if valid)
+    default = st.session_state.get("main_tab_select", TABS[0])
+    if deeplink in TABS:
+        default = deeplink
+    idx = TABS.index(default) if default in TABS else 0
 
-_dl = _get_deeplink_tab(st.session_state["main_tab"])
-if _dl in TABS and st.session_state["main_tab"] != _dl:
-    st.session_state["main_tab"] = _dl
+    # 3) Render control
+    tab = st.selectbox("Navigate", TABS, index=idx, key="main_tab_select")
 
-# 4) Keep the URL in sync when users change tabs
-def _sync_tab_to_url():
-    st.experimental_set_query_params(tab=st.session_state["main_tab"])
+    # 4) Keep URL in sync (no experimental API)
+    if st.query_params.get("tab") != tab:
+        st.query_params["tab"] = tab
 
-# 5) Render your top-level tab control (radio or selectbox)
-tab = st.radio("Navigate", TABS, key="main_tab", horizontal=True, on_change=_sync_tab_to_url)
+    return tab
 
 
 # =========================================================
