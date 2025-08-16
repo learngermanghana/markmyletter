@@ -5617,7 +5617,7 @@ if tab == "My Course":
                 margin: 6px 0 8px 0;
                 display:flex;align-items:center;gap:8px;">
               <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
-              <span style="font-size:.92rem;color:#055d87;">Tap to open and view the list</span>
+              <span style="font-size:.92rem;color:#055d87;">Tap below to open and view the list</span>
             </div>
             """,
             unsafe_allow_html=True,
