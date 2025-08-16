@@ -5440,7 +5440,7 @@ if tab == "My Course":
                 delta = (weekday_index - d.weekday()) % 7
                 return d + _td(days=delta)
 
-                 # Build ICS (with 15-minute preset reminder + URL field)
+            # Build ICS (with 15-minute preset reminder + URL field)
             _blocks = _parse_time_blocks(time_str, days)
             _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
             _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
@@ -5509,21 +5509,7 @@ if tab == "My Course":
             _ics_lines.append("END:VCALENDAR")
             _course_ics = "\n".join(_ics_lines)
 
-            # Next session for 1-click Google Calendar
-            today = _dt.today().date()
-            next_date = None
-            if _blocks:
-                codes_all = sorted({c for blk in _blocks for c in blk["byday"]}, key=_WKD_ORDER.index)
-                probe = max(today, start_date_obj)
-                for i in range(0, 40):
-                    d = probe + _td(days=i)
-                    if d > end_date_obj:
-                        break
-                    if _WKD_ORDER[d.weekday()] in codes_all:
-                        next_date = d
-                        break
-
-            # UI
+            # UI (full course download only; next-session button removed)
             c1, c2 = st.columns([1, 1])
             with c1:
                 st.download_button(
@@ -5531,52 +5517,12 @@ if tab == "My Course":
                     data=_course_ics,
                     file_name=f"{class_name.replace(' ', '_')}_course.ics",
                     mime="text/calendar",
-                    key="dl_course_ics"
+                    key="dl_course_ics",
                 )
             with c2:
-                if next_date and _blocks:
-                    wcode = _WKD_ORDER[next_date.weekday()]
-                    _blk_match = None
-                    for blk in _blocks:
-                        if wcode in blk["byday"]:
-                            _blk_match = blk; break
-                    if _blk_match is None:
-                        _blk_match = _blocks[0]
-                    sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
-                    _start_dt = _dt(next_date.year, next_date.month, next_date.day, sh, sm)
-                    _end_dt   = _dt(next_date.year, next_date.month, next_date.day, eh, em)
-                    _start_gcal = _start_dt.strftime("%Y%m%dT%H%M%SZ")
-                    _end_gcal   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
+                st.caption("Calendar created. Use the download button to import the full course.")
+#
 
-                    try:
-                        _mid_digits = str((ZOOM or {}).get("meeting_id","")).replace(" ", "")
-                        _pwd_enc = _urllib.quote((ZOOM or {}).get("passcode","") or "")
-                        _zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-                    except Exception:
-                        _zoom_deeplink = ""
-
-                    _details_text = (
-                        f"Zoom link: {_zl}\\n"
-                        f"Meeting ID: {_zid}\\n"
-                        f"Passcode: {_zpw}\\n\\n"
-                        f"Mobile deep link: {_zoom_deeplink}"
-                    )
-
-                    _gcal_url = (
-                        "https://calendar.google.com/calendar/render"
-                        f"?action=TEMPLATE"
-                        f"&text={_urllib.quote(_summary)}"
-                        f"&dates={_start_gcal}/{_end_gcal}"
-                        f"&details={_urllib.quote(_details_text)}"
-                        f"&location={_urllib.quote('Zoom')}"
-                        f"&ctz={_urllib.quote('Africa/Accra')}"
-                    )
-                    try:
-                        st.link_button("➕ Next session → Google Calendar", _gcal_url, key="gcal_next_btn")
-                    except Exception:
-                        st.markdown(f"[➕ Next session → Google Calendar]({_gcal_url})")
-                else:
-                    st.caption("Calendar created. Use the download button to import the full course.")
 
             # ----- (Hidden) Create-your-own recurring schedule: click to reveal -----
             # Build Google Calendar recurring links (one per distinct time block)
@@ -5719,9 +5665,6 @@ if tab == "My Course":
                   {_phone_links_ul}
                   <div style="margin:6px 0 0 2px;">
                     After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>, set <b>Ends</b> to <b>{end_date_obj:%d %b %Y}</b>, then <b>Save</b>.<br/>
-                    <b>If your class meets at different times on different days:</b> create a <b>separate repeating event</b> for each time block.<br/>
-                    <i>Example:</i> Mon–Tue <b>11:00am–12:00pm</b> → create & save. Then open the link again and create <b>Saturday 3:00pm</b> as another repeating event.
-                  </div>
                 - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
                   ✅ On iPhone you’re done — the series appears in the Calendar app.
 
