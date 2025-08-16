@@ -1,0 +1,216 @@
+<script type="module">
+  // --- Firebase SDKs ---
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import {
+    getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+  import {
+    getStorage, ref, uploadBytesResumable, getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-storage.js";
+  // --- NEW: Firestore ---
+  import {
+    getFirestore, collection, addDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
+  // --- Your config (Language-Academy project) ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyDUIdVPKOCDsmOuoet6NofXoJzleiXMtHw",
+    authDomain: "language-academy-3e1de.firebaseapp.com",
+    projectId: "language-academy-3e1de",
+    storageBucket: "language-academy-3e1de.firebasestorage.app",
+    messagingSenderId: "849327205750",
+    appId: "1:849327205750:web:2de0e6ed20c55d4f8d9e57",
+    measurementId: "G-0T84WTTXRV"
+  };
+
+  // --- Init ---
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const storage = getStorage(app);
+  const db = getFirestore(app);          // NEW
+
+  // --- UI refs ---
+  const btnLogin = document.getElementById("btnLogin");
+  const who = document.getElementById("who");
+  const recorderBox = document.getElementById("recorder");
+  const btnStart = document.getElementById("btnStart");
+  const btnStop = document.getElementById("btnStop");
+  const btnUpload = document.getElementById("btnUpload");
+  const timerEl = document.getElementById("timer");
+  const player = document.getElementById("player");
+  const prog = document.getElementById("prog");
+  const msg = document.getElementById("msg");
+  const picker = document.getElementById("pick");
+
+  // --- Read ?code= from URL (student_code) ---
+  const codeFromUrl = (new URLSearchParams(location.search).get("code") || "")
+    .trim().toLowerCase();
+
+  // --- Auth ---
+  btnLogin.onclick = async () => {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  };
+
+  onAuthStateChanged(auth, (u) => {
+    if (u) {
+      who.style.display = "inline-block";
+      who.textContent = u.email || u.uid;
+      recorderBox.style.display = "block";
+      btnLogin.style.display = "none";
+    } else {
+      who.style.display = "none";
+      recorderBox.style.display = "none";
+      btnLogin.style.display = "inline-block";
+    }
+  });
+
+  // --- Recorder state ---
+  let mediaRecorder = null;
+  let chunks = [];
+  let blob = null;
+  let tick = null;
+  const LIMIT_SECONDS = 60;
+
+  function fmt(n) { return String(n).padStart(2, "0"); }
+  function setMsg(text, klass = "note") {
+    msg.className = klass;
+    msg.textContent = text || "";
+  }
+
+  // --- Start recording ---
+  btnStart.onclick = async () => {
+    try {
+      setMsg("");
+      chunks = [];
+      blob = null;
+      player.style.display = "none";
+      btnUpload.disabled = true;
+
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : undefined;
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+
+      let elapsed = 0;
+      timerEl.textContent = "00:00 / 00:60";
+      tick = setInterval(() => {
+        elapsed += 1;
+        timerEl.textContent = `${fmt(Math.floor(elapsed/60))}:${fmt(elapsed%60)} / 00:60`;
+        if (elapsed >= LIMIT_SECONDS) btnStop.click();
+      }, 1000);
+
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        clearInterval(tick);
+        stream.getTracks().forEach(t => t.stop());
+        blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+        player.src = URL.createObjectURL(blob);
+        player.style.display = "block";
+        btnUpload.disabled = false;
+      };
+
+      mediaRecorder.start(100);
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+    } catch (e) {
+      setMsg("Mic access failed. On iPhone use the file picker below.", "warn");
+      console.error(e);
+    }
+  };
+
+  // --- Stop recording ---
+  btnStop.onclick = () => {
+    try {
+      btnStop.disabled = true;
+      btnStart.disabled = false;
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+    } catch {}
+  };
+
+  // --- Picker fallback (iOS etc.) ---
+  picker.onchange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    blob = file;
+    player.src = URL.createObjectURL(file);
+    player.style.display = "block";
+    btnUpload.disabled = false;
+    setMsg("");
+  };
+
+  // --- Upload ---
+  btnUpload.onclick = async () => {
+    try {
+      setMsg("");
+      if (!auth.currentUser) {
+        setMsg("Please sign in first.", "warn");
+        return;
+      }
+      if (!blob) {
+        setMsg("No audio to upload.", "warn");
+        return;
+      }
+      if (blob.size > 24 * 1024 * 1024) {
+        setMsg("File is larger than 24MB. Please record again.", "warn");
+        return;
+      }
+
+      // Extension guess
+      const ext = blob.type.includes("mp4") ? "m4a"
+                : blob.type.includes("ogg") ? "ogg"
+                : blob.type.includes("webm") ? "webm"
+                : "webm";
+      const ts = new Date();
+      const stamp = ts.toISOString().replace(/[:.]/g, "").slice(0, 15);
+      const path = `pron_uploads/${auth.currentUser.uid}/${stamp}.${ext}`;
+
+      const r = ref(storage, path);
+      const task = uploadBytesResumable(r, blob, { contentType: blob.type || "audio/webm" });
+
+      prog.style.display = "block";
+      prog.value = 0;
+
+      task.on("state_changed",
+        (s) => {
+          const pct = Math.round((s.bytesTransferred / s.totalBytes) * 100);
+          prog.value = pct;
+        },
+        (err) => {
+          console.error(err);
+          setMsg("Upload failed. Please try again.", "err");
+          prog.style.display = "none";
+        },
+        // --- When finished: write Firestore doc in pron_inbox ---
+        async () => {
+          try {
+            prog.value = 100;
+            const url = await getDownloadURL(task.snapshot.ref);
+            const contentType = blob?.type || "audio/webm";
+
+            await addDoc(collection(db, "pron_inbox"), {
+              code: codeFromUrl || "(none)",
+              url: url,
+              contentType: contentType,
+              createdAt: serverTimestamp(),
+              status: "new"
+            });
+
+            setMsg("Uploaded! You can return to the app and tap “Check latest upload”.", "ok");
+            console.log("downloadURL:", url);
+            btnUpload.disabled = true;
+          } catch (e) {
+            console.error(e);
+            setMsg("Upload done, but could not write record. Please try again.", "err");
+          }
+        }
+      );
+    } catch (e) {
+      console.error(e);
+      setMsg("Unexpected error during upload.", "err");
+    }
+  };
+</script>
