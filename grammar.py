@@ -8003,44 +8003,22 @@ if tab == "Exams Mode & Custom Chat":
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            Record or upload your speaking sample below (max 60 seconds).  
+            Record or upload your speaking sample below (max 60 seconds).
             • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your device.  
             • Then tap **Browse** and select the saved **.wav / .mp3 / .m4a** audio file.
             """
         )
 
-        # ---- Notice banner (always shown)
-        st.markdown(
-            """
-            <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;
-                        padding:10px 12px;margin:10px 0;">
-              <b>Heads-up:</b> If upload fails on Android, use a <b>computer</b> or an <b>iPhone</b>, or open
-              <a href="https://www.falowen.app" target="_blank">falowen.app</a> in <b>Chrome</b> on Android.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Android help (non-blocking)
+        with st.expander("Having trouble on Android? Tap for quick steps"):
+            st.markdown(
+                """
+                1) Open this page in **Chrome** (not the in-app browser from WhatsApp/Telegram).  
+                2) In your recorder app, **Save** the file first, then choose **Files → Audio/Recordings** (not Photos).  
+                3) If it still fails, use **vocaroo.com** and download as **.mp3**.
+                """
+            )
 
-        # ---- HARD BLOCK toggle (OFF by default)
-        _android_block = False
-        try:
-            _android_block = bool(st.secrets.get("android_upload_block", False))
-        except Exception:
-            pass
-        try:
-            if st.query_params.get("androidBlock", ["false"])[0].lower() in ("1", "true", "yes"):
-                _android_block = True
-        except Exception:
-            pass
-
-        # Debug chip so you can see the current mode
-        st.caption(f"🔧 Android upload block: {'ON' if _android_block else 'OFF'}")
-
-        if _android_block:
-            st.warning("This function currently works only on computer and iPhone. Please switch devices to continue.")
-            st.stop()
-
-        # ---- Uploader
         audio_file = st.file_uploader(
             "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
             type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],
@@ -8049,99 +8027,163 @@ if tab == "Exams Mode & Custom Chat":
         )
 
         if audio_file:
+            # Preflight checks
+            max_mb = 24  # Whisper hard limit ~25MB; keep a little headroom
+            size_ok = getattr(audio_file, "size", None)
+            if size_ok is not None and size_ok > max_mb * 1024 * 1024:
+                st.error(f"File is larger than {max_mb} MB. Please trim or export at a lower bitrate.")
+                st.stop()
+
             allowed_types = {
                 "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
                 "audio/x-m4a", "audio/m4a", "audio/mp4",
                 "audio/3gpp", "video/3gpp",
                 "audio/aac", "audio/x-aac",
                 "audio/ogg", "audio/webm", "video/webm",
-                "application/octet-stream",  # some Android recorders use this
+                "application/octet-stream",  # some Android pickers use this
             }
             allowed_exts = (".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm")
 
             file_type = (audio_file.type or "").lower()
             file_name = (audio_file.name or "speech").lower()
-            if not (file_type.startswith("audio/") or file_type in allowed_types or any(file_name.endswith(ext) for ext in allowed_exts)):
-                st.error("Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm).")
-            else:
-                st.audio(audio_file)
 
-                # ——— Robust bytes buffer with a name (helps Whisper on mobile uploads)
+            # Some Android pickers give no extension; infer one if needed
+            def _ensure_ext(name: str, mime: str) -> str:
+                if name.endswith(allowed_exts):
+                    return name
+                if "wav" in mime:
+                    return name + ".wav"
+                if "mpeg" in mime or "mp3" in mime:
+                    return name + ".mp3"
+                if "m4a" in mime or "mp4" in mime or "aac" in mime:
+                    return name + ".m4a"
+                if "3gpp" in mime:
+                    return name + ".3gp"
+                if "ogg" in mime:
+                    return name + ".ogg"
+                if "webm" in mime:
+                    return name + ".webm"
+                return name + ".mp3"
+
+            file_name = _ensure_ext(file_name, file_type)
+
+            if not (file_type.startswith("audio/") or file_type in allowed_types or file_name.endswith(allowed_exts)):
+                st.error("Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm).")
+                st.stop()
+
+            # Show the inline player
+            st.audio(audio_file)
+
+            # Read clean bytes for processing
+            try:
+                audio_file.seek(0)
+            except Exception:
+                pass
+            audio_bytes = audio_file.read()
+            if not audio_bytes or len(audio_bytes) < 512:
+                st.error("We received an empty or very short file. Please re-record and ensure the file is saved.")
+                st.stop()
+
+            # Try to normalize to 16k mono WAV (best for Whisper). Fall back if conversion not available.
+            buf_for_whisper = None
+            try:
+                from pydub import AudioSegment  # requires ffmpeg on the server
+                import tempfile, os
+
+                # Persist to temp with extension so pydub can guess the format
+                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=file_name[file_name.rfind("."):])
+                tmp_in.write(audio_bytes)
+                tmp_in.flush(); tmp_in.close()
+
+                seg = AudioSegment.from_file(tmp_in.name)
+                seg = seg.set_channels(1).set_frame_rate(16000)
+                out_io = BytesIO()
+                seg.export(out_io, format="wav")
+                out_io.seek(0)
+                setattr(out_io, "name", "speech.wav")
+                buf_for_whisper = out_io
+
                 try:
-                    audio_file.seek(0)
+                    os.unlink(tmp_in.name)
                 except Exception:
                     pass
-                audio_bytes = audio_file.read()
-                buf = BytesIO(audio_bytes)
-                # give Whisper a filename with extension (many SDKs rely on it)
-                if not any(file_name.endswith(ext) for ext in allowed_exts):
-                    file_name += ".mp3"
-                setattr(buf, "name", file_name)
 
-                # Force German transcription (no translation)
-                try:
-                    transcript_resp = client.audio.transcriptions.create(
-                        file=buf,
-                        model="whisper-1",
-                        language="de",
-                        temperature=0,
-                        prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
-                    )
-                    transcript_text = transcript_resp.text
-                except Exception as e:
-                    st.error(f"Sorry, could not process audio: {e}")
-                    st.stop()
+            except Exception:
+                # If pydub/ffmpeg is not installed or conversion fails, send original bytes with a usable name
+                raw_io = BytesIO(audio_bytes)
+                raw_io.seek(0)
+                setattr(raw_io, "name", file_name)
+                buf_for_whisper = raw_io
 
-                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
-
-                # Evaluate in English
-                eval_prompt = (
-                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
-                    f'The student said (in German): "{transcript_text}"\n\n'
-                    "Please provide scores **in English only**:\n"
-                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
-                    "• Give three concise, actionable tips for each category.\n"
-                    "• Do not translate the student's text; focus on evaluating it.\n\n"
-                    "Respond exactly in this format:\n"
-                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+            # Transcribe (German only)
+            try:
+                transcript_resp = client.audio.transcriptions.create(
+                    file=buf_for_whisper,
+                    model="whisper-1",
+                    language="de",
+                    temperature=0,
+                    prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
+                transcript_text = transcript_resp.text or ""
+            except Exception as e:
+                st.error(f"Sorry, could not process audio: {e}")
+                st.stop()
 
-                with st.spinner("Evaluating your sample..."):
-                    try:
-                        eval_resp = client.chat.completions.create(
-                            model="gpt-4o",
-                            messages=[
-                                {
-                                    "role": "system",
-                                    "content": (
-                                        "You are an English-speaking tutor evaluating German speech. "
-                                        "Always answer in clear, concise English using the requested format."
-                                    ),
-                                },
-                                {"role": "user", "content": eval_prompt},
-                            ],
-                            temperature=0.2,
-                        )
-                        result_text = eval_resp.choices[0].message.content
-                    except Exception as e:
-                        st.error(f"Evaluation error: {e}")
-                        result_text = None
+            if not transcript_text.strip():
+                st.error("We couldn't detect speech in the file. Please speak louder or reduce background noise and try again.")
+                st.stop()
 
-                if result_text:
-                    st.markdown(result_text)
-                    uploads_ref.set({"count": count + 1, "date": today_str})
-                    st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-                    if st.button("🔄 Try Another"):
-                        st.rerun()
-                else:
-                    st.error("Could not get feedback. Please try again later.")
+            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+
+            # Evaluate in English
+            eval_prompt = (
+                "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                f'The student said (in German): "{transcript_text}"\n\n'
+                "Please provide scores **in English only**:\n"
+                "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                "• Give three concise, actionable tips for each category.\n"
+                "• Do not translate the student's text; focus on evaluating it.\n\n"
+                "Respond exactly in this format:\n"
+                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+            )
+
+            with st.spinner("Evaluating your sample..."):
+                try:
+                    eval_resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are an English-speaking tutor evaluating German speech. "
+                                    "Always answer in clear, concise English using the requested format."
+                                ),
+                            },
+                            {"role": "user", "content": eval_prompt},
+                        ],
+                        temperature=0.2,
+                    )
+                    result_text = eval_resp.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Evaluation error: {e}")
+                    result_text = None
+
+            if result_text:
+                st.markdown(result_text)
+                uploads_ref.set({"count": count + 1, "date": today_str})
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
+                if st.button("🔄 Try Another"):
+                    st.rerun()
+            else:
+                st.error("Could not get feedback. Please try again later.")
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 # =========================================
