@@ -9476,7 +9476,11 @@ if tab == "Vocab Trainer":
 
         # --- Guide & Progress ---
         with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
-            done_unique, total_items = get_sentence_progress(student_code, student_level)
+            try:
+                done_unique, total_items = get_sentence_progress(student_code, student_level)
+            except Exception:
+                total_items = len(SENTENCE_BANK.get(student_level, [])) if 'SENTENCE_BANK' in globals() else 0
+                done_unique = 0
             pct = int((done_unique / total_items) * 100) if total_items else 0
             st.progress(pct)
             st.caption(f"**Overall Progress:** {done_unique} / {total_items} unique sentences correct ({pct}%).")
@@ -9631,7 +9635,7 @@ if tab == "Vocab Trainer":
             (st.success if st.session_state.sb_correct else st.info)(st.session_state.sb_feedback)
 
     # ===========================
-    # SUBTAB: Vocab Practice  (uses sheet audio links)
+    # SUBTAB: Vocab Practice  (download-only audio)
     # ===========================
     elif subtab == "Vocab Practice":
         defaults = {
@@ -9703,23 +9707,22 @@ if tab == "Vocab Trainer":
         if isinstance(tot, int) and idx < tot:
             word, answer = st.session_state.vt_list[idx]
 
-            # ---- AUDIO (prefer sheet link; fallback to gTTS) ----
+            # ---- AUDIO (download-only: prefer sheet link; fallback to gTTS bytes) ----
             audio_url = get_audio_url(level, word)
-            cols_audio = st.columns([1, 2])
-            with cols_audio[0]:
-                if st.button("🔊 Play", key=f"play_{idx}"):
-                    if audio_url:
-                        st.audio(audio_url, format="audio/mp3")
-                    else:
-                        # fallback small local TTS
-                        audio_bytes = _dict_tts_bytes_de(word)
-                        if audio_bytes:
-                            st.audio(audio_bytes, format="audio/mp3")
-                        else:
-                            st.warning("Audio unavailable.")
-            with cols_audio[1]:
-                if audio_url:
-                    st.markdown(f"[⬇️ Download / Open MP3]({audio_url})")
+            if audio_url:
+                st.markdown(f"[⬇️ Download / Open MP3]({audio_url})")
+            else:
+                audio_bytes = _dict_tts_bytes_de(word)  # fallback generation
+                if audio_bytes:
+                    st.download_button(
+                        "⬇️ Download MP3",
+                        data=audio_bytes,
+                        file_name=f"{word}.mp3",
+                        mime="audio/mpeg",
+                        key=f"dl_{idx}"
+                    )
+                else:
+                    st.caption("Audio not available yet.")
 
             # nicer input styling
             st.markdown(
@@ -9768,7 +9771,7 @@ if tab == "Vocab Trainer":
                 st.rerun()
 
     # ===========================
-    # SUBTAB: Dictionary  (uses sheet audio links)
+    # SUBTAB: Dictionary  (download-only audio)
     # ===========================
     elif subtab == "Dictionary":
         import io, json, difflib, pandas as pd
@@ -9864,7 +9867,7 @@ if tab == "Vocab Trainer":
         else:
             if not df_view.empty: top_row = df_view.iloc[0]
 
-        # Details panel (uses sheet audio if available)
+        # Details panel (download-only audio)
         if top_row is not None and len(top_row) > 0:
             de  = str(top_row["German"])
             en  = str(top_row.get("English", "") or "")
@@ -9874,20 +9877,20 @@ if tab == "Vocab Trainer":
             if en: st.markdown(f"**Meaning:** {en}")
 
             sheet_audio = get_audio_url(lvl, de)
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                if st.button("🔊 Pronounce", key=f"say_{de}_{lvl}"):
-                    if sheet_audio:
-                        st.audio(sheet_audio, format="audio/mp3")
-                    else:
-                        audio_bytes = _dict_tts_bytes_de(de)
-                        if audio_bytes:
-                            st.audio(audio_bytes, format="audio/mp3")
-                        else:
-                            st.caption("Audio currently unavailable.")
-            with c2:
-                if sheet_audio:
-                    st.markdown(f"[⬇️ Download / Open MP3]({sheet_audio})")
+            if sheet_audio:
+                st.markdown(f"[⬇️ Download / Open MP3]({sheet_audio})")
+            else:
+                audio_bytes = _dict_tts_bytes_de(de)
+                if audio_bytes:
+                    st.download_button(
+                        "⬇️ Download MP3",
+                        data=audio_bytes,
+                        file_name=f"{de}.mp3",
+                        mime="audio/mpeg",
+                        key=f"dl_{de}_{lvl}"
+                    )
+                else:
+                    st.caption("Audio not available yet.")
 
         if q and suggestions:
             st.markdown("**Did you mean:**")
