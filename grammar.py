@@ -8015,87 +8015,123 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-        st.subheader("🎤 Pronunciation & Speaking Checker")
-        st.info(
-            "This page fetches your **latest cloud recording** from the Web Recorder "
-            "and evaluates it for Pronunciation, Grammar, and Fluency."
-        )
+    # ——— Stage 99: Pronunciation & Speaking Checker (Web Recorder + Cloud fetch)
+    if st.session_state.get("falowen_stage") == 99:
+        import datetime as _dt
+        from io import BytesIO
+        import requests
 
-        # ----- Fetch newest "new" pron_inbox item for this student
-        q = (
-            db.collection("pron_inbox")
-            .where("code", "==", code_val)
-            .order_by("createdAt", direction=_fs.Query.DESCENDING)
-            .limit(5)
-        )
-        _docs = list(q.stream())
-        _docs = [d for d in _docs if (d.to_dict() or {}).get("status") == "new"]
+        try:
+            from google.cloud import firestore as _fs  # for type refs like _fs.Query
+        except Exception:
+            _fs = None
 
-        if not _docs:
-            st.info("No cloud upload found yet.")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.link_button("Open Web Recorder", RECORDER_URL)
-            with col2:
-                st.link_button("Open Fallback Recorder", RECORDER_FALLBACK)
-            if st.button("↻ Check again"):
-                st.rerun()
-            if st.button("⬅️ Back to Start"):
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
+        RECORDER_URL = "https://learngermanghana.github.io/a1spreche/"
+
+        # ----- daily throttle
+        today_str = _dt.date.today().isoformat()
+        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
+        doc = uploads_ref.get()
+        data = doc.to_dict() if doc.exists else {}
+        last_date = data.get("date")
+        count = data.get("count", 0)
+        if last_date != today_str:
+            count = 0
+        if count >= 3:
+            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
             st.stop()
 
-        inbox_doc = _docs[0]
-        rec = inbox_doc.to_dict() or {}
-        url = rec.get("url")
-        ct = (rec.get("contentType") or "audio/webm").lower()
-        created_at = rec.get("createdAt")
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.info(
+            "Use the **Web Recorder** to record (≤60s) and upload. Then come back here and click **Check Cloud Upload**.\n\n"
+            f"Recorder link: {RECORDER_URL}"
+        )
+        st.link_button("Open Web Recorder", RECORDER_URL)
 
-        st.success("Found your latest cloud recording.")
-        if created_at:
+        debug_on = st.toggle(
+            "Developer debug",
+            value=False,
+            key="dbg_audio_toggle_cloud",
+            help="Show Firestore pull details and errors."
+        )
+
+        # ---------- helper for sorting by createdAt without needing a composite index
+        def _ts_of(doc):
             try:
-                st.caption(f"Uploaded: {created_at.astimezone().strftime('%d %b %Y %H:%M')}")
+                v = (doc.to_dict() or {}).get("createdAt")
+                if hasattr(v, "timestamp"):           # Firestore Timestamp
+                    return float(v.timestamp())
+                if isinstance(v, (int, float)):       # already epoch
+                    return float(v)
+                if isinstance(v, str):                # ISO string
+                    try:
+                        return _dt.datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp()
+                    except Exception:
+                        return 0.0
             except Exception:
-                st.caption(f"Uploaded: {created_at}")
+                pass
+            return 0.0
 
-        # Quick access link + inline player
-        if url:
-            st.markdown(f"[🔗 Open recording in a new tab]({url})")
-        played = False
-        try:
-            st.audio(url, format=ct)
-            played = True
-        except Exception:
-            played = False
+        # ---------- UI action to fetch from cloud
+        if st.button("🔄 Check Cloud Upload"):
+            code_val = st.session_state.get("student_code", "")
+            if not code_val:
+                st.error("No student code in session.")
+                st.stop()
 
-        if not played and url:
             try:
-                r = requests.get(url, timeout=25)
-                r.raise_for_status()
-                st.audio(BytesIO(r.content), format=ct)
+                # Index-free: fetch limited docs and sort by createdAt in Python
+                q = db.collection("pron_inbox").where("code", "==", code_val).limit(20)
+                raw_docs = list(q.stream())
+                docs_sorted = sorted(raw_docs, key=_ts_of, reverse=True)
+                docs_new = [d for d in docs_sorted if (d.to_dict() or {}).get("status") == "new"]
+
+                if debug_on:
+                    st.write({"total_fetched": len(raw_docs), "after_sort": len(docs_sorted), "only_new": len(docs_new)})
+
+                if not docs_new:
+                    st.info("No cloud upload found yet. Make sure you finished uploading in the Web Recorder.")
+                    st.stop()
+
+                _doc = docs_new[0]
+                rec = _doc.to_dict() or {}
+                url = rec.get("url")
+                ct = (rec.get("contentType") or "").lower()
+
+                if not url:
+                    st.error("Found a record but it has no download URL.")
+                    if debug_on:
+                        st.json(rec)
+                    st.stop()
+
             except Exception as e:
-                st.warning(f"Could not autoplay; use the link above. ({e})")
+                st.error("Couldn’t fetch cloud upload (Firestore).")
+                if debug_on:
+                    st.exception(e)
+                st.stop()
 
-        # ----- Process button
-        if st.button("✅ Use this recording"):
-            # Download bytes for Whisper
+            # ---------- download audio bytes
             try:
-                r = requests.get(url, timeout=45)
+                r = requests.get(url, timeout=30)
                 r.raise_for_status()
                 audio_bytes = r.content
             except Exception as e:
-                st.error(f"Could not fetch the audio for processing: {e}")
+                st.error("Couldn’t download audio from Storage URL.")
+                if debug_on:
+                    st.exception(e)
                 st.stop()
 
-            # Prepare a file-like object; give Whisper a friendly .wav/.webm name
-            audio_bio = BytesIO(audio_bytes)
-            ext = ".m4a" if "mp4" in ct or "aac" in ct or "m4a" in ct else (".ogg" if "ogg" in ct else (".wav" if "wav" in ct else ".webm"))
-            audio_bio.name = f"speech{ext}"
+            # show inline player
+            st.audio(BytesIO(audio_bytes), format=ct or "audio/mpeg")
 
-            # --- Transcribe (German only)
+            # ---------- Whisper transcription (German only)
+            # Give the buffer a filename for Whisper
+            bio = BytesIO(audio_bytes)
+            setattr(bio, "name", "speech.webm" if "webm" in ct else "speech.m4a" if "m4a" in ct or "mp4" in ct else "speech.mp3")
+
             try:
                 transcript_resp = client.audio.transcriptions.create(
-                    file=audio_bio,
+                    file=bio,
                     model="whisper-1",
                     language="de",
                     temperature=0,
@@ -8104,11 +8140,13 @@ if tab == "Exams Mode & Custom Chat":
                 transcript_text = transcript_resp.text
             except Exception as e:
                 st.error(f"Sorry, could not process audio: {e}")
+                if debug_on:
+                    st.exception(e)
                 st.stop()
 
             st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            # --- Evaluate in English
+            # ---------- Evaluation with GPT
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8141,34 +8179,26 @@ if tab == "Exams Mode & Custom Chat":
                     result_text = eval_resp.choices[0].message.content
                 except Exception as e:
                     st.error(f"Evaluation error: {e}")
+                    if debug_on:
+                        st.exception(e)
                     result_text = None
 
             if result_text:
                 st.markdown(result_text)
-
-                # Increment daily counter & mark inbox item as used
+                # mark daily use
+                uploads_ref.set({"count": count + 1, "date": today_str})
+                # Optionally: mark this inbox doc as processed
                 try:
-                    uses_ref.set({"count": count + 1, "date": today_str})
-                except Exception:
-                    pass
-                try:
-                    inbox_doc.reference.update({"status": "used", "usedAt": _fs.SERVER_TIMESTAMP})
+                    _doc.reference.update({"status": "done"})
                 except Exception:
                     pass
 
-                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record again.")
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("🔄 Try Another"):
-                        st.rerun()
-                with col2:
-                    if st.button("⬅️ Back to Start"):
-                        st.session_state["falowen_stage"] = 1
-                        st.rerun()
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record in the Web Recorder.")
+                if st.button("🔄 Evaluate Another"):
+                    st.rerun()
             else:
                 st.error("Could not get feedback. Please try again later.")
 
-        # Bottom navigation
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
