@@ -27,13 +27,6 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# ==== Firestore (Firebase Admin) Bootstrap ====
-if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["firebase"]))  # service account JSON in secrets
-    firebase_admin.initialize_app(cred)
-
-db = AFS.client()                  # use this DB handle everywhere
-ASC, DESC = GFS.Query.ASCENDING, GFS.Query.DESCENDING  # direction helpers for order_by
 
 
 # ---- Streamlit page config MUST be first Streamlit call ----
@@ -11215,6 +11208,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
