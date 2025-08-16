@@ -7982,43 +7982,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-
-    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: web recorder + latest upload)
-    if st.session_state.get("falowen_stage") == 99:
-        import datetime as _dt
-        import time
-        from io import BytesIO
-        import urllib.parse as _urllib
-        import requests
-        from google.cloud import firestore
-        import streamlit as st  # ensure imported
-
-        # Where your tiny web recorder lives
-        RECORDER_URL = "https://speak.falowen.app"
-        RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
-
-        # ----- Daily limit guard (3/day)
-        today_str = _dt.date.today().isoformat()
-        code_val = (st.session_state.get("student_code") or "").strip()
-        if not code_val:
-            st.error("Missing student code in session. Please sign in again.")
-            st.stop()
-
-        uses_ref = db.collection("pron_uses").document(code_val)
-        snap = uses_ref.get()
-        data = snap.to_dict() if snap.exists else {}
-        last_date = data.get("date")
-        count = int(data.get("count", 0))
-
-        if last_date != today_str:
-            count = 0
-        if count >= 3:
-            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
-            if st.button("⬅️ Back to Start"):
-                st.session_state["falowen_stage"] = 1
-                st.rerun()
-            st.stop()
-
     # ——— Stage 99: Pronunciation & Speaking Checker (Web Recorder only)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
@@ -8060,7 +8023,7 @@ if tab == "Exams Mode & Custom Chat":
         )
 
         # Use the GitHub Pages recorder (speak.falowen.app not ready yet)
-        RECORDER_URL = "https://learngermanghana.github.io/a1spreche/"
+        RECORDER_URL = "https://speak.falowen.app/"
         rec_url = RECORDER_URL + f"?code={_urllib.quote(code_val)}"
 
         c1, c2 = st.columns([1, 1])
@@ -11148,8 +11111,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
-
 
 
 
