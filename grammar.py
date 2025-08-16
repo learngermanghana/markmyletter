@@ -7982,14 +7982,15 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (Cloud fetch version)
+
+    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: web recorder + latest upload)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
+        import urllib.parse as _urllib
         import requests
-        import google.cloud.firestore_v1 as _fs
 
-        # Where your tiny web recorder lives (primary + fallback)
+        # Where your tiny web recorder lives
         RECORDER_URL = "https://speak.falowen.app"
         RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
 
@@ -8015,108 +8016,87 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: Web Recorder + latest upload)
-    if st.session_state.get("falowen_stage") == 99:
-        import datetime as _dt
-        from io import BytesIO
-        import requests
-        import urllib.parse as _urllib
-        from google.cloud import firestore as _fs
-
-        today_str = _dt.date.today().isoformat()
-        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
-        _doc0 = uploads_ref.get()
-        _data0 = _doc0.to_dict() if _doc0.exists else {}
-        last_date = _data0.get("date")
-        count = _data0.get("count", 0)
-
-        if last_date != today_str:
-            count = 0
-        if count >= 3:
-            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
-            st.stop()
-
+        # ----- UI
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** there.\n\n"
-            "Step 2) Return to this page and tap **Check latest upload** to transcribe and get feedback."
+            "Step 2) Return here and tap **🔎 Check latest upload** to transcribe and get feedback."
         )
 
-        # Link to your recorder (pass student_code as ?code=… so Firestore doc has the right code)
-        RECORDER_BASE = "https://learngermanghana.github.io/a1spreche/"
-        code_val = st.session_state.get("student_code", "")
-        rec_url = RECORDER_BASE + f"?code={_urllib.quote(code_val)}"
+        rec_url_primary = f"{RECORDER_URL}?code={_urllib.quote(code_val)}"
+        rec_url_fallback = f"{RECORDER_FALLBACK}?code={_urllib.quote(code_val)}"
 
-        c1, c2 = st.columns([1, 1])
+        c1, c2 = st.columns(2)
         with c1:
-            st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
+            st.link_button("🎙️ Open Web Recorder", rec_url_primary, use_container_width=True)
+            st.caption(f"Alternative link: [open fallback]({rec_url_fallback})")
         with c2:
-            _go = st.button("🔎 Check latest upload", use_container_width=True)
+            go = st.button("🔎 Check latest upload", use_container_width=True)
 
-        st.caption("Tip: If nothing appears, wait 2–3 seconds after uploading, then click “Check latest upload” again.")
+        st.caption("Tip: After uploading in the recorder, wait 2–3 seconds, then click **Check latest upload**.")
 
-        if _go:
-            # Fetch newest uploaded doc for this student_code from pron_inbox
+        if go:
+            # ----- Fetch a few docs (no composite index needed), then sort newest in Python
             try:
-                q = (
-                    db.collection("pron_inbox")
-                    .where("code", "==", code_val)
-                    .order_by("createdAt", direction=_fs.Query.DESCENDING)
-                    .limit(1)
-                )
-                _docs = list(q.stream())
-            except Exception as e:
-                st.error(
-                    "Couldn’t fetch your cloud upload. If this is your first time, "
-                    "Firebase may ask you to create a composite index for (code==, order by createdAt)."
-                )
-                st.stop()
-
-            if not _docs:
-                st.info("No cloud upload found yet. Make sure you finished ‘Upload’ in the Web Recorder.")
-                st.stop()
-
-            _cloud_doc = _docs[0]
-            rec = _cloud_doc.to_dict() or {}
-            url = rec.get("url")
-            ct = (rec.get("contentType") or "").lower()
-            created_at = rec.get("createdAt")
-
-            if not url:
-                st.error("Found a record but it has no file URL. Please try uploading again.")
-                st.stop()
-
-            # Show a small badge
-            ts_human = ""
-            try:
-                if created_at:
-                    ts_human = created_at.astimezone().strftime("%d %b %Y, %H:%M")
+                q = db.collection("pron_inbox").where("code", "==", code_val).limit(20)
+                docs = list(q.stream())
             except Exception:
-                pass
-            if ts_human:
-                st.caption(f"Latest upload detected: {ts_human}")
+                st.error("Couldn’t fetch your cloud upload. Please try again in a moment.")
+                st.stop()
 
-            # Download file bytes from Firebase Storage (public tokened URL)
+            if not docs:
+                st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
+                st.stop()
+
+            def _safe_ts(doc):
+                rec = doc.to_dict() or {}
+                ts = rec.get("createdAt")
+                try:
+                    return ts.timestamp() if hasattr(ts, "timestamp") else 0.0
+                except Exception:
+                    return 0.0
+
+            docs.sort(key=_safe_ts, reverse=True)
+            cloud_doc = docs[0]
+            rec = cloud_doc.to_dict() or {}
+
+            url = rec.get("url")
+            if not url:
+                st.error("Upload record found but missing file URL.")
+                st.stop()
+
+            content_type = (rec.get("contentType") or "").lower()
+
+            # Preview
             try:
-                r = requests.get(url, timeout=60)
+                st.audio(url)
+            except Exception:
+                st.caption("Preview may be blocked by the browser; continuing…")
+
+            # ----- Download file bytes
+            try:
+                r = requests.get(url, timeout=30)
                 r.raise_for_status()
                 audio_bytes = r.content
             except Exception as e:
-                st.error(f"Could not download audio: {e}")
+                st.error(f"Could not download your audio file: {e}")
                 st.stop()
 
-            # Prepare a file-like object for Whisper
-            bio = BytesIO(audio_bytes)
-            ext = "webm"
-            if "m4a" in ct or "mp4" in ct or "aac" in ct:
-                ext = "m4a"
-            elif "ogg" in ct:
-                ext = "ogg"
-            elif "wav" in ct:
-                ext = "wav"
-            bio.name = f"speech.{ext}"
+            # Guess a filename for Whisper
+            def _ext_from(ct: str, u: str) -> str:
+                if "wav" in ct or u.lower().endswith(".wav"): return "wav"
+                if "mpeg" in ct or "mp3" in ct or u.lower().endswith(".mp3"): return "mp3"
+                if "m4a" in ct or "mp4" in ct or u.lower().endswith(".m4a"): return "m4a"
+                if "ogg" in ct or u.lower().endswith(".ogg"): return "ogg"
+                if "webm" in ct or u.lower().endswith(".webm"): return "webm"
+                if "3gpp" in ct or u.lower().endswith(".3gp"): return "3gp"
+                return "webm"
 
-            # Transcribe (German only)
+            ext = _ext_from(content_type, url)
+            bio = BytesIO(audio_bytes)
+            setattr(bio, "name", f"speech.{ext}")
+
+            # ----- Transcribe (German only)
             try:
                 transcript_resp = client.audio.transcriptions.create(
                     file=bio,
@@ -8132,7 +8112,7 @@ if tab == "Exams Mode & Custom Chat":
 
             st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            # Evaluate in English
+            # ----- Evaluate (English)
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8146,7 +8126,7 @@ if tab == "Exams Mode & Custom Chat":
                 "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
 
-            with st.spinner("Evaluating your sample..."):
+            with st.spinner("Evaluating your sample…"):
                 try:
                     eval_resp = client.chat.completions.create(
                         model="gpt-4o",
@@ -8169,15 +8149,9 @@ if tab == "Exams Mode & Custom Chat":
 
             if result_text:
                 st.markdown(result_text)
-                uploads_ref.set({"count": count + 1, "date": today_str})
-                # Mark that this cloud file was processed (best-effort)
-                try:
-                    _cloud_doc.reference.update({"status": "processed", "processedAt": _fs.SERVER_TIMESTAMP})
-                except Exception:
-                    pass
-
-                st.success("Done! Upload another in the Web Recorder, then click “Check latest upload” again.")
-                if st.button("🔄 Check latest upload again"):
+                uses_ref.set({"count": count + 1, "date": today_str})
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload with the Web Recorder.")
+                if st.button("🔄 Check another upload"):
                     st.rerun()
             else:
                 st.error("Could not get feedback. Please try again later.")
@@ -8186,7 +8160,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
-
 
 
 # =========================================
