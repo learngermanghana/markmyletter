@@ -18,7 +18,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore as f8ee   # ← use f8ee alias everywhere
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
@@ -62,13 +62,14 @@ st.markdown("""
 }
 
 /* Keep hero flush and compact */
-  .hero {
-    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 6px !important;
-    display: flow-root;
-  }
+.hero {
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+  padding-top: 6px !important;
+  display: flow-root;
+}
 .hero h1:first-child { margin-top: 0 !important; }
+
 /* Trim default gap above Streamlit tabs */
 [data-testid="stTabs"] {
   margin-top: 8px !important;
@@ -125,13 +126,17 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
+# ==== FIREBASE ADMIN INIT (use ONE client via firebase_admin everywhere) ====
 try:
     if not firebase_admin._apps:
         cred_dict = dict(st.secrets["firebase"])
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
-    db = firestore.client()
+
+    # Shared Firestore client + helpers
+    db = f8ee.client()
+    FSQuery = f8ee.Query                 # for direction=FSQuery.DESCENDING
+    FSServerTS = f8ee.SERVER_TIMESTAMP   # if you need server timestamps
 except Exception as e:
     st.error(f"Firebase init failed: {e}")
     st.stop()
@@ -155,6 +160,7 @@ def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str
         "ua_hash": ua_hash or "",
     })
     return token
+
 
 def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
     if not token:
@@ -11154,6 +11160,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
