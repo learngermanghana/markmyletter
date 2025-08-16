@@ -156,110 +156,6 @@ def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str
     })
     return token
 
-# Top spacing + chrome (tighter)
-st.markdown("""
-<style>
-/* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
-
-/* First rendered block (often a head-inject) — keep a small gap only */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;   /* was 24px */
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-
-/* If that first block is an iframe, collapse it completely */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Keep hero flush and compact */
-  .hero {
-    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 6px !important;
-    display: flow-root;
-  }
-.hero h1:first-child { margin-top: 0 !important; }
-/* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] {
-  margin-top: 8px !important;
-}
-
-/* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
-
-# Compatibility alias
-html = st_html
-
-# ---- PWA head helper (define BEFORE you call it) ----
-BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
-
-def _inject_meta_tags():
-    components.html(f"""
-      <link rel="manifest" href="{_manifest}">
-      <link rel="apple-touch-icon" href="{_icon180}">
-      <meta name="apple-mobile-web-app-capable" content="yes">
-      <meta name="apple-mobile-web-app-title" content="Falowen">
-      <meta name="apple-mobile-web-app-status-bar-style" content="black">
-      <meta name="theme-color" content="#000000">
-      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    """, height=0)
-
-# --- State bootstrap ---
-def _bootstrap_state():
-    defaults = {
-        "logged_in": False,
-        "student_row": None,
-        "student_code": "",
-        "student_name": "",
-        "session_token": "",
-        "cookie_synced": False,
-        "__last_refresh": 0.0,
-        "__ua_hash": "",
-        "_oauth_state": "",
-        "_oauth_code_redeemed": "",
-    }
-    for k, v in defaults.items():
-        st.session_state.setdefault(k, v)
-_bootstrap_state()
-
-# ==== Hide Streamlit chrome ====
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
-
-
-def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str:
-    now = time.time()
-    token = _rand_token()
-    db.collection(SESSIONS_COL).document(token).set({
-        "student_code": (student_code or "").strip().lower(),
-        "name": name or "",
-        "issued_at": now,
-        "expires_at": now + (SESSION_TTL_MIN * 60),
-        "ua_hash": ua_hash or "",
-    })
-    return token
-
 def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
     if not token:
         return None
@@ -8123,36 +8019,31 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: web recorder + latest upload)
+    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
-        import time
         from io import BytesIO
         import urllib.parse as _urllib
         import requests
+        from google.cloud import firestore as _fs
 
         # Where your tiny web recorder lives
         RECORDER_URL = "https://speak.falowen.app"
         RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
 
-        # ----- Daily limit guard (3/day)
-        today_str = _dt.date.today().isoformat()
+        # Require a student code in session
         code_val = (st.session_state.get("student_code") or "").strip()
         if not code_val:
             st.error("Missing student code in session. Please sign in again.")
             st.stop()
 
+        # Daily limit (3/day) tracked in Firestore: pron_uses/{code}
+        today_str = _dt.date.today().isoformat()
         uses_ref = db.collection("pron_uses").document(code_val)
-        try:
-            snap = uses_ref.get()
-            data = snap.to_dict() or {}
-        except Exception:
-            data = {}
-        last_date = data.get("date")
-        count = int(data.get("count", 0))
+        snap = uses_ref.get()
+        data = snap.to_dict() if snap.exists else {}
+        count = int(data.get("count", 0)) if data.get("date") == today_str else 0
 
-        if last_date != today_str:
-            count = 0
         if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
             if st.button("⬅️ Back to Start"):
@@ -8160,125 +8051,94 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-        # ----- UI
+        # UI
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** there.\n\n"
-            "Step 2) Return here and tap **🔎 Check latest upload** to transcribe and get feedback."
+            "Step 2) Return here and tap **Check latest upload** to transcribe and get feedback."
         )
 
-        rec_url_primary = f"{RECORDER_URL}?code={_urllib.quote(code_val)}"
-        rec_url_fallback = f"{RECORDER_FALLBACK}?code={_urllib.quote(code_val)}"
-
-        c1, c2 = st.columns(2)
+        rec_url = f"{RECORDER_URL}?code={_urllib.quote(code_val)}"
+        c1, c2 = st.columns([1, 1])
         with c1:
-            st.link_button("🎙️ Open Web Recorder", rec_url_primary, use_container_width=True)
-            st.caption(f"Alternative link: [open fallback]({rec_url_fallback})")
+            st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
+            st.caption(f"If the page doesn’t open, use the fallback: {RECORDER_FALLBACK}")
         with c2:
             go = st.button("🔎 Check latest upload", use_container_width=True)
 
-        st.caption("Tip: After uploading in the recorder, wait 2–3 seconds, then click **Check latest upload**.")
+        st.caption("After uploading, wait a few seconds, then tap **Check latest upload**.")
 
-        # ===== Helpers =====
-        def _ext_from(ct: str, u: str) -> str:
-            ct = (ct or "").lower()
-            lu = (u or "").lower()
-            if "wav" in ct or lu.endswith(".wav"): return "wav"
-            if "mpeg" in ct or "mp3" in ct or lu.endswith(".mp3"): return "mp3"
-            if "m4a" in ct or "mp4" in ct or lu.endswith(".m4a"): return "m4a"
-            if "ogg" in ct or lu.endswith(".ogg"): return "ogg"
-            if "webm" in ct or lu.endswith(".webm"): return "webm"
-            if "3gpp" in ct or lu.endswith(".3gp"): return "3gp"
-            return "webm"
-
-        def _normalize_code(s: str) -> str:
-            return (s or "").strip()
-
-        # ===== Fetch & process latest upload =====
         if go:
-            code_val = _normalize_code(code_val)
-
-            # Build query: latest doc for this code by createdAt DESC
+            # Pull newest upload for this student from pron_inbox (needs composite index)
             try:
                 q = (
                     db.collection("pron_inbox")
                     .where("code", "==", code_val)
-                    .order_by("createdAt", direction=GFS.Query.DESCENDING)
+                    .order_by("createdAt", direction=_fs.Query.DESCENDING)
                     .limit(1)
                 )
-            except Exception as e:
-                st.error(f"Query setup error: {e}")
-                st.stop()
-
-            latest_doc = None
-            deadline = time.time() + 15  # poll ~15s to allow the recorder to finish writing
-            while time.time() < deadline and latest_doc is None:
-                try:
-                    docs = list(q.stream())
-                    latest_doc = docs[0] if docs else None
-                except Exception:
-                    latest_doc = None
-                if latest_doc is None:
-                    time.sleep(2)
-
-            if latest_doc is None:
-                st.info("No cloud upload found yet. In the Web Recorder, press **Upload**, wait ~2 seconds, then click **Check latest upload** here.")
-                st.stop()
-
-            rec = latest_doc.to_dict() or {}
-
-            # Tolerate alternate field names
-            url = rec.get("url") or rec.get("downloadURL")
-            content_type = (rec.get("contentType") or rec.get("mimeType") or "").lower()
-            created_at = rec.get("createdAt")
-
-            try:
-                if hasattr(created_at, "isoformat"):
-                    st.caption(f"Latest upload time (server): {created_at.isoformat()}")
+                docs = list(q.stream())
             except Exception:
-                pass
+                st.error(
+                    "Couldn’t fetch your upload. Please ensure the Firestore index "
+                    "for (code ==, order by createdAt desc) exists and is enabled."
+                )
+                st.stop()
+
+            if not docs:
+                st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
+                st.stop()
+
+            rec = docs[0].to_dict() or {}
+            url = rec.get("url")
+            ctype = (rec.get("contentType") or "").lower()
 
             if not url:
-                st.error("Upload record found but missing file URL.")
+                st.error("Found a record, but it has no download URL.")
                 st.stop()
 
-            # Download file bytes
+            # Quick listen (streams from Firebase Storage)
+            st.audio(url)
+
+            # Download bytes for Whisper
             try:
                 r = requests.get(url, timeout=30)
                 r.raise_for_status()
-                audio_bytes = r.content
+                data_bytes = r.content
             except Exception as e:
-                st.error(f"Could not download your audio file: {e}")
+                st.error(f"Couldn’t download your audio: {e}")
                 st.stop()
 
-            # Determine extension and preview bytes directly
-            ext = _ext_from(content_type, url)
-            try:
-                st.audio(audio_bytes, format=f"audio/{'mpeg' if ext=='mp3' else ext}")
-            except Exception:
-                st.caption("Preview may be blocked by the browser; continuing…")
+            # Give Whisper a filename with the right extension
+            ext_map = {
+                "audio/mpeg": "mp3", "audio/mp3": "mp3",
+                "audio/wav": "wav", "audio/x-wav": "wav",
+                "audio/webm": "webm", "video/webm": "webm",
+                "audio/mp4": "m4a", "audio/m4a": "m4a",
+                "audio/aac": "aac", "audio/3gpp": "3gp", "video/3gpp": "3gp",
+                "audio/ogg": "ogg"
+            }
+            ext = ext_map.get(ctype, "webm")
+            buf = BytesIO(data_bytes)
+            setattr(buf, "name", f"speech.{ext}")
 
-            # Prepare BytesIO for Whisper
-            bio = BytesIO(audio_bytes)
-            setattr(bio, "name", f"speech.{ext}")
-
-            # ----- Transcribe (German only)
+            # Transcribe in German (no translation)
             try:
-                transcript_resp = client.audio.transcriptions.create(
-                    file=bio,
+                t = client.audio.transcriptions.create(
+                    file=buf,
                     model="whisper-1",
                     language="de",
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = transcript_resp.text
+                transcript_text = t.text
             except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
+                st.error(f"Transcription error: {e}")
                 st.stop()
 
             st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            # ----- Evaluate (English)
+            # Evaluate in English
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8292,55 +8152,40 @@ if tab == "Exams Mode & Custom Chat":
                 "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
 
-            with st.spinner("Evaluating your sample…"):
-                try:
-                    eval_resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": (
-                                    "You are an English-speaking tutor evaluating German speech. "
-                                    "Always answer in clear, concise English using the requested format."
-                                ),
-                            },
-                            {"role": "user", "content": eval_prompt},
-                        ],
-                        temperature=0.2,
-                    )
-                    result_text = eval_resp.choices[0].message.content
-                except Exception as e:
-                    st.error(f"Evaluation error: {e}")
-                    result_text = None
+            try:
+                eval_resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an English-speaking tutor evaluating German speech. "
+                                "Always answer in clear, concise English using the requested format."
+                            ),
+                        },
+                        {"role": "user", "content": eval_prompt},
+                    ],
+                    temperature=0.2,
+                )
+                result_text = eval_resp.choices[0].message.content
+            except Exception as e:
+                st.error(f"Evaluation error: {e}")
+                result_text = None
 
             if result_text:
                 st.markdown(result_text)
-
-                # Increment daily counter (transaction safe-ish)
-                try:
-                    tx = db.transaction()
-                    def _inc(transaction):
-                        snap2 = uses_ref.get(transaction=transaction)
-                        d2 = (snap2.to_dict() or {}) if getattr(snap2, "to_dict", None) else {}
-                        last_date2 = d2.get("date")
-                        c2 = int(d2.get("count", 0))
-                        if last_date2 != today_str:
-                            c2 = 0
-                        transaction.set(uses_ref, {"count": c2 + 1, "date": today_str})
-                    _inc(tx)
-                except Exception:
-                    uses_ref.set({"count": count + 1, "date": today_str})
-
-                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload with the Web Recorder.")
-                if st.button("🔄 Check another upload"):
-                    st.rerun()
+                # Increment daily counter
+                uses_ref.set({"count": count + 1, "date": today_str})
+                c3, c4 = st.columns([1, 1])
+                with c3:
+                    if st.button("🔁 Check again"):
+                        st.rerun()
+                with c4:
+                    if st.button("⬅️ Back to Start"):
+                        st.session_state["falowen_stage"] = 1
+                        st.rerun()
             else:
                 st.error("Could not get feedback. Please try again later.")
-
-        if st.button("⬅️ Back to Start"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
-#
 
 
 # =========================================
@@ -11309,7 +11154,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
