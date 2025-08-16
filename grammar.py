@@ -8025,31 +8025,31 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first)
+    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: Web Recorder + latest upload)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
         import urllib.parse as _urllib
         import requests
-        from google.cloud import firestore as _fs
 
-        # Where your tiny web recorder lives
+        # Where your tiny web recorder lives (primary + fallback)
         RECORDER_URL = "https://speak.falowen.app"
         RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
 
-        # Require a student code in session
+        # ----- Daily limit guard (3/day)
+        today_str = _dt.date.today().isoformat()
         code_val = (st.session_state.get("student_code") or "").strip()
         if not code_val:
             st.error("Missing student code in session. Please sign in again.")
             st.stop()
 
-        # Daily limit (3/day) tracked in Firestore: pron_uses/{code}
-        today_str = _dt.date.today().isoformat()
         uses_ref = db.collection("pron_uses").document(code_val)
-        snap = uses_ref.get()
-        data = snap.to_dict() if snap.exists else {}
-        count = int(data.get("count", 0)) if data.get("date") == today_str else 0
-
+        _snap = uses_ref.get()
+        _data = _snap.to_dict() if _snap.exists else {}
+        last_date = _data.get("date")
+        count = int(_data.get("count", 0))
+        if last_date != today_str:
+            count = 0
         if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
             if st.button("⬅️ Back to Start"):
@@ -8057,7 +8057,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-        # UI
+        # ----- UI
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** there.\n\n"
@@ -8068,83 +8068,85 @@ if tab == "Exams Mode & Custom Chat":
         c1, c2 = st.columns([1, 1])
         with c1:
             st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
-            st.caption(f"If the page doesn’t open, use the fallback: {RECORDER_FALLBACK}")
         with c2:
-            go = st.button("🔎 Check latest upload", use_container_width=True)
+            _go = st.button("🔎 Check latest upload", use_container_width=True)
 
-        st.caption("After uploading, wait a few seconds, then tap **Check latest upload**.")
+        st.caption("Tip: After uploading, wait 2–3 seconds, then tap “Check latest upload.”")
 
-        if go:
-            # Pull newest upload for this student from pron_inbox (needs composite index)
+        # ----- Fetch latest cloud upload for this student_code
+        if _go:
             try:
                 q = (
                     db.collection("pron_inbox")
                     .where("code", "==", code_val)
-                    .order_by("createdAt", direction=_fs.Query.DESCENDING)
+                    .order_by("createdAt", direction=FSQuery.DESCENDING)
                     .limit(1)
                 )
-                docs = list(q.stream())
+                _docs = list(q.stream())
             except Exception:
                 st.error(
-                    "Couldn’t fetch your upload. Please ensure the Firestore index "
-                    "for (code ==, order by createdAt desc) exists and is enabled."
+                    "Couldn’t fetch your cloud upload. If this is your first time, "
+                    "Firebase may ask you to create a composite index for (code==, createdAt desc)."
                 )
                 st.stop()
 
-            if not docs:
-                st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
+            if not _docs:
+                st.info("No cloud upload found yet. Make sure you finished **Upload** in the Web Recorder.")
                 st.stop()
 
-            rec = docs[0].to_dict() or {}
+            rec = _docs[0].to_dict() or {}
             url = rec.get("url")
-            ctype = (rec.get("contentType") or "").lower()
-
+            ct = (rec.get("contentType") or "").lower()
             if not url:
-                st.error("Found a record, but it has no download URL.")
+                st.error("Upload record is missing a download URL. Please try uploading again.")
                 st.stop()
 
-            # Quick listen (streams from Firebase Storage)
+            # Quick preview
             st.audio(url)
 
             # Download bytes for Whisper
             try:
-                r = requests.get(url, timeout=30)
+                r = requests.get(url, timeout=20)
                 r.raise_for_status()
-                data_bytes = r.content
+                audio_bytes = r.content
             except Exception as e:
-                st.error(f"Couldn’t download your audio: {e}")
+                st.error(f"Couldn’t download your audio from cloud storage: {e}")
                 st.stop()
 
-            # Give Whisper a filename with the right extension
-            ext_map = {
-                "audio/mpeg": "mp3", "audio/mp3": "mp3",
-                "audio/wav": "wav", "audio/x-wav": "wav",
-                "audio/webm": "webm", "video/webm": "webm",
-                "audio/mp4": "m4a", "audio/m4a": "m4a",
-                "audio/aac": "aac", "audio/3gpp": "3gp", "video/3gpp": "3gp",
-                "audio/ogg": "ogg"
-            }
-            ext = ext_map.get(ctype, "webm")
-            buf = BytesIO(data_bytes)
-            setattr(buf, "name", f"speech.{ext}")
+            bio = BytesIO(audio_bytes)
+            bio.seek(0)
 
-            # Transcribe in German (no translation)
+            # Pick a filename extension to help Whisper
+            ext = "webm"
+            if "mp3" in ct:
+                ext = "mp3"
+            elif "wav" in ct:
+                ext = "wav"
+            elif "m4a" in ct or "mp4" in ct or "aac" in ct:
+                ext = "m4a"
+            elif "ogg" in ct:
+                ext = "ogg"
+            elif "3gpp" in ct:
+                ext = "3gp"
+            setattr(bio, "name", f"speech.{ext}")
+
+            # ----- Transcribe (German only)
             try:
-                t = client.audio.transcriptions.create(
-                    file=buf,
+                transcript_resp = client.audio.transcriptions.create(
+                    file=bio,
                     model="whisper-1",
                     language="de",
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = t.text
+                transcript_text = transcript_resp.text
             except Exception as e:
-                st.error(f"Transcription error: {e}")
+                st.error(f"Sorry, could not process audio: {e}")
                 st.stop()
 
             st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            # Evaluate in English
+            # ----- Evaluate (English feedback)
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8158,40 +8160,41 @@ if tab == "Exams Mode & Custom Chat":
                 "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
 
-            try:
-                eval_resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are an English-speaking tutor evaluating German speech. "
-                                "Always answer in clear, concise English using the requested format."
-                            ),
-                        },
-                        {"role": "user", "content": eval_prompt},
-                    ],
-                    temperature=0.2,
-                )
-                result_text = eval_resp.choices[0].message.content
-            except Exception as e:
-                st.error(f"Evaluation error: {e}")
-                result_text = None
+            with st.spinner("Evaluating your sample..."):
+                try:
+                    eval_resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are an English-speaking tutor evaluating German speech. "
+                                    "Always answer in clear, concise English using the requested format."
+                                ),
+                            },
+                            {"role": "user", "content": eval_prompt},
+                        ],
+                        temperature=0.2,
+                    )
+                    result_text = eval_resp.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Evaluation error: {e}")
+                    result_text = None
 
             if result_text:
                 st.markdown(result_text)
-                # Increment daily counter
                 uses_ref.set({"count": count + 1, "date": today_str})
-                c3, c4 = st.columns([1, 1])
-                with c3:
-                    if st.button("🔁 Check again"):
-                        st.rerun()
-                with c4:
-                    if st.button("⬅️ Back to Start"):
-                        st.session_state["falowen_stage"] = 1
-                        st.rerun()
+                st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
+                if st.button("🔄 Try another"):
+                    st.rerun()
             else:
                 st.error("Could not get feedback. Please try again later.")
+
+        if st.button("⬅️ Back to Start"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+#
+
 
 
 # =========================================
@@ -11160,7 +11163,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
