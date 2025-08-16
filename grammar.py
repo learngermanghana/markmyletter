@@ -8026,22 +8026,6 @@ if tab == "Exams Mode & Custom Chat":
         from io import BytesIO
         import urllib.parse as _urllib
         import requests
-        import streamlit as st
-
-        # --- Firestore bootstrap (compatible with Firebase Admin OR Google Cloud client)
-        try:
-            db  # reuse if already defined elsewhere
-            FS  # alias for whichever firestore lib is active
-        except NameError:
-            try:
-                import firebase_admin
-                from firebase_admin import firestore as FS
-                if not firebase_admin._apps:
-                    firebase_admin.initialize_app()  # expects creds from env or default
-                db = FS.client()
-            except Exception:
-                from google.cloud import firestore as FS
-                db = FS.Client()  # expects ADC or explicit project/credentials
 
         # Where your tiny web recorder lives
         RECORDER_URL = "https://speak.falowen.app"
@@ -8055,14 +8039,11 @@ if tab == "Exams Mode & Custom Chat":
             st.stop()
 
         uses_ref = db.collection("pron_uses").document(code_val)
-        snap = uses_ref.get()
-        data = snap.to_dict() if getattr(snap, "exists", False) or getattr(snap, "exists", None) else {}
-        # Fallback if SDK exposes `exists` as attribute or property
-        if not data and hasattr(snap, "to_dict"):
-            try:
-                data = snap.to_dict() or {}
-            except Exception:
-                data = {}
+        try:
+            snap = uses_ref.get()
+            data = snap.to_dict() or {}
+        except Exception:
+            data = {}
         last_date = data.get("date")
         count = int(data.get("count", 0))
 
@@ -8118,7 +8099,7 @@ if tab == "Exams Mode & Custom Chat":
                 q = (
                     db.collection("pron_inbox")
                     .where("code", "==", code_val)
-                    .order_by("createdAt", direction=FS.Query.DESCENDING)
+                    .order_by("createdAt", direction=GFS.Query.DESCENDING)
                     .limit(1)
                 )
             except Exception as e:
@@ -8231,27 +8212,19 @@ if tab == "Exams Mode & Custom Chat":
             if result_text:
                 st.markdown(result_text)
 
-                # Increment daily counter (transaction, no decorator for cross-SDK compatibility)
+                # Increment daily counter (transaction safe-ish)
                 try:
-                    transaction = db.transaction()
-
-                    def _increment(tx):
-                        snap2 = uses_ref.get(transaction=tx)
-                        d2 = snap2.to_dict() if getattr(snap2, "exists", False) else {}
-                        if not d2 and hasattr(snap2, "to_dict"):
-                            try:
-                                d2 = snap2.to_dict() or {}
-                            except Exception:
-                                d2 = {}
+                    tx = db.transaction()
+                    def _inc(transaction):
+                        snap2 = uses_ref.get(transaction=transaction)
+                        d2 = (snap2.to_dict() or {}) if getattr(snap2, "to_dict", None) else {}
                         last_date2 = d2.get("date")
                         c2 = int(d2.get("count", 0))
                         if last_date2 != today_str:
                             c2 = 0
-                        tx.set(uses_ref, {"count": c2 + 1, "date": today_str})
-
-                    _increment(transaction)
+                        transaction.set(uses_ref, {"count": c2 + 1, "date": today_str})
+                    _inc(tx)
                 except Exception:
-                    # Fallback non-transactional set
                     uses_ref.set({"count": count + 1, "date": today_str})
 
                 st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload with the Web Recorder.")
