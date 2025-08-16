@@ -9344,6 +9344,21 @@ def _dict_tts_bytes_de(word: str, slow: bool = False):
     except Exception:
         return None
 
+# ---- Safety shims for Sentence Builder stats (prevents NameError) ----
+if 'get_sentence_progress' not in globals():
+    def get_sentence_progress(student_code: str, level: str):
+        # Fallback: no DB? just return 0 done, and the count of available sentences
+        try:
+            return 0, len(SENTENCE_BANK.get(level, []))
+        except Exception:
+            return 0, 0  # if SENTENCE_BANK is also missing
+
+if 'save_sentence_attempt' not in globals():
+    def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
+        # No-op fallback if Firestore/_get_db not set up
+        return
+
+
 # ================================
 # HELPERS: Load vocab + audio from Sheet
 # ================================
