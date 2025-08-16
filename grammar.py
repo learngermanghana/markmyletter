@@ -156,6 +156,110 @@ def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str
     })
     return token
 
+# Top spacing + chrome (tighter)
+st.markdown("""
+<style>
+/* Remove Streamlit's top padding */
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
+
+/* First rendered block (often a head-inject) — keep a small gap only */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
+  margin-top: 0 !important;
+  margin-bottom: 8px !important;   /* was 24px */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* If that first block is an iframe, collapse it completely */
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
+  display: block;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Keep hero flush and compact */
+  .hero {
+    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
+    margin-bottom: 4px !important;   /* tighter space before tabs */
+    padding-top: 6px !important;
+    display: flow-root;
+  }
+.hero h1:first-child { margin-top: 0 !important; }
+/* Trim default gap above Streamlit tabs */
+[data-testid="stTabs"] {
+  margin-top: 8px !important;
+}
+
+/* Hide default Streamlit chrome */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+# Compatibility alias
+html = st_html
+
+# ---- PWA head helper (define BEFORE you call it) ----
+BASE = st.secrets.get("PUBLIC_BASE_URL", "")
+_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
+_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+
+def _inject_meta_tags():
+    components.html(f"""
+      <link rel="manifest" href="{_manifest}">
+      <link rel="apple-touch-icon" href="{_icon180}">
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-title" content="Falowen">
+      <meta name="apple-mobile-web-app-status-bar-style" content="black">
+      <meta name="theme-color" content="#000000">
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    """, height=0)
+
+# --- State bootstrap ---
+def _bootstrap_state():
+    defaults = {
+        "logged_in": False,
+        "student_row": None,
+        "student_code": "",
+        "student_name": "",
+        "session_token": "",
+        "cookie_synced": False,
+        "__last_refresh": 0.0,
+        "__ua_hash": "",
+        "_oauth_state": "",
+        "_oauth_code_redeemed": "",
+    }
+    for k, v in defaults.items():
+        st.session_state.setdefault(k, v)
+_bootstrap_state()
+
+# ==== Hide Streamlit chrome ====
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+
+def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str:
+    now = time.time()
+    token = _rand_token()
+    db.collection(SESSIONS_COL).document(token).set({
+        "student_code": (student_code or "").strip().lower(),
+        "name": name or "",
+        "issued_at": now,
+        "expires_at": now + (SESSION_TTL_MIN * 60),
+        "ua_hash": ua_hash or "",
+    })
+    return token
+
 def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
     if not token:
         return None
@@ -11205,6 +11309,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
