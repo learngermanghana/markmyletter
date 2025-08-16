@@ -5589,14 +5589,6 @@ if tab == "My Course":
                     "</div>"
                 )
 
-            # ==== Compact install tips (Computer, iPhone, Android) ====
-            # Guard so we don't error if links weren't built earlier
-            try:
-                _phone_links_ul
-            except NameError:
-                _phone_links_ul = ""
-
-            _end_str = end_date_obj.strftime("%d %b %Y") if end_date_obj else ""
 
             st.markdown(
                 f"""
@@ -5614,7 +5606,6 @@ if tab == "My Course":
                 unsafe_allow_html=True,
             )
 #
-
 
 
 
