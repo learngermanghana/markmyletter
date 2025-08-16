@@ -8019,6 +8019,62 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
+    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: web recorder + latest upload)
+    if st.session_state.get("falowen_stage") == 99:
+        import datetime as _dt
+        import time
+        from io import BytesIO
+        import urllib.parse as _urllib
+        import requests
+        import streamlit as st
+
+        # --- Firestore bootstrap (compatible with Firebase Admin OR Google Cloud client)
+        try:
+            db  # reuse if already defined elsewhere
+            FS  # alias for whichever firestore lib is active
+        except NameError:
+            try:
+                import firebase_admin
+                from firebase_admin import firestore as FS
+                if not firebase_admin._apps:
+                    firebase_admin.initialize_app()  # expects creds from env or default
+                db = FS.client()
+            except Exception:
+                from google.cloud import firestore as FS
+                db = FS.Client()  # expects ADC or explicit project/credentials
+
+        # Where your tiny web recorder lives
+        RECORDER_URL = "https://speak.falowen.app"
+        RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
+
+        # ----- Daily limit guard (3/day)
+        today_str = _dt.date.today().isoformat()
+        code_val = (st.session_state.get("student_code") or "").strip()
+        if not code_val:
+            st.error("Missing student code in session. Please sign in again.")
+            st.stop()
+
+        uses_ref = db.collection("pron_uses").document(code_val)
+        snap = uses_ref.get()
+        data = snap.to_dict() if getattr(snap, "exists", False) or getattr(snap, "exists", None) else {}
+        # Fallback if SDK exposes `exists` as attribute or property
+        if not data and hasattr(snap, "to_dict"):
+            try:
+                data = snap.to_dict() or {}
+            except Exception:
+                data = {}
+        last_date = data.get("date")
+        count = int(data.get("count", 0))
+
+        if last_date != today_str:
+            count = 0
+        if count >= 3:
+            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            if st.button("⬅️ Back to Start"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+            st.stop()
+
         # ----- UI
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
@@ -8062,7 +8118,7 @@ if tab == "Exams Mode & Custom Chat":
                 q = (
                     db.collection("pron_inbox")
                     .where("code", "==", code_val)
-                    .order_by("createdAt", direction=firestore.Query.DESCENDING)
+                    .order_by("createdAt", direction=FS.Query.DESCENDING)
                     .limit(1)
                 )
             except Exception as e:
@@ -8175,20 +8231,24 @@ if tab == "Exams Mode & Custom Chat":
             if result_text:
                 st.markdown(result_text)
 
-                # Increment daily counter (transaction to avoid races)
-                transaction = db.transaction()
-
-                @firestore.transactional
-                def _increment(tx):
-                    snap2 = uses_ref.get(transaction=tx)
-                    d2 = snap2.to_dict() if snap2.exists else {}
-                    last_date2 = d2.get("date")
-                    c2 = int(d2.get("count", 0))
-                    if last_date2 != today_str:
-                        c2 = 0
-                    tx.set(uses_ref, {"count": c2 + 1, "date": today_str})
-
+                # Increment daily counter (transaction, no decorator for cross-SDK compatibility)
                 try:
+                    transaction = db.transaction()
+
+                    def _increment(tx):
+                        snap2 = uses_ref.get(transaction=tx)
+                        d2 = snap2.to_dict() if getattr(snap2, "exists", False) else {}
+                        if not d2 and hasattr(snap2, "to_dict"):
+                            try:
+                                d2 = snap2.to_dict() or {}
+                            except Exception:
+                                d2 = {}
+                        last_date2 = d2.get("date")
+                        c2 = int(d2.get("count", 0))
+                        if last_date2 != today_str:
+                            c2 = 0
+                        tx.set(uses_ref, {"count": c2 + 1, "date": today_str})
+
                     _increment(transaction)
                 except Exception:
                     # Fallback non-transactional set
@@ -8204,7 +8264,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
-
 
 
 # =========================================
