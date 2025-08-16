@@ -7982,7 +7982,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker
+    # ——— Stage 99: Pronunciation & Speaking Checker (with DEBUG)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
@@ -8019,6 +8019,71 @@ if tab == "Exams Mode & Custom Chat":
                 """
             )
 
+        # Developer debug switch
+        debug_on = st.toggle("Developer debug (audio upload)", value=False, help="Show detailed file diagnostics and log failures to Firestore.")
+
+        # ---------- debug helpers ----------
+        def _hex_head(b: bytes, n: int = 24) -> str:
+            try:
+                return " ".join(f"{x:02x}" for x in b[:n])
+            except Exception:
+                return "(n/a)"
+
+        def _try_duration_wave(bio: BytesIO):
+            try:
+                import wave
+                pos = bio.tell()
+                bio.seek(0)
+                with wave.open(bio, "rb") as w:
+                    frames = w.getnframes()
+                    rate = w.getframerate()
+                    ch = w.getnchannels()
+                    width = w.getsampwidth()
+                bio.seek(pos)
+                return {"method": "wave", "seconds": frames / float(rate), "rate": rate, "channels": ch, "sample_width": width}
+            except Exception as e:
+                return {"method": "wave", "error": str(e)}
+
+        def _try_duration_pydub(bio: BytesIO, name_hint: str):
+            try:
+                from pydub import AudioSegment
+                import tempfile, os
+                # pydub needs a real file with an extension
+                suffix = "." + name_hint.split(".")[-1] if "." in name_hint else ".bin"
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                tmp.write(bio.getvalue()); tmp.flush(); tmp.close()
+                seg = AudioSegment.from_file(tmp.name)
+                dur = len(seg) / 1000.0
+                info = {"frame_rate": seg.frame_rate, "channels": seg.channels, "sample_width": seg.sample_width}
+                try:
+                    os.unlink(tmp.name)
+                except Exception:
+                    pass
+                return {"method": "pydub+ffmpeg", "seconds": dur, **info}
+            except Exception as e:
+                return {"method": "pydub+ffmpeg", "error": str(e)}
+
+        def _try_duration_mutagen(bio: BytesIO):
+            try:
+                from mutagen import File as MFile
+                f = MFile(BytesIO(bio.getvalue()), easy=True)
+                if not f:
+                    return {"method": "mutagen", "error": "Unrecognized format"}
+                dur = getattr(f.info, "length", None)
+                rate = getattr(f.info, "sample_rate", None)
+                ch = getattr(f.info, "channels", None)
+                return {"method": "mutagen", "seconds": float(dur) if dur else None, "rate": rate, "channels": ch}
+            except Exception as e:
+                return {"method": "mutagen", "error": str(e)}
+
+        def _log_debug_to_firestore(payload: dict):
+            try:
+                payload["ts"] = _dt.datetime.utcnow().isoformat() + "Z"
+                payload["student_code"] = st.session_state.get("student_code", "")
+                db.collection("diagnostics").document("audio_uploads").collection("reports").add(payload)
+            except Exception:
+                pass
+
         audio_file = st.file_uploader(
             "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
             type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],
@@ -8029,27 +8094,43 @@ if tab == "Exams Mode & Custom Chat":
         if audio_file:
             # Preflight checks
             max_mb = 24  # Whisper hard limit ~25MB; keep a little headroom
-            size_ok = getattr(audio_file, "size", None)
-            if size_ok is not None and size_ok > max_mb * 1024 * 1024:
-                st.error(f"File is larger than {max_mb} MB. Please trim or export at a lower bitrate.")
-                st.stop()
-
-            allowed_types = {
-                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
-                "audio/x-m4a", "audio/m4a", "audio/mp4",
-                "audio/3gpp", "video/3gpp",
-                "audio/aac", "audio/x-aac",
-                "audio/ogg", "audio/webm", "video/webm",
-                "application/octet-stream",  # some Android pickers use this
-            }
-            allowed_exts = (".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm")
-
             file_type = (audio_file.type or "").lower()
             file_name = (audio_file.name or "speech").lower()
+            size_bytes = getattr(audio_file, "size", None)
 
-            # Some Android pickers give no extension; infer one if needed
+            # Read bytes once
+            try:
+                audio_file.seek(0)
+            except Exception:
+                pass
+            raw_bytes = audio_file.read() or b""
+
+            diag = {
+                "file_name": file_name,
+                "mime_type": file_type,
+                "size_bytes": size_bytes if size_bytes is not None else len(raw_bytes),
+                "head_hex": _hex_head(raw_bytes, 24),
+                "notes": [],
+            }
+
+            # Size guard
+            if len(raw_bytes) > max_mb * 1024 * 1024:
+                msg = f"File is larger than {max_mb} MB. Please trim or export at a lower bitrate."
+                st.error(msg)
+                if debug_on:
+                    diag["notes"].append("Too large")
+                    _log_debug_to_firestore({"stage": "preflight", "status": "too_large", **diag})
+                    with st.expander("Debug details"):
+                        st.json(diag)
+                st.stop()
+
+            # Show the inline player
+            st.audio(BytesIO(raw_bytes))
+
+            # Try to infer a reasonable filename extension if missing (Android often returns octet-stream)
             def _ensure_ext(name: str, mime: str) -> str:
-                if name.endswith(allowed_exts):
+                name = name or "speech"
+                if "." in name:
                     return name
                 if "wav" in mime:
                     return name + ".wav"
@@ -8067,53 +8148,56 @@ if tab == "Exams Mode & Custom Chat":
 
             file_name = _ensure_ext(file_name, file_type)
 
-            if not (file_type.startswith("audio/") or file_type in allowed_types or file_name.endswith(allowed_exts)):
-                st.error("Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm).")
-                st.stop()
+            # Duration probes (raw)
+            raw_bio = BytesIO(raw_bytes); raw_bio.seek(0)
+            dur_wave = _try_duration_wave(raw_bio)
+            dur_pydub = _try_duration_pydub(raw_bio, file_name)
+            dur_mut = _try_duration_mutagen(raw_bio)
 
-            # Show the inline player
-            st.audio(audio_file)
+            if debug_on:
+                diag["duration_probe_raw"] = {"wave": dur_wave, "pydub": dur_pydub, "mutagen": dur_mut}
+                with st.expander("Debug details (raw file)"):
+                    st.json(diag)
 
-            # Read clean bytes for processing
-            try:
-                audio_file.seek(0)
-            except Exception:
-                pass
-            audio_bytes = audio_file.read()
-            if not audio_bytes or len(audio_bytes) < 512:
-                st.error("We received an empty or very short file. Please re-record and ensure the file is saved.")
-                st.stop()
-
-            # Try to normalize to 16k mono WAV (best for Whisper). Fall back if conversion not available.
-            buf_for_whisper = None
+            # Normalize to 16k mono WAV for Whisper (best effort)
             try:
                 from pydub import AudioSegment  # requires ffmpeg on the server
                 import tempfile, os
 
-                # Persist to temp with extension so pydub can guess the format
-                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=file_name[file_name.rfind("."):])
-                tmp_in.write(audio_bytes)
-                tmp_in.flush(); tmp_in.close()
+                suffix = "." + file_name.split(".")[-1] if "." in file_name else ".bin"
+                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                tmp_in.write(raw_bytes); tmp_in.flush(); tmp_in.close()
 
                 seg = AudioSegment.from_file(tmp_in.name)
                 seg = seg.set_channels(1).set_frame_rate(16000)
-                out_io = BytesIO()
-                seg.export(out_io, format="wav")
-                out_io.seek(0)
-                setattr(out_io, "name", "speech.wav")
-                buf_for_whisper = out_io
+                wav_io = BytesIO()
+                seg.export(wav_io, format="wav")
+                wav_io.seek(0)
+                setattr(wav_io, "name", "speech.wav")
+                buf_for_whisper = wav_io
 
                 try:
                     os.unlink(tmp_in.name)
                 except Exception:
                     pass
 
-            except Exception:
-                # If pydub/ffmpeg is not installed or conversion fails, send original bytes with a usable name
-                raw_io = BytesIO(audio_bytes)
-                raw_io.seek(0)
-                setattr(raw_io, "name", file_name)
-                buf_for_whisper = raw_io
+                # Duration probe (normalized)
+                norm_probe = _try_duration_wave(BytesIO(wav_io.getvalue()))
+                if debug_on:
+                    with st.expander("Debug details (normalized wav)"):
+                        st.json({"method": "wave", "normalized_duration": norm_probe})
+
+            except Exception as e:
+                # Fall back to original stream if conversion failed
+                raw_bio2 = BytesIO(raw_bytes); raw_bio2.seek(0)
+                setattr(raw_bio2, "name", file_name)
+                buf_for_whisper = raw_bio2
+                if debug_on:
+                    diag["notes"].append("pydub/ffmpeg normalize failed; using raw bytes")
+                    diag["normalize_error"] = str(e)
+                    _log_debug_to_firestore({"stage": "normalize", "status": "fallback_raw", **diag})
+                    with st.expander("Debug details (normalize failure)"):
+                        st.json({"error": str(e)})
 
             # Transcribe (German only)
             try:
@@ -8124,65 +8208,9 @@ if tab == "Exams Mode & Custom Chat":
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = transcript_resp.text or ""
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
-
-            if not transcript_text.strip():
-                st.error("We couldn't detect speech in the file. Please speak louder or reduce background noise and try again.")
-                st.stop()
-
-            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
-
-            # Evaluate in English
-            eval_prompt = (
-                "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
-                f'The student said (in German): "{transcript_text}"\n\n'
-                "Please provide scores **in English only**:\n"
-                "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
-                "• Give three concise, actionable tips for each category.\n"
-                "• Do not translate the student's text; focus on evaluating it.\n\n"
-                "Respond exactly in this format:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-            )
-
-            with st.spinner("Evaluating your sample..."):
-                try:
-                    eval_resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": (
-                                    "You are an English-speaking tutor evaluating German speech. "
-                                    "Always answer in clear, concise English using the requested format."
-                                ),
-                            },
-                            {"role": "user", "content": eval_prompt},
-                        ],
-                        temperature=0.2,
-                    )
-                    result_text = eval_resp.choices[0].message.content
-                except Exception as e:
-                    st.error(f"Evaluation error: {e}")
-                    result_text = None
-
-            if result_text:
-                st.markdown(result_text)
-                uploads_ref.set({"count": count + 1, "date": today_str})
-                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-                if st.button("🔄 Try Another"):
-                    st.rerun()
-            else:
-                st.error("Could not get feedback. Please try again later.")
-
-        if st.button("⬅️ Back to Start"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
+                transcript_t_
 #
+
 
 
 
