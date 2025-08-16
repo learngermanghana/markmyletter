@@ -5603,8 +5603,47 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
-#
 
+        # ===================== CLASS ROSTER =====================
+
+        # Subtle banner above the expander to draw attention
+        st.markdown(
+            """
+            <div style="
+                padding:10px 12px;
+                background:#f0f9ff;
+                border:1px solid #bae6fd;
+                border-radius:12px;
+                margin: 6px 0 8px 0;
+                display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
+              <span style="font-size:.92rem;color:#055d87;">Tap to open and view the list</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Light CSS to make *all* expanders stand out a bit more
+        st.markdown(
+            """
+            <style>
+              /* Make expander headers pop a little */
+              div[data-testid="stExpander"] > details > summary {
+                  background:#f0f9ff !important;
+                  border:1px solid #bae6fd !important;
+                  border-radius:12px !important;
+                  padding:10px 12px !important;
+              }
+              div[data-testid="stExpander"] > details[open] > summary {
+                  background:#e0f2fe !important;
+                  border-color:#7dd3fc !important;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.expander("👥 Class Members", expanded=False):
             try:
                 df_students = load_student_data()
 
@@ -5617,151 +5656,34 @@ if tab == "My Course":
                 # Filter to this class
                 same_class = df_students[df_students["ClassName"] == class_name].copy()
 
-                import urllib.parse as _urllib
-
-                total = len(same_class)
-                emails = [e for e in same_class["Email"].tolist() if e]
-                bcc_all = _urllib.quote(",".join(emails)) if emails else ""
-
-                # ===== Header strip with counts =====
+                # Tiny header line inside with class + count
+                _n = len(same_class)
                 st.markdown(
                     f"""
-                    <div style="
-                        padding:10px 12px;
-                        background:linear-gradient(90deg,#0ea5e9,#06b6d4);
-                        color:#fff;border-radius:10px;margin-bottom:10px;
-                        display:flex;align-items:center;justify-content:space-between;">
-                      <div style="font-weight:700;">👥 {class_name} — {total} student{'' if total==1 else 's'}</div>
-                      <div style="font-size:.92rem;opacity:.95;">Quick contacts & roster</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px 0;">
+                      <div style="font-weight:600;color:#0f172a;">{class_name}</div>
+                      <span style="background:#0ea5e922;border:1px solid #0ea5e9;color:#0369a1;
+                                   padding:3px 8px;border-radius:999px;font-size:.9rem;">
+                        {_n} member{'' if _n==1 else 's'}
+                      </span>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-                # ===== Quick actions =====
-                ca1, ca2, ca3, ca4 = st.columns([1.2, 1.2, 1.2, 1.2])
-                with ca1:
-                    if emails:
-                        st.link_button("✉️ Email whole class", f"mailto:?bcc={bcc_all}", use_container_width=True)
-                    else:
-                        st.button("✉️ Email whole class", disabled=True, use_container_width=True)
-                with ca2:
-                    # Copy all emails (comma separated)
-                    _emails_str = ", ".join(emails)
-                    st.markdown(
-                        f"""
-                        <button id="copyEmails" style="
-                            width:100%;padding:0.5rem 0.75rem;border-radius:8px;
-                            border:1px solid #cbd5e1;background:#f8fafc;cursor:pointer;">
-                            📋 Copy emails
-                        </button>
-                        <script>
-                          (function(){{
-                            const btn = document.getElementById("copyEmails");
-                            if(btn) {{
-                              btn.addEventListener("click", function(){{
-                                navigator.clipboard.writeText("{_emails_str.replace('"','\\\"')}")
-                                  .then(()=>{{ btn.innerText = "✅ Copied"; setTimeout(()=>btn.innerText="📋 Copy emails",1400); }})
-                                  .catch(()=>{{ }});
-                              }});
-                            }}
-                          }})();
-                        </script>
-                        """,
-                        unsafe_allow_html=True,
+                # Columns to display (no StudentCode)
+                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
+
+                if not same_class.empty and cols_show:
+                    st.dataframe(
+                        same_class[cols_show].reset_index(drop=True),
+                        use_container_width=True,
+                        hide_index=True,
                     )
-                with ca3:
-                    # Download roster CSV
-                    csv_bytes = same_class[["Name","Email","Location","ClassName"]].to_csv(index=False).encode("utf-8")
-                    st.download_button("⬇️ Download roster (CSV)", data=csv_bytes,
-                                       file_name=f"{class_name.replace(' ','_')}_roster.csv",
-                                       mime="text/csv", use_container_width=True)
-                with ca4:
-                    # Optional: quick copy Zoom (if available)
-                    try:
-                        _zl = (ZOOM or {}).get("link","")
-                        if _zl:
-                            st.link_button("🎥 Copy Zoom link", _zl, use_container_width=True)
-                        else:
-                            st.button("🎥 Zoom link", disabled=True, use_container_width=True)
-                    except Exception:
-                        st.button("🎥 Zoom link", disabled=True, use_container_width=True)
-
-                st.divider()
-
-                # ===== Filters: search + location =====
-                f1, f2, f3 = st.columns([2, 2, 1])
-                q = f1.text_input("Search name or email", "", placeholder="Type to filter…")
-                loc_opts = sorted([x for x in same_class["Location"].unique() if x])
-                loc_sel = f2.multiselect("Filter by location", loc_opts, placeholder="All locations")
-                sort_choice = f3.selectbox("Sort", ["Name A→Z","Name Z→A"], index=0)
-
-                view = same_class.copy()
-                if q.strip():
-                    _q = q.strip().lower()
-                    view = view[view.apply(lambda r: _q in r["Name"].lower() or _q in r["Email"].lower(), axis=1)]
-                if loc_sel:
-                    view = view[view["Location"].isin(loc_sel)]
-                view = view.sort_values("Name", ascending=(sort_choice=="Name A→Z"))
-
-                # ===== Pretty cards with initials =====
-                if view.empty:
-                    st.info("No students match your filters.")
                 else:
-                    # Build cards grid
-                    def _initials(name: str) -> str:
-                        parts = [p for p in name.strip().split() if p]
-                        if not parts: return "?"
-                        if len(parts)==1: return parts[0][0:2].upper()
-                        return (parts[0][0] + parts[-1][0]).upper()
-
-                    palette = ["#0ea5e9","#22c55e","#f59e0b","#ef4444","#8b5cf6","#10b981","#e11d48","#14b8a6"]
-                    cards = []
-                    for i, r in view.iterrows():
-                        nm = r["Name"] or "Student"
-                        em = r["Email"]
-                        lc = r["Location"] or "—"
-                        color = palette[abs(hash(nm)) % len(palette)]
-                        init = _initials(nm)
-                        mail_href = f"mailto:{_urllib.quote(em)}" if em else "#"
-                        cards.append(
-                            f"""
-                            <div class="card">
-                              <div class="avatar" style="background:{color};">{init}</div>
-                              <div class="meta">
-                                <div class="name">{nm}</div>
-                                <div class="sub">{em or 'no-email'} • {lc}</div>
-                              </div>
-                              <div class="actions">
-                                <a class="mail" href="{mail_href}">Email</a>
-                              </div>
-                            </div>
-                            """
-                        )
-
-                    st.markdown(
-                        """
-                        <style>
-                          .grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}
-                          .card {display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e5e7eb;
-                                 border-radius:12px;background:#ffffff;}
-                          .avatar {width:38px;height:38px;border-radius:999px;display:flex;align-items:center;
-                                   justify-content:center;color:#fff;font-weight:700;}
-                          .meta .name {font-weight:700;}
-                          .meta .sub {font-size:0.9rem;color:#475569;}
-                          .actions .mail {padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;
-                                          background:#f8fafc;text-decoration:none;color:#111827;}
-                          .actions .mail:hover {background:#eef2f7;}
-                        </style>
-                        <div class="grid">
-                        """ + "\n".join(cards) + """
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-
-                # Gentle nudge so they don’t forget
-                st.caption("🔔 Tip: Add the course calendar above so you never miss a session reminder.")
+                    st.info("No members found for this class yet.")
+            except Exception as e:
+                st.warning(f"Couldn’t load the class roster right now. {e}")
 #
 
 
