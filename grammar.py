@@ -1,16 +1,18 @@
 # ==== Standard Library ====
 import atexit, base64, difflib, hashlib
 import html as html_stdlib
-import io, json, os, random, math, re, sqlite3, tempfile, time
-import urllib.parse as _urllib
-import calendar
+import io, json, os, random, math, re, sqlite3, tempfile, time, calendar
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from typing import Optional
+import urllib.parse as _urllib
 
 # ==== Third-Party Packages ====
 import bcrypt
 import firebase_admin
+from firebase_admin import credentials                # keep unaliased
+from firebase_admin import firestore as AFS           # ADMIN Firestore alias
+from google.cloud import firestore as GFS             # GCP Firestore alias (for Query constants only)
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
@@ -18,13 +20,21 @@ import streamlit as st
 import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
-from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
+# ==== Firestore (Firebase Admin) Bootstrap ====
+if not firebase_admin._apps:
+    cred = credentials.Certificate(dict(st.secrets["firebase"]))  # service account JSON in secrets
+    firebase_admin.initialize_app(cred)
+
+db = AFS.client()                  # use this DB handle everywhere
+ASC, DESC = GFS.Query.ASCENDING, GFS.Query.DESCENDING  # direction helpers for order_by
+
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
@@ -11205,6 +11215,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
