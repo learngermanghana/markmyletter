@@ -3183,8 +3183,8 @@ def get_a2_schedule():
             "assignment": True,
             "instruction": "Watch the video, review grammar, and complete your workbook.",
             "grammar_topic": "Two Case Preposition",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/am3WqQaCibE",
+            "youtube_link": "https://youtu.be/am3WqQaCibE",
             "grammarbook_link": "https://drive.google.com/file/d/1MSahBEyElIiLnitWoJb5xkvRlB21yo0y/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/16UfBIrL0jxCqWtqqZaLhKWflosNQkwF4/view?usp=sharing"
         },
@@ -3549,8 +3549,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/kR8SmSY99c8",
+            "youtube_link": "https://youtu.be/kR8SmSY99c8",
             "grammarbook_link": "https://drive.google.com/file/d/1NW5F0R5zj6nn2SqDjhpQlkGcfK-UBUqk/view?usp=drive_link",
             "workbook_link": "https://drive.google.com/file/d/12r_HE51QtpknXSSU0R75ur-EDFpTjzXU/view?usp=sharing"
         },
