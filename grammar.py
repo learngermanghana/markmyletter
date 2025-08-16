@@ -18,7 +18,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
-from firebase_admin import credentials, firestore as f8ee   # ← use f8ee alias everywhere
+from firebase_admin import credentials, firestore
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
@@ -62,14 +62,13 @@ st.markdown("""
 }
 
 /* Keep hero flush and compact */
-.hero {
-  margin-top: 2px !important;
-  margin-bottom: 4px !important;
-  padding-top: 6px !important;
-  display: flow-root;
-}
+  .hero {
+    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
+    margin-bottom: 4px !important;   /* tighter space before tabs */
+    padding-top: 6px !important;
+    display: flow-root;
+  }
 .hero h1:first-child { margin-top: 0 !important; }
-
 /* Trim default gap above Streamlit tabs */
 [data-testid="stTabs"] {
   margin-top: 8px !important;
@@ -126,17 +125,13 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ==== FIREBASE ADMIN INIT (use ONE client via firebase_admin everywhere) ====
+# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
 try:
     if not firebase_admin._apps:
         cred_dict = dict(st.secrets["firebase"])
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
-
-    # Shared Firestore client + helpers
-    db = f8ee.client()
-    FSQuery = f8ee.Query                 # for direction=FSQuery.DESCENDING
-    FSServerTS = f8ee.SERVER_TIMESTAMP   # if you need server timestamps
+    db = firestore.client()
 except Exception as e:
     st.error(f"Firebase init failed: {e}")
     st.stop()
@@ -160,7 +155,6 @@ def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str
         "ua_hash": ua_hash or "",
     })
     return token
-
 
 def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
     if not token:
@@ -8025,16 +8019,15 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: Web Recorder + latest upload)
+    # ——— Stage 99: Pronunciation & Speaking Checker (hybrid: local upload OR cloud recorder)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
         import urllib.parse as _urllib
         import requests
 
-        # Where your tiny web recorder lives (primary + fallback)
+        # Where your tiny web recorder lives
         RECORDER_URL = "https://speak.falowen.app"
-        RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
 
         # ----- Daily limit guard (3/day)
         today_str = _dt.date.today().isoformat()
@@ -8060,140 +8053,268 @@ if tab == "Exams Mode & Custom Chat":
         # ----- UI
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
-            "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** there.\n\n"
-            "Step 2) Return here and tap **Check latest upload** to transcribe and get feedback."
+            "Option A) **Upload a file here** (≤ 60s: .mp3/.wav/.m4a/.ogg/.webm/.3gp)\n\n"
+            "Option B) **Record in Web Recorder** → tap **Upload** there → come back and **Check latest upload**."
         )
 
-        rec_url = f"{RECORDER_URL}?code={_urllib.quote(code_val)}"
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
-        with c2:
-            _go = st.button("🔎 Check latest upload", use_container_width=True)
+        colA, colB = st.columns([1, 1])
 
-        st.caption("Tip: After uploading, wait 2–3 seconds, then tap “Check latest upload.”")
-
-        # ----- Fetch latest cloud upload for this student_code
-        if _go:
-            try:
-                q = (
-                    db.collection("pron_inbox")
-                    .where("code", "==", code_val)
-                    .order_by("createdAt", direction=FSQuery.DESCENDING)
-                    .limit(1)
-                )
-                _docs = list(q.stream())
-            except Exception:
-                st.error(
-                    "Couldn’t fetch your cloud upload. If this is your first time, "
-                    "Firebase may ask you to create a composite index for (code==, createdAt desc)."
-                )
-                st.stop()
-
-            if not _docs:
-                st.info("No cloud upload found yet. Make sure you finished **Upload** in the Web Recorder.")
-                st.stop()
-
-            rec = _docs[0].to_dict() or {}
-            url = rec.get("url")
-            ct = (rec.get("contentType") or "").lower()
-            if not url:
-                st.error("Upload record is missing a download URL. Please try uploading again.")
-                st.stop()
-
-            # Quick preview
-            st.audio(url)
-
-            # Download bytes for Whisper
-            try:
-                r = requests.get(url, timeout=20)
-                r.raise_for_status()
-                audio_bytes = r.content
-            except Exception as e:
-                st.error(f"Couldn’t download your audio from cloud storage: {e}")
-                st.stop()
-
-            bio = BytesIO(audio_bytes)
-            bio.seek(0)
-
-            # Pick a filename extension to help Whisper
-            ext = "webm"
-            if "mp3" in ct:
-                ext = "mp3"
-            elif "wav" in ct:
-                ext = "wav"
-            elif "m4a" in ct or "mp4" in ct or "aac" in ct:
-                ext = "m4a"
-            elif "ogg" in ct:
-                ext = "ogg"
-            elif "3gpp" in ct:
-                ext = "3gp"
-            setattr(bio, "name", f"speech.{ext}")
-
-            # ----- Transcribe (German only)
-            try:
-                transcript_resp = client.audio.transcriptions.create(
-                    file=bio,
-                    model="whisper-1",
-                    language="de",
-                    temperature=0,
-                    prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
-                )
-                transcript_text = transcript_resp.text
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
-
-            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
-
-            # ----- Evaluate (English feedback)
-            eval_prompt = (
-                "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
-                f'The student said (in German): "{transcript_text}"\n\n'
-                "Please provide scores **in English only**:\n"
-                "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
-                "• Give three concise, actionable tips for each category.\n"
-                "• Do not translate the student's text; focus on evaluating it.\n\n"
-                "Respond exactly in this format:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+        # ===== Option A: In-app file uploader (your original flow, slightly hardened)
+        with colA:
+            audio_file = st.file_uploader(
+                "Upload your audio file (≤ 60 seconds)",
+                type=None,  # accept anything; we’ll validate below
+                accept_multiple_files=False,
+                key="pron_audio_uploader",
             )
 
-            with st.spinner("Evaluating your sample..."):
+            if audio_file:
+                allowed_types = {
+                    "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                    "audio/x-m4a", "audio/m4a", "audio/mp4",
+                    "audio/3gpp", "video/3gpp",
+                    "audio/aac", "audio/x-aac",
+                    "audio/ogg", "audio/webm", "video/webm",
+                    "application/octet-stream",  # Android sometimes
+                }
+                allowed_exts = (".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm")
+
+                file_type = (audio_file.type or "").lower()
+                file_name = (audio_file.name or "").lower()
+
+                # Accept if mime looks audio, or is in allow-list, or extension matches
+                if not (
+                    file_type.startswith("audio/")
+                    or file_type in allowed_types
+                    or file_name.endswith(allowed_exts)
+                ):
+                    st.error("Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm).")
+                    st.stop()
+
+                # quick preview
+                st.audio(audio_file)
+
+                # reset pointer for Whisper
                 try:
-                    eval_resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": (
-                                    "You are an English-speaking tutor evaluating German speech. "
-                                    "Always answer in clear, concise English using the requested format."
-                                ),
-                            },
-                            {"role": "user", "content": eval_prompt},
-                        ],
-                        temperature=0.2,
+                    audio_file.seek(0)
+                except Exception:
+                    pass
+
+                # Give Whisper a helpful name/extension when Android sends octet-stream
+                def _pick_ext(name: str, mime: str) -> str:
+                    n = (name or "speech").lower()
+                    if "." in n:
+                        return n
+                    if "wav" in mime:
+                        return n + ".wav"
+                    if "mpeg" in mime or "mp3" in mime:
+                        return n + ".mp3"
+                    if "m4a" in mime or "mp4" in mime or "aac" in mime:
+                        return n + ".m4a"
+                    if "3gpp" in mime:
+                        return n + ".3gp"
+                    if "ogg" in mime:
+                        return n + ".ogg"
+                    if "webm" in mime:
+                        return n + ".webm"
+                    return n + ".mp3"
+
+                safe_name = _pick_ext(file_name, file_type)
+                try:
+                    setattr(audio_file, "name", safe_name)  # helps OpenAI infer codec
+                except Exception:
+                    pass
+
+                # ---- Transcribe (German)
+                try:
+                    transcript_resp = client.audio.transcriptions.create(
+                        file=audio_file,
+                        model="whisper-1",
+                        language="de",
+                        temperature=0,
+                        prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                     )
-                    result_text = eval_resp.choices[0].message.content
+                    transcript_text = transcript_resp.text
                 except Exception as e:
-                    st.error(f"Evaluation error: {e}")
-                    result_text = None
+                    st.error(f"Sorry, could not process audio: {e}")
+                    st.stop()
 
-            if result_text:
-                st.markdown(result_text)
-                uses_ref.set({"count": count + 1, "date": today_str})
-                st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
-                if st.button("🔄 Try another"):
-                    st.rerun()
-            else:
-                st.error("Could not get feedback. Please try again later.")
+                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
+                # ---- Evaluate (English)
+                eval_prompt = (
+                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                    f'The student said (in German): "{transcript_text}"\n\n'
+                    "Please provide scores **in English only**:\n"
+                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                    "• Give three concise, actionable tips for each category.\n"
+                    "• Do not translate the student's text; focus on evaluating it.\n\n"
+                    "Respond exactly in this format:\n"
+                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+                )
+
+                with st.spinner("Evaluating your sample..."):
+                    try:
+                        eval_resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are an English-speaking tutor evaluating German speech. "
+                                        "Always answer in clear, concise English using the requested format."
+                                    ),
+                                },
+                                {"role": "user", "content": eval_prompt},
+                            ],
+                            temperature=0.2,
+                        )
+                        result_text = eval_resp.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Evaluation error: {e}")
+                        result_text = None
+
+                if result_text:
+                    st.markdown(result_text)
+                    uses_ref.set({"count": count + 1, "date": today_str})
+                    st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
+                    if st.button("🔄 Try another"):
+                        st.rerun()
+                else:
+                    st.error("Could not get feedback. Please try again later.")
+
+        # ===== Option B: Web Recorder + fetch latest cloud upload
+        with colB:
+            rec_url = f"{RECORDER_URL}?code={_urllib.quote(code_val)}"
+            st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
+            _go = st.button("🔎 Check latest upload", use_container_width=True)
+            st.caption("After uploading in the recorder, wait 2–3 seconds, then tap “Check latest upload.”")
+
+            if _go:
+                # Query newest upload in pron_inbox for this student
+                try:
+                    q = (
+                        db.collection("pron_inbox")
+                        .where("code", "==", code_val)
+                        .order_by("createdAt", direction=FSQuery.DESCENDING)
+                        .limit(1)
+                    )
+                    _docs = list(q.stream())
+                except Exception:
+                    st.error(
+                        "Couldn’t fetch your cloud upload. If this is your first time, "
+                        "Firebase may ask you to create a composite index for (code==, createdAt desc)."
+                    )
+                    st.stop()
+
+                if not _docs:
+                    st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
+                    st.stop()
+
+                rec = _docs[0].to_dict() or {}
+                url = rec.get("url")
+                ct = (rec.get("contentType") or "").lower()
+                if not url:
+                    st.error("Upload record is missing a download URL. Please try uploading again.")
+                    st.stop()
+
+                # Preview
+                st.audio(url)
+
+                # Download to bytes for Whisper
+                try:
+                    r = requests.get(url, timeout=20)
+                    r.raise_for_status()
+                    audio_bytes = r.content
+                except Exception as e:
+                    st.error(f"Couldn’t download your audio from cloud storage: {e}")
+                    st.stop()
+
+                bio = BytesIO(audio_bytes)
+                bio.seek(0)
+
+                # Choose an extension to help Whisper
+                ext = "webm"
+                if "mp3" in ct:
+                    ext = "mp3"
+                elif "wav" in ct:
+                    ext = "wav"
+                elif "m4a" in ct or "mp4" in ct or "aac" in ct:
+                    ext = "m4a"
+                elif "ogg" in ct:
+                    ext = "ogg"
+                elif "3gpp" in ct:
+                    ext = "3gp"
+                setattr(bio, "name", f"speech.{ext}")
+
+                # Transcribe (German)
+                try:
+                    transcript_resp = client.audio.transcriptions.create(
+                        file=bio,
+                        model="whisper-1",
+                        language="de",
+                        temperature=0,
+                        prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
+                    )
+                    transcript_text = transcript_resp.text
+                except Exception as e:
+                    st.error(f"Sorry, could not process audio: {e}")
+                    st.stop()
+
+                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+
+                # Evaluate (English)
+                eval_prompt = (
+                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                    f'The student said (in German): "{transcript_text}"\n\n'
+                    "Please provide scores **in English only**:\n"
+                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                    "• Give three concise, actionable tips for each category.\n"
+                    "• Do not translate the student's text; focus on evaluating it.\n\n"
+                    "Respond exactly in this format:\n"
+                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+                )
+
+                with st.spinner("Evaluating your sample..."):
+                    try:
+                        eval_resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are an English-speaking tutor evaluating German speech. "
+                                        "Always answer in clear, concise English using the requested format."
+                                    ),
+                                },
+                                {"role": "user", "content": eval_prompt},
+                            ],
+                            temperature=0.2,
+                        )
+                        result_text = eval_resp.choices[0].message.content
+                    except Exception as e:
+                        st.error(f"Evaluation error: {e}")
+                        result_text = None
+
+                if result_text:
+                    st.markdown(result_text)
+                    uses_ref.set({"count": count + 1, "date": today_str})
+                    st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
+                    if st.button("🔄 Check another upload"):
+                        st.rerun()
+                else:
+                    st.error("Could not get feedback. Please try again later.")
+
+        # Back
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 
