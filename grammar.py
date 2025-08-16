@@ -1888,6 +1888,36 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
     if end_dt.day < start_dt.day: months -= 1
     return months
 
+from urllib.parse import unquote_plus
+
+# 1) Define your top-level tabs EXACTLY as your code uses them
+TABS = ["Home", "My Course", "Vocab Trainer", "Dictionary"]  # <-- adjust to your real list/order
+
+# 2) Read the deep link (?tab=...) and normalize it
+def _get_deeplink_tab(default="Home"):
+    try:
+        params = st.experimental_get_query_params()  # works on all current Streamlit versions
+        raw = params.get("tab", [default])[0]
+        return unquote_plus(str(raw)).strip()
+    except Exception:
+        return default
+
+# 3) Initialize and/or override the selected tab from the URL if valid
+if "main_tab" not in st.session_state:
+    st.session_state["main_tab"] = TABS[0]
+
+_dl = _get_deeplink_tab(st.session_state["main_tab"])
+if _dl in TABS and st.session_state["main_tab"] != _dl:
+    st.session_state["main_tab"] = _dl
+
+# 4) Keep the URL in sync when users change tabs
+def _sync_tab_to_url():
+    st.experimental_set_query_params(tab=st.session_state["main_tab"])
+
+# 5) Render your top-level tab control (radio or selectbox)
+tab = st.radio("Navigate", TABS, key="main_tab", horizontal=True, on_change=_sync_tab_to_url)
+
+
 # =========================================================
 # ===================== Tabs UI ===========================
 # =========================================================
@@ -10982,6 +11012,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
