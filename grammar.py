@@ -5593,7 +5593,7 @@ if tab == "My Course":
             st.markdown(
                 f"""
                 **Computer or iPhone:** Download the **.ics** above and install.  
-                - **Computer (Google Calendar web):** Go to **calendar.google.com** → **Settings** → **Import & export** → **Import** (you’ll see **“Imported X of X events.”**).  
+                - **Computer (Google Calendar web):** Go to [calendar.google.com](https://calendar.google.com) → **Settings** → **Import & export** → **Import** (you’ll see **“Imported X of X events.”**).
                 - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose your notification preference, then **Done**.
 
                 **Android (Google Calendar app):** The app **can’t import `.ics`**. So use the links below to add it on your phone (**with repeat**):
