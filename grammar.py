@@ -7986,9 +7986,12 @@ if tab == "Exams Mode & Custom Chat":
     # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: web recorder + latest upload)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
+        import time
         from io import BytesIO
         import urllib.parse as _urllib
         import requests
+        from google.cloud import firestore
+        import streamlit as st  # ensure imported
 
         # Where your tiny web recorder lives
         RECORDER_URL = "https://speak.falowen.app"
@@ -8035,45 +8038,70 @@ if tab == "Exams Mode & Custom Chat":
 
         st.caption("Tip: After uploading in the recorder, wait 2–3 seconds, then click **Check latest upload**.")
 
+        # ===== Helpers =====
+        def _ext_from(ct: str, u: str) -> str:
+            ct = (ct or "").lower()
+            lu = (u or "").lower()
+            if "wav" in ct or lu.endswith(".wav"): return "wav"
+            if "mpeg" in ct or "mp3" in ct or lu.endswith(".mp3"): return "mp3"
+            if "m4a" in ct or "mp4" in ct or lu.endswith(".m4a"): return "m4a"
+            if "ogg" in ct or lu.endswith(".ogg"): return "ogg"
+            if "webm" in ct or lu.endswith(".webm"): return "webm"
+            if "3gpp" in ct or lu.endswith(".3gp"): return "3gp"
+            return "webm"
+
+        def _normalize_code(s: str) -> str:
+            return (s or "").strip()
+
+        # ===== Fetch & process latest upload =====
         if go:
-            # ----- Fetch a few docs (no composite index needed), then sort newest in Python
+            code_val = _normalize_code(code_val)
+
+            # Build query: latest doc for this code by createdAt DESC
             try:
-                q = db.collection("pron_inbox").where("code", "==", code_val).limit(20)
-                docs = list(q.stream())
-            except Exception:
-                st.error("Couldn’t fetch your cloud upload. Please try again in a moment.")
+                q = (
+                    db.collection("pron_inbox")
+                    .where("code", "==", code_val)
+                    .order_by("createdAt", direction=firestore.Query.DESCENDING)
+                    .limit(1)
+                )
+            except Exception as e:
+                st.error(f"Query setup error: {e}")
                 st.stop()
 
-            if not docs:
-                st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
-                st.stop()
-
-            def _safe_ts(doc):
-                rec = doc.to_dict() or {}
-                ts = rec.get("createdAt")
+            latest_doc = None
+            deadline = time.time() + 15  # poll ~15s to allow the recorder to finish writing
+            while time.time() < deadline and latest_doc is None:
                 try:
-                    return ts.timestamp() if hasattr(ts, "timestamp") else 0.0
+                    docs = list(q.stream())
+                    latest_doc = docs[0] if docs else None
                 except Exception:
-                    return 0.0
+                    latest_doc = None
+                if latest_doc is None:
+                    time.sleep(2)
 
-            docs.sort(key=_safe_ts, reverse=True)
-            cloud_doc = docs[0]
-            rec = cloud_doc.to_dict() or {}
+            if latest_doc is None:
+                st.info("No cloud upload found yet. In the Web Recorder, press **Upload**, wait ~2 seconds, then click **Check latest upload** here.")
+                st.stop()
 
-            url = rec.get("url")
+            rec = latest_doc.to_dict() or {}
+
+            # Tolerate alternate field names
+            url = rec.get("url") or rec.get("downloadURL")
+            content_type = (rec.get("contentType") or rec.get("mimeType") or "").lower()
+            created_at = rec.get("createdAt")
+
+            try:
+                if hasattr(created_at, "isoformat"):
+                    st.caption(f"Latest upload time (server): {created_at.isoformat()}")
+            except Exception:
+                pass
+
             if not url:
                 st.error("Upload record found but missing file URL.")
                 st.stop()
 
-            content_type = (rec.get("contentType") or "").lower()
-
-            # Preview
-            try:
-                st.audio(url)
-            except Exception:
-                st.caption("Preview may be blocked by the browser; continuing…")
-
-            # ----- Download file bytes
+            # Download file bytes
             try:
                 r = requests.get(url, timeout=30)
                 r.raise_for_status()
@@ -8082,17 +8110,14 @@ if tab == "Exams Mode & Custom Chat":
                 st.error(f"Could not download your audio file: {e}")
                 st.stop()
 
-            # Guess a filename for Whisper
-            def _ext_from(ct: str, u: str) -> str:
-                if "wav" in ct or u.lower().endswith(".wav"): return "wav"
-                if "mpeg" in ct or "mp3" in ct or u.lower().endswith(".mp3"): return "mp3"
-                if "m4a" in ct or "mp4" in ct or u.lower().endswith(".m4a"): return "m4a"
-                if "ogg" in ct or u.lower().endswith(".ogg"): return "ogg"
-                if "webm" in ct or u.lower().endswith(".webm"): return "webm"
-                if "3gpp" in ct or u.lower().endswith(".3gp"): return "3gp"
-                return "webm"
-
+            # Determine extension and preview bytes directly
             ext = _ext_from(content_type, url)
+            try:
+                st.audio(audio_bytes, format=f"audio/{'mpeg' if ext=='mp3' else ext}")
+            except Exception:
+                st.caption("Preview may be blocked by the browser; continuing…")
+
+            # Prepare BytesIO for Whisper
             bio = BytesIO(audio_bytes)
             setattr(bio, "name", f"speech.{ext}")
 
@@ -8149,7 +8174,26 @@ if tab == "Exams Mode & Custom Chat":
 
             if result_text:
                 st.markdown(result_text)
-                uses_ref.set({"count": count + 1, "date": today_str})
+
+                # Increment daily counter (transaction to avoid races)
+                transaction = db.transaction()
+
+                @firestore.transactional
+                def _increment(tx):
+                    snap2 = uses_ref.get(transaction=tx)
+                    d2 = snap2.to_dict() if snap2.exists else {}
+                    last_date2 = d2.get("date")
+                    c2 = int(d2.get("count", 0))
+                    if last_date2 != today_str:
+                        c2 = 0
+                    tx.set(uses_ref, {"count": c2 + 1, "date": today_str})
+
+                try:
+                    _increment(transaction)
+                except Exception:
+                    # Fallback non-transactional set
+                    uses_ref.set({"count": count + 1, "date": today_str})
+
                 st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload with the Web Recorder.")
                 if st.button("🔄 Check another upload"):
                     st.rerun()
@@ -8160,6 +8204,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 # =========================================
@@ -11128,6 +11173,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
