@@ -2131,7 +2131,7 @@ if tab == "Dashboard":
         """,
         unsafe_allow_html=True
     )
-
+    st.divider()
     # ---------- Student header (compact) + details (expander) ----------
     name = safe_get(student_row, "Name")
     level = safe_get(student_row, "Level", "")
