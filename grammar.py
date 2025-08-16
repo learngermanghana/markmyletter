@@ -9296,84 +9296,20 @@ def get_vocab_stats(student_code):
 
 
 # ================================
-# HELPERS: Writing (Sentence Builder) persistence
+# CONFIG: Sheet for Vocab + Audio
 # ================================
-def save_sentence_attempt(student_code, level, target_sentence, chosen_sentence, correct, tip):
-    """Append a sentence-builder attempt to Firestore."""
-    _db = _get_db()
-    if _db is None:
-        st.warning("Firestore not initialized; skipping sentence stats save.")
-        return
-
-    doc_ref = _db.collection("sentence_builder_stats").document(student_code)
-    doc = doc_ref.get()
-    data = doc.to_dict() if doc.exists else {}
-    history = data.get("history", [])
-    history.append({
-        "level": level,
-        "target": target_sentence,
-        "chosen": chosen_sentence,
-        "correct": bool(correct),
-        "tip": tip,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    })
-    doc_ref.set({
-        "history": history,
-        "last_played": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "total_sessions": len(history),
-    }, merge=True)
-
-def get_sentence_progress(student_code: str, level: str):
-    """
-    Returns (correct_unique_count, total_items_for_level)
-    based on history in 'sentence_builder_stats'.
-    """
-    _db = _get_db()
-    correct_set = set()
-    if _db is not None:
-        ref = _db.collection("sentence_builder_stats").document(student_code)
-        doc = ref.get()
-        if doc.exists:
-            data = doc.to_dict()
-            for h in data.get("history", []):
-                if h.get("level") == level and h.get("correct"):
-                    correct_set.add(h.get("target"))
-    total_items = len(SENTENCE_BANK.get(level, []))
-    return len(correct_set), total_items
-
+SHEET_ID  = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
+SHEET_GID = 0  # <-- change this if your Vocab tab uses another gid
 
 # ================================
-# HELPERS: Vocab CSV (optional flashcards list)
+# HELPERS: Utilities used below
 # ================================
-@st.cache_data
-def load_vocab_lists():
-    """
-    Optional CSV for flashcards: columns Level, German, English
-    """
-    sheet_id = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"  # Vocab sheet
-    csv_url  = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
-    try:
-        df = pd.read_csv(csv_url)
-    except Exception as e:
-        st.error(f"Could not fetch vocab CSV: {e}")
-        return {}
-    df.columns = df.columns.str.strip()
-    missing = [c for c in ("Level","German","English") if c not in df.columns]
-    if missing:
-        st.error(f"Missing column(s) in your vocab sheet: {missing}")
-        return {}
-    df = df[["Level","German","English"]].dropna()
-    lists = {}
-    for lvl, grp in df.groupby("Level"):
-        lists[lvl] = list(zip(grp["German"], grp["English"]))
-    return lists
+def normalize_join(tokens):
+    s = " ".join(tokens)
+    for p in [",", ".", "!", "?", ":", ";"]:
+        s = s.replace(f" {p}", p)
+    return s
 
-VOCAB_LISTS = load_vocab_lists()
-
-
-# ================================
-# SMALL UI + CHECK HELPERS
-# ================================
 def render_message(role, msg):
     align   = "left"   if role=="assistant" else "right"
     bgcolor = "#FAFAFA" if role=="assistant" else "#D2F8D2"
@@ -9391,32 +9327,12 @@ def clean_text(text):
 
 def is_correct_answer(user_input, answer):
     import re
-    # Clean both sides; accept comma/;/ slash-separated variants
     possible = [clean_text(a) for a in re.split(r"[,/;]", str(answer))]
     return clean_text(str(user_input)) in possible
 
-def normalize_join(tokens):
-    """Join tokens and fix spaces before punctuation for sentence builder."""
-    s = " ".join(tokens)
-    for p in [",", ".", "!", "?", ":", ";"]:
-        s = s.replace(f" {p}", p)
-    return s
-
-# ---------- Dictionary helpers ----------
-def _flatten_vocab_entries(vocab_lists: dict):
-    rows = []
-    for lvl, pairs in (vocab_lists or {}).items():
-        for de, en in pairs:
-            rows.append({
-                "level":   str(lvl).upper().strip(),
-                "german":  str(de).strip(),
-                "english": str(en).strip()
-            })
-    return rows
-
+# ---------- Fallback TTS bytes (for when sheet link missing) ----------
 @st.cache_data(show_spinner=False)
 def _dict_tts_bytes_de(word: str, slow: bool = False):
-    """Return MP3 bytes for a German word (cached)."""
     try:
         from gtts import gTTS
         import io
@@ -9429,19 +9345,79 @@ def _dict_tts_bytes_de(word: str, slow: bool = False):
         return None
 
 # ================================
+# HELPERS: Load vocab + audio from Sheet
+# ================================
+@st.cache_data
+def load_vocab_lists():
+    """
+    Reads the Vocab tab CSV (Level, German, English) and optional audio columns:
+    - Audio (normal) / Audio (slow) / Audio
+    Returns:
+      VOCAB_LISTS: dict[level] -> list[(German, English)]
+      AUDIO_URLS:  dict[(level, German)] -> {"normal": url, "slow": url}
+    """
+    import pandas as pd
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
+    try:
+        df = pd.read_csv(csv_url)
+    except Exception as e:
+        st.error(f"Could not fetch vocab CSV: {e}")
+        return {}, {}
+
+    df.columns = df.columns.str.strip()
+    missing = [c for c in ("Level","German","English") if c not in df.columns]
+    if missing:
+        st.error(f"Missing column(s) in your vocab sheet: {missing}")
+        return {}, {}
+
+    # Normalize
+    df["Level"]  = df["Level"].astype(str).str.strip()
+    df["German"] = df["German"].astype(str).str.strip()
+    df["English"]= df["English"].astype(str).str.strip()
+    df = df.dropna(subset=["Level","German"])
+
+    # Flexible audio detection
+    def pick(*names):
+        for n in names:
+            if n in df.columns:
+                return n
+        return None
+    normal_col = pick("Audio (normal)", "Audio normal", "Audio_Normal", "Audio")
+    slow_col   = pick("Audio (slow)", "Audio slow", "Audio_Slow")
+
+    # Build outputs
+    vocab_lists = {lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")}
+    audio_urls = {}
+    for _, r in df.iterrows():
+        key = (r["Level"], r["German"])
+        audio_urls[key] = {
+            "normal": str(r.get(normal_col, "")).strip() if normal_col else "",
+            "slow":   str(r.get(slow_col, "")).strip()   if slow_col else "",
+        }
+    return vocab_lists, audio_urls
+
+VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
+
+def refresh_vocab_from_sheet():
+    load_vocab_lists.clear()
+    global VOCAB_LISTS, AUDIO_URLS
+    VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
+
+def get_audio_url(level: str, german_word: str) -> str:
+    """Prefer slow for A1, otherwise normal; fallback to whichever exists."""
+    urls = AUDIO_URLS.get((str(level).upper(), str(german_word).strip()), {})
+    lvl = str(level).upper()
+    return (urls.get("slow") if (lvl == "A1" and urls.get("slow")) else urls.get("normal")) or urls.get("slow") or ""
+
+# ================================
 # TAB: Vocab Trainer (locked by Level)
 # ================================
 if tab == "Vocab Trainer":
     # --- Who is this? ---
     student_code = st.session_state.get("student_code", "demo001")
 
-    # --- Lock the level from your Sheet ---
-    student_level_locked = get_student_level(
-        student_code,
-        default=(st.session_state.get("student_level", "A1"))
-    )
-    if not student_level_locked:
-        student_level_locked = "A1"
+    # --- Lock the level from your Sheet/profile ---
+    student_level_locked = get_student_level(student_code, default=st.session_state.get("student_level", "A1")) or "A1"
 
     # Header
     st.markdown(
@@ -9459,6 +9435,16 @@ if tab == "Vocab Trainer":
     st.caption("Your level is loaded automatically from the school list. Ask your tutor if this looks wrong.")
     st.divider()
 
+    # Small toolbar
+    tcol1, tcol2 = st.columns([1, 1])
+    with tcol1:
+        if st.button("🔄 Refresh vocab from sheet", use_container_width=True):
+            refresh_vocab_from_sheet()
+            st.success("Refreshed vocab + audio from sheet.")
+            st.rerun()
+    with tcol2:
+        st.caption("Uses 'Audio (slow)' for A1 by default; 'Audio (normal)' for others.")
+
     subtab = st.radio(
         "Choose practice:",
         ["Sentence Builder", "Vocab Practice", "Dictionary"],
@@ -9467,13 +9453,13 @@ if tab == "Vocab Trainer":
     )
 
     # ===========================
-    # SUBTAB: Sentence Builder
+    # SUBTAB: Sentence Builder  (unchanged logic, audio not needed here)
     # ===========================
     if subtab == "Sentence Builder":
         student_level = student_level_locked
         st.info(f"✍️ You are practicing **Sentence Builder** at **{student_level}** (locked from your profile).")
 
-        # --- Guide & Progress (collapsed) ---
+        # --- Guide & Progress ---
         with st.expander("✍️ Sentence Builder — Guide & Progress", expanded=False):
             done_unique, total_items = get_sentence_progress(student_code, student_level)
             pct = int((done_unique / total_items) * 100) if total_items else 0
@@ -9487,40 +9473,23 @@ if tab == "Vocab Trainer":
                 """,
                 unsafe_allow_html=True
             )
-            st.caption(
-                "Tip: Click words to build the sentence. Clear to reset, Check to submit, "
-                "Next for a new one."
-            )
-            st.markdown(
-                "**What these numbers mean:**  \n"
-                "- **Score** = Correct sentences *this session*.  \n"
-                "- **Progress** (bar above) = Unique sentences you have *ever* solved at this level."
-            )
+            st.caption("Tip: Click words to build the sentence. Clear to reset, Check to submit, Next for a new one.")
+            st.markdown("**Score** = correct this session. **Progress bar** = unique lifetime correct for this level.")
 
         # ---- Session state defaults ----
         init_defaults = {
-            "sb_round": 0,
-            "sb_pool": None,
-            "sb_pool_level": None,
-            "sb_current": None,
-            "sb_shuffled": [],
-            "sb_selected_idx": [],
-            "sb_score": 0,
-            "sb_total": 0,
-            "sb_feedback": "",
-            "sb_correct": None,
+            "sb_round": 0, "sb_pool": None, "sb_pool_level": None, "sb_current": None,
+            "sb_shuffled": [], "sb_selected_idx": [], "sb_score": 0, "sb_total": 0,
+            "sb_feedback": "", "sb_correct": None,
         }
         for k, v in init_defaults.items():
-            if k not in st.session_state:
-                st.session_state[k] = v
+            st.session_state.setdefault(k, v)
 
         # ---- Init / Level change ----
         if (st.session_state.sb_pool is None) or (st.session_state.sb_pool_level != student_level):
             import random
             st.session_state.sb_pool_level = student_level
-            st.session_state.sb_pool = SENTENCE_BANK.get(
-                student_level, SENTENCE_BANK.get("A1", [])
-            ).copy()
+            st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
             random.shuffle(st.session_state.sb_pool)
             st.session_state.sb_round = 0
             st.session_state.sb_score = 0
@@ -9533,11 +9502,8 @@ if tab == "Vocab Trainer":
 
         def new_sentence():
             import random
-            # Refill pool if empty
             if not st.session_state.sb_pool:
-                st.session_state.sb_pool = SENTENCE_BANK.get(
-                    student_level, SENTENCE_BANK.get("A1", [])
-                ).copy()
+                st.session_state.sb_pool = SENTENCE_BANK.get(student_level, SENTENCE_BANK.get("A1", [])).copy()
                 random.shuffle(st.session_state.sb_pool)
             if st.session_state.sb_pool:
                 st.session_state.sb_current = st.session_state.sb_pool.pop()
@@ -9554,15 +9520,11 @@ if tab == "Vocab Trainer":
         if st.session_state.sb_current is None:
             new_sentence()
 
-        # ---- Top metrics for session ----
+        # ---- Top metrics ----
         cols = st.columns([3, 2, 2])
         with cols[0]:
             st.session_state.setdefault("sb_target", 5)
-            _ = st.number_input(
-                "Number of sentences this session",
-                min_value=1, max_value=20,
-                key="sb_target"
-            )
+            _ = st.number_input("Number of sentences this session", 1, 20, key="sb_target")
         target = int(st.session_state.sb_target)
         with cols[1]:
             st.metric("Score (this session)", f"{st.session_state.sb_score}")
@@ -9571,12 +9533,11 @@ if tab == "Vocab Trainer":
 
         st.divider()
 
-        # --- English prompt panel ---
+        # Prompt box
         cur = st.session_state.sb_current or {}
         prompt_en = cur.get("prompt_en", "")
         hint_en = cur.get("hint_en", "")
         grammar_tag = cur.get("grammar_tag", "")
-
         if prompt_en:
             st.markdown(
                 f"""
@@ -9591,12 +9552,10 @@ if tab == "Vocab Trainer":
                 unsafe_allow_html=True
             )
             with st.expander("💡 Need a nudge? (Hint)"):
-                if hint_en:
-                    st.markdown(f"**Hint:** {hint_en}")
-                if grammar_tag:
-                    st.caption(f"Grammar: {grammar_tag}")
+                if hint_en: st.markdown(f"**Hint:** {hint_en}")
+                if grammar_tag: st.caption(f"Grammar: {grammar_tag}")
 
-        # ---- Word buttons ----
+        # Word buttons
         st.markdown("#### 🧩 Click the words in order")
         if st.session_state.sb_shuffled:
             word_cols = st.columns(min(6, len(st.session_state.sb_shuffled)) or 1)
@@ -9609,12 +9568,12 @@ if tab == "Vocab Trainer":
                         st.session_state.sb_selected_idx.append(i)
                         st.rerun()
 
-        # ---- Preview ----
+        # Preview
         chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
         st.markdown("#### ✨ Your sentence")
         st.code(normalize_join(chosen_tokens) if chosen_tokens else "—", language="text")
 
-        # ---- Actions ----
+        # Actions
         a, b, c = st.columns(3)
         with a:
             if st.button("🧹 Clear"):
@@ -9634,9 +9593,7 @@ if tab == "Vocab Trainer":
                     st.session_state.sb_feedback = "✅ **Correct!** Great job!"
                 else:
                     tip = st.session_state.sb_current.get("hint_en", "")
-                    st.session_state.sb_feedback = (
-                        f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
-                    )
+                    st.session_state.sb_feedback = f"❌ **Not quite.**\n\n**Correct:** {target_sentence}\n\n*Tip:* {tip}"
                 save_sentence_attempt(
                     student_code=student_code,
                     level=student_level,
@@ -9654,37 +9611,27 @@ if tab == "Vocab Trainer":
                 new_sentence()
                 st.rerun()
 
-        # ---- Feedback box ----
+        # Feedback
         if st.session_state.sb_feedback:
-            if st.session_state.sb_correct:
-                st.success(st.session_state.sb_feedback)
-            else:
-                st.info(st.session_state.sb_feedback)
+            (st.success if st.session_state.sb_correct else st.info)(st.session_state.sb_feedback)
 
     # ===========================
-    # SUBTAB: Vocab Practice (flashcards)
+    # SUBTAB: Vocab Practice  (uses sheet audio links)
     # ===========================
     elif subtab == "Vocab Practice":
-        # init session vars
         defaults = {
-            "vt_history": [],
-            "vt_list": [],
-            "vt_index": 0,
-            "vt_score": 0,
-            "vt_total": None,
-            "vt_saved": False,
-            "vt_session_id": None,
+            "vt_history": [], "vt_list": [], "vt_index": 0,
+            "vt_score": 0, "vt_total": None, "vt_saved": False, "vt_session_id": None,
         }
         for k, v in defaults.items():
             st.session_state.setdefault(k, v)
 
-        # --- Stats ---
+        # Stats
         with st.expander("📝 Your Vocab Stats", expanded=False):
             stats = get_vocab_stats(student_code)
             st.markdown(f"- **Sessions:** {stats['total_sessions']}")
             st.markdown(f"- **Last Practiced:** {stats['last_practiced']}")
             st.markdown(f"- **Unique Words:** {len(stats['completed_words'])}")
-
             if st.checkbox("Show Last 5 Sessions"):
                 for a in stats["history"][-5:][::-1]:
                     st.markdown(
@@ -9693,17 +9640,17 @@ if tab == "Vocab Trainer":
                         unsafe_allow_html=True
                     )
 
-        # lock level
+        # Level lock
         level = student_level_locked
         items = VOCAB_LISTS.get(level, [])
-        # re-use stats outside the expander
+
+        # If stats not set above, fetch here too
         if 'stats' not in locals():
             stats = get_vocab_stats(student_code)
         completed = set(stats["completed_words"])
         not_done = [p for p in items if p[0] not in completed]
         st.info(f"{len(not_done)} words NOT yet done at {level}.")
 
-        # reset button
         if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
@@ -9712,13 +9659,11 @@ if tab == "Vocab Trainer":
         mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
         session_vocab = (not_done if mode == "Only new words" else items).copy()
 
-        # pick count and start
         if st.session_state.vt_total is None:
             maxc = len(session_vocab)
             if maxc == 0:
                 st.success("🎉 All done! Switch to 'All words' to repeat.")
                 st.stop()
-
             count = st.number_input("How many today?", 1, maxc, min(7, maxc), key="vt_count")
             if st.button("Start", key="vt_start"):
                 import random
@@ -9733,59 +9678,45 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_session_id = str(uuid4())
                 st.rerun()
 
-        # show chat/history
         if st.session_state.vt_history:
             st.markdown("### 🗨️ Practice Chat")
             for who, msg in st.session_state.vt_history:
                 render_message(who, msg)
 
-        # practice loop
         tot = st.session_state.vt_total
         idx = st.session_state.vt_index
         if isinstance(tot, int) and idx < tot:
             word, answer = st.session_state.vt_list[idx]
 
-            # audio
-            if st.button("🔊 Play & Download", key=f"tts_{idx}"):
-                try:
-                    from gtts import gTTS
-                    import tempfile
-                    t = gTTS(text=word, lang="de")
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-                        t.save(fp.name)
-                        st.audio(fp.name, format="audio/mp3")
-                        fp.seek(0)
-                        blob = fp.read()
-                    st.download_button(
-                        f"⬇️ {word}.mp3",
-                        data=blob,
-                        file_name=f"{word}.mp3",
-                        mime="audio/mp3",
-                        key=f"tts_dl_{idx}"
-                    )
-                except Exception as e:
-                    st.error(f"Could not generate audio (gTTS): {e}")
+            # ---- AUDIO (prefer sheet link; fallback to gTTS) ----
+            audio_url = get_audio_url(level, word)
+            cols_audio = st.columns([1, 2])
+            with cols_audio[0]:
+                if st.button("🔊 Play", key=f"play_{idx}"):
+                    if audio_url:
+                        st.audio(audio_url, format="audio/mp3")
+                    else:
+                        # fallback small local TTS
+                        audio_bytes = _dict_tts_bytes_de(word)
+                        if audio_bytes:
+                            st.audio(audio_bytes, format="audio/mp3")
+                        else:
+                            st.warning("Audio unavailable.")
+            with cols_audio[1]:
+                if audio_url:
+                    st.markdown(f"[⬇️ Download / Open MP3]({audio_url})")
 
-            # bigger, bolder, clearer input
+            # nicer input styling
             st.markdown(
                 """
                 <style>
-                div[data-baseweb="input"] input {
-                    font-size: 18px !important;
-                    font-weight: 600 !important;
-                    color: black !important;
-                }
+                div[data-baseweb="input"] input { font-size: 18px !important; font-weight: 600 !important; color: black !important; }
                 </style>
                 """,
                 unsafe_allow_html=True
             )
 
-            usr = st.text_input(
-                f"{word} = ?",
-                key=f"vt_input_{idx}",
-                placeholder="Type your answer here..."
-            )
-
+            usr = st.text_input(f"{word} = ?", key=f"vt_input_{idx}", placeholder="Type your answer here...")
             if usr and st.button("Check", key=f"vt_check_{idx}"):
                 st.session_state.vt_history.append(("user", usr))
                 if is_correct_answer(usr, answer):
@@ -9797,13 +9728,10 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_index += 1
                 st.rerun()
 
-        # done
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
             words = [w for w, _ in (st.session_state.vt_list or [])]
             st.markdown(f"### 🏁 Done! You scored {score}/{tot}.")
-
-            # Save exactly once per session, duplicate-safe
             if not st.session_state.get("vt_saved", False):
                 if not st.session_state.get("vt_session_id"):
                     from uuid import uuid4
@@ -9819,19 +9747,24 @@ if tab == "Vocab Trainer":
                     )
                 st.session_state.vt_saved = True
                 st.rerun()
-
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
                 st.rerun()
 
     # ===========================
-    # SUBTAB: Dictionary (simple, sticky search, mobile-friendly)
+    # SUBTAB: Dictionary  (uses sheet audio links)
     # ===========================
     elif subtab == "Dictionary":
-        import io, json, difflib
+        import io, json, difflib, pandas as pd
 
-        # ---------- Helpers ----------
+        # functions used here
+        _map = {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}
+        def _norm(s: str) -> str:
+            s = (s or "").strip().lower()
+            for k,v in _map.items(): s = s.replace(k, v)
+            return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
+
         def _fallback_df(levels):
             rows = []
             for lvl in levels:
@@ -9854,82 +9787,17 @@ if tab == "Vocab Trainer":
                 df = df.drop_duplicates(subset=["Level","German"]).reset_index(drop=True)
             return df
 
-        def _tts_bytes_de(text: str) -> bytes:
-            try:
-                from gtts import gTTS
-                buf = io.BytesIO()
-                gTTS(text=text, lang="de").write_to_fp(buf)
-                buf.seek(0)
-                return buf.read()
-            except Exception:
-                return b""
-
-        def _json_from_text(raw: str) -> dict:
-            txt = (raw or "").strip()
-            if txt.startswith("```"):
-                txt = txt.strip("`")
-                if "\n" in txt:
-                    txt = txt.split("\n", 1)[1]
-                if "```" in txt:
-                    txt = txt.split("```", 1)[0]
-            try:
-                return json.loads(txt)
-            except Exception:
-                return {}
-
-        def _enrich_word(german: str, english_hint: str, level: str):
-            """Fill Pronunciation + English + 2 examples if missing (quiet background call)."""
-            try:
-                prompt = (
-                    "You are a precise German lexicographer.\n"
-                    f'Word: "{german}"\n'
-                    f'Known English hint (may be empty): "{english_hint}"\n'
-                    f'Level: {level}\n\n'
-                    "Return compact JSON with keys: ipa, english, examples (2 items with keys de and en)."
-                )
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    temperature=0.2,
-                    max_tokens=220,
-                    messages=[
-                        {"role": "system", "content": "Return strict JSON only."},
-                        {"role": "user", "content": prompt},
-                    ],
-                )
-                data = _json_from_text(resp.choices[0].message.content)
-                ipa = str(data.get("ipa", "") or "")
-                eng = str(data.get("english", "") or english_hint or "")
-                exs = data.get("examples", []) or []
-                clean = []
-                for ex in exs[:2]:
-                    clean.append({
-                        "de": str(ex.get("de", "") or ""),
-                        "en": str(ex.get("en", "") or "")
-                    })
-                return {"pron": ipa, "english": eng, "examples": clean}
-            except Exception:
-                return {"pron": "", "english": english_hint or "", "examples": []}
-
-        # diacritic/umlaut normalization so "ae" finds "ä", etc.
-        _map = {"ä":"ae","ö":"oe","ü":"ue","ß":"ss"}
-        def _norm(s: str) -> str:
-            s = (s or "").strip().lower()
-            for k,v in _map.items():
-                s = s.replace(k, v)
-            return "".join(ch for ch in s if ch.isalnum() or ch.isspace())
-
-        # ---------- Build data (CSV + Sentence Bank) ----------
+        # Build data (for the locked level)
         levels = [student_level_locked]
         df_dict = _fallback_df(levels)
         df_dict = _merge_sentence_bank(df_dict, levels)
         for c in ["Level","German","English","Pronunciation"]:
-            if c not in df_dict.columns:
-                df_dict[c] = ""
+            if c not in df_dict.columns: df_dict[c] = ""
         df_dict["g_norm"] = df_dict["German"].astype(str).map(_norm)
         df_dict["e_norm"] = df_dict["English"].astype(str).map(_norm)
         df_dict = df_dict.sort_values(["German"]).reset_index(drop=True)
 
-        # ---------- Mobile-friendly sticky search ----------
+        # Sticky search UI
         st.markdown(
             """
             <style>
@@ -9946,138 +9814,66 @@ if tab == "Vocab Trainer":
             with cols[0]:
                 q = st.text_input("🔎 Search (German or English)", key="dict_q", placeholder="e.g., Wochenende, bakery, spielen")
             with cols[1]:
-                search_in = st.selectbox("Field", ["Both", "German", "English"], index=0, key="dict_field")
+                search_in = st.selectbox("Field", ["Both", "German", "English"], 0, key="dict_field")
             with cols[2]:
-                match_mode = st.selectbox("Match", ["Contains", "Starts with", "Exact"], index=0, key="dict_mode")
+                match_mode = st.selectbox("Match", ["Contains", "Starts with", "Exact"], 0, key="dict_mode")
             st.markdown('</div>', unsafe_allow_html=True)
 
-        # ---------- Filter (and add enrichment when empty) ----------
+        # Filter + choose top row
         df_view = df_dict.copy()
         suggestions = []
         top_row = None
 
         if q:
             qn = _norm(q)
-
-            # masks by field
             g_contains = df_view["g_norm"].str.contains(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
             g_starts   = df_view["g_norm"].str.startswith(qn, na=False) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
             g_exact    = df_view["g_norm"].eq(qn) if search_in in ("Both","German") else pd.Series([False]*len(df_view))
-
             e_contains = df_view["e_norm"].str.contains(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
             e_starts   = df_view["e_norm"].str.startswith(qn, na=False) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
             e_exact    = df_view["e_norm"].eq(qn) if search_in in ("Both","English") else pd.Series([False]*len(df_view))
 
-            if match_mode == "Contains":
-                mask = g_contains | e_contains
-            elif match_mode == "Starts with":
-                mask = g_starts | e_starts
-            else:
-                mask = g_exact | e_exact
-
+            mask = (g_contains | e_contains) if match_mode=="Contains" else (g_starts | e_starts) if match_mode=="Starts with" else (g_exact | e_exact)
             if mask.any():
                 df_view = df_view[mask].copy().reset_index(drop=True)
-                # prefer exact > starts > contains
                 exact_mask  = (g_exact | e_exact)
                 starts_mask = (g_starts | e_starts)
-                if exact_mask.any():
-                    top_row = df_view[exact_mask].iloc[0]
-                elif starts_mask.any():
-                    top_row = df_view[starts_mask].iloc[0]
-                else:
-                    top_row = df_view.iloc[0]
+                top_row = df_view[exact_mask].iloc[0] if exact_mask.any() else df_view[starts_mask].iloc[0] if starts_mask.any() else df_view.iloc[0]
             else:
-                # no local match → show fuzzy suggestions + enrich the query so learners still get value
                 vocab_all = df_view["German"].astype(str).unique().tolist()
                 suggestions = difflib.get_close_matches(q, vocab_all, n=5, cutoff=0.72)
-
-                enrich = _enrich_word(q, "", student_level_locked)
-                new_row = {
-                    "Level": student_level_locked,
-                    "German": q.capitalize() if q.islower() else q,
-                    "English": enrich.get("english", ""),
-                    "Pronunciation": enrich.get("pron", ""),
-                    "g_norm": _norm(q),
-                    "e_norm": _norm(enrich.get("english","")),
-                }
-                df_view = pd.concat([df_view, pd.DataFrame([new_row])], ignore_index=True)
-                top_row = pd.Series(new_row)
-                st.session_state.setdefault("dict_cache", {})
-                st.session_state["dict_cache"][(new_row["German"], student_level_locked)] = {
-                    "pron": new_row["Pronunciation"],
-                    "english": new_row["English"],
-                    "examples": enrich.get("examples", []),
-                }
+                # Still show a card for the query itself
+                dummy = {"Level": student_level_locked, "German": q, "English": "", "Pronunciation": "", "g_norm": qn, "e_norm": ""}
+                df_view = pd.concat([df_view, pd.DataFrame([dummy])], ignore_index=True)
+                top_row = pd.Series(dummy)
         else:
-            # no query → show first word (nice landing state) if available
-            if not df_view.empty:
-                top_row = df_view.iloc[0]
+            if not df_view.empty: top_row = df_view.iloc[0]
 
-        # ---------- Details (always ABOVE) ----------
-        if "dict_cache" not in st.session_state:
-            st.session_state["dict_cache"] = {}
-
+        # Details panel (uses sheet audio if available)
         if top_row is not None and len(top_row) > 0:
             de  = str(top_row["German"])
             en  = str(top_row.get("English", "") or "")
             lvl = str(top_row.get("Level", student_level_locked))
-            pron = str(top_row.get("Pronunciation", "") or "")
-
-            cache_key = (de, lvl)
-            cached = st.session_state["dict_cache"].get(cache_key, {})
-
-            # Backfill pronunciation/english/examples if missing
-            if not pron or not cached.get("examples"):
-                enrich = _enrich_word(de, en, lvl)
-                if not pron and enrich.get("pron"):
-                    pron = enrich["pron"]
-                if not en and enrich.get("english"):
-                    en = enrich["english"]
-                if enrich.get("examples"):
-                    cached["examples"] = enrich["examples"]
-                st.session_state["dict_cache"][cache_key] = {
-                    "pron": pron, "english": en, "examples": cached.get("examples", [])
-                }
-
-            examples = st.session_state["dict_cache"].get(cache_key, {}).get("examples", [])
 
             st.markdown(f"### {de}")
-            if en:
-                st.markdown(f"**Meaning:** {en}")
-            if pron:
-                st.caption(f"**Pronunciation:** /{pron}/")
+            if en: st.markdown(f"**Meaning:** {en}")
 
-            audio_bytes = _tts_bytes_de(de)
+            sheet_audio = get_audio_url(lvl, de)
             c1, c2 = st.columns([1, 2])
             with c1:
                 if st.button("🔊 Pronounce", key=f"say_{de}_{lvl}"):
-                    if audio_bytes:
-                        st.audio(audio_bytes, format="audio/mp3")
+                    if sheet_audio:
+                        st.audio(sheet_audio, format="audio/mp3")
+                    else:
+                        audio_bytes = _dict_tts_bytes_de(de)
+                        if audio_bytes:
+                            st.audio(audio_bytes, format="audio/mp3")
+                        else:
+                            st.caption("Audio currently unavailable.")
             with c2:
-                if audio_bytes:
-                    st.download_button(
-                        "⬇️ Download MP3",
-                        data=audio_bytes,
-                        file_name=f"{de}.mp3",
-                        mime="audio/mpeg",
-                        key=f"dl_{de}_{lvl}"
-                    )
-                else:
-                    st.caption("Audio currently unavailable.")
+                if sheet_audio:
+                    st.markdown(f"[⬇️ Download / Open MP3]({sheet_audio})")
 
-            with st.expander("📌 Examples", expanded=True):
-                if examples:
-                    for ex in examples[:2]:
-                        de_ex = (ex.get("de", "") or "").strip()
-                        en_ex = (ex.get("en", "") or "").strip()
-                        if de_ex:
-                            st.markdown(f"- **{de_ex}**")
-                            if en_ex:
-                                st.caption(f"  ↳ {en_ex}")
-                else:
-                    st.caption("No examples yet.")
-
-        # ---------- Did you mean (chips) ----------
         if q and suggestions:
             st.markdown("**Did you mean:**")
             bcols = st.columns(min(5, len(suggestions)))
@@ -10087,25 +9883,10 @@ if tab == "Vocab Trainer":
                         st.session_state["dict_q"] = s
                         st.rerun()
 
-        # ---------- Scrollable table INSIDE an expander (clean page) ----------
         with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
-            df_show = df_view[["German","English","Pronunciation"]].copy()
+            df_show = df_view[["German","English"]].copy()
             st.dataframe(df_show, use_container_width=True, height=420)
-#
 
-                
-
-# ===== BUBBLE FUNCTION FOR CHAT DISPLAY =====
-def bubble(role, text):
-    color = "#7b2ff2" if role == "assistant" else "#222"
-    bg = "#ede3fa" if role == "assistant" else "#f6f8fb"
-    name = "Herr Felix" if role == "assistant" else "You"
-    return f"""
-        <div style="background:{bg};color:{color};margin-bottom:8px;padding:13px 15px;
-        border-radius:14px;max-width:98vw;font-size:1.09rem;">
-            <b>{name}:</b><br>{text}
-        </div>
-    """
 
 
 
