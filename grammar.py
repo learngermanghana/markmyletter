@@ -5524,158 +5524,84 @@ if tab == "My Course":
 #
 
 
-            # ----- (Hidden) Create-your-own recurring schedule: click to reveal -----
-            # Build Google Calendar recurring links (one per distinct time block)
+            # --- Phone app quick links (Android) — concise only ---
+            # Build per-block Google Calendar repeating links from the schedule
             _gcal_repeat_links = []
-            if _blocks:
-                _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-                _code_to_pretty = {"MO":"Mon","TU":"Tue","WE":"Wed","TH":"Thu","FR":"Fri","SA":"Sat","SU":"Sun"}
+            try:
+                if _blocks:
+                    _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+                    _code_to_pretty = {"MO":"Mon","TU":"Tue","WE":"Wed","TH":"Thu","FR":"Fri","SA":"Sat","SU":"Sun"}
 
-                def _fmt_time(h, m):
-                    ap = "AM" if h < 12 else "PM"
-                    hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                    return f"{hh}:{m:02d}{ap}"
+                    def _fmt_time(h, m):
+                        ap = "AM" if h < 12 else "PM"
+                        hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                        return f"{hh}:{m:02d}{ap}"
 
-                for blk in _blocks:
-                    byday_codes = blk["byday"]
-                    sh, sm = blk["start"]; eh, em = blk["end"]
+                    for blk in _blocks:
+                        byday_codes = blk["byday"]
+                        sh, sm = blk["start"]; eh, em = blk["end"]
 
-                    # First occurrence on/after course start for this block
-                    first_dates = []
-                    for code in byday_codes:
-                        widx = _wmap[code]
-                        first_dates.append(_next_on_or_after(start_date_obj, widx))
-                    first_date = min(first_dates)
+                        # First occurrence on/after course start for this block
+                        first_dates = []
+                        for code in byday_codes:
+                            widx = _wmap[code]
+                            first_dates.append(_next_on_or_after(start_date_obj, widx))
+                        first_date = min(first_dates)
 
-                    _start_dt = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
-                    _end_dt   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
-                    _start_str = _start_dt.strftime("%Y%m%dT%H%M%SZ")
-                    _end_str   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
+                        _start_dt = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
+                        _end_dt   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
+                        _start_str = _start_dt.strftime("%Y%m%dT%H%M%SZ")
+                        _end_str   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
 
-                    # RRULE weekly until course end
-                    _rrule = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}"
+                        # RRULE weekly until course end
+                        _rrule = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}"
 
-                    # Friendly label like "Mon/Tue/Wed 6:00PM–7:00PM"
-                    _days_pretty = "/".join(_code_to_pretty[c] for c in byday_codes)
-                    _label = f"{_days_pretty} {_fmt_time(sh, sm)}–{_fmt_time(eh, em)}"
+                        # Friendly label e.g. "Thu/Fri 6:00PM–7:00PM" or "Sat 8:00AM–9:00AM"
+                        _days_pretty = "/".join(_code_to_pretty[c] for c in byday_codes)
+                        _label = f"{_days_pretty} {_fmt_time(sh, sm)}–{_fmt_time(eh, em)}"
 
-                    _recur_url = (
-                        "https://calendar.google.com/calendar/render"
-                        f"?action=TEMPLATE"
-                        f"&text={_urllib.quote(_summary)}"
-                        f"&dates={_start_str}/{_end_str}"
-                        f"&details={_urllib.quote(_details)}"
-                        f"&location={_urllib.quote('Zoom')}"
-                        f"&ctz={_urllib.quote('Africa/Accra')}"
-                        f"&recur={_urllib.quote(_rrule)}"
-                        f"&sf=true"
-                    )
-                    _gcal_repeat_links.append((_label, _recur_url))
+                        _recur_url = (
+                            "https://calendar.google.com/calendar/render"
+                            f"?action=TEMPLATE"
+                            f"&text={_urllib.quote(_summary)}"
+                            f"&dates={_start_str}/{_end_str}"
+                            f"&details={_urllib.quote(_details)}"
+                            f"&location={_urllib.quote('Zoom')}"
+                            f"&ctz={_urllib.quote('Africa/Accra')}"
+                            f"&recur={_urllib.quote(_rrule)}"
+                            f"&sf=true"
+                        )
+                        _gcal_repeat_links.append((_label, _recur_url))
+            except Exception:
+                _gcal_repeat_links = []
 
+            # Render ultra-compact Android help with per-block links
             if _gcal_repeat_links:
-                _items_html = "".join(
-                    f"<li style='margin:6px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>{lbl}</a></li>"
+                _items = "".join(
+                    f"<li style='margin:4px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>Tap here: {lbl}</a></li>"
                     for (lbl, url) in _gcal_repeat_links
                 )
-                st.markdown(
-                    f"""
-                    <details style="margin-top:8px;">
-                      <summary style="cursor:pointer; font-weight:600;">📲 Create personal schedule (repeating) — tap to open</summary>
-                      <div style="margin-top:8px;">
-                        <ul style="padding-left:18px; margin:0;">
-                          {_items_html}
-                        </ul>
-                        <div style="font-size:0.92em; color:#444; margin-top:6px;">
-                          Each link opens Google Calendar on your phone with <b>weekly repeat pre-filled</b>.
-                          If your class has different times on different days, tap each block.
-                          You can adjust alerts after saving.
-                        </div>
-                      </div>
-                    </details>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            # ----- General "Create personal schedule (set repeat)" link for Android (single link) -----
-            _general_personal_url = (
-                "https://calendar.google.com/calendar/render"
-                f"?action=TEMPLATE"
-                f"&text={_urllib.quote(_summary)}"
-                f"&details={_urllib.quote(_details)}"
-                f"&location={_urllib.quote('Zoom')}"
-                f"&ctz={_urllib.quote('Africa/Accra')}"
-            )
-            try:
-                # Prefill a sensible start/end if we can (next class or first occurrence)
-                if _blocks:
-                    if next_date:
-                        _ref_date = next_date
-                        wcode = _WKD_ORDER[_ref_date.weekday()]
-                        _blk_match = None
-                        for blk in _blocks:
-                            if wcode in blk["byday"]:
-                                _blk_match = blk; break
-                        if _blk_match is None:
-                            _blk_match = _blocks[0]
-                        sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
-                    else:
-                        _blk_match = _blocks[0]
-                        sh, sm = _blk_match["start"]; eh, em = _blk_match["end"]
-                        _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-                        first_dates = []
-                        for code in _blk_match["byday"]:
-                            first_dates.append(_next_on_or_after(start_date_obj, _wmap[code]))
-                        _ref_date = min(first_dates) if first_dates else start_date_obj
-
-                    _sdt = _dt(_ref_date.year, _ref_date.month, _ref_date.day, sh, sm)
-                    _edt = _dt(_ref_date.year, _ref_date.month, _ref_date.day, eh, em)
-                    _general_personal_url += f"&dates={_sdt.strftime('%Y%m%dT%H%M%SZ')}/{_edt.strftime('%Y%m%dT%H%M%SZ')}"
-            except Exception:
-                pass
-
-            # Install tips + success check (explicit phone links per class block)
-            # Build the per-block links list for Android users (fallback to general link)
-            _phone_links_ul = ""
-            try:
-                if _gcal_repeat_links:
-                    _items = "".join(
-                        f"<li style='margin:4px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>Tap here: {lbl}</a></li>"
-                        for (lbl, url) in _gcal_repeat_links
-                    )
-                    _phone_links_ul = f"<ul style='margin:6px 0 0 18px;padding:0;'>{_items}</ul>"
-                else:
-                    _phone_links_ul = (
-                        "<ul style='margin:6px 0 0 18px;padding:0;'>"
-                        f"<li><a href='{_general_personal_url.replace('&','&amp;')}' target='_blank'>Tap here: 📲 Create personal schedule (set repeat)</a></li>"
-                        "</ul>"
-                    )
-            except Exception:
+                _phone_links_ul = f"<ul style='margin:6px 0 0 18px;padding:0;'>{_items}</ul>"
+            else:
                 _phone_links_ul = (
-                    "<ul style='margin:6px 0 0 18px;padding:0;'>"
-                    f"<li><a href='{_general_personal_url.replace('&','&amp;')}' target='_blank'>Tap here: 📲 Create personal schedule (set repeat)</a></li>"
-                    "</ul>"
+                    "<div style='margin:6px 0 0 2px;color:#444;'>"
+                    "No repeating blocks are set yet. Ask the office to add your class times."
+                    "</div>"
                 )
 
             st.markdown(
                 f"""
-                **How to install the calendar (.ics):**
-                - **Google Calendar (web):** Click the **gear** (top-right) → **Settings** → **Import & export** → **Import** → choose the downloaded `.ics` → pick your destination calendar → **Import**.  
-                  ✅ You should see a confirmation like **“Imported X of X events.”**
-                - **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (with repeat):
-                  {_phone_links_ul}
-                  <div style="margin:6px 0 0 2px;">
-                    After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>, set <b>Ends</b> to <b>{end_date_obj:%d %b %Y}</b>, then <b>Save</b>.<br/>
-                - **Apple Calendar (iPhone/Mac):** Open the `.ics` file and tap **Add** (tap **Add All** for the full series), choose a calendar, then tap **Done**.  
-                  ✅ On iPhone you’re done — the series appears in the Calendar app.
-
-                **How to confirm it worked:**
-                - On the calendar between **{start_date_obj:%d %b %Y} → {end_date_obj:%d %b %Y}**, you should see events titled **{_summary}**.
-                - Use the calendar search for **{_summary}** or Zoom ID **`{_zid}`** — matching events should show up.
-                - Make sure the **destination calendar** you imported into is **checked/visible** in the sidebar (Google) or enabled (iPhone).
+                **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (**with repeat**):
+                {_phone_links_ul}
+                <div style="margin:8px 0 0 2px;">
+                  After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>, set <b>Ends</b> to <b>{end_date_obj:%d %b %Y}</b>, then <b>Save</b>.
+                  <br/><b>Different times on different days?</b> Create a <b>separate repeating event</b> for each time block.
+                </div>
                 """,
                 unsafe_allow_html=True,
             )
 #
+
 
 
         # ===================== CLASS ROSTER =====================
