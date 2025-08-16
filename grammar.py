@@ -2646,7 +2646,7 @@ if tab == "Dashboard":
                 st.info("No playlist found for your level yet. Stay tuned!")
         else:
             st.warning("No exam date configured for your level.")
-
+    
     # ---------- Reviews ----------
     with st.expander("🗣️ What Our Students Say", expanded=False):
         import datetime as _pydt
@@ -2668,7 +2668,8 @@ if tab == "Dashboard":
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-   st.divider()
+   
+    st.divider()
   
 #
 
