@@ -1893,12 +1893,9 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
 # =========================================================
 def render_dropdown_nav():
     """
-    Mobile-friendly dropdown nav with a one-time coachmark that says:
-    'Tap the arrow ▾ to open the menu and see all sections.'
-
-    - Remembers dismissal in session_state["nav_hint_dismissed"]
-    - Syncs with URL query param ?tab=...
-    - Keeps st.session_state["main_tab_select"] in sync
+    Mobile-friendly dropdown nav with a clear banner that says:
+    '🧭 Main Menu — use the selector below to switch sections.'
+    Also keeps URL (?tab=...) and st.session_state in sync.
     """
     tabs = [
         "Dashboard",
@@ -1917,19 +1914,26 @@ def render_dropdown_nav():
         "Schreiben Trainer": "✍️",
     }
 
-    # --- One-time coachmark (shows until dismissed) ---
-    if not st.session_state.get("nav_hint_dismissed", False):
-        with st.container():
-            st.markdown(
-                "<div style='background:#fff7ed;border:1px solid #fed7aa;"
-                "border-radius:10px;padding:8px 10px;margin:4px 0;'>"
-                "👉 <b>Tip:</b> Tap the arrow <b>▾</b> to open the menu and see all sections."
-                "</div>",
-                unsafe_allow_html=True,
-            )
-            if st.button("Got it", key="nav_hint_gotit"):
-                st.session_state["nav_hint_dismissed"] = True
-                st.rerun()
+    # --- Clean, simple banner: always visible, right above the selector ---
+    st.markdown(
+        """
+        <div style="
+            padding:12px 14px;
+            background:#ecfeff;
+            border:1px solid #67e8f9;
+            border-radius:12px;
+            margin: 4px 0 10px 0;
+            display:flex;align-items:center;gap:10px;justify-content:space-between;">
+          <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">
+            🧭 Main Menu
+          </div>
+          <div style="color:#0c4a6e;font-size:0.95rem;">
+            Use the selector <b>below</b> to switch sections
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # --- Default from URL (?tab=...) or session ---
     default = st.query_params.get(
@@ -1939,27 +1943,42 @@ def render_dropdown_nav():
     if default not in tabs:
         default = "Dashboard"
 
-    # --- Selectbox with help tooltip and icons in labels ---
+    # --- Selectbox with icons in labels ---
     def _fmt(x: str) -> str:
         return f"{icons.get(x,'•')}  {x}"
 
     sel = st.selectbox(
-        "Choose a section (tap ▾)",
+        "🧭 Main menu (tap ▾)",
         tabs,
         index=tabs.index(default),
         key="nav_dd",
         format_func=_fmt,
-        help="Tap the arrow ▾ to open the menu and view all sections."
+        help="This is the main selector. Tap the arrow ▾ to view all sections.",
     )
 
     # --- Persist selection to URL + session ---
     if sel != default:
         st.query_params["tab"] = sel
     st.session_state["main_tab_select"] = sel
+
+    # Small “you are here” chip (helps on mobile)
+    st.markdown(
+        f"""
+        <div style="margin-top:6px;">
+          <span style="background:#e0f2fe;border:1px solid #7dd3fc;color:#075985;
+                       padding:4px 10px;border-radius:999px;font-size:0.92rem;">
+            You’re viewing: {icons.get(sel,'•')} <b>{sel}</b>
+          </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     return sel
 
 # usage:
 tab = render_dropdown_nav()
+
 
 # =========================================================
 # ===================== Dashboard =========================
