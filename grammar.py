@@ -360,12 +360,6 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-
-# ==== Cookie manager (now gracefully optional) ====
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-COOKIE_COMPONENT_READY = cookie_manager.ready()  # True if component iframe syncs
-
 # ==== STUDENT SHEET LOADING ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
@@ -374,6 +368,7 @@ def load_student_data():
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
+        # guard: ensure CSV not HTML
         txt = resp.text
         if "<html" in txt[:512].lower():
             raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
@@ -382,12 +377,16 @@ def load_student_data():
         st.error(f"❌ Could not load student data. {e}")
         st.stop()
 
+    # Normalize headers and trim cells while preserving NaN
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
-        df[col] = df[col].where(df[col].isna(), df[col].astype(str).str.strip())
+        s = df[col]
+        df[col] = s.where(s.isna(), s.astype(str).str.strip())
 
+    # Keep only rows with a ContractEnd value
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
+    # Robust parse
     def _parse_contract_end(s: str):
         for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
@@ -399,11 +398,13 @@ def load_student_data():
     df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
     df = df[df["ContractEnd_dt"].notna()]
 
+    # Normalize identifiers
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     if "Email" in df.columns:
         df["Email"] = df["Email"].str.lower().str.strip()
 
+    # Keep most recent per student
     df = (df.sort_values("ContractEnd_dt", ascending=False)
             .drop_duplicates(subset=["StudentCode"], keep="first")
             .drop(columns=["ContractEnd_dt"]))
@@ -416,16 +417,83 @@ def is_contract_expired(row):
     expiry_date = None
     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
         try:
-            expiry_date = datetime.strptime(expiry_str, fmt)
-            break
+            expiry_date = datetime.strptime(expiry_str, fmt); break
         except ValueError:
             continue
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed):
-            return True
+        if pd.isnull(parsed): return True
         expiry_date = parsed.to_pydatetime()
     return expiry_date.date() < datetime.utcnow().date()
+
+# ==== Query param helpers (stable) ====
+def qp_get():
+    # returns a dict-like object
+    return st.query_params
+
+def qp_clear():
+    # clears all query params from the URL
+    st.query_params.clear()
+
+def qp_clear_keys(*keys):
+    # remove only the specified keys
+    for k in keys:
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
+
+# ==== Cookie helpers (normal cookies) ====
+def _expire_str(dt: datetime) -> str:
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
+    base = (
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value, safe=""))} + '
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+    )
+    if domain:
+        base += f'c += "; Domain=" + {domain};\n'
+    base += "document.cookie = c;\n"
+    return base
+
+def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
+    key = "student_code"
+    norm = (value or "").strip().lower()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 180  # 180 days
+    exp_str = _expire_str(expires)
+    # Library cookie (encrypted; host-only)
+    try:
+        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = norm; cookie_manager.save()
+        except Exception:
+            pass
+    # JS host-only + base-domain (guard invalid hosts)
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
 
 # ==== Session token validator (replace with real logic) ====
 def validate_session_token(token, user_hash=""):
