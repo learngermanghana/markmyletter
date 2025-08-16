@@ -2668,6 +2668,8 @@ if tab == "Dashboard":
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
+  st.divider()
+  
 #
 
 
