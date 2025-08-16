@@ -7982,97 +7982,120 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker
+    # ——— Stage 99: Pronunciation & Speaking Checker (Cloud fetch version)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
-        from google.cloud import firestore as _fs  # for Query.DESCENDING / server timestamp
         import requests
+        import google.cloud.firestore_v1 as _fs
 
+        # Where your tiny web recorder lives (primary + fallback)
+        RECORDER_URL = "https://speak.falowen.app"
+        RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
+
+        # ----- Daily limit guard (3/day)
         today_str = _dt.date.today().isoformat()
-        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
-        doc = uploads_ref.get()
-        data = doc.to_dict() if doc.exists else {}
+        code_val = (st.session_state.get("student_code") or "").strip()
+        if not code_val:
+            st.error("Missing student code in session. Please sign in again.")
+            st.stop()
+
+        uses_ref = db.collection("pron_uses").document(code_val)
+        snap = uses_ref.get()
+        data = snap.to_dict() if snap.exists else {}
         last_date = data.get("date")
-        count = data.get("count", 0)
+        count = int(data.get("count", 0))
 
         if last_date != today_str:
             count = 0
         if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            if st.button("⬅️ Back to Start"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
             st.stop()
 
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
-            """
-            You can either **fetch your latest upload from the Tiny Web Recorder**
-            or **upload a file** here (≤ 60 seconds).
-
-            • Tiny Web Recorder URL: `https://learngermanghana.github.io/a1spreche/?code=<your_student_code>`  
-            • Or record on your phone and upload **.wav / .mp3 / .m4a / .ogg / .webm**
-            """
+            "This page fetches your **latest cloud recording** from the Web Recorder "
+            "and evaluates it for Pronunciation, Grammar, and Fluency."
         )
 
-        # ---------- small helper to process raw bytes (shared by cloud + local upload)
-        def _handle_raw_audio(raw_bytes: bytes, file_type_hint: str, file_name_hint: str, *, mark_done_ref=None):
-            max_mb = 24  # keep under Whisper limit
-            if len(raw_bytes) > max_mb * 1024 * 1024:
-                st.error(f"File is larger than {max_mb} MB. Please trim or export at a lower bitrate.")
-                return
+        # ----- Fetch newest "new" pron_inbox item for this student
+        q = (
+            db.collection("pron_inbox")
+            .where("code", "==", code_val)
+            .order_by("createdAt", direction=_fs.Query.DESCENDING)
+            .limit(5)
+        )
+        _docs = list(q.stream())
+        _docs = [d for d in _docs if (d.to_dict() or {}).get("status") == "new"]
 
-            # Preview
-            st.audio(BytesIO(raw_bytes))
+        if not _docs:
+            st.info("No cloud upload found yet.")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.link_button("Open Web Recorder", RECORDER_URL)
+            with col2:
+                st.link_button("Open Fallback Recorder", RECORDER_FALLBACK)
+            if st.button("↻ Check again"):
+                st.rerun()
+            if st.button("⬅️ Back to Start"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+            st.stop()
 
-            # Try to normalize to 16k mono WAV (pydub/ffmpeg). If it fails, fall back to raw.
-            buf_for_whisper = None
+        inbox_doc = _docs[0]
+        rec = inbox_doc.to_dict() or {}
+        url = rec.get("url")
+        ct = (rec.get("contentType") or "audio/webm").lower()
+        created_at = rec.get("createdAt")
+
+        st.success("Found your latest cloud recording.")
+        if created_at:
             try:
-                from pydub import AudioSegment  # requires ffmpeg on server
-                import tempfile, os
-
-                ext = ""
-                if "." in (file_name_hint or ""):
-                    ext = "." + file_name_hint.rsplit(".", 1)[-1]
-                elif "wav" in (file_type_hint or ""):
-                    ext = ".wav"
-                elif "mpeg" in (file_type_hint or "") or "mp3" in (file_type_hint or ""):
-                    ext = ".mp3"
-                elif "m4a" in (file_type_hint or "") or "mp4" in (file_type_hint or "") or "aac" in (file_type_hint or ""):
-                    ext = ".m4a"
-                elif "ogg" in (file_type_hint or ""):
-                    ext = ".ogg"
-                elif "webm" in (file_type_hint or ""):
-                    ext = ".webm"
-                else:
-                    ext = ".bin"
-
-                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-                tmp_in.write(raw_bytes)
-                tmp_in.flush()
-                tmp_in.close()
-
-                seg = AudioSegment.from_file(tmp_in.name)
-                seg = seg.set_channels(1).set_frame_rate(16000)
-                wav_io = BytesIO()
-                seg.export(wav_io, format="wav")
-                wav_io.seek(0)
-                setattr(wav_io, "name", "speech.wav")
-                buf_for_whisper = wav_io
-
-                try:
-                    os.unlink(tmp_in.name)
-                except Exception:
-                    pass
+                st.caption(f"Uploaded: {created_at.astimezone().strftime('%d %b %Y %H:%M')}")
             except Exception:
-                # Fall back to original stream
-                raw_bio2 = BytesIO(raw_bytes)
-                raw_bio2.seek(0)
-                setattr(raw_bio2, "name", file_name_hint or "speech.webm")
-                buf_for_whisper = raw_bio2
+                st.caption(f"Uploaded: {created_at}")
 
-            # 1) Transcribe (German)
+        # Quick access link + inline player
+        if url:
+            st.markdown(f"[🔗 Open recording in a new tab]({url})")
+        played = False
+        try:
+            st.audio(url, format=ct)
+            played = True
+        except Exception:
+            played = False
+
+        if not played and url:
+            try:
+                r = requests.get(url, timeout=25)
+                r.raise_for_status()
+                st.audio(BytesIO(r.content), format=ct)
+            except Exception as e:
+                st.warning(f"Could not autoplay; use the link above. ({e})")
+
+        # ----- Process button
+        if st.button("✅ Use this recording"):
+            # Download bytes for Whisper
+            try:
+                r = requests.get(url, timeout=45)
+                r.raise_for_status()
+                audio_bytes = r.content
+            except Exception as e:
+                st.error(f"Could not fetch the audio for processing: {e}")
+                st.stop()
+
+            # Prepare a file-like object; give Whisper a friendly .wav/.webm name
+            audio_bio = BytesIO(audio_bytes)
+            ext = ".m4a" if "mp4" in ct or "aac" in ct or "m4a" in ct else (".ogg" if "ogg" in ct else (".wav" if "wav" in ct else ".webm"))
+            audio_bio.name = f"speech{ext}"
+
+            # --- Transcribe (German only)
             try:
                 transcript_resp = client.audio.transcriptions.create(
-                    file=buf_for_whisper,
+                    file=audio_bio,
                     model="whisper-1",
                     language="de",
                     temperature=0,
@@ -8081,17 +8104,11 @@ if tab == "Exams Mode & Custom Chat":
                 transcript_text = transcript_resp.text
             except Exception as e:
                 st.error(f"Sorry, could not process audio: {e}")
-                # mark the doc as error if we fetched from cloud
-                if mark_done_ref:
-                    try:
-                        mark_done_ref.update({"status": "error", "error": str(e), "processedAt": _fs.SERVER_TIMESTAMP})
-                    except Exception:
-                        pass
-                return
+                st.stop()
 
             st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            # 2) Evaluate in English
+            # --- Evaluate in English
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8105,8 +8122,8 @@ if tab == "Exams Mode & Custom Chat":
                 "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
 
-            try:
-                with st.spinner("Evaluating your sample..."):
+            with st.spinner("Evaluating your sample..."):
+                try:
                     eval_resp = client.chat.completions.create(
                         model="gpt-4o",
                         messages=[
@@ -8122,103 +8139,40 @@ if tab == "Exams Mode & Custom Chat":
                         temperature=0.2,
                     )
                     result_text = eval_resp.choices[0].message.content
-            except Exception as e:
-                st.error(f"Evaluation error: {e}")
-                if mark_done_ref:
-                    try:
-                        mark_done_ref.update({"status": "error", "error": str(e), "processedAt": _fs.SERVER_TIMESTAMP})
-                    except Exception:
-                        pass
-                return
-
-            # Show result + bump daily counter
-            st.markdown(result_text)
-            uploads_ref.set({"count": count + 1, "date": today_str})
-
-            # mark the cloud doc as processed
-            if mark_done_ref:
-                try:
-                    mark_done_ref.update({"status": "done", "processedAt": _fs.SERVER_TIMESTAMP})
-                except Exception:
-                    pass
-
-            st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-            if st.button("🔄 Try Another"):
-                st.rerun()
-
-        # ---------- Cloud fetch button (uses your Firestore query)
-        with st.expander("📥 Fetch from Tiny Web Recorder (Cloud)"):
-            if st.button("Fetch my latest upload"):
-                # Pull newest few uploads for this student, then filter status client-side
-                code_val = st.session_state.get("student_code", "")
-                q = (
-                    db.collection("pron_inbox")
-                    .where("code", "==", code_val)
-                    .order_by("createdAt", direction=_fs.Query.DESCENDING)
-                    .limit(5)
-                )
-                docs = list(q.stream())
-                # keep only "new"
-                docs = [d for d in docs if (d.to_dict() or {}).get("status") == "new"]
-
-                if not docs:
-                    st.info("No cloud upload found yet. Make sure you finished uploading in the Web Recorder.")
-                    st.stop()
-
-                _doc = docs[0]
-                rec = _doc.to_dict()
-                url = rec.get("url")
-                ct = (rec.get("contentType") or "").lower()
-
-                # Try to mark as 'processing' to avoid double-pick in a shared class
-                try:
-                    _doc.reference.update({"status": "processing", "pickedAt": _fs.SERVER_TIMESTAMP})
-                except Exception:
-                    pass
-
-                # Download the audio file
-                try:
-                    resp = requests.get(url, timeout=30)
-                    resp.raise_for_status()
                 except Exception as e:
-                    st.error(f"Could not download audio: {e}")
-                    try:
-                        _doc.reference.update({"status": "error", "error": str(e), "processedAt": _fs.SERVER_TIMESTAMP})
-                    except Exception:
-                        pass
-                    st.stop()
+                    st.error(f"Evaluation error: {e}")
+                    result_text = None
 
-                # Derive a filename from the URL
-                name_hint = (url.split("?", 1)[0].rsplit("/", 1)[-1] or "speech.webm").lower()
-                _handle_raw_audio(resp.content, ct, name_hint, mark_done_ref=_doc.reference)
+            if result_text:
+                st.markdown(result_text)
 
-        st.divider()
-        st.caption("Or upload a file directly:")
+                # Increment daily counter & mark inbox item as used
+                try:
+                    uses_ref.set({"count": count + 1, "date": today_str})
+                except Exception:
+                    pass
+                try:
+                    inbox_doc.reference.update({"status": "used", "usedAt": _fs.SERVER_TIMESTAMP})
+                except Exception:
+                    pass
 
-        # ---------- Local file upload path
-        audio_file = st.file_uploader(
-            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A/OGG/WEBM).",
-            type=["mp3", "wav", "m4a", "aac", "ogg", "webm"],
-            accept_multiple_files=False,
-            key="pron_audio_uploader",
-        )
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record again.")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🔄 Try Another"):
+                        st.rerun()
+                with col2:
+                    if st.button("⬅️ Back to Start"):
+                        st.session_state["falowen_stage"] = 1
+                        st.rerun()
+            else:
+                st.error("Could not get feedback. Please try again later.")
 
-        if audio_file:
-            # Streamlit's uploader gives us file-like; read the bytes once
-            try:
-                audio_file.seek(0)
-            except Exception:
-                pass
-            raw_bytes = audio_file.read() or b""
-            file_type = (audio_file.type or "").lower()
-            file_name = (audio_file.name or "speech").lower()
-            _handle_raw_audio(raw_bytes, file_type, file_name)
-
+        # Bottom navigation
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
-
 
 
 # =========================================
