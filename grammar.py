@@ -7985,6 +7985,7 @@ if tab == "Exams Mode & Custom Chat":
     # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
+        from io import BytesIO
 
         today_str = _dt.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
@@ -8008,40 +8009,41 @@ if tab == "Exams Mode & Custom Chat":
             """
         )
 
-        # ---- Platform notice
+        # ---- Notice banner (always shown)
         st.markdown(
             """
             <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;
                         padding:10px 12px;margin:10px 0;">
-              <b>Heads-up:</b> Audio upload in the Android app is temporarily disabled.
-              Please use a <b>computer</b> or an <b>iPhone</b>, or open
+              <b>Heads-up:</b> If upload fails on Android, use a <b>computer</b> or an <b>iPhone</b>, or open
               <a href="https://www.falowen.app" target="_blank">falowen.app</a> in <b>Chrome</b> on Android.
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        # ---- OPTION 2: Hard block via toggle (secrets or URL param)
+        # ---- HARD BLOCK toggle (OFF by default)
         _android_block = False
         try:
             _android_block = bool(st.secrets.get("android_upload_block", False))
         except Exception:
-            _android_block = False
-        # Optional override through URL: ?androidBlock=true
+            pass
         try:
             if st.query_params.get("androidBlock", ["false"])[0].lower() in ("1", "true", "yes"):
                 _android_block = True
         except Exception:
             pass
 
+        # Debug chip so you can see the current mode
+        st.caption(f"🔧 Android upload block: {'ON' if _android_block else 'OFF'}")
+
         if _android_block:
             st.warning("This function currently works only on computer and iPhone. Please switch devices to continue.")
             st.stop()
 
-        # ---- Uploader (available when not blocked)
+        # ---- Uploader
         audio_file = st.file_uploader(
             "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
-            type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],  # cleaner picker on iPhone
+            type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],
             accept_multiple_files=False,
             key="pron_audio_uploader",
         )
@@ -8053,25 +8055,33 @@ if tab == "Exams Mode & Custom Chat":
                 "audio/3gpp", "video/3gpp",
                 "audio/aac", "audio/x-aac",
                 "audio/ogg", "audio/webm", "video/webm",
+                "application/octet-stream",  # some Android recorders use this
             }
             allowed_exts = (".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm")
 
             file_type = (audio_file.type or "").lower()
-            file_name = audio_file.name.lower()
-            if not (file_type.startswith("audio/") or file_type in allowed_types or file_name.endswith(allowed_exts)):
+            file_name = (audio_file.name or "speech").lower()
+            if not (file_type.startswith("audio/") or file_type in allowed_types or any(file_name.endswith(ext) for ext in allowed_exts)):
                 st.error("Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm).")
             else:
                 st.audio(audio_file)
 
+                # ——— Robust bytes buffer with a name (helps Whisper on mobile uploads)
                 try:
                     audio_file.seek(0)
                 except Exception:
                     pass
+                audio_bytes = audio_file.read()
+                buf = BytesIO(audio_bytes)
+                # give Whisper a filename with extension (many SDKs rely on it)
+                if not any(file_name.endswith(ext) for ext in allowed_exts):
+                    file_name += ".mp3"
+                setattr(buf, "name", file_name)
 
                 # Force German transcription (no translation)
                 try:
                     transcript_resp = client.audio.transcriptions.create(
-                        file=audio_file,
+                        file=buf,
                         model="whisper-1",
                         language="de",
                         temperature=0,
@@ -8132,9 +8142,6 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
-
-
-
 
 
 # =========================================
