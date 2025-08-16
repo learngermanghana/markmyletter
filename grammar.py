@@ -5589,18 +5589,32 @@ if tab == "My Course":
                     "</div>"
                 )
 
+            # ==== Compact install tips (Computer, iPhone, Android) ====
+            # Guard so we don't error if links weren't built earlier
+            try:
+                _phone_links_ul
+            except NameError:
+                _phone_links_ul = ""
+
+            _end_str = end_date_obj.strftime("%d %b %Y") if end_date_obj else ""
+
             st.markdown(
                 f"""
-                **Google Calendar (phone app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (**with repeat**):
+                **Computer or iPhone:** Download the **.ics** above and install.  
+                - **Computer (Google Calendar web):** Go to **calendar.google.com** → **Settings** → **Import & export** → **Import** (you’ll see **“Imported X of X events.”**).  
+                - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose your notification preference, then **Done**.
+
+                **Android (Google Calendar app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (**with repeat**):
                 {_phone_links_ul}
                 <div style="margin:8px 0 0 2px;">
-                  After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>, set <b>Ends</b> to <b>{end_date_obj:%d %b %Y}</b>, then <b>Save</b>.
-                  <br/><b>Different times on different days?</b> Create a <b>separate repeating event</b> for each time block.
+                  After it opens, tap <b>Repeat → Custom</b>, select your <b>class days</b>{f", set <b>Ends</b> to <b>{_end_str}</b>" if _end_str else ""}, then <b>Save</b>.<br/>
+                  <b>Different times on different days?</b> Create a <b>separate repeating event</b> for each time block.
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 #
+
 
 
 
