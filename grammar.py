@@ -8008,9 +8008,40 @@ if tab == "Exams Mode & Custom Chat":
             """
         )
 
+        # ---- Platform notice
+        st.markdown(
+            """
+            <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;
+                        padding:10px 12px;margin:10px 0;">
+              <b>Heads-up:</b> Audio upload in the Android app is temporarily disabled.
+              Please use a <b>computer</b> or an <b>iPhone</b>, or open
+              <a href="https://www.falowen.app" target="_blank">falowen.app</a> in <b>Chrome</b> on Android.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # ---- OPTION 2: Hard block via toggle (secrets or URL param)
+        _android_block = False
+        try:
+            _android_block = bool(st.secrets.get("android_upload_block", False))
+        except Exception:
+            _android_block = False
+        # Optional override through URL: ?androidBlock=true
+        try:
+            if st.query_params.get("androidBlock", ["false"])[0].lower() in ("1", "true", "yes"):
+                _android_block = True
+        except Exception:
+            pass
+
+        if _android_block:
+            st.warning("This function currently works only on computer and iPhone. Please switch devices to continue.")
+            st.stop()
+
+        # ---- Uploader (available when not blocked)
         audio_file = st.file_uploader(
             "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
-            type=None,
+            type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],  # cleaner picker on iPhone
             accept_multiple_files=False,
             key="pron_audio_uploader",
         )
@@ -8023,20 +8054,12 @@ if tab == "Exams Mode & Custom Chat":
                 "audio/aac", "audio/x-aac",
                 "audio/ogg", "audio/webm", "video/webm",
             }
-            allowed_exts = (
-                ".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm"
-            )
+            allowed_exts = (".mp3", ".wav", ".m4a", ".3gp", ".aac", ".ogg", ".webm")
 
             file_type = (audio_file.type or "").lower()
             file_name = audio_file.name.lower()
-            if not (
-                file_type.startswith("audio/")
-                or file_type in allowed_types
-                or file_name.endswith(allowed_exts)
-            ):
-                st.error(
-                    "Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm)."
-                )
+            if not (file_type.startswith("audio/") or file_type in allowed_types or file_name.endswith(allowed_exts)):
+                st.error("Please upload a supported audio file (.mp3, .wav, .m4a, .3gp, .aac, .ogg, .webm).")
             else:
                 st.audio(audio_file)
 
@@ -8109,6 +8132,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_stage"] = 1
             st.rerun()
 #
+
 
 
 
