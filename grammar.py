@@ -5596,7 +5596,7 @@ if tab == "My Course":
                 - **Computer (Google Calendar web):** Go to **calendar.google.com** → **Settings** → **Import & export** → **Import** (you’ll see **“Imported X of X events.”**).  
                 - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose your notification preference, then **Done**.
 
-                **Android (Google Calendar app):** The app **can’t import `.ics`**. Either do the web steps (it will sync), or use the links below to add it on your phone (**with repeat**):
+                **Android (Google Calendar app):** The app **can’t import `.ics`**. So use the links below to add it on your phone (**with repeat**):
                 {_phone_links_ul}
                 <div style="margin:8px 0 0 2px;">
                 </div>
