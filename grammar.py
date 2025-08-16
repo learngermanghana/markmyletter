@@ -2687,8 +2687,8 @@ def get_a1_schedule():
             "grammar_topic": "Formal and Informal Greetings",
             "assignment": True,
             "lesen_hören": {
-                "video": "https://youtu.be/7QZhrb-gvxY",
-                "youtube_link": "https://youtu.be/7QZhrb-gvxY",
+                "video": "https://youtu.be/bK1HEZEaTVM",
+                "youtube_link": "https://youtu.be/bK1HEZEaTVM",
                 "grammarbook_link": "https://drive.google.com/file/d/1D9Pwg29qZ89xh6caAPBcLJ1K671VUc0_/view?usp=sharing",
                 "workbook_link": "https://drive.google.com/file/d/1wjtEyPphP0N7jLbF3AWb5wN_FuJZ5jUQ/view?usp=sharing"
             }
@@ -11078,6 +11078,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
