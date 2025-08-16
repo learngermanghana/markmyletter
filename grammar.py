@@ -7982,6 +7982,43 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
+
+    # ——— Stage 99: Pronunciation & Speaking Checker (cloud-first: web recorder + latest upload)
+    if st.session_state.get("falowen_stage") == 99:
+        import datetime as _dt
+        import time
+        from io import BytesIO
+        import urllib.parse as _urllib
+        import requests
+        from google.cloud import firestore
+        import streamlit as st  # ensure imported
+
+        # Where your tiny web recorder lives
+        RECORDER_URL = "https://speak.falowen.app"
+        RECORDER_FALLBACK = "https://learngermanghana.github.io/a1spreche/"
+
+        # ----- Daily limit guard (3/day)
+        today_str = _dt.date.today().isoformat()
+        code_val = (st.session_state.get("student_code") or "").strip()
+        if not code_val:
+            st.error("Missing student code in session. Please sign in again.")
+            st.stop()
+
+        uses_ref = db.collection("pron_uses").document(code_val)
+        snap = uses_ref.get()
+        data = snap.to_dict() if snap.exists else {}
+        last_date = data.get("date")
+        count = int(data.get("count", 0))
+
+        if last_date != today_str:
+            count = 0
+        if count >= 3:
+            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            if st.button("⬅️ Back to Start"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+            st.stop()
+
     # ——— Stage 99: Pronunciation & Speaking Checker (Web Recorder only)
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
@@ -8015,14 +8052,54 @@ if tab == "Exams Mode & Custom Chat":
                 st.rerun()
             st.stop()
 
-        # ----- UI
+    # ——— Stage 99: Pronunciation & Speaking Checker (whitelist + cloud fetch)
+    if st.session_state.get("falowen_stage") == 99:
+        import datetime as _dt
+        from io import BytesIO
+        import urllib.parse as _urllib
+        import requests
+
+        try:
+            FSQuery  # alias exists?
+        except NameError:
+            from google.cloud import firestore as _fs
+            FSQuery = _fs.Query
+
+        code_val = (st.session_state.get("student_code") or "").strip()
+        if not code_val:
+            st.error("Missing student code. Please log in again.")
+            st.stop()
+
+        # —— whitelist check (must exist and active == True)
+        sdoc = db.collection("students").document(code_val).get()
+        sdata = sdoc.to_dict() if sdoc.exists else None
+        if not sdata or not sdata.get("active", False):
+            st.error("Your account isn’t activated for recordings yet. Please contact support.")
+            st.stop()
+
+        # —— daily limit (3)
+        today_str = _dt.date.today().isoformat()
+        uses_ref = db.collection("pron_uses").document(code_val)
+        usnap = uses_ref.get()
+        udata = usnap.to_dict() if usnap.exists else {}
+        last_date = udata.get("date")
+        count = int(udata.get("count", 0))
+        if last_date != today_str:
+            count = 0
+        if count >= 3:
+            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            if st.button("⬅️ Back to Start"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+            st.stop()
+
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
-            "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** on that page.\n\n"
+            "Step 1) Tap **Open Web Recorder**, record ≤ 60s, then press **Upload** on that page.\n\n"
             "Step 2) Return here and tap **Check latest upload** to transcribe and get feedback."
         )
 
-        # Use the GitHub Pages recorder (speak.falowen.app not ready yet)
+        # use custom domain (now live)
         RECORDER_URL = "https://speak.falowen.app/"
         rec_url = RECORDER_URL + f"?code={_urllib.quote(code_val)}"
 
@@ -8035,7 +8112,7 @@ if tab == "Exams Mode & Custom Chat":
         st.caption("Tip: After uploading in the recorder, wait ~2 seconds before clicking **Check latest upload**.")
 
         if go:
-            # Query newest upload for this student (needs composite index: code==, createdAt desc)
+            # newest by (code ==, createdAt desc)
             try:
                 q = (
                     db.collection("pron_inbox")
@@ -8045,7 +8122,7 @@ if tab == "Exams Mode & Custom Chat":
                 )
                 docs = list(q.stream())
             except Exception:
-                st.error("Couldn’t fetch your cloud upload. Create the Firestore index for (code ==, createdAt desc) if prompted, then try again.")
+                st.error("Index needed (code==, createdAt desc). Create it when prompted in Firebase → try again.")
                 st.stop()
 
             if not docs:
@@ -8056,37 +8133,29 @@ if tab == "Exams Mode & Custom Chat":
             url = rec.get("url")
             ctype = (rec.get("contentType") or "").lower()
             if not url:
-                st.error("Upload record is missing a download URL. Please try uploading again.")
+                st.error("Cloud record is missing a download URL. Please re-upload.")
                 st.stop()
 
-            # Preview from cloud
             st.audio(url)
 
-            # Download for Whisper
             try:
                 resp = requests.get(url, timeout=20)
                 resp.raise_for_status()
             except Exception as e:
-                st.error(f"Couldn’t download your audio from cloud storage: {e}")
+                st.error(f"Couldn’t download your audio: {e}")
                 st.stop()
 
             bio = BytesIO(resp.content); bio.seek(0)
 
-            # Pick extension to help Whisper
             ext = "webm"
-            if "mp3" in ctype:
-                ext = "mp3"
-            elif "wav" in ctype:
-                ext = "wav"
-            elif "m4a" in ctype or "mp4" in ctype or "aac" in ctype:
-                ext = "m4a"
-            elif "ogg" in ctype:
-                ext = "ogg"
-            elif "3gpp" in ctype:
-                ext = "3gp"
+            if "mp3" in ctype: ext = "mp3"
+            elif "wav" in ctype: ext = "wav"
+            elif any(x in ctype for x in ["m4a", "mp4", "aac"]): ext = "m4a"
+            elif "ogg" in ctype: ext = "ogg"
+            elif "3gpp" in ctype: ext = "3gp"
             setattr(bio, "name", f"speech.{ext}")
 
-            # Transcribe (German)
+            # —— transcribe (German)
             try:
                 t = client.audio.transcriptions.create(
                     file=bio,
@@ -8097,12 +8166,12 @@ if tab == "Exams Mode & Custom Chat":
                 )
                 transcript_text = t.text
             except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
+                st.error(f"Could not process audio: {e}")
                 st.stop()
 
             st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
 
-            # Evaluate (English)
+            # —— evaluate
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8132,8 +8201,8 @@ if tab == "Exams Mode & Custom Chat":
 
             if result_text:
                 st.markdown(result_text)
-                uses_ref.set({"count": count + 1, "date": today_str})
-                st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
+                uses_ref.set({"count": count + 1, "date": today_str}, merge=True)
+                st.success(f"Saved ✅ — attempt {min(count + 1, 3)} of 3 today.")
                 if st.button("🔄 Check another upload"):
                     st.rerun()
             else:
@@ -8142,7 +8211,6 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-#
 
 
 # =========================================
@@ -11111,6 +11179,8 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
+
 
 
 
