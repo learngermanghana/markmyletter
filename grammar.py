@@ -5110,7 +5110,8 @@ if tab == "My Course":
             except Exception:
                 pass
 
-          # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+
+        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
         # utilities & guards
         import re, io, json, hashlib, requests
         from uuid import uuid4
@@ -5120,9 +5121,16 @@ if tab == "My Course":
             components = None
 
         def _ukey(base: str) -> str:
-            # unique widget key per class (prevents duplicate-key crashes)
+            """Unique widget key per class (prevents duplicate-key crashes)."""
             seed = f"{base}|{class_name}"
             return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
+
+        def _html(html: str, height: int = 110):
+            """Robust HTML renderer across Streamlit versions (avoids st.markdown pitfalls)."""
+            if components:
+                components.html(html, height=height, scrolling=False)
+            else:
+                st.markdown(html, unsafe_allow_html=True)
 
         # ensure urllib alias exists
         try:
@@ -5131,7 +5139,7 @@ if tab == "My Course":
             import urllib.parse as _urllib
 
         with st.container():
-            st.markdown(
+            _html(
                 """
                 <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
                      font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
@@ -5139,7 +5147,7 @@ if tab == "My Course":
                   This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
                 </div>
                 """,
-                unsafe_allow_html=True,
+                height=96,
             )
 
             ZOOM = {
@@ -5234,7 +5242,7 @@ if tab == "My Course":
 
         # ===================== CALENDAR TAB BANNER =====================
         with st.container():
-            st.markdown(
+            _html(
                 '''
                 <div style="
                     padding: 12px;
@@ -5252,7 +5260,7 @@ if tab == "My Course":
                     </div>
                 </div>
                 ''',
-                unsafe_allow_html=True
+                height=110,
             )
         st.divider()
 
@@ -5892,6 +5900,7 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
+
 
         # ===================== CLASS ROSTER =====================
 
