@@ -5218,7 +5218,9 @@ if tab == "My Course":
                     icon="📅",
                 )
 
-            # === JOINING REMINDERS (countdown + device notifications) =========================
+
+                    # === JOINING REMINDERS (countdown + device notifications) =========================
+            from datetime import timezone as _tz
             NOW_UTC = _dt.utcnow()
 
             def _compute_next_class_instance(now_utc: _dt):
@@ -5226,10 +5228,6 @@ if tab == "My Course":
                 Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
                 within the course window, based on parsed `_blocks`.
                 """
-                try:
-                    _ = _blocks
-                except NameError:
-                    return None, None, ""
                 if not _blocks:
                     return None, None, ""
                 _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
@@ -5381,9 +5379,8 @@ if tab == "My Course":
                               const mins = {int(st.session_state.get('jr_notif_min', 15))};
                               const startMs = Date.parse(iso);
                               const delay = Math.max(0, startMs - Date.now() - mins*60*1000);
-                              if (!("Notification" in window)) {{
-                                alert("Your browser doesn't support notifications."); return;
-                              }}
+                              const ok = ("Notification" in window);
+                              if (!ok) {{ alert("Your browser doesn't support notifications."); return; }}
                               const perm = await Notification.requestPermission();
                               if (perm !== "granted") {{
                                 alert("Notifications are blocked. Please allow them in your browser.");
@@ -5393,7 +5390,9 @@ if tab == "My Course":
                                 const n = new Notification("Class starts soon", {{
                                   body: "{class_name} begins in " + mins + " minutes. Tap to join.",
                                 }});
-                                try {{ n.onclick = () => window.open("{ZOOM['link']}", "_blank"); }} catch(e) {{}}
+                                try {{
+                                  n.onclick = () => window.open("{ZOOM['link']}", "_blank");
+                                }} catch(e) {{}}
                               }}, delay);
                               alert("Reminder scheduled on this device" + (delay<5000 ? " (starts now)" : "") + ".");
                             }} catch(e) {{
@@ -5408,7 +5407,6 @@ if tab == "My Course":
             else:
                 st.info("No upcoming class found in the current course window.", icon="ℹ️")
 
-        st.divider()
 
 
 
