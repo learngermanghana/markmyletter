@@ -5111,193 +5111,115 @@ if tab == "My Course":
                 pass
 
 
-        # === JOINING REMINDERS (countdown + device notifications) =========================
-        from datetime import timezone as _tz  # safe to keep; already guarded above if missing
-        NOW_UTC = _dt.utcnow()
+  # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+        # ensure urllib alias exists
+        try:
+            _ = _urllib.quote
+        except Exception:
+            import urllib.parse as _urllib
 
-        def _compute_next_class_instance(now_utc: _dt):
-            """
-            Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
-            within the course window, based on parsed `_blocks`.
-            """
-            if not _blocks:
-                return None, None, ""
-            _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-
-            best = None  # tuple(start_dt, end_dt, label)
-            # Search up to 8 weeks ahead to be safe
-            horizon_days = 7 * 8
-            start_search_date = max(start_date_obj, now_utc.date())
-            for add in range(horizon_days):
-                d = start_search_date + _td(days=add)
-                if d > end_date_obj:
-                    break
-                widx = d.weekday()
-                for blk in _blocks:
-                    if any(_wmap[c] == widx for c in blk["byday"]):
-                        sh, sm = blk["start"]; eh, em = blk["end"]
-                        sdt = _dt(d.year, d.month, d.day, sh, sm)     # Accra == UTC
-                        edt = _dt(d.year, d.month, d.day, eh, em)
-                        if edt <= now_utc:
-                            continue
-                        # pretty label like "Thu 22 Aug • 6:00–7:00 PM"
-                        def _fmt_ampm(h, m):
-                            ap = "AM" if h < 12 else "PM"
-                            hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                            return f"{hh}:{m:02d}{ap}"
-                        weekday = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][widx]
-                        label = f"{weekday} {sdt.strftime('%d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
-                        cand = (sdt, edt, label)
-                        if (best is None) or (sdt < best[0]):
-                            best = cand
-            return best if best else (None, None, "")
-
-        nxt_start, nxt_end, nxt_label = _compute_next_class_instance(NOW_UTC)
-
-        def _human_delta(ms):
-            secs = max(0, int(ms // 1000))
-            d, r = divmod(secs, 86400)
-            h, r = divmod(r, 3600)
-            m, s = divmod(r, 60)
-            if d:   return f"{d}d {h}h {m}m"
-            if h:   return f"{h}h {m}m"
-            if m>0: return f"{m}m {s}s"
-            return f"{s}s"
-
-        if nxt_start and nxt_end:
-            now_ms = int(NOW_UTC.timestamp() * 1000)
-            start_ms = int(nxt_start.timestamp() * 1000)
-            end_ms   = int(nxt_end.timestamp()   * 1000)
-            pre_live_window_ms = 5 * 60 * 1000  # 5 minutes before start
-
-            is_live_window = (now_ms >= start_ms - pre_live_window_ms) and (now_ms < end_ms)
-            time_to_start_ms = start_ms - now_ms
-
-            # ---- UI card
-            status_badge = "🟢 Live now" if is_live_window else f"⏳ Starts in {_human_delta(time_to_start_ms)}"
+        with st.container():
             st.markdown(
-                f"""
-                <div style="
-                    margin-top:8px;margin-bottom:8px;padding:12px 14px;
-                    background:#ecfeff;border:1px solid #bae6fd;border-radius:10px;
-                    display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
-                  <div style="font-weight:700;color:#0f172a;">Next class</div>
-                  <div style="color:#0369a1;">{nxt_label}</div>
-                  <span style="margin-left:auto;background:{'#dcfce7' if is_live_window else '#fef9c3'};
-                               color:{'#166534' if is_live_window else '#854d0e'};
-                               padding:3px 10px;border-radius:999px;font-weight:700;">
-                    {status_badge}
-                  </span>
+                """
+                <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                  📣 <b>Zoom Classroom (Official)</b><br>
+                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
                 </div>
                 """,
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
 
-            # ---- Primary actions (reuse your Zoom variables)
-            a1, a2, a3 = st.columns([2, 2, 1])
-            with a1:
+            ZOOM = {
+                "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+                "meeting_id": "688 690 0916",
+                "passcode": "german",
+            }
+            # Allow secrets override
+            try:
+                zs = st.secrets.get("zoom", {})
+                if zs.get("link"):       ZOOM["link"]       = zs["link"]
+                if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
+            except Exception:
+                pass
+
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+
+            z1, z2 = st.columns([3, 2])
+            with z1:
+                # Primary join button (browser)
                 try:
-                    st.link_button("➡️ Join Zoom (Browser)", ZOOM["link"], use_container_width=True, key="jr_join_web")
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
                 except Exception:
-                    st.markdown(f"[➡️ Join Zoom (Browser)]({ZOOM['link']})")
-            with a2:
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                # Secondary: open in Zoom app (mobile deep link)
                 try:
-                    st.link_button("📱 Open in Zoom App", zoom_deeplink, use_container_width=True, key="jr_join_app")
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
                 except Exception:
                     st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-            with a3:
-                st.markdown("[🧪 Test call](https://zoom.us/test)")
 
-            # ---- Live countdown (client-side; updates every second)
-            if components:
-                components.html(
-                    f"""
-                    <div id="jrCountdown" style="margin:4px 0 10px 0;color:#0f172a;font-weight:600;"></div>
-                    <script>
-                      (function(){{
-                        const start = {start_ms};
-                        const end   = {end_ms};
-                        const preLive = {pre_live_window_ms};
-                        const el = document.getElementById('jrCountdown');
-                        function fmt(ms){{
-                          ms = Math.max(0, ms);
-                          const s = Math.floor(ms/1000);
-                          const d = Math.floor(s/86400);
-                          const h = Math.floor((s%86400)/3600);
-                          const m = Math.floor((s%3600)/60);
-                          const sec = s%60;
-                          if (d) return `${{d}}d ${{h}}h ${{m}}m`;
-                          if (h) return `${{h}}h ${{m}}m`;
-                          if (m) return `${{m}}m ${{sec}}s`;
-                          return `${{sec}}s`;
-                        }}
-                        function tick(){{
-                          const now = Date.now();
-                          if (now >= start - preLive && now < end){{
-                            el.textContent = "Class is LIVE. You can join now.";
-                          }} else if (now < start - preLive){{
-                            el.textContent = "Countdown: " + fmt(start - now);
-                          }} else if (now >= end){{
-                            el.textContent = "This class has ended.";
-                          }} else {{
-                            el.textContent = "Starting any moment…";
-                          }}
-                          setTimeout(tick, 1000);
-                        }}
-                        tick();
-                      }})();
-                    </script>
-                    """,
-                    height=28,
-                )
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
 
-            # ---- Device notification scheduler (browser push)
-            st.markdown("**🔔 Reminder on this device** (no email required)")
-            col_r1, col_r2 = st.columns([2, 1])
-            with col_r1:
-                notif_min = st.selectbox("Notify me before start", [60, 30, 15, 5], index=2, key="jr_notif_min")
-            with col_r2:
-                set_btn = st.button("Schedule reminder", key="jr_schedule_btn")
-
-            if set_btn and components:
-                # Use ISO for robust parsing in JS
-                _iso = nxt_start.strftime("%Y-%m-%dT%H:%M:%SZ")
-                components.html(
-                    f"""
-                    <script>
-                      (async function(){{
-                        try {{
-                          const iso = "{_iso}";
-                          const mins = {int(st.session_state.get('jr_notif_min', 15))};
-                          const startMs = Date.parse(iso);
-                          const delay = Math.max(0, startMs - Date.now() - mins*60*1000);
-                          const ok = ("Notification" in window);
-                          if (!ok) {{ alert("Your browser doesn't support notifications."); return; }}
-                          const perm = await Notification.requestPermission();
-                          if (perm !== "granted") {{
-                            alert("Notifications are blocked. Please allow them in your browser.");
-                            return;
-                          }}
-                          setTimeout(() => {{
-                            const n = new Notification("Class starts soon", {{
-                              body: "{class_name} begins in " + mins + " minutes. Tap to join.",
-                            }});
+                # Copy helpers (mobile-friendly, safe escaping)
+                _link_safe = ZOOM["link"].replace("'", "\\'")
+                _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
+                if components:
+                    components.html(
+                        f"""
+                        <div style="display:flex;gap:8px;margin-top:8px;">
+                          <button id="zCopyLink"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Link
+                          </button>
+                          <button id="zCopyId"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy ID
+                          </button>
+                          <button id="zCopyPwd"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Passcode
+                          </button>
+                        </div>
+                        <script>
+                          (function(){{
                             try {{
-                              n.onclick = () => window.open("{ZOOM['link']}", "_blank");
+                              var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                              function wire(btnId, txt, label) {{
+                                var b = document.getElementById(btnId);
+                                if (!b) return;
+                                b.addEventListener('click', function(){{
+                                  navigator.clipboard.writeText(txt).then(function(){{
+                                    b.innerText = '✓ Copied ' + label;
+                                    setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                                  }}).catch(function(){{}});
+                                }});
+                              }}
+                              wire('zCopyLink', link, 'Link');
+                              wire('zCopyId',   mid,  'ID');
+                              wire('zCopyPwd',  pwd,  'Passcode');
                             }} catch(e) {{}}
-                          }}, delay);
-                          alert("Reminder scheduled on this device" + (delay<5000 ? " (starts now)" : "") + ".");
-                        }} catch(e) {{
-                          console.log(e);
-                          alert("Could not schedule a reminder here.");
-                        }}
-                      }})();
-                    </script>
-                    """,
-                    height=0,
+                          }})();
+                        </script>
+                        """,
+                        height=72,
+                    )
+
+            with z2:
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n\n"
+                    "✅ Use the **calendar below** to receive automatic class reminders.",
+                    icon="📅",
                 )
-        else:
-            st.info("No upcoming class found in the current course window.", icon="ℹ️")
+
+        st.divider()
+
 
 
 
