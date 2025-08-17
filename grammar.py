@@ -8086,16 +8086,16 @@ if tab == "Exams Mode & Custom Chat":
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
-        import re
-        import requests
+        from urllib.parse import quote as _urlq
 
-        # ---- Daily limit (3/day) ----
+        # --------- daily limit (3/day) ---------
         today_str = _dt.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
         doc = uploads_ref.get()
         data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
         count = data.get("count", 0)
+
         if last_date != today_str:
             count = 0
         if count >= 3:
@@ -8103,113 +8103,96 @@ if tab == "Exams Mode & Custom Chat":
             st.stop()
 
         st.subheader("🎤 Pronunciation & Speaking Checker")
-        st.info(
-            """
-            Record or upload your speaking sample below (max 60 seconds).  
-            • Use your phone's voice recorder **or** visit [vocaroo.com](https://vocaroo.com) and download the recording file to your device.  
-            • Then tap **Browse** and select the saved **.wav / .mp3 / .m4a** audio file.
-            """
+
+        # Simple device choice: Android → email flow; Computer/iPhone → upload here
+        device_choice = st.radio(
+            "Choose your device:",
+            ["Computer / iPhone (upload here)", "Android (send by email)"],
+            index=0,
+            help="Android web upload can fail on some phones. Use the email option for reliable feedback."
         )
 
-        # Android help (non-blocking)
-        with st.expander("Having trouble on Android? Tap for quick steps"):
-            st.markdown(
-                """
-                1) Open this page in **Chrome** (not the in-app browser from WhatsApp/Telegram).  
-                2) In your recorder app, **Save** the file first, then choose **Files → Audio/Recordings** (not Photos).  
-                3) If it still fails, use **vocaroo.com** and download as **.mp3**.
-                """
+        # --------- ANDROID: email option (no upload UI) ---------
+        if device_choice.startswith("Android"):
+            to_email = "Learngermanghana@gmail.com"
+            student_code = st.session_state.get("student_code", "").strip()
+            subj = f"Pronunciation Check — {student_code or 'NoCode'}"
+            body = (
+                "Hello,\n\n"
+                "Please find my German speaking sample attached (30–60 seconds). "
+                "Kindly evaluate Pronunciation, Grammar and Fluency (0–100) with 3 tips each.\n\n"
+                f"Student Code: {student_code or '(please type)'}\n"
+                "Level/Class: (type here)\n\n"
+                "Thank you."
+            )
+            mailto_url = f"mailto:{to_email}?subject={_urlq(subj)}&body={_urlq(body)}"
+
+            st.info(
+                "On **Android**, email your recording for feedback:\n\n"
+                "1) Record 30–60s in your Recorder app and **Save** the file.\n"
+                "2) Tap the button below to open your email.\n"
+                "3) **Attach** the audio file (.mp3 / .m4a / .wav) and send.",
+            )
+            st.link_button("✉️ Email your recording for feedback", mailto_url)
+
+            st.caption(
+                "We’ll transcribe with Whisper and reply with scores + tips. "
+                "You’ll also see results later in **My Results and Resources → Speaking**."
             )
 
-        # Developer debug switch
-        debug_on = st.toggle(
-            "Developer debug (audio upload)",
-            value=False,
-            help="Show detailed file diagnostics and log failures to Firestore."
+            if st.button("⬅️ Back to Start"):
+                st.session_state["falowen_stage"] = 1
+                st.rerun()
+
+            st.stop()
+
+        # --------- COMPUTER / iPHONE: upload + automatic feedback ---------
+        st.info(
+            "Record or upload your speaking sample (max **60 seconds**).\n"
+            "• Use your device recorder **or** visit **vocaroo.com**, then download the file.\n"
+            "• Tap **Browse** and select **.wav / .mp3 / .m4a**."
         )
 
-        # ---------- debug helpers ----------
-        def _hex_head(b: bytes, n: int = 24) -> str:
-            try:
-                return " ".join(f"{x:02x}" for x in b[:n])
-            except Exception:
-                return "(n/a)"
+        audio_file = st.file_uploader(
+            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
+            type=["mp3", "wav", "m4a", "aac", "ogg", "webm", "3gp"],
+            accept_multiple_files=False,
+            key="pron_audio_uploader",
+        )
 
-        def _try_duration_wave(bio: BytesIO):
-            try:
-                import wave
-                pos = bio.tell()
-                bio.seek(0)
-                with wave.open(bio, "rb") as w:
-                    frames = w.getnframes()
-                    rate = w.getframerate()
-                    ch = w.getnchannels()
-                    width = w.getsampwidth()
-                bio.seek(pos)
-                return {
-                    "method": "wave",
-                    "seconds": frames / float(rate),
-                    "rate": rate,
-                    "channels": ch,
-                    "sample_width": width,
-                }
-            except Exception as e:
-                return {"method": "wave", "error": str(e)}
+        if audio_file:
+            # Basic size guard (Whisper ~25MB hard limit)
+            raw_bytes = audio_file.read() or b""
+            if len(raw_bytes) > 24 * 1024 * 1024:
+                st.error("File is larger than 24 MB. Please trim or export at a lower bitrate.")
+                st.stop()
 
-        def _try_duration_pydub(bio: BytesIO, name_hint: str):
-            try:
-                from pydub import AudioSegment
-                import tempfile, os
-                # pydub needs a real file with an extension
-                suffix = "." + name_hint.split(".")[-1] if "." in name_hint else ".bin"
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-                tmp.write(bio.getvalue()); tmp.flush(); tmp.close()
-                seg = AudioSegment.from_file(tmp.name)
-                dur = len(seg) / 1000.0
-                info = {"frame_rate": seg.frame_rate, "channels": seg.channels, "sample_width": seg.sample_width}
-                try:
-                    os.unlink(tmp.name)
-                except Exception:
-                    pass
-                return {"method": "pydub+ffmpeg", "seconds": dur, **info}
-            except Exception as e:
-                return {"method": "pydub+ffmpeg", "error": str(e)}
+            # Preview player
+            st.audio(BytesIO(raw_bytes))
 
-        def _try_duration_mutagen(bio: BytesIO):
+            # Reset file pointer for API use
             try:
-                from mutagen import File as MFile
-                f = MFile(BytesIO(bio.getvalue()), easy=True)
-                if not f:
-                    return {"method": "mutagen", "error": "Unrecognized format"}
-                dur = getattr(f.info, "length", None)
-                rate = getattr(f.info, "sample_rate", None)
-                ch = getattr(f.info, "channels", None)
-                return {"method": "mutagen", "seconds": float(dur) if dur else None, "rate": rate, "channels": ch}
-            except Exception as e:
-                return {"method": "mutagen", "error": str(e)}
-
-        def _log_debug_to_firestore(payload: dict):
-            try:
-                payload["ts"] = _dt.datetime.utcnow().isoformat() + "Z"
-                payload["student_code"] = st.session_state.get("student_code", "")
-                db.collection("diagnostics").document("audio_uploads").collection("reports").add(payload)
+                audio_file.seek(0)
             except Exception:
                 pass
 
-        # ---------- common processing (Whisper + evaluation) ----------
-        def _process_audio_and_eval(buf_for_whisper: BytesIO):
-            # 1) Whisper (German only)
-            transcript_resp = client.audio.transcriptions.create(
-                file=buf_for_whisper,
-                model="whisper-1",
-                language="de",
-                temperature=0,
-                prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
-            )
-            transcript_text = transcript_resp.text or ""
-            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+            # ---------- Transcribe (German, no translation) ----------
+            try:
+                transcript_resp = client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1",
+                    language="de",
+                    temperature=0,
+                    prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
+                )
+                transcript_text = transcript_resp.text
+            except Exception as e:
+                st.error(f"Sorry, could not process audio: {e}")
+                st.stop()
 
-            # 2) Evaluate in English
+            st.markdown(f"**Transcribed (German):**\n\n> {transcript_text}")
+
+            # ---------- Evaluate (English feedback) ----------
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8222,194 +8205,36 @@ if tab == "Exams Mode & Custom Chat":
                 "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                 "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
+
             with st.spinner("Evaluating your sample..."):
-                eval_resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are an English-speaking tutor evaluating German speech. "
-                                "Always answer in clear, concise English using the requested format."
-                            ),
-                        },
-                        {"role": "user", "content": eval_prompt},
-                    ],
-                    temperature=0.2,
-                )
-            st.markdown(eval_resp.choices[0].message.content)
-
-            # 3) Increment usage counter
-            uploads_ref.set({"count": count + 1, "date": today_str})
-
-            st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-            if st.button("🔄 Try Another"):
-                st.rerun()
-
-        # ---------- PATH A: file uploader ----------
-        audio_file = st.file_uploader(
-            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
-            type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],
-            accept_multiple_files=False,
-            key="pron_audio_uploader",
-        )
-
-        if audio_file:
-            # Preflight checks
-            max_mb = 24  # Whisper hard limit ~25MB; keep a little headroom
-            file_type = (audio_file.type or "").lower()
-            file_name = (audio_file.name or "speech").lower()
-
-            try:
-                audio_file.seek(0)
-            except Exception:
-                pass
-            raw_bytes = audio_file.read() or b""
-
-            diag = {
-                "file_name": file_name,
-                "mime_type": file_type,
-                "size_bytes": getattr(audio_file, "size", len(raw_bytes)),
-                "head_hex": _hex_head(raw_bytes, 24),
-                "notes": [],
-            }
-
-            if len(raw_bytes) > max_mb * 1024 * 1024:
-                msg = f"File is larger than {max_mb} MB. Please trim or export at a lower bitrate."
-                st.error(msg)
-                if debug_on:
-                    diag["notes"].append("Too large")
-                    _log_debug_to_firestore({"stage": "preflight", "status": "too_large", **diag})
-                    with st.expander("Debug details"):
-                        st.json(diag)
-                st.stop()
-
-            st.audio(BytesIO(raw_bytes))
-
-            def _ensure_ext(name: str, mime: str) -> str:
-                name = name or "speech"
-                if "." in name:
-                    return name
-                if "wav" in mime:   return name + ".wav"
-                if "mpeg" in mime or "mp3" in mime: return name + ".mp3"
-                if "m4a" in mime or "mp4" in mime or "aac" in mime: return name + ".m4a"
-                if "3gpp" in mime:  return name + ".3gp"
-                if "ogg" in mime:   return name + ".ogg"
-                if "webm" in mime:  return name + ".webm"
-                return name + ".mp3"
-
-            file_name = _ensure_ext(file_name, file_type)
-
-            # Duration probes
-            raw_bio = BytesIO(raw_bytes); raw_bio.seek(0)
-            dur_wave  = _try_duration_wave(raw_bio)
-            dur_pydub = _try_duration_pydub(raw_bio, file_name)
-            dur_mut   = _try_duration_mutagen(raw_bio)
-            if debug_on:
-                with st.expander("Debug details (raw file)"):
-                    st.json({"wave": dur_wave, "pydub": dur_pydub, "mutagen": dur_mut, **diag})
-
-            # Normalize to 16k mono WAV (best effort)
-            try:
-                from pydub import AudioSegment
-                import tempfile, os
-                suffix = "." + file_name.split(".")[-1] if "." in file_name else ".bin"
-                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-                tmp_in.write(raw_bytes); tmp_in.flush(); tmp_in.close()
-
-                seg = AudioSegment.from_file(tmp_in.name)
-                seg = seg.set_channels(1).set_frame_rate(16000)
-                wav_io = BytesIO()
-                seg.export(wav_io, format="wav")
-                wav_io.seek(0)
-                setattr(wav_io, "name", "speech.wav")
-                buf_for_whisper = wav_io
-
                 try:
-                    os.unlink(tmp_in.name)
-                except Exception:
-                    pass
+                    eval_resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are an English-speaking tutor evaluating German speech. "
+                                    "Always answer in clear, concise English using the requested format."
+                                ),
+                            },
+                            {"role": "user", "content": eval_prompt},
+                        ],
+                        temperature=0.2,
+                    )
+                    result_text = eval_resp.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Evaluation error: {e}")
+                    result_text = None
 
-                if debug_on:
-                    norm_probe = _try_duration_wave(BytesIO(wav_io.getvalue()))
-                    with st.expander("Debug details (normalized wav)"):
-                        st.json({"normalized_duration": norm_probe})
-            except Exception as e:
-                raw_bio2 = BytesIO(raw_bytes); raw_bio2.seek(0)
-                setattr(raw_bio2, "name", file_name)
-                buf_for_whisper = raw_bio2
-                if debug_on:
-                    diag["notes"].append("pydub/ffmpeg normalize failed; using raw bytes")
-                    diag["normalize_error"] = str(e)
-                    _log_debug_to_firestore({"stage": "normalize", "status": "fallback_raw", **diag})
-                    with st.expander("Debug details (normalize failure)"):
-                        st.json({"error": str(e)})
-
-            try:
-                _process_audio_and_eval(buf_for_whisper)
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                if debug_on:
-                    _log_debug_to_firestore({"stage": "whisper/eval", "status": "error", "error": str(e), **diag})
-                st.stop()
-
-        # ---------- PATH B: Vocaroo link ----------
-        st.markdown("---")
-        st.markdown("**Or paste a Vocaroo link:**")
-        rec_url = st.text_input(
-            "Vocaroo link (e.g., https://voca.ro/XXXX or a media.vocaroo.com download link)",
-            key="vocaroo_url",
-            help="On Vocaroo, tap Save & Share → Download, then copy the link."
-        )
-
-        def _guess_ext_from_content_type(ct: str) -> str:
-            ct = (ct or "").lower()
-            if "wav" in ct: return ".wav"
-            if "mpeg" in ct or "mp3" in ct: return ".mp3"
-            if "m4a" in ct or "mp4" in ct or "aac" in ct: return ".m4a"
-            if "3gpp" in ct: return ".3gp"
-            if "ogg" in ct: return ".ogg"
-            if "webm" in ct: return ".webm"
-            return ".mp3"
-
-        def _fetch_vocaroo_bytes(url: str) -> BytesIO:
-            url = url.strip()
-            headers = {"User-Agent": "Mozilla/5.0"}
-            r = requests.get(url, timeout=30, allow_redirects=True, headers=headers)
-            r.raise_for_status()
-            content_type = (r.headers.get("Content-Type") or "").lower()
-            body = r.content
-
-            # If short page (HTML), extract real media link
-            if "text/html" in content_type and b"vocaroo" in body:
-                html = r.text
-                m = re.search(r'https://media\.vocaroo\.com/[^\s"\'<>]+', html) or \
-                    re.search(r'href="(https://media\.vocaroo\.com/[^\s"\'<>]+)"', html)
-                if m:
-                    dl = m.group(1)
-                    r2 = requests.get(dl, timeout=30, allow_redirects=True, headers=headers)
-                    r2.raise_for_status()
-                    content_type = (r2.headers.get("Content-Type") or "").lower()
-                    body = r2.content
-
-            bio = BytesIO(body)
-            bio.seek(0)
-            setattr(bio, "name", "vocaroo" + _guess_ext_from_content_type(content_type))
-            return bio
-
-        if rec_url:
-            try:
-                with st.spinner("Fetching audio from Vocaroo…"):
-                    audio_bio = _fetch_vocaroo_bytes(rec_url)
-                st.success("Audio fetched.")
-                st.audio(audio_bio)
-                _process_audio_and_eval(audio_bio)
-            except Exception as e:
-                st.error(f"Couldn’t fetch/process that link: {e}")
-                st.info(
-                    "Tip: On Vocaroo tap **Save & Share → Download**, copy that link and paste it here. "
-                    "If it still fails, open this app in **Chrome** and try again."
-                )
+            if result_text:
+                st.markdown(result_text)
+                uploads_ref.set({"count": count + 1, "date": today_str})
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
+                if st.button("🔄 Try Another"):
+                    st.rerun()
+            else:
+                st.error("Could not get feedback. Please try again later.")
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
