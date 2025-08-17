@@ -5109,79 +5109,10 @@ if tab == "My Course":
                         pass
             except Exception:
                 pass
-        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
-        # ensure urllib alias exists
-        try:
-            _ = _urllib.quote
-        except Exception:
-            import urllib.parse as _urllib
 
-        with st.container():
-            st.markdown(
-                """
-                <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
-                  📣 <b>Zoom Classroom (Official)</b><br>
-                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            ZOOM = {
-                "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
-                "meeting_id": "688 690 0916",
-                "passcode": "german",
-            }
-            # Allow secrets override (but keep passcode fixed to 'german')
-            try:
-                zs = st.secrets.get("zoom", {})
-                if zs.get("link"):       ZOOM["link"]       = zs["link"]
-                if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
-            except Exception:
-                pass
-
-            # Build iOS/Android deep-link (opens Zoom app directly)
-            _mid_digits = (ZOOM["meeting_id"] or "").replace(" ", "")
-            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
-            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-
-            # Tutor name (default + optional per-class override via secrets)
-            TUTOR_NAME = "Felix Asadu"
-            try:
-                TUTOR_NAME = (st.secrets.get("tutors", {}).get(class_name, TUTOR_NAME)) or TUTOR_NAME
-            except Exception:
-                pass
-
-            z1, z2 = st.columns([3, 2])
-            with z1:
-                # Primary join button (browser)
-                try:
-                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
-                except Exception:
-                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
-
-                # Secondary: open in Zoom app (mobile deep link)
-                try:
-                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
-                except Exception:
-                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-
-                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                st.write(f"**Passcode:** `german`")
-
-            with z2:
-                st.info(
-                    f"You’re viewing: **{class_name}**  \n"
-                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**  \n\n"
-                    "✅ Use the **calendar below** to receive automatic class reminders.",
-                    icon="📅",
-                )
-
-        st.divider()
 
         # === JOINING REMINDERS (countdown + device notifications) =========================
-        from datetime import timezone as _tz
+        from datetime import timezone as _tz  # safe to keep; already guarded above if missing
         NOW_UTC = _dt.utcnow()
 
         def _compute_next_class_instance(now_utc: _dt):
@@ -5189,10 +5120,6 @@ if tab == "My Course":
             Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
             within the course window, based on parsed `_blocks`.
             """
-            try:
-                _ = _blocks
-            except NameError:
-                return None, None, ""
             if not _blocks:
                 return None, None, ""
             _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
@@ -5282,11 +5209,6 @@ if tab == "My Course":
                 st.markdown("[🧪 Test call](https://zoom.us/test)")
 
             # ---- Live countdown (client-side; updates every second)
-            try:
-                import streamlit.components.v1 as components  # ensure available here too
-            except Exception:
-                components = None
-
             if components:
                 components.html(
                     f"""
@@ -5376,6 +5298,7 @@ if tab == "My Course":
                 )
         else:
             st.info("No upcoming class found in the current course window.", icon="ℹ️")
+
 
 
         # ===================== CALENDAR TAB BANNER =====================
