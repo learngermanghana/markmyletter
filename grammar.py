@@ -5871,21 +5871,6 @@ if tab == "My Course":
                     unsafe_allow_html=True
                 )
 
-                # ---- Primary actions (reuse your Zoom variables)
-                a1, a2, a3 = st.columns([2, 2, 1])
-                with a1:
-                    try:
-                        st.link_button("➡️ Join Zoom (Browser)", ZOOM["link"], use_container_width=True, key="jr_join_web")
-                    except Exception:
-                        st.markdown(f"[➡️ Join Zoom (Browser)]({ZOOM['link']})")
-                with a2:
-                    try:
-                        st.link_button("📱 Open in Zoom App", zoom_deeplink, use_container_width=True, key="jr_join_app")
-                    except Exception:
-                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-                with a3:
-                    st.markdown("[🧪 Test call](https://zoom.us/test)")
-
                 # ---- Live countdown (client-side; updates every second)
                 if components:
                     components.html(
@@ -5929,53 +5914,6 @@ if tab == "My Course":
                         height=28,
                     )
 
-                # ---- Device notification scheduler (browser push)
-                st.markdown("**🔔 Reminder on this device** (no email required)")
-                col_r1, col_r2 = st.columns([2, 1])
-                with col_r1:
-                    notif_min = st.selectbox("Notify me before start", [60, 30, 15, 5], index=2, key="jr_notif_min")
-                with col_r2:
-                    set_btn = st.button("Schedule reminder", key="jr_schedule_btn")
-
-                if set_btn and components:
-                    # Use ISO for robust parsing in JS
-                    _iso = nxt_start.strftime("%Y-%m-%dT%H:%M:%SZ")
-                    components.html(
-                        f"""
-                        <script>
-                          (async function(){{
-                            try {{
-                              const iso = "{_iso}";
-                              const mins = {int(st.session_state.get('jr_notif_min', 15))};
-                              const startMs = Date.parse(iso);
-                              const delay = Math.max(0, startMs - Date.now() - mins*60*1000);
-                              const ok = ("Notification" in window);
-                              if (!ok) {{ alert("Your browser doesn't support notifications."); return; }}
-                              const perm = await Notification.requestPermission();
-                              if (perm !== "granted") {{
-                                alert("Notifications are blocked. Please allow them in your browser.");
-                                return;
-                              }}
-                              setTimeout(() => {{
-                                const n = new Notification("Class starts soon", {{
-                                  body: "{class_name} begins in " + mins + " minutes. Tap to join.",
-                                }});
-                                try {{
-                                  n.onclick = () => window.open("{ZOOM['link']}", "_blank");
-                                }} catch(e) {{}}
-                              }}, delay);
-                              alert("Reminder scheduled on this device" + (delay<5000 ? " (starts now)" : "") + ".");
-                            }} catch(e) {{
-                              console.log(e);
-                              alert("Could not schedule a reminder here.");
-                            }}
-                          }})();
-                        </script>
-                        """,
-                        height=0,
-                    )
-            else:
-                st.info("No upcoming class found in the current course window.", icon="ℹ️")
 
 
         # ===================== CLASS ROSTER =====================
