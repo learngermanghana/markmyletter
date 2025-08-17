@@ -5975,88 +5975,6 @@ if tab == "My Course":
                 st.warning(f"Couldn’t load the class roster right now. {e}")
 
 
-
-        # ===================== CLASS ROSTER =====================
-
-        # Subtle banner above the expander to draw attention
-        st.markdown(
-            """
-            <div style="
-                padding:10px 12px;
-                background:#f0f9ff;
-                border:1px solid #bae6fd;
-                border-radius:12px;
-                margin: 6px 0 8px 0;
-                display:flex;align-items:center;gap:8px;">
-              <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
-              <span style="font-size:.92rem;color:#055d87;">Tap below to open and view the list</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # Light CSS to make *all* expanders stand out a bit more
-        st.markdown(
-            """
-            <style>
-              /* Make expander headers pop a little */
-              div[data-testid="stExpander"] > details > summary {
-                  background:#f0f9ff !important;
-                  border:1px solid #bae6fd !important;
-                  border-radius:12px !important;
-                  padding:10px 12px !important;
-              }
-              div[data-testid="stExpander"] > details[open] > summary {
-                  background:#e0f2fe !important;
-                  border-color:#7dd3fc !important;
-              }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        with st.expander("👥 Class Members", expanded=False):
-            try:
-                df_students = load_student_data()
-
-                # Normalize required columns
-                for col in ("ClassName", "Name", "Email", "Location"):
-                    if col not in df_students.columns:
-                        df_students[col] = ""
-                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
-
-                # Filter to this class
-                same_class = df_students[df_students["ClassName"] == class_name].copy()
-
-                # Tiny header line inside with class + count
-                _n = len(same_class)
-                st.markdown(
-                    f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px 0;">
-                      <div style="font-weight:600;color:#0f172a;">{class_name}</div>
-                      <span style="background:#0ea5e922;border:1px solid #0ea5e9;color:#0369a1;
-                                   padding:3px 8px;border-radius:999px;font-size:.9rem;">
-                        {_n} member{'' if _n==1 else 's'}
-                      </span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                # Columns to display (no StudentCode)
-                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
-
-                if not same_class.empty and cols_show:
-                    st.dataframe(
-                        same_class[cols_show].reset_index(drop=True),
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-                else:
-                    st.info("No members found for this class yet.")
-            except Exception as e:
-                st.warning(f"Couldn’t load the class roster right now. {e}")
-
         # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
 
         # Prefer cached helper if exists; else fallback to direct CSV
@@ -8525,6 +8443,7 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+
 
 
 # =========================================
