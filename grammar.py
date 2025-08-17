@@ -5250,6 +5250,123 @@ if tab == "My Course":
 
         st.divider()
 
+                # ---------- GROUP SCHEDULES LOADER (with full fallback dictionary) ----------
+        from datetime import date as _date, timedelta as _td
+
+        def _load_group_schedules():
+            # 1) already loaded in globals
+            cfg = globals().get("GROUP_SCHEDULES")
+            if isinstance(cfg, dict) and cfg:
+                return cfg
+            # 2) session state
+            cfg = st.session_state.get("GROUP_SCHEDULES")
+            if isinstance(cfg, dict) and cfg:
+                globals()["GROUP_SCHEDULES"] = cfg
+                return cfg
+            # 3) secrets
+            try:
+                import json
+                raw = st.secrets.get("group_schedules", None)
+                if raw:
+                    cfg = json.loads(raw) if isinstance(raw, str) else raw
+                    if isinstance(cfg, dict) and cfg:
+                        st.session_state["GROUP_SCHEDULES"] = cfg
+                        globals()["GROUP_SCHEDULES"] = cfg
+                        return cfg
+            except Exception:
+                pass
+            # 4) Firestore (optional)
+            try:
+                doc = db.collection("config").document("group_schedules").get()
+                if doc and getattr(doc, "exists", False):
+                    data = doc.to_dict() or {}
+                    cfg = data.get("data", data)
+                    if isinstance(cfg, dict) and cfg:
+                        st.session_state["GROUP_SCHEDULES"] = cfg
+                        globals()["GROUP_SCHEDULES"] = cfg
+                        return cfg
+            except Exception:
+                pass
+            # 5) BUILT-IN FALLBACK (restored)
+            return {
+                "A1 Munich Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday"],
+                    "time": "6:00pm–7:00pm",
+                    "start_date": "2025-07-08",
+                    "end_date": "2025-09-02",
+                    "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+                },
+                "A1 Berlin Klasse": {
+                    "days": ["Thursday", "Friday", "Saturday"],
+                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+                    "start_date": "2025-06-14",
+                    "end_date": "2025-08-09",
+                    "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+                },
+                "A1 Koln Klasse": {
+                    "days": ["Thursday", "Friday", "Saturday"],
+                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+                    "start_date": "2025-08-15",
+                    "end_date": "2025-10-11",
+                    "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
+                },
+                "A2 Munich Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday"],
+                    "time": "7:30pm–9:00pm",
+                    "start_date": "2025-06-24",
+                    "end_date": "2025-08-26",
+                    "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
+                },
+                "A2 Berlin Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+                    "start_date": "",
+                    "end_date": "",
+                    "doc_url": ""
+                },
+                "A2 Koln Klasse": {
+                    "days": ["Wednesday", "Thursday", "Friday"],
+                    "time": "11:00am–12:00pm",
+                    "start_date": "2025-08-06",
+                    "end_date": "2025-10-08",
+                    "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
+                },
+                "B1 Munich Klasse": {
+                    "days": ["Thursday", "Friday"],
+                    "time": "7:30pm–9:00pm",
+                    "start_date": "2025-08-07",
+                    "end_date": "2025-11-07",
+                    "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+                },
+                "B2 Munich Klasse": {
+                    "days": ["Friday", "Saturday"],
+                    "time": "Fri: 2:00pm–3:30pm, Sat: 9:30am–10:00am",
+                    "start_date": "2025-08-08",
+                    "end_date": "2025-10-08",
+                    "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
+                },
+            }
+
+        GROUP_SCHEDULES = _load_group_schedules()
+
+        # If the current class isn’t in the dict, synthesize a safe default so UI never blocks
+        if class_name not in GROUP_SCHEDULES:
+            # next Monday as start, 8-week run, Mon/Wed/Fri 6–7pm
+            today = _date.today()
+            next_mon = today + _td(days=(7 - today.weekday()) % 7)  # 0=Mon
+            GROUP_SCHEDULES[class_name] = {
+                "days": ["Monday", "Wednesday", "Friday"],
+                "time": "6:00pm–7:00pm",
+                "start_date": next_mon.strftime("%Y-%m-%d"),
+                "end_date": (next_mon + _td(weeks=8)).strftime("%Y-%m-%d"),
+                "doc_url": ""
+            }
+
+        # Keep a copy in globals/session for the rest of the calendar & countdown code
+        globals()["GROUP_SCHEDULES"] = GROUP_SCHEDULES
+        st.session_state["GROUP_SCHEDULES"] = GROUP_SCHEDULES
+
+
         # ===================== NEXT CLASS COUNTDOWN (old working logic, self-contained) =====================
         from datetime import datetime as _dt, timedelta as _td
 
