@@ -5004,6 +5004,8 @@ if tab == "My Course":
 
 
 
+
+
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
         st.markdown(
@@ -5052,8 +5054,8 @@ if tab == "My Course":
 
         db = _get_db()
 
-        # ---------- helpers ----------
-        import math, os, requests, re
+        # helpers
+        import math, os, requests
         try:
             import streamlit.components.v1 as components
         except Exception:
@@ -5088,7 +5090,7 @@ if tab == "My Course":
             pass
         IS_ADMIN = (student_code in ADMINS)
 
-        # ---------- slack helper ----------
+        # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
         def _notify_slack(text: str):
             try:
                 fn = globals().get("notify_slack")
@@ -5108,34 +5110,12 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER (official link + tutor + quick copy) =====================
+        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
         # ensure urllib alias exists
         try:
-            _ = _urllib.quote  # type: ignore
+            _ = _urllib.quote
         except Exception:
             import urllib.parse as _urllib
-
-        # util: keep meeting id in sync with link (if link overrides it)
-        from urllib.parse import urlparse, parse_qs
-        def _parse_zoom_invite(url: str, fallback_id: str = "", fallback_pwd: str = ""):
-            mid = (fallback_id or "").replace(" ", "")
-            pwd = fallback_pwd or ""
-            try:
-                u = urlparse(url or "")
-                parts = [p for p in (u.path or "").split("/") if p]
-                if "j" in parts:
-                    i = parts.index("j")
-                    if i + 1 < len(parts):
-                        mid = parts[i + 1]
-                elif "join" in parts:
-                    mid = parts[-1]
-                q = parse_qs(u.query or "")
-                if "pwd" in q and q["pwd"]:
-                    pwd = q["pwd"][0]
-            except Exception:
-                pass
-            mid_digits = re.sub(r"\D", "", mid or "")
-            return mid_digits, pwd
 
         with st.container():
             st.markdown(
@@ -5152,31 +5132,21 @@ if tab == "My Course":
             ZOOM = {
                 "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
                 "meeting_id": "688 690 0916",
-                "passcode": "german",  # fixed as requested
+                "passcode": "german",
             }
-            # Allow secrets override (link/meeting_id); keep passcode fixed to 'german'
+            # Allow secrets override
             try:
                 zs = st.secrets.get("zoom", {})
                 if zs.get("link"):       ZOOM["link"]       = zs["link"]
                 if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
             except Exception:
                 pass
 
-            # keep ID consistent with link if needed
-            _mid_digits, _ = _parse_zoom_invite(ZOOM["link"], ZOOM["meeting_id"], ZOOM["passcode"])
-            ZOOM["meeting_id"] = " ".join([_mid_digits[i:i+3] for i in range(0, len(_mid_digits), 3)])
-            ZOOM["passcode"] = "german"
-
-            # Deep-link to Zoom app
-            _pwd_enc = _urllib.quote(ZOOM["passcode"])
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
             zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-
-            # Tutor name (default + optional per-class override via secrets)
-            TUTOR_NAME = "Felix Asadu"
-            try:
-                TUTOR_NAME = (st.secrets.get("tutors", {}).get(class_name, TUTOR_NAME)) or TUTOR_NAME
-            except Exception:
-                pass
 
             z1, z2 = st.columns([3, 2])
             with z1:
@@ -5193,7 +5163,7 @@ if tab == "My Course":
                     st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
 
                 st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                st.write(f"**Passcode:** `german`")
+                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
 
                 # Copy helpers (mobile-friendly, safe escaping)
                 _link_safe = ZOOM["link"].replace("'", "\\'")
@@ -5242,337 +5212,10 @@ if tab == "My Course":
 
             with z2:
                 st.info(
-                    f"You’re viewing: **{class_name}**  \n"
-                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**  \n\n"
+                    f"You’re viewing: **{class_name}**  \n\n"
                     "✅ Use the **calendar below** to receive automatic class reminders.",
                     icon="📅",
                 )
-
-        st.divider()
-        
-
-        # ===================== NEXT CLASS COUNTDOWN (old working logic, self-contained) =====================
-        from datetime import datetime as _dt, timedelta as _td
-
-        # Load schedules from globals/session/secrets/db (fallback provided)
-        def _load_group_schedules_local():
-            cfg = globals().get("GROUP_SCHEDULES")
-            if isinstance(cfg, dict) and cfg:
-                return cfg
-            cfg = st.session_state.get("GROUP_SCHEDULES")
-            if isinstance(cfg, dict) and cfg:
-                globals()["GROUP_SCHEDULES"] = cfg
-                return cfg
-            try:
-                import json
-                raw = st.secrets.get("group_schedules", None)
-                if raw:
-                    cfg = json.loads(raw) if isinstance(raw, str) else raw
-                    if isinstance(cfg, dict) and cfg:
-                        st.session_state["GROUP_SCHEDULES"] = cfg
-                        globals()["GROUP_SCHEDULES"] = cfg
-                        return cfg
-            except Exception:
-                pass
-            try:
-                doc = db.collection("config").document("group_schedules").get()
-                if doc and getattr(doc, "exists", False):
-                    data = doc.to_dict() or {}
-                    cfg = data.get("data", data)
-                    if isinstance(cfg, dict) and cfg:
-                        st.session_state["GROUP_SCHEDULES"] = cfg
-                        globals()["GROUP_SCHEDULES"] = cfg
-                        return cfg
-            except Exception:
-                pass
-            # Fallback minimal if nothing configured
-            return {
-                "A1 Koln Klasse": {
-                    "days": ["Thursday", "Friday", "Saturday"],
-                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-                    "start_date": "2025-08-15",
-                    "end_date": "2025-10-11",
-                }
-            }
-
-        GROUP_SCHEDULES = _load_group_schedules_local()
-        _CFG = GROUP_SCHEDULES.get(class_name, {})
-
-        # Extract base fields
-        days = list(_CFG.get("days", []) or [])
-        time_str = str(_CFG.get("time", "") or "")
-
-        def _parse_date_yyyy_mm_dd(s):
-            try:
-                return _dt.strptime(str(s), "%Y-%m-%d").date()
-            except Exception:
-                return None
-
-        start_date_obj = _parse_date_yyyy_mm_dd(_CFG.get("start_date"))
-        end_date_obj   = _parse_date_yyyy_mm_dd(_CFG.get("end_date"))
-
-        # If missing, default to a sane window so countdown renders
-        _today = _dt.utcnow().date()  # Accra == UTC (no DST)
-        if not start_date_obj:
-            start_date_obj = _today
-        if not end_date_obj or end_date_obj < start_date_obj:
-            end_date_obj = start_date_obj + _td(days=60)
-
-        # Build _blocks from time_str + days (supports grouped syntax)
-        _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
-        _FULL_TO_CODE = {
-            "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
-            "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
-        }
-        def _to_24h(h, m, ampm):
-            h = int(h); m = int(m); ap = ampm.lower()
-            if ap == "pm" and h != 12: h += 12
-            if ap == "am" and h == 12: h = 0
-            return h, m
-        def _parse_time_component(s):
-            s = s.strip().lower()
-            m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
-            if not m: return None
-            h = m.group(1); mm = m.group(2) or "0"; ap = m.group(3)
-            return _to_24h(h, mm, ap)
-        def _parse_time_range(rng):
-            rng = rng.strip().lower().replace("–","-").replace("—","-")
-            parts = [p.strip() for p in rng.split("-")]
-            if len(parts) != 2: return None
-            a = _parse_time_component(parts[0]); b = _parse_time_component(parts[1])
-            if not a or not b: return None
-            return a, b
-        def _expand_day_token(tok):
-            tok = tok.strip().lower().replace("–","-").replace("—","-")
-            if "-" in tok:  # mon–wed
-                a, b = [t.strip() for t in tok.split("-", 1)]
-                a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
-                if a_code and b_code:
-                    ai = _WKD_ORDER.index(a_code); bi = _WKD_ORDER.index(b_code)
-                    return _WKD_ORDER[ai:bi+1] if ai <= bi else _WKD_ORDER[ai:] + _WKD_ORDER[:bi+1]
-                return []
-            c = _FULL_TO_CODE.get(tok, "")
-            return [c] if c else []
-        def _parse_time_blocks_fallback(_time_str, _days_list):
-            if not (isinstance(_time_str, str) and _time_str.strip()):
-                return []
-            s = _time_str.strip()
-            if ":" in s:  # grouped "Days: time"
-                blocks = []
-                groups = [g.strip() for g in s.split(",") if g.strip()]
-                for g in groups:
-                    if ":" not in g:
-                        continue
-                    left, right = [x.strip() for x in g.split(":", 1)]
-                    day_tokens = re.split(r"/", left)
-                    codes = []
-                    for tok in day_tokens:
-                        codes.extend(_expand_day_token(tok))
-                    tr = _parse_time_range(right)
-                    if codes and tr:
-                        (sh, sm), (eh, em) = tr
-                        blocks.append({"byday": sorted(set(codes), key=_WKD_ORDER.index),
-                                       "start": (sh, sm), "end": (eh, em)})
-                return blocks
-            # single time for given days[]
-            tr = _parse_time_range(s)
-            if not tr: return []
-            (sh, sm), (eh, em) = tr
-            codes = []
-            for d in (_days_list or []):
-                c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
-                if c: codes.append(c)
-            codes = sorted(set(codes), key=_WKD_ORDER.index) or _WKD_ORDER[:]
-            return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
-
-        _blocks = _parse_time_blocks_fallback(time_str, days)
-
-        # === JOINING REMINDERS (countdown + device notifications) =========================
-        NOW_UTC = _dt.utcnow()
-
-        def _compute_next_class_instance(now_utc: _dt):
-            """
-            Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
-            within the course window, based on parsed `_blocks`.
-            """
-            if not _blocks:
-                return None, None, ""
-            _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-
-            best = None  # tuple(start_dt, end_dt, label)
-            # Search up to 8 weeks ahead to be safe
-            horizon_days = 7 * 8
-            start_search_date = max(start_date_obj, now_utc.date())
-            for add in range(horizon_days):
-                d = start_search_date + _td(days=add)
-                if d > end_date_obj:
-                    break
-                widx = d.weekday()
-                for blk in _blocks:
-                    if any(_wmap[c] == widx for c in blk["byday"]):
-                        sh, sm = blk["start"]; eh, em = blk["end"]
-                        sdt = _dt(d.year, d.month, d.day, sh, sm)     # Accra == UTC
-                        edt = _dt(d.year, d.month, d.day, eh, em)
-                        if edt <= now_utc:
-                            continue
-                        # pretty label like "Thu 22 Aug • 6:00–7:00 PM"
-                        def _fmt_ampm(h, m):
-                            ap = "AM" if h < 12 else "PM"
-                            hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                            return f"{hh}:{m:02d}{ap}"
-                        weekday = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][widx]
-                        label = f"{weekday} {sdt.strftime('%d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
-                        cand = (sdt, edt, label)
-                        if (best is None) or (sdt < best[0]):
-                            best = cand
-            return best if best else (None, None, "")
-
-        nxt_start, nxt_end, nxt_label = _compute_next_class_instance(NOW_UTC)
-
-        def _human_delta(ms):
-            secs = max(0, int(ms // 1000))
-            d, r = divmod(secs, 86400)
-            h, r = divmod(r, 3600)
-            m, s = divmod(r, 60)
-            if d:   return f"{d}d {h}h {m}m"
-            if h:   return f"{h}h {m}m"
-            if m>0: return f"{m}m {s}s"
-            return f"{s}s"
-
-        if nxt_start and nxt_end:
-            now_ms = int(NOW_UTC.timestamp() * 1000)
-            start_ms = int(nxt_start.timestamp() * 1000)
-            end_ms   = int(nxt_end.timestamp()   * 1000)
-            pre_live_window_ms = 5 * 60 * 1000  # 5 minutes before start
-
-            is_live_window = (now_ms >= start_ms - pre_live_window_ms) and (now_ms < end_ms)
-            time_to_start_ms = start_ms - now_ms
-
-            # ---- UI card
-            status_badge = "🟢 Live now" if is_live_window else f"⏳ Starts in {_human_delta(time_to_start_ms)}"
-            st.markdown(
-                f"""
-                <div style="
-                    margin-top:8px;margin-bottom:8px;padding:12px 14px;
-                    background:#ecfeff;border:1px solid #bae6fd;border-radius:10px;
-                    display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
-                  <div style="font-weight:700;color:#0f172a;">Next class</div>
-                  <div style="color:#0369a1;">{nxt_label}</div>
-                  <span style="margin-left:auto;background:{'#dcfce7' if is_live_window else '#fef9c3'};
-                               color:{'#166534' if is_live_window else '#854d0e'};
-                               padding:3px 10px;border-radius:999px;font-weight:700;">
-                    {status_badge}
-                  </span>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            # ---- Primary actions (reuse your Zoom variables)
-            a1, a2, a3 = st.columns([2, 2, 1])
-            with a1:
-                try:
-                    st.link_button("➡️ Join Zoom (Browser)", ZOOM["link"], use_container_width=True, key="jr_join_web")
-                except Exception:
-                    st.markdown(f"[➡️ Join Zoom (Browser)]({ZOOM['link']})")
-            with a2:
-                try:
-                    st.link_button("📱 Open in Zoom App", zoom_deeplink, use_container_width=True, key="jr_join_app")
-                except Exception:
-                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-            with a3:
-                st.markdown("[🧪 Test call](https://zoom.us/test)")
-
-            # ---- Live countdown (client-side; updates every second)
-            if components:
-                components.html(
-                    f"""
-                    <div id="jrCountdown" style="margin:4px 0 10px 0;color:#0f172a;font-weight:600;"></div>
-                    <script>
-                      (function(){{
-                        const start = {start_ms};
-                        const end   = {end_ms};
-                        const preLive = {pre_live_window_ms};
-                        const el = document.getElementById('jrCountdown');
-                        function fmt(ms){{
-                          ms = Math.max(0, ms);
-                          const s = Math.floor(ms/1000);
-                          const d = Math.floor(s/86400);
-                          const h = Math.floor((s%86400)/3600);
-                          const m = Math.floor((s%3600)/60);
-                          const sec = s%60;
-                          if (d) return `${{d}}d ${{h}}h ${{m}}m`;
-                          if (h) return `${{h}}h ${{m}}m`;
-                          if (m) return `${{m}}m ${{sec}}s`;
-                          return `${{sec}}s`;
-                        }}
-                        function tick(){{
-                          const now = Date.now();
-                          if (now >= start - preLive && now < end){{
-                            el.textContent = "Class is LIVE. You can join now.";
-                          }} else if (now < start - preLive){{
-                            el.textContent = "Countdown: " + fmt(start - now);
-                          }} else if (now >= end){{
-                            el.textContent = "This class has ended.";
-                          }} else {{
-                            el.textContent = "Starting any moment…";
-                          }}
-                          setTimeout(tick, 1000);
-                        }}
-                        tick();
-                      }})();
-                    </script>
-                    """,
-                    height=28,
-                )
-
-            # ---- Device notification scheduler (browser push)
-            st.markdown("**🔔 Reminder on this device** (no email required)")
-            col_r1, col_r2 = st.columns([2, 1])
-            with col_r1:
-                notif_min = st.selectbox("Notify me before start", [60, 30, 15, 5], index=2, key="jr_notif_min")
-            with col_r2:
-                set_btn = st.button("Schedule reminder", key="jr_schedule_btn")
-
-            if set_btn and components:
-                # Use ISO for robust parsing in JS
-                _iso = nxt_start.strftime("%Y-%m-%dT%H:%M:%SZ")
-                components.html(
-                    f"""
-                    <script>
-                      (async function(){{
-                        try {{
-                          const iso = "{_iso}";
-                          const mins = {int(st.session_state.get('jr_notif_min', 15))};
-                          const startMs = Date.parse(iso);
-                          const delay = Math.max(0, startMs - Date.now() - mins*60*1000);
-                          const ok = ("Notification" in window);
-                          if (!ok) {{ alert("Your browser doesn't support notifications."); return; }}
-                          const perm = await Notification.requestPermission();
-                          if (perm !== "granted") {{
-                            alert("Notifications are blocked. Please allow them in your browser.");
-                            return;
-                          }}
-                          setTimeout(() => {{
-                            const n = new Notification("Class starts soon", {{
-                              body: "{class_name} begins in " + mins + " minutes. Tap to join.",
-                            }});
-                            try {{
-                              n.onclick = () => window.open("{ZOOM['link']}", "_blank");
-                            }} catch(e) {{}}
-                          }}, delay);
-                          alert("Reminder scheduled on this device" + (delay<5000 ? " (starts now)" : "") + ".");
-                        }} catch(e) {{
-                          console.log(e);
-                          alert("Could not schedule a reminder here.");
-                        }}
-                      }})();
-                    </script>
-                    """,
-                    height=0,
-                )
-        else:
-            st.info("No upcoming class found in the current course window.", icon="ℹ️")
 
         st.divider()
 
