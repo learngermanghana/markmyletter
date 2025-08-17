@@ -8335,191 +8335,121 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (no-debug version)
+    # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
+        import urllib.parse as _urllib
         from io import BytesIO
-        import requests
 
-        # ---------- Config ----------
-        HOST_BASE = st.secrets.get("HOST_BASE", "https://language-academy-3e1de.web.app")
-        API_ENDPOINT = f"{HOST_BASE}/api/speech/grade"  # Hosting rewrite to Functions: /api/**
-        MAX_DAILY_UPLOADS = 3
-        MAX_MB = 24  # keep <25MB
-
-        # ---------- Daily limit ----------
         today_str = _dt.date.today().isoformat()
-        student_code = st.session_state.get("student_code", "")
+        student_code = (st.session_state.get("student_code") or "").strip()
+
+        # Daily upload limit (per student)
         uploads_ref = db.collection("pron_uses").document(student_code or "unknown")
         doc = uploads_ref.get()
         data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
         count = data.get("count", 0)
+
         if last_date != today_str:
             count = 0
-        if count >= MAX_DAILY_UPLOADS:
+        if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
             st.stop()
 
-        # ---------- UI ----------
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info(
             """
-            Record or upload your **German** speaking sample (about 60 seconds).
-            • Use your phone’s voice recorder **or** our simple recorder page.
-            • Then upload the saved **.wav / .mp3 / .m4a / .3gp / .aac / .ogg / .webm** file below.
+            You have two options:
+            1) **Record directly** (recommended) — opens a small recorder page.
+            2) **Upload a file** (≤ 60 seconds) — works well on computer and iOS.
             """
         )
 
-        # Quick path to tiny web recorder
-        try:
-            st.link_button("🎙️ Open Web Recorder (new tab)", f"{HOST_BASE}/recorder", use_container_width=True)
-        except Exception:
-            st.markdown(f"[🎙️ Open Web Recorder (new tab)]({HOST_BASE}/recorder)")
-
-        with st.expander("Having trouble on Android? Tap for quick steps"):
+        # Quick steps banner (your updated copy)
+        with st.expander("Tap for quick steps"):
             st.markdown(
                 """
-                1) Open this app in **Chrome** (not in-app browsers like WhatsApp).  
-                2) In your recorder app, **Save** the file first.  
-                3) When uploading here, choose **Files → Audio/Recordings** (not Photos).  
-                4) If it still fails, use **vocaroo.com** and download as **.mp3**.
+                • **Direct recording works on all devices.**  
+                • **Uploading is only possible on computer and iOS.**  
+                • When uploading here, choose **Files → Audio/Recordings** (not Photos).
                 """
             )
 
-        # ---------- Uploader ----------
+        # External recorder link (includes student code if available)
+        _host = "https://language-academy-3e1de.web.app"
+        if student_code:
+            rec_url = f"{_host}/recorder?code={_urllib.quote(student_code)}"
+            rec_url_fallback = f"{_host}/recorder.html?code={_urllib.quote(student_code)}"
+        else:
+            rec_url = f"{_host}/recorder"
+            rec_url_fallback = f"{_host}/recorder.html"
+            st.warning("Student code not found in session; the recorder may ask you to enter it.")
+
+        st.markdown(
+            f"""
+            <div style="margin:6px 0 14px 0;">
+              <a href="{rec_url}" target="_blank" style="display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;">📼 Open Recorder (recommended)</a>
+              <div style="font-size:13px;color:#475569;margin-top:6px;">If the link doesn’t open, try the fallback: <a href="{rec_url_fallback}" target="_blank">/recorder.html</a></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # —— Upload flow (desktop/iOS best)
         audio_file = st.file_uploader(
-            "Upload your audio file",
-            type=["mp3", "wav", "m4a", "3gp", "aac", "ogg", "webm"],
+            "Or upload an audio file (≤ 60 seconds):",
+            type=["mp3", "wav", "m4a", "aac", "ogg", "webm", "3gp"],
             accept_multiple_files=False,
             key="pron_audio_uploader",
+            help="Supported: .mp3, .wav, .m4a, .aac, .ogg, .webm, .3gp",
         )
 
         if audio_file:
-            # Read
-            file_type = (audio_file.type or "").lower()
-            file_name = (audio_file.name or "speech").lower()
+            # Preview player
             try:
                 audio_file.seek(0)
             except Exception:
                 pass
-            raw_bytes = audio_file.read() or b""
-            if len(raw_bytes) > MAX_MB * 1024 * 1024:
-                st.error(f"File is larger than {MAX_MB} MB. Please trim or export at a lower bitrate.")
-                st.stop()
+            st.audio(audio_file)
 
-            st.audio(BytesIO(raw_bytes))
-
-            # Ensure extension (Android sometimes has none)
-            def _ensure_ext(name: str, mime: str) -> str:
-                name = name or "speech"
-                if "." in name:
-                    return name
-                if "wav" in mime:
-                    return name + ".wav"
-                if "mpeg" in mime or "mp3" in mime:
-                    return name + ".mp3"
-                if "m4a" in mime or "mp4" in mime or "aac" in mime:
-                    return name + ".m4a"
-                if "3gpp" in mime:
-                    return name + ".3gp"
-                if "ogg" in mime:
-                    return name + ".ogg"
-                if "webm" in mime:
-                    return name + ".webm"
-                return name + ".mp3"
-
-            file_name = _ensure_ext(file_name, file_type)
-
-            # Try normalizing to 16k mono WAV (best for ASR); fall back to original
-            buf_for_backend = None
-            out_mime = "audio/wav"
+            # 1) Transcribe (German only)
             try:
-                from pydub import AudioSegment
-                import tempfile, os
-                suffix = "." + file_name.split(".")[-1] if "." in file_name else ".bin"
-                tmp_in = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-                tmp_in.write(raw_bytes); tmp_in.flush(); tmp_in.close()
-                seg = AudioSegment.from_file(tmp_in.name)
-                seg = seg.set_channels(1).set_frame_rate(16000)
-                wav_io = BytesIO()
-                seg.export(wav_io, format="wav")
-                wav_io.seek(0)
-                setattr(wav_io, "name", "speech.wav")
-                buf_for_backend = wav_io
-                try:
-                    os.unlink(tmp_in.name)
-                except Exception:
-                    pass
-            except Exception:
-                raw_bio = BytesIO(raw_bytes); raw_bio.seek(0)
-                setattr(raw_bio, "name", file_name)
-                buf_for_backend = raw_bio
-                out_mime = (file_type or "application/octet-stream")
-
-            # ---------- Preferred: call your Firebase Function ----------
-            with st.spinner("Uploading & evaluating in the cloud…"):
-                try:
-                    files = {"file": (getattr(buf_for_backend, "name", file_name), buf_for_backend, out_mime)}
-                    data = {"student_code": student_code, "language": "de"}
-                    resp = requests.post(API_ENDPOINT, files=files, data=data, timeout=180)
-                    if resp.status_code == 200:
-                        try:
-                            j = resp.json()
-                        except Exception:
-                            j = {}
-                        transcript_text = j.get("transcript") or j.get("text") or ""
-                        evaluation_text = j.get("evaluation_text") or j.get("evaluation") or ""
-                        if transcript_text:
-                            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
-                        if evaluation_text:
-                            st.markdown(evaluation_text)
-                        else:
-                            st.success("Uploaded successfully.")
-                        uploads_ref.set({"count": count + 1, "date": today_str})
-                        st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-                        if st.button("🔄 Try Another"):
-                            st.rerun()
-                        st.stop()
-                    else:
-                        st.warning(f"Cloud evaluation not available (HTTP {resp.status_code}). Using local evaluation…")
-                except Exception as e:
-                    st.warning(f"Cloud evaluation failed ({e}). Using local evaluation…")
-
-            # ---------- Fallback: local Whisper + GPT (requires `client`) ----------
-            try:
-                _client = globals().get("client")
-                if _client is None:
-                    st.error("Local evaluation not configured. Please try again later.")
-                    st.stop()
-
-                # Transcribe (German only)
-                transcript_resp = _client.audio.transcriptions.create(
-                    file=buf_for_backend,
+                transcript_resp = client.audio.transcriptions.create(
+                    file=audio_file,
                     model="whisper-1",
                     language="de",
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = getattr(transcript_resp, "text", "") or ""
-                st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+                transcript_text = transcript_resp.text or ""
+            except Exception as e:
+                st.error(f"Sorry, could not process audio: {e}")
+                st.stop()
 
-                # Evaluate in English
-                eval_prompt = (
-                    "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
-                    f'The student said (in German): "{transcript_text}"\n\n'
-                    "Please provide scores **in English only**:\n"
-                    "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
-                    "• Give three concise, actionable tips for each category.\n"
-                    "• Do not translate the student's text; focus on evaluating it.\n\n"
-                    "Respond exactly in this format:\n"
-                    "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                    "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                    "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-                )
+            if not transcript_text.strip():
+                st.error("We couldn’t detect any speech. Please re-record closer to the mic and try again.")
+                st.stop()
 
-                with st.spinner("Evaluating your sample…"):
-                    eval_resp = _client.chat.completions.create(
+            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+
+            # 2) Evaluate (English-only feedback)
+            eval_prompt = (
+                "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
+                f'The student said (in German): "{transcript_text}"\n\n'
+                "Please provide scores **in English only**:\n"
+                "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
+                "• Give three concise, actionable tips for each category.\n"
+                "• Do not translate the student's text; focus on evaluating it.\n\n"
+                "Respond exactly in this format:\n"
+                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
+                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
+            )
+
+            with st.spinner("Evaluating your sample..."):
+                try:
+                    eval_resp = client.chat.completions.create(
                         model="gpt-4o",
                         messages=[
                             {
@@ -8533,26 +8463,23 @@ if tab == "Exams Mode & Custom Chat":
                         ],
                         temperature=0.2,
                     )
-                result_text = eval_resp.choices[0].message.content if getattr(eval_resp, "choices", None) else None
+                    result_text = eval_resp.choices[0].message.content
+                except Exception as e:
+                    st.error(f"Evaluation error: {e}")
+                    result_text = None
 
-                if result_text:
-                    st.markdown(result_text)
-                    uploads_ref.set({"count": count + 1, "date": today_str})
-                    st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-                    if st.button("🔄 Try Another"):
-                        st.rerun()
-                else:
-                    st.error("Could not get feedback. Please try again later.")
+            if result_text:
+                st.markdown(result_text)
+                uploads_ref.set({"count": count + 1, "date": today_str})
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
+                if st.button("🔄 Try Another"):
+                    st.rerun()
+            else:
+                st.error("Could not get feedback. Please try again later.")
 
-            except Exception as e:
-                st.error(f"Local evaluation failed: {e}")
-
-        # ---------- Back ----------
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-
-
 
 
 # =========================================
