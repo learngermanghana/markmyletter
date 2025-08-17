@@ -5222,8 +5222,7 @@ if tab == "My Course":
 
 
             # === JOINING REMINDERS (countdown + device notifications) =========================
-            from datetime import timezone as _tz
-            NOW_UTC = _dt.utcnow()
+
 
             def _compute_next_class_instance(now_utc: _dt):
                 """
