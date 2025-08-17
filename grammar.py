@@ -5148,6 +5148,13 @@ if tab == "My Course":
             _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
             zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
 
+            # Tutor name (default + optional per-class override via secrets)
+            TUTOR_NAME = "Felix Asadu"
+            try:
+                TUTOR_NAME = (st.secrets.get("tutors", {}).get(class_name, TUTOR_NAME)) or TUTOR_NAME
+            except Exception:
+                pass
+
             z1, z2 = st.columns([3, 2])
             with z1:
                 # Primary join button (browser)
@@ -5212,12 +5219,142 @@ if tab == "My Course":
 
             with z2:
                 st.info(
-                    f"You’re viewing: **{class_name}**  \n\n"
+                    f"You’re viewing: **{class_name}**  \n"
+                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**  \n\n"
                     "✅ Use the **calendar below** to receive automatic class reminders.",
                     icon="📅",
                 )
 
         st.divider()
+
+        
+                    # === JOINING REMINDERS (countdown + device notifications) =========================
+            from datetime import timezone as _tz
+            NOW_UTC = _dt.utcnow()
+
+            def _compute_next_class_instance(now_utc: _dt):
+                """
+                Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
+                within the course window, based on parsed `_blocks`.
+                """
+                if not _blocks:
+                    return None, None, ""
+                _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+
+                best = None  # tuple(start_dt, end_dt, label)
+                # Search up to 8 weeks ahead to be safe
+                horizon_days = 7 * 8
+                start_search_date = max(start_date_obj, now_utc.date())
+                for add in range(horizon_days):
+                    d = start_search_date + _td(days=add)
+                    if d > end_date_obj:
+                        break
+                    widx = d.weekday()
+                    for blk in _blocks:
+                        if any(_wmap[c] == widx for c in blk["byday"]):
+                            sh, sm = blk["start"]; eh, em = blk["end"]
+                            sdt = _dt(d.year, d.month, d.day, sh, sm)     # Accra == UTC
+                            edt = _dt(d.year, d.month, d.day, eh, em)
+                            if edt <= now_utc:
+                                continue
+                            # pretty label like "Thu 22 Aug • 6:00–7:00 PM"
+                            def _fmt_ampm(h, m):
+                                ap = "AM" if h < 12 else "PM"
+                                hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                                return f"{hh}:{m:02d}{ap}"
+                            weekday = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][widx]
+                            label = f"{weekday} {sdt.strftime('%d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
+                            cand = (sdt, edt, label)
+                            if (best is None) or (sdt < best[0]):
+                                best = cand
+                return best if best else (None, None, "")
+
+            nxt_start, nxt_end, nxt_label = _compute_next_class_instance(NOW_UTC)
+
+            def _human_delta(ms):
+                secs = max(0, int(ms // 1000))
+                d, r = divmod(secs, 86400)
+                h, r = divmod(r, 3600)
+                m, s = divmod(r, 60)
+                if d:   return f"{d}d {h}h {m}m"
+                if h:   return f"{h}h {m}m"
+                if m>0: return f"{m}m {s}s"
+                return f"{s}s"
+
+            if nxt_start and nxt_end:
+                now_ms = int(NOW_UTC.timestamp() * 1000)
+                start_ms = int(nxt_start.timestamp() * 1000)
+                end_ms   = int(nxt_end.timestamp()   * 1000)
+                pre_live_window_ms = 5 * 60 * 1000  # 5 minutes before start
+
+                is_live_window = (now_ms >= start_ms - pre_live_window_ms) and (now_ms < end_ms)
+                time_to_start_ms = start_ms - now_ms
+
+                # ---- UI card
+                status_badge = "🟢 Live now" if is_live_window else f"⏳ Starts in {_human_delta(time_to_start_ms)}"
+                st.markdown(
+                    f"""
+                    <div style="
+                        margin-top:8px;margin-bottom:8px;padding:12px 14px;
+                        background:#ecfeff;border:1px solid #bae6fd;border-radius:10px;
+                        display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+                      <div style="font-weight:700;color:#0f172a;">Next class</div>
+                      <div style="color:#0369a1;">{nxt_label}</div>
+                      <span style="margin-left:auto;background:{'#dcfce7' if is_live_window else '#fef9c3'};
+                                   color:{'#166534' if is_live_window else '#854d0e'};
+                                   padding:3px 10px;border-radius:999px;font-weight:700;">
+                        {status_badge}
+                      </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                # ---- Live countdown (client-side; updates every second)
+                if components:
+                    components.html(
+                        f"""
+                        <div id="jrCountdown" style="margin:4px 0 10px 0;color:#0f172a;font-weight:600;"></div>
+                        <script>
+                          (function(){{
+                            const start = {start_ms};
+                            const end   = {end_ms};
+                            const preLive = {pre_live_window_ms};
+                            const el = document.getElementById('jrCountdown');
+                            function fmt(ms){{
+                              ms = Math.max(0, ms);
+                              const s = Math.floor(ms/1000);
+                              const d = Math.floor(s/86400);
+                              const h = Math.floor((s%86400)/3600);
+                              const m = Math.floor((s%3600)/60);
+                              const sec = s%60;
+                              if (d) return `${{d}}d ${{h}}h ${{m}}m`;
+                              if (h) return `${{h}}h ${{m}}m`;
+                              if (m) return `${{m}}m ${{sec}}s`;
+                              return `${{sec}}s`;
+                            }}
+                            function tick(){{
+                              const now = Date.now();
+                              if (now >= start - preLive && now < end){{
+                                el.textContent = "Class is LIVE. You can join now.";
+                              }} else if (now < start - preLive){{
+                                el.textContent = "Countdown: " + fmt(start - now);
+                              }} else if (now >= end){{
+                                el.textContent = "This class has ended.";
+                              }} else {{
+                                el.textContent = "Starting any moment…";
+                              }}
+                              setTimeout(tick, 1000);
+                            }}
+                            tick();
+                          }})();
+                        </script>
+                        """,
+                        height=28,
+                    )
+
+#
+
 
         # ===================== CALENDAR TAB BANNER =====================
         with st.container():
@@ -5788,132 +5925,6 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
-
-                    # === JOINING REMINDERS (countdown + device notifications) =========================
-            from datetime import timezone as _tz
-            NOW_UTC = _dt.utcnow()
-
-            def _compute_next_class_instance(now_utc: _dt):
-                """
-                Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
-                within the course window, based on parsed `_blocks`.
-                """
-                if not _blocks:
-                    return None, None, ""
-                _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-
-                best = None  # tuple(start_dt, end_dt, label)
-                # Search up to 8 weeks ahead to be safe
-                horizon_days = 7 * 8
-                start_search_date = max(start_date_obj, now_utc.date())
-                for add in range(horizon_days):
-                    d = start_search_date + _td(days=add)
-                    if d > end_date_obj:
-                        break
-                    widx = d.weekday()
-                    for blk in _blocks:
-                        if any(_wmap[c] == widx for c in blk["byday"]):
-                            sh, sm = blk["start"]; eh, em = blk["end"]
-                            sdt = _dt(d.year, d.month, d.day, sh, sm)     # Accra == UTC
-                            edt = _dt(d.year, d.month, d.day, eh, em)
-                            if edt <= now_utc:
-                                continue
-                            # pretty label like "Thu 22 Aug • 6:00–7:00 PM"
-                            def _fmt_ampm(h, m):
-                                ap = "AM" if h < 12 else "PM"
-                                hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                                return f"{hh}:{m:02d}{ap}"
-                            weekday = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][widx]
-                            label = f"{weekday} {sdt.strftime('%d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
-                            cand = (sdt, edt, label)
-                            if (best is None) or (sdt < best[0]):
-                                best = cand
-                return best if best else (None, None, "")
-
-            nxt_start, nxt_end, nxt_label = _compute_next_class_instance(NOW_UTC)
-
-            def _human_delta(ms):
-                secs = max(0, int(ms // 1000))
-                d, r = divmod(secs, 86400)
-                h, r = divmod(r, 3600)
-                m, s = divmod(r, 60)
-                if d:   return f"{d}d {h}h {m}m"
-                if h:   return f"{h}h {m}m"
-                if m>0: return f"{m}m {s}s"
-                return f"{s}s"
-
-            if nxt_start and nxt_end:
-                now_ms = int(NOW_UTC.timestamp() * 1000)
-                start_ms = int(nxt_start.timestamp() * 1000)
-                end_ms   = int(nxt_end.timestamp()   * 1000)
-                pre_live_window_ms = 5 * 60 * 1000  # 5 minutes before start
-
-                is_live_window = (now_ms >= start_ms - pre_live_window_ms) and (now_ms < end_ms)
-                time_to_start_ms = start_ms - now_ms
-
-                # ---- UI card
-                status_badge = "🟢 Live now" if is_live_window else f"⏳ Starts in {_human_delta(time_to_start_ms)}"
-                st.markdown(
-                    f"""
-                    <div style="
-                        margin-top:8px;margin-bottom:8px;padding:12px 14px;
-                        background:#ecfeff;border:1px solid #bae6fd;border-radius:10px;
-                        display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
-                      <div style="font-weight:700;color:#0f172a;">Next class</div>
-                      <div style="color:#0369a1;">{nxt_label}</div>
-                      <span style="margin-left:auto;background:{'#dcfce7' if is_live_window else '#fef9c3'};
-                                   color:{'#166534' if is_live_window else '#854d0e'};
-                                   padding:3px 10px;border-radius:999px;font-weight:700;">
-                        {status_badge}
-                      </span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                # ---- Live countdown (client-side; updates every second)
-                if components:
-                    components.html(
-                        f"""
-                        <div id="jrCountdown" style="margin:4px 0 10px 0;color:#0f172a;font-weight:600;"></div>
-                        <script>
-                          (function(){{
-                            const start = {start_ms};
-                            const end   = {end_ms};
-                            const preLive = {pre_live_window_ms};
-                            const el = document.getElementById('jrCountdown');
-                            function fmt(ms){{
-                              ms = Math.max(0, ms);
-                              const s = Math.floor(ms/1000);
-                              const d = Math.floor(s/86400);
-                              const h = Math.floor((s%86400)/3600);
-                              const m = Math.floor((s%3600)/60);
-                              const sec = s%60;
-                              if (d) return `${{d}}d ${{h}}h ${{m}}m`;
-                              if (h) return `${{h}}h ${{m}}m`;
-                              if (m) return `${{m}}m ${{sec}}s`;
-                              return `${{sec}}s`;
-                            }}
-                            function tick(){{
-                              const now = Date.now();
-                              if (now >= start - preLive && now < end){{
-                                el.textContent = "Class is LIVE. You can join now.";
-                              }} else if (now < start - preLive){{
-                                el.textContent = "Countdown: " + fmt(start - now);
-                              }} else if (now >= end){{
-                                el.textContent = "This class has ended.";
-                              }} else {{
-                                el.textContent = "Starting any moment…";
-                              }}
-                              setTimeout(tick, 1000);
-                            }}
-                            tick();
-                          }})();
-                        </script>
-                        """,
-                        height=28,
-                    )
-
 
 
         # ===================== CLASS ROSTER =====================
