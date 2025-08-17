@@ -5110,7 +5110,7 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER (Zoom + View + Tutor + Next-class countdown w/ LIVE) =====================
+        # ===================== ZOOM HEADER + JOINING REMINDERS (merged) =====================
         # ensure urllib alias exists
         try:
             _ = _urllib.quote
@@ -5150,7 +5150,7 @@ if tab == "My Course":
             return mid_digits, pwd
 
         with st.container():
-            # Banner
+            # Header banner
             st.markdown(
                 """
                 <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
@@ -5162,7 +5162,7 @@ if tab == "My Course":
                 unsafe_allow_html=True,
             )
 
-            # Source (secrets can override). Passcode is fixed to 'german'.
+            # Zoom source (secrets can override link/ID). Passcode fixed to 'german'.
             ZOOM = {
                 "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
                 "meeting_id": "688 690 0916",
@@ -5176,38 +5176,66 @@ if tab == "My Course":
             except Exception:
                 pass
 
-            # Parse link to keep meeting id synced; force passcode = german
+            # Keep meeting ID synced with link; force passcode = german
             _mid_digits, _ = _parse_zoom_invite(
                 ZOOM.get("link", ""), ZOOM.get("meeting_id", ""), ZOOM.get("passcode", "")
             )
             ZOOM["meeting_id"] = " ".join([_mid_digits[i:i+3] for i in range(0, len(_mid_digits), 3)])
             ZOOM["passcode"] = "german"
 
-            # Build deep-link (opens Zoom app directly)
+            # Deep-link (opens Zoom app directly)
             _pwd_enc = _urllib.quote(ZOOM["passcode"])
             zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
 
-            # Tutor name (fixed + optional per-class override)
+            # Tutor (fixed + per-class override via secrets)
             TUTOR_NAME = "Felix Asadu"
             try:
                 TUTOR_NAME = (st.secrets.get("tutors", {}).get(class_name, TUTOR_NAME)) or TUTOR_NAME
             except Exception:
                 pass
 
-            # Compute the next class start/end + label from your schedule (_blocks, start_date_obj, end_date_obj)
+            # --- Top row: Zoom buttons + class/tutor info ---
+            z1, z2 = st.columns([3, 2])
+            with z1:
+                # Join (browser)
+                try:
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
+                except Exception:
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+                # Join (app)
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `german`")
+
+            with z2:
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n"
+                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**",
+                    icon="📅",
+                )
+
+            # === JOINING REMINDERS (countdown + device notifications) =========================
+            NOW_UTC = _dt.utcnow()
+
             def _compute_next_class_instance(now_utc: _dt):
+                """
+                Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
+                within the course window, based on parsed `_blocks`.
+                """
                 try:
                     _ = _blocks
                 except NameError:
                     return None, None, ""
-                if not (_blocks and start_date_obj and end_date_obj):
+                if not _blocks:
                     return None, None, ""
                 _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-                def _fmt_ampm(h, m):
-                    ap = "AM" if h < 12 else "PM"
-                    hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                    return f"{hh}:{m:02d}{ap}"
-                best = None
+
+                best = None  # tuple(start_dt, end_dt, label)
+                # Search up to 8 weeks ahead to be safe
                 horizon_days = 7 * 8
                 start_search_date = max(start_date_obj, now_utc.date())
                 for add in range(horizon_days):
@@ -5222,6 +5250,11 @@ if tab == "My Course":
                             edt = _dt(d.year, d.month, d.day, eh, em)
                             if edt <= now_utc:
                                 continue
+                            # pretty label like "Thu 22 Aug • 6:00–7:00 PM"
+                            def _fmt_ampm(h, m):
+                                ap = "AM" if h < 12 else "PM"
+                                hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                                return f"{hh}:{m:02d}{ap}"
                             weekday = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][widx]
                             label = f"{weekday} {sdt.strftime('%d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
                             cand = (sdt, edt, label)
@@ -5229,117 +5262,151 @@ if tab == "My Course":
                                 best = cand
                 return best if best else (None, None, "")
 
-            NOW_UTC = _dt.utcnow()
             nxt_start, nxt_end, nxt_label = _compute_next_class_instance(NOW_UTC)
 
-            # Layout
-            z1, z2 = st.columns([3, 2])
+            def _human_delta(ms):
+                secs = max(0, int(ms // 1000))
+                d, r = divmod(secs, 86400)
+                h, r = divmod(r, 3600)
+                m, s = divmod(r, 60)
+                if d:   return f"{d}d {h}h {m}m"
+                if h:   return f"{h}h {m}m"
+                if m>0: return f"{m}m {s}s"
+                return f"{s}s"
 
-            with z1:
-                # Primary join (browser)
-                try:
-                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
-                except Exception:
-                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+            if nxt_start and nxt_end:
+                now_ms = int(NOW_UTC.timestamp() * 1000)
+                start_ms = int(nxt_start.timestamp() * 1000)
+                end_ms   = int(nxt_end.timestamp()   * 1000)
+                pre_live_window_ms = 5 * 60 * 1000  # 5 minutes before start
 
-                # Open in Zoom app
-                try:
-                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
-                except Exception:
-                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+                is_live_window = (now_ms >= start_ms - pre_live_window_ms) and (now_ms < end_ms)
+                time_to_start_ms = start_ms - now_ms
 
-                # Meeting info
-                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                st.write(f"**Passcode:** `german`")
-
-            with z2:
-                # Viewing + Tutor
-                st.info(
-                    f"You’re viewing: **{class_name}**  \n"
-                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**",
-                    icon="📅",
+                # ---- UI card
+                status_badge = "🟢 Live now" if is_live_window else f"⏳ Starts in {_human_delta(time_to_start_ms)}"
+                st.markdown(
+                    f"""
+                    <div style="
+                        margin-top:8px;margin-bottom:8px;padding:12px 14px;
+                        background:#ecfeff;border:1px solid #bae6fd;border-radius:10px;
+                        display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+                      <div style="font-weight:700;color:#0f172a;">Next class</div>
+                      <div style="color:#0369a1;">{nxt_label}</div>
+                      <span style="margin-left:auto;background:{'#dcfce7' if is_live_window else '#fef9c3'};
+                                   color:{'#166534' if is_live_window else '#854d0e'};
+                                   padding:3px 10px;border-radius:999px;font-weight:700;">
+                        {status_badge}
+                      </span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
-                # Next class countdown with LIVE switch
-                if nxt_start and nxt_end:
-                    st.markdown(
+                # ---- Primary actions (reuse your Zoom variables)
+                a1, a2, a3 = st.columns([2, 2, 1])
+                with a1:
+                    try:
+                        st.link_button("➡️ Join Zoom (Browser)", ZOOM["link"], use_container_width=True, key="jr_join_web")
+                    except Exception:
+                        st.markdown(f"[➡️ Join Zoom (Browser)]({ZOOM['link']})")
+                with a2:
+                    try:
+                        st.link_button("📱 Open in Zoom App", zoom_deeplink, use_container_width=True, key="jr_join_app")
+                    except Exception:
+                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+                with a3:
+                    st.markdown("[🧪 Test call](https://zoom.us/test)")
+
+                # ---- Live countdown (client-side; updates every second)
+                if components:
+                    components.html(
                         f"""
-                        <div style="
-                            margin-top:8px;margin-bottom:8px;padding:12px 14px;
-                            background:#ecfeff;border:1px solid #bae6fd;border-radius:10px;
-                            display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
-                          <div style="font-weight:700;color:#0f172a;">Next class</div>
-                          <div style="color:#0369a1;">{nxt_label}</div>
-                          <span id="ncBadge" style="margin-left:auto;background:#fef9c3;
-                                       color:#854d0e;padding:3px 10px;border-radius:999px;font-weight:700;">
-                            ⏳ Starts in …
-                          </span>
-                        </div>
-                        <div id="ncCountdown" style="margin:4px 0 0 0;color:#0f172a;font-weight:600;"></div>
+                        <div id="jrCountdown" style="margin:4px 0 10px 0;color:#0f172a;font-weight:600;"></div>
+                        <script>
+                          (function(){{
+                            const start = {start_ms};
+                            const end   = {end_ms};
+                            const preLive = {pre_live_window_ms};
+                            const el = document.getElementById('jrCountdown');
+                            function fmt(ms){{
+                              ms = Math.max(0, ms);
+                              const s = Math.floor(ms/1000);
+                              const d = Math.floor(s/86400);
+                              const h = Math.floor((s%86400)/3600);
+                              const m = Math.floor((s%3600)/60);
+                              const sec = s%60;
+                              if (d) return `${{d}}d ${{h}}h ${{m}}m`;
+                              if (h) return `${{h}}h ${{m}}m`;
+                              if (m) return `${{m}}m ${{sec}}s`;
+                              return `${{sec}}s`;
+                            }}
+                            function tick(){{
+                              const now = Date.now();
+                              if (now >= start - preLive && now < end){{
+                                el.textContent = "Class is LIVE. You can join now.";
+                              }} else if (now < start - preLive){{
+                                el.textContent = "Countdown: " + fmt(start - now);
+                              }} else if (now >= end){{
+                                el.textContent = "This class has ended.";
+                              }} else {{
+                                el.textContent = "Starting any moment…";
+                              }}
+                              setTimeout(tick, 1000);
+                            }}
+                            tick();
+                          }})();
+                        </script>
                         """,
-                        unsafe_allow_html=True
+                        height=28,
                     )
-                    if components:
-                        start_ms = int(nxt_start.timestamp() * 1000)
-                        end_ms   = int(nxt_end.timestamp()   * 1000)
-                        pre_live_window_ms = 5 * 60 * 1000  # 5 minutes before start
 
-                        components.html(
-                            f"""
-                            <script>
-                              (function(){{
-                                const start = {start_ms};
-                                const end   = {end_ms};
-                                const preLive = {pre_live_window_ms};
-                                const el = document.getElementById('ncCountdown');
-                                const badge = document.getElementById('ncBadge');
+                # ---- Device notification scheduler (browser push)
+                st.markdown("**🔔 Reminder on this device** (no email required)")
+                col_r1, col_r2 = st.columns([2, 1])
+                with col_r1:
+                    notif_min = st.selectbox("Notify me before start", [60, 30, 15, 5], index=2, key="jr_notif_min")
+                with col_r2:
+                    set_btn = st.button("Schedule reminder", key="jr_schedule_btn")
 
-                                function fmt(ms){{
-                                  ms = Math.max(0, ms);
-                                  const s = Math.floor(ms/1000);
-                                  const d = Math.floor(s/86400);
-                                  const h = Math.floor((s%86400)/3600);
-                                  const m = Math.floor((s%3600)/60);
-                                  const sec = s%60;
-                                  if (d) return `${{d}}d ${{h}}h ${{m}}m`;
-                                  if (h) return `${{h}}h ${{m}}m`;
-                                  if (m) return `${{m}}m ${{sec}}s`;
-                                  return `${{sec}}s`;
-                                }}
-
-                                function setBadge(txt, bg, fg){{
-                                  if (!badge) return;
-                                  badge.textContent = txt;
-                                  badge.style.background = bg;
-                                  badge.style.color = fg;
-                                }}
-
-                                function tick(){{
-                                  const now = Date.now();
-                                  if (now < start - preLive) {{
-                                    // Precountdown
-                                    el.textContent = "Countdown: " + fmt((start - preLive) - now);
-                                    setBadge("⏳ Starts soon", "#fef9c3", "#854d0e");
-                                  }} else if (now >= start - preLive && now < start) {{
-                                    // Inside pre-live window
-                                    el.textContent = "Countdown: " + fmt(start - now);
-                                    setBadge("⏳ Starting shortly", "#fde68a", "#92400e");
-                                  }} else if (now >= start && now < end) {{
-                                    // Live
-                                    el.textContent = "LIVE • Ends in " + fmt(end - now);
-                                    setBadge("🟢 LIVE", "#dcfce7", "#166534");
-                                  }} else {{
-                                    el.textContent = "This class has ended.";
-                                    setBadge("Ended", "#e5e7eb", "#374151");
-                                  }}
-                                  setTimeout(tick, 1000);
-                                }}
-                                tick();
-                              }})();
-                            </script>
-                            """,
-                            height=0,
-                        )
+                if set_btn and components:
+                    # Use ISO for robust parsing in JS
+                    _iso = nxt_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    components.html(
+                        f"""
+                        <script>
+                          (async function(){{
+                            try {{
+                              const iso = "{_iso}";
+                              const mins = {int(st.session_state.get('jr_notif_min', 15))};
+                              const startMs = Date.parse(iso);
+                              const delay = Math.max(0, startMs - Date.now() - mins*60*1000);
+                              if (!("Notification" in window)) {{
+                                alert("Your browser doesn't support notifications."); return;
+                              }}
+                              const perm = await Notification.requestPermission();
+                              if (perm !== "granted") {{
+                                alert("Notifications are blocked. Please allow them in your browser.");
+                                return;
+                              }}
+                              setTimeout(() => {{
+                                const n = new Notification("Class starts soon", {{
+                                  body: "{class_name} begins in " + mins + " minutes. Tap to join.",
+                                }});
+                                try {{ n.onclick = () => window.open("{ZOOM['link']}", "_blank"); }} catch(e) {{}}
+                              }}, delay);
+                              alert("Reminder scheduled on this device" + (delay<5000 ? " (starts now)" : "") + ".");
+                            }} catch(e) {{
+                              console.log(e);
+                              alert("Could not schedule a reminder here.");
+                            }}
+                          }})();
+                        </script>
+                        """,
+                        height=0,
+                    )
+            else:
+                st.info("No upcoming class found in the current course window.", icon="ℹ️")
 
         st.divider()
 
