@@ -8341,16 +8341,66 @@ if tab == "Exams Mode & Custom Chat":
         import urllib.parse as _urllib
         from io import BytesIO
 
-        today_str = _dt.date.today().isoformat()
-        student_code = (st.session_state.get("student_code") or "").strip()
+        # Optional: validate code against your Students sheet
+        STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
+
+        def _norm_code(v: str) -> str:
+            return str(v or "").strip().lower().replace(" ", "")
+
+        # 1) Try session
+        student_code = _norm_code(st.session_state.get("student_code"))
+
+        # 2) Fallback to URL (?code=STUDENTCODE)
+        if not student_code:
+            try:
+                qp = st.query_params
+                if isinstance(qp.get("code"), list):
+                    q_from_url = qp.get("code")[0]
+                else:
+                    q_from_url = qp.get("code", "")
+                q_from_url = _norm_code(q_from_url)
+                if q_from_url:
+                    student_code = q_from_url
+                    st.session_state["student_code"] = student_code
+            except Exception:
+                pass
+
+        # 3) Final fallback: ask user
+        if not student_code:
+            st.warning("Missing student code. Please enter it to continue.")
+            _entered = st.text_input("Student Code", value="", key="enter_student_code")
+            if st.button("Continue", type="primary", key="enter_code_btn"):
+                _entered = _norm_code(_entered)
+                if _entered:
+                    st.session_state["student_code"] = _entered
+                    st.rerun()
+            st.stop()
+
+        # Validate code against the Students sheet (soft-fail if sheet not reachable)
+        try:
+            import pandas as pd
+            df_students = pd.read_csv(STUDENTS_CSV_URL)
+            # find a likely column name
+            _cands = {c.strip().lower(): c for c in df_students.columns}
+            for key in ["student_code", "studentcode", "code", "student code"]:
+                if key in _cands:
+                    col = _cands[key]
+                    codes = set(_norm_code(x) for x in df_students[col].astype(str))
+                    if student_code not in codes:
+                        st.error("Student code not found in our records. Please check and try again.")
+                        st.stop()
+                    break
+        except Exception:
+            # Not fatal: continue if validation can’t run
+            pass
 
         # Daily upload limit (per student)
+        today_str = _dt.date.today().isoformat()
         uploads_ref = db.collection("pron_uses").document(student_code or "unknown")
         doc = uploads_ref.get()
         data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
         count = data.get("count", 0)
-
         if last_date != today_str:
             count = 0
         if count >= 3:
@@ -8376,15 +8426,10 @@ if tab == "Exams Mode & Custom Chat":
                 """
             )
 
-        # External recorder link (includes student code if available)
+        # External recorder link (includes student code)
         _host = "https://language-academy-3e1de.web.app"
-        if student_code:
-            rec_url = f"{_host}/recorder?code={_urllib.quote(student_code)}"
-            rec_url_fallback = f"{_host}/recorder.html?code={_urllib.quote(student_code)}"
-        else:
-            rec_url = f"{_host}/recorder"
-            rec_url_fallback = f"{_host}/recorder.html"
-            st.warning("Student code not found in session; the recorder may ask you to enter it.")
+        rec_url = f"{_host}/recorder?code={_urllib.quote(student_code)}"
+        rec_url_fallback = f"{_host}/recorder.html?code={_urllib.quote(student_code)}"
 
         st.markdown(
             f"""
@@ -8406,7 +8451,7 @@ if tab == "Exams Mode & Custom Chat":
         )
 
         if audio_file:
-            # Preview player
+            # Preview
             try:
                 audio_file.seek(0)
             except Exception:
@@ -8422,12 +8467,12 @@ if tab == "Exams Mode & Custom Chat":
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = transcript_resp.text or ""
+                transcript_text = (transcript_resp.text or "").strip()
             except Exception as e:
                 st.error(f"Sorry, could not process audio: {e}")
                 st.stop()
 
-            if not transcript_text.strip():
+            if not transcript_text:
                 st.error("We couldn’t detect any speech. Please re-record closer to the mic and try again.")
                 st.stop()
 
