@@ -5003,364 +5003,523 @@ if tab == "My Course":
             st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
 
+
+
+
     if cb_subtab == "🧑‍🏫 Classroom":
-            # --- Classroom banner (top of subtab) ---
+        # --- Classroom banner (top of subtab) ---
+        st.markdown(
+            '''
+            <div style="
+                padding: 16px;
+                background: #0ea5e9;
+                color: #ffffff;
+                border-radius: 8px;
+                text-align: center;
+                margin-bottom: 16px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">
+                <span style="font-size:1.8rem; font-weight:600;">🧑‍🏫 Classroom</span>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+        st.divider()
+
+        # ---------- DB (Firestore) bootstrap ----------
+        def _get_db():
+            # Use existing global if present
+            _existing = globals().get("db")
+            if _existing is not None:
+                return _existing
+            # Try Firebase Admin SDK first (firestore.client())
+            try:
+                import firebase_admin
+                from firebase_admin import firestore as fbfs
+                if not firebase_admin._apps:
+                    firebase_admin.initialize_app()
+                return fbfs.client()
+            except Exception:
+                pass
+            # Fallback to Google Cloud Firestore (firestore.Client())
+            try:
+                from google.cloud import firestore as gcf
+                return gcf.Client()
+            except Exception:
+                st.error(
+                    "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
+                    icon="🛑",
+                )
+                raise
+
+        db = _get_db()
+
+        # helpers
+        import math, os, requests
+        try:
+            import streamlit.components.v1 as components
+        except Exception:
+            components = None
+
+        def _safe_str(v, default: str = "") -> str:
+            if v is None:
+                return default
+            if isinstance(v, float):
+                try:
+                    if math.isnan(v):
+                        return default
+                except Exception:
+                    pass
+            s = str(v).strip()
+            return "" if s.lower() in ("nan", "none") else s
+
+        def _safe_upper(v, default: str = "") -> str:
+            s = _safe_str(v, default)
+            return s.upper() if s else default
+
+        student_row   = st.session_state.get("student_row", {}) or {}
+        student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
+        student_name  = _safe_str(student_row.get("Name"), "Student")
+        student_level = _safe_upper(student_row.get("Level"), "A1")
+        class_name    = _safe_str(student_row.get("ClassName")) or f"{student_level} General"
+
+        ADMINS = set()
+        try:
+            ADMINS = set(st.secrets["roles"]["admins"])
+        except Exception:
+            pass
+        IS_ADMIN = (student_code in ADMINS)
+
+        # ---------- slack helper (use global notify_slack if present; else env/secrets) ----------
+        def _notify_slack(text: str):
+            try:
+                fn = globals().get("notify_slack")
+                if callable(fn):
+                    try:
+                        fn(text)
+                        return
+                    except Exception:
+                        pass
+                url = (os.getenv("SLACK_WEBHOOK_URL") or
+                       (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
+                if url:
+                    try:
+                        requests.post(url, json={"text": text}, timeout=6)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+          # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+        # utilities & guards
+        import re, io, json, hashlib, requests
+        from uuid import uuid4
+        try:
+            import streamlit.components.v1 as components
+        except Exception:
+            components = None
+
+        def _ukey(base: str) -> str:
+            # unique widget key per class (prevents duplicate-key crashes)
+            seed = f"{base}|{class_name}"
+            return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
+
+        # ensure urllib alias exists
+        try:
+            _ = _urllib.quote
+        except Exception:
+            import urllib.parse as _urllib
+
+        with st.container():
+            st.markdown(
+                """
+                <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                  📣 <b>Zoom Classroom (Official)</b><br>
+                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            ZOOM = {
+                "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+                "meeting_id": "688 690 0916",
+                "passcode": "german",
+            }
+            # Allow secrets override
+            try:
+                zs = st.secrets.get("zoom", {})
+                if zs.get("link"):       ZOOM["link"]       = zs["link"]
+                if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
+            except Exception:
+                pass
+
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+
+            z1, z2 = st.columns([3, 2])
+            with z1:
+                # Primary join button (browser)
+                try:
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
+                except Exception:
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                # Secondary: open in Zoom app (mobile deep link)
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+
+                # Copy helpers (mobile-friendly, safe escaping)
+                _link_safe = ZOOM["link"].replace("'", "\\'")
+                _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
+                if components:
+                    components.html(
+                        f"""
+                        <div style="display:flex;gap:8px;margin-top:8px;">
+                          <button id="zCopyLink"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Link
+                          </button>
+                          <button id="zCopyId"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy ID
+                          </button>
+                          <button id="zCopyPwd"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Passcode
+                          </button>
+                        </div>
+                        <script>
+                          (function(){{
+                            try {{
+                              var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                              function wire(btnId, txt, label) {{
+                                var b = document.getElementById(btnId);
+                                if (!b) return;
+                                b.addEventListener('click', function(){{
+                                  navigator.clipboard.writeText(txt).then(function(){{
+                                    b.innerText = '✓ Copied ' + label;
+                                    setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                                  }}).catch(function(){{}});
+                                }});
+                              }}
+                              wire('zCopyLink', link, 'Link');
+                              wire('zCopyId',   mid,  'ID');
+                              wire('zCopyPwd',  pwd,  'Passcode');
+                            }} catch(e) {{}}
+                          }})();
+                        </script>
+                        """,
+                        height=72,
+                    )
+
+            with z2:
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n\n"
+                    "✅ Use the **calendar below** to receive automatic class reminders.",
+                    icon="📅",
+                )
+
+        st.divider()
+
+        # ===================== CALENDAR TAB BANNER =====================
+        with st.container():
             st.markdown(
                 '''
                 <div style="
-                    padding: 16px;
+                    padding: 12px;
                     background: #0ea5e9;
                     color: #ffffff;
                     border-radius: 8px;
                     text-align: center;
-                    margin-bottom: 16px;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    margin-bottom: 12px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                    font-weight: 600;
                 ">
-                    <span style="font-size:1.8rem; font-weight:600;">🧑‍🏫 Classroom</span>
+                    <span style="font-size:1.2rem;">📅 Calendar</span>
+                    <div style="font-weight:500; font-size:0.98rem; margin-top:2px;">
+                        You’re in the <u>Calendar</u> section — download the full course schedule or add reminders to your phone.
+                    </div>
                 </div>
                 ''',
                 unsafe_allow_html=True
             )
-            st.divider()
+        st.divider()
 
-            # ---------- DB (Firestore) bootstrap ----------
-            def _get_db():
-                # Use existing global if present
-                _existing = globals().get("db")
-                if _existing is not None:
-                    return _existing
-                # Try Firebase Admin SDK first (firestore.client())
-                try:
-                    import firebase_admin
-                    from firebase_admin import firestore as fbfs
-                    if not firebase_admin._apps:
-                        firebase_admin.initialize_app()
-                    return fbfs.client()
-                except Exception:
-                    pass
-                # Fallback to Google Cloud Firestore (firestore.Client())
-                try:
-                    from google.cloud import firestore as gcf
-                    return gcf.Client()
-                except Exception:
-                    st.error(
-                        "Firestore client isn't configured. Provide Firebase Admin creds or set GOOGLE_APPLICATION_CREDENTIALS.",
-                        icon="🛑",
-                    )
-                    raise
+        # ===================== CALENDAR QUICK ADD (no schedule/dictionary UI) =====================
+        from datetime import datetime as _dt, timedelta as _td
+        import urllib.parse as _urllib  # (alias used below)
 
-            db = _get_db()
+        # Try dateutil if available (for robust date parsing); fall back gracefully.
+        try:
+            from dateutil import parser as _dateparse
+        except Exception:
+            _dateparse = None
 
-            # ---------- helpers ----------
-            import math, os, requests, re, io, json, hashlib
-            from uuid import uuid4
+        def _load_group_schedules():
+            # 1) global
+            cfg = globals().get("GROUP_SCHEDULES")
+            if isinstance(cfg, dict) and cfg:
+                return cfg
+            # 2) session_state
+            cfg = st.session_state.get("GROUP_SCHEDULES")
+            if isinstance(cfg, dict) and cfg:
+                globals()["GROUP_SCHEDULES"] = cfg
+                return cfg
+            # 3) secrets
             try:
-                import streamlit.components.v1 as components
-            except Exception:
-                components = None
-
-            def _safe_str(v, default: str = "") -> str:
-                if v is None:
-                    return default
-                if isinstance(v, float):
-                    try:
-                        if math.isnan(v):
-                            return default
-                    except Exception:
-                        pass
-                s = str(v).strip()
-                return "" if s.lower() in ("nan", "none") else s
-
-            def _safe_upper(v, default: str = "") -> str:
-                s = _safe_str(v, default)
-                return s.upper() if s else default
-
-            # student context
-            student_row   = st.session_state.get("student_row", {}) or {}
-            student_code  = _safe_str(student_row.get("StudentCode"), "demo001")
-            student_name  = _safe_str(student_row.get("Name"), "Student")
-            student_level = _safe_upper(student_row.get("Level"), "A1")
-            class_name    = _safe_str(student_row.get("ClassName")) or f"{student_level} General"
-
-            ADMINS = set()
-            try:
-                ADMINS = set(st.secrets["roles"]["admins"])
+                raw = st.secrets.get("group_schedules", None)
+                if raw:
+                    cfg = json.loads(raw) if isinstance(raw, str) else raw
+                    if isinstance(cfg, dict) and cfg:
+                        st.session_state["GROUP_SCHEDULES"] = cfg
+                        globals()["GROUP_SCHEDULES"] = cfg
+                        return cfg
             except Exception:
                 pass
-            IS_ADMIN = (student_code in ADMINS)
-
-            # slack notify helper
-            def _notify_slack(text: str):
-                try:
-                    fn = globals().get("notify_slack")
-                    if callable(fn):
-                        try:
-                            fn(text)
-                            return
-                        except Exception:
-                            pass
-                    url = (os.getenv("SLACK_WEBHOOK_URL") or
-                           (st.secrets.get("slack", {}).get("webhook_url", "") if hasattr(st, "secrets") else "")).strip()
-                    if url:
-                        try:
-                            requests.post(url, json={"text": text}, timeout=6)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-            # ===================== TOP: schedule + tutor + next class =====================
-            from datetime import datetime as _dt, timedelta as _td
-
-            # unique widget key per class (prevents duplicate-key crashes)
-            def _ukey(base: str) -> str:
-                seed = f"{base}|{class_name}"
-                return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
-
-            # tutor name (secrets mapping optional)
-            TUTOR_NAME = "Felix Asadu"
+            # 4) Firestore (optional)
             try:
-                TUTOR_NAME = (st.secrets.get("tutors", {}).get(class_name, TUTOR_NAME)) or TUTOR_NAME
+                doc = db.collection("config").document("group_schedules").get()
+                if doc and getattr(doc, "exists", False):
+                    data = doc.to_dict() or {}
+                    cfg = data.get("data", data)
+                    if isinstance(cfg, dict) and cfg:
+                        st.session_state["GROUP_SCHEDULES"] = cfg
+                        globals()["GROUP_SCHEDULES"] = cfg
+                        return cfg
             except Exception:
                 pass
+            # 5) BUILT-IN FALLBACK (kept private; we won't render it anywhere)
+            return {
+                "A1 Munich Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday"],
+                    "time": "6:00pm–7:00pm",
+                    "start_date": "2025-07-08",
+                    "end_date": "2025-09-02",
+                    "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
+                },
+                "A1 Berlin Klasse": {
+                    "days": ["Thursday", "Friday", "Saturday"],
+                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+                    "start_date": "2025-06-14",
+                    "end_date": "2025-08-09",
+                    "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
+                },
+                "A1 Koln Klasse": {
+                    "days": ["Thursday", "Friday", "Saturday"],
+                    "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
+                    "start_date": "2025-08-15",
+                    "end_date": "2025-10-11",
+                    "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
+                },
+                "A2 Munich Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday"],
+                    "time": "7:30pm–9:00pm",
+                    "start_date": "2025-06-24",
+                    "end_date": "2025-08-26",
+                    "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
+                },
+                "A2 Berlin Klasse": {
+                    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                    "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
+                    "start_date": "",
+                    "end_date": "",
+                    "doc_url": ""
+                },
+                "A2 Koln Klasse": {
+                    "days": ["Wednesday", "Thursday", "Friday"],
+                    "time": "11:00am–12:00pm",
+                    "start_date": "2025-08-06",
+                    "end_date": "2025-10-08",
+                    "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
+                },
+                "B1 Munich Klasse": {
+                    "days": ["Thursday", "Friday"],
+                    "time": "7:30pm–9:00pm",
+                    "start_date": "2025-08-07",
+                    "end_date": "2025-11-07",
+                    "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
+                },
+                "B2 Munich Klasse": {
+                    "days": ["Friday", "Saturday"],
+                    "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
+                    "start_date": "2025-08-08",
+                    "end_date": "2025-10-08",
+                    "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
+                },
+            }
 
-            # Robust date parsing (optional)
-            try:
-                from dateutil import parser as _dateparse
-            except Exception:
-                _dateparse = None
-
-            # Built-in fallback dictionary kept (so you always have data)
-            def _load_group_schedules():
-                # 1) global
-                cfg = globals().get("GROUP_SCHEDULES")
-                if isinstance(cfg, dict) and cfg:
-                    return cfg
-                # 2) session_state
-                cfg = st.session_state.get("GROUP_SCHEDULES")
-                if isinstance(cfg, dict) and cfg:
-                    globals()["GROUP_SCHEDULES"] = cfg
-                    return cfg
-                # 3) secrets
-                try:
-                    raw = st.secrets.get("group_schedules", None)
-                    if raw:
-                        cfg = json.loads(raw) if isinstance(raw, str) else raw
-                        if isinstance(cfg, dict) and cfg:
-                            st.session_state["GROUP_SCHEDULES"] = cfg
-                            globals()["GROUP_SCHEDULES"] = cfg
-                            return cfg
-                except Exception:
-                    pass
-                # 4) Firestore (optional)
-                try:
-                    doc = db.collection("config").document("group_schedules").get()
-                    if doc and getattr(doc, "exists", False):
-                        data = doc.to_dict() or {}
-                        cfg = data.get("data", data)
-                        if isinstance(cfg, dict) and cfg:
-                            st.session_state["GROUP_SCHEDULES"] = cfg
-                            globals()["GROUP_SCHEDULES"] = cfg
-                            return cfg
-                except Exception:
-                    pass
-                # 5) FALLBACK DICTIONARY (requested)
-                return {
-                    "A1 Munich Klasse": {
-                        "days": ["Monday", "Tuesday", "Wednesday"],
-                        "time": "6:00pm–7:00pm",
-                        "start_date": "2025-07-08",
-                        "end_date": "2025-09-02",
-                        "doc_url": "https://drive.google.com/file/d/1en_YG8up4C4r36v4r7E714ARcZyvNFD6/view?usp=sharing"
-                    },
-                    "A1 Berlin Klasse": {
-                        "days": ["Thursday", "Friday", "Saturday"],
-                        "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-                        "start_date": "2025-06-14",
-                        "end_date": "2025-08-09",
-                        "doc_url": "https://drive.google.com/file/d/1foK6MPoT_dc2sCxEhTJbtuK5ZzP-ERzt/view?usp=sharing"
-                    },
-                    "A1 Koln Klasse": {
-                        "days": ["Thursday", "Friday", "Saturday"],
-                        "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-                        "start_date": "2025-08-15",
-                        "end_date": "2025-10-11",
-                        "doc_url": "https://drive.google.com/file/d/1d1Ord557jGRn5NxYsmCJVmwUn1HtrqI3/view?usp=sharing"
-                    },
-                    "A2 Munich Klasse": {
-                        "days": ["Monday", "Tuesday", "Wednesday"],
-                        "time": "7:30pm–9:00pm",
-                        "start_date": "2025-06-24",
-                        "end_date": "2025-08-26",
-                        "doc_url": "https://drive.google.com/file/d/1Zr3iN6hkAnuoEBvRELuSDlT7kHY8s2LP/view?usp=sharing"
-                    },
-                    "A2 Berlin Klasse": {
-                        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                        "time": "Mon–Wed: 11:00am–12:00pm, Thu/Fri: 11:00am–12:00pm, Wed: 2:00pm–3:00pm",
-                        "start_date": "",
-                        "end_date": "",
-                        "doc_url": ""
-                    },
-                    "A2 Koln Klasse": {
-                        "days": ["Wednesday", "Thursday", "Friday"],
-                        "time": "11:00am–12:00pm",
-                        "start_date": "2025-08-06",
-                        "end_date": "2025-10-08",
-                        "doc_url": "https://drive.google.com/file/d/19cptfdlmBDYe9o84b8ZCwujmxuMCKXAD/view?usp=sharing"
-                    },
-                    "B1 Munich Klasse": {
-                        "days": ["Thursday", "Friday"],
-                        "time": "7:30pm–9:00pm",
-                        "start_date": "2025-08-07",
-                        "end_date": "2025-11-07",
-                        "doc_url": "https://drive.google.com/file/d/1CaLw9RO6H8JOr5HmwWOZA2O7T-bVByi7/view?usp=sharing"
-                    },
-                    "B2 Munich Klasse": {
-                        "days": ["Friday", "Saturday"],
-                        "time": "Fri: 2pm-3:30pm, Sat: 9:30am-10am",
-                        "start_date": "2025-08-08",
-                        "end_date": "2025-10-08",
-                        "doc_url": "https://drive.google.com/file/d/1gn6vYBbRyHSvKgqvpj5rr8OfUOYRL09W/view?usp=sharing"
-                    },
-                }
-
-            # Optional: read dates from schedule PDF (Drive)
-            def _gdrive_direct_download(url: str) -> bytes | None:
-                if not url:
-                    return None
-                m = re.search(r"/file/d/([A-Za-z0-9_-]{20,})/", url) or re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", url)
-                file_id = m.group(1) if m else None
-                if not file_id:
-                    return None
-                dl = f"https://drive.google.com/uc?export=download&id={file_id}"
-                try:
-                    r = requests.get(dl, timeout=15)
-                    if r.status_code == 200 and r.content:
-                        if b"uc-download-link" in r.content[:4000] and b"confirm" in r.content[:4000]:
-                            return None
-                        return r.content
-                except Exception:
-                    pass
+        # ---------- helpers to fetch & parse dates from schedule PDF (Drive) ----------
+        def _gdrive_direct_download(url: str) -> bytes | None:
+            if not url:
                 return None
+            m = re.search(r"/file/d/([A-Za-z0-9_-]{20,})/", url) or re.search(r"[?&]id=([A-Za-z0-9_-]{20,})", url)
+            file_id = m.group(1) if m else None
+            if not file_id:
+                return None
+            dl = f"https://drive.google.com/uc?export=download&id={file_id}"
+            try:
+                r = requests.get(dl, timeout=15)
+                if r.status_code == 200 and r.content:
+                    # If Google shows a confirmation page for large files, bail out (keep simple)
+                    if b"uc-download-link" in r.content[:4000] and b"confirm" in r.content[:4000]:
+                        return None
+                    return r.content
+            except Exception:
+                pass
+            return None
 
-            def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
-                try:
-                    from pypdf import PdfReader
-                    t = []
-                    reader = PdfReader(io.BytesIO(pdf_bytes))
-                    for p in reader.pages:
-                        try:
-                            t.append(p.extract_text() or "")
-                        except Exception:
-                            t.append("")
-                    return "\n".join(t)
-                except Exception:
-                    pass
-                try:
-                    from pdfminer.high_level import extract_text
-                    return extract_text(io.BytesIO(pdf_bytes)) or ""
-                except Exception:
-                    return ""
-
-            _DATE_PATTERNS = [
-                r"\b(20\d{2}-\d{2}-\d{2})\b",
-                r"\b(\d{1,2}/\d{1,2}/20\d{2})\b",
-                r"\b(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+20\d{2})\b",
-                r"\b((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s*20\d{2})\b",
-            ]
-
-            def _parse_any_date(raw: str):
-                if _dateparse:
-                    for dayfirst in (False, True):
-                        try:
-                            return _dateparse.parse(raw, dayfirst=dayfirst, fuzzy=True).date()
-                        except Exception:
-                            pass
-                for fmt in ("%Y-%m-%d", "%d %b %Y", "%b %d, %Y", "%m/%d/%Y", "%d/%m/%Y"):
+        def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
+            # Try pypdf first
+            try:
+                from pypdf import PdfReader
+                t = []
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+                for p in reader.pages:
                     try:
-                        return _dt.strptime(raw, fmt).date()
+                        t.append(p.extract_text() or "")
+                    except Exception:
+                        t.append("")
+                return "\n".join(t)
+            except Exception:
+                pass
+            # Fallback: pdfminer (if available)
+            try:
+                from pdfminer.high_level import extract_text
+                return extract_text(io.BytesIO(pdf_bytes)) or ""
+            except Exception:
+                return ""
+
+        _DATE_PATTERNS = [
+            r"\b(20\d{2}-\d{2}-\d{2})\b",  # 2025-08-15
+            r"\b(\d{1,2}/\d{1,2}/20\d{2})\b",  # 08/15/2025 or 15/08/2025
+            r"\b(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+20\d{2})\b",  # 15 Aug 2025
+            r"\b((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s*20\d{2})\b",  # Aug 15, 2025
+        ]
+
+        def _parse_any_date(raw: str):
+            # Prefer dateutil if present
+            if _dateparse:
+                for dayfirst in (False, True):
+                    try:
+                        return _dateparse.parse(raw, dayfirst=dayfirst, fuzzy=True).date()
                     except Exception:
                         pass
-                return None
+            # Lightweight manual attempts
+            for fmt in ("%Y-%m-%d", "%d %b %Y", "%b %d, %Y", "%m/%d/%Y", "%d/%m/%Y"):
+                try:
+                    return _dt.strptime(raw, fmt).date()
+                except Exception:
+                    pass
+            return None
 
-            def _find_dates_in_text(txt: str):
-                found = []
-                if not txt:
-                    return found
-                for pat in _DATE_PATTERNS:
-                    for m in re.finditer(pat, txt, flags=re.IGNORECASE):
-                        d = _parse_any_date(m.group(1))
-                        if d:
-                            found.append(d)
-                uniq, seen = [], set()
-                for d in sorted(found):
-                    if d not in seen:
-                        seen.add(d)
-                        uniq.append(d)
-                return uniq
+        def _find_dates_in_text(txt: str):
+            found = []
+            if not txt:
+                return found
+            for pat in _DATE_PATTERNS:
+                for m in re.finditer(pat, txt, flags=re.IGNORECASE):
+                    d = _parse_any_date(m.group(1))
+                    if d:
+                        found.append(d)
+            # de-dup + sort
+            uniq = []
+            seen = set()
+            for d in sorted(found):
+                if d not in seen:
+                    seen.add(d)
+                    uniq.append(d)
+            return uniq
 
-            def infer_start_end_from_doc(doc_url: str):
-                pdf_bytes = _gdrive_direct_download(doc_url)
-                if not pdf_bytes:
-                    return None, None
-                text = _extract_text_from_pdf(pdf_bytes)
-                dates = _find_dates_in_text(text)
-                if len(dates) >= 2:
-                    return dates[0], dates[-1]
-                if len(dates) == 1:
-                    return dates[0], None
+        def infer_start_end_from_doc(doc_url: str):
+            pdf_bytes = _gdrive_direct_download(doc_url)
+            if not pdf_bytes:
                 return None, None
+            text = _extract_text_from_pdf(pdf_bytes)
+            dates = _find_dates_in_text(text)
+            if len(dates) >= 2:
+                return dates[0], dates[-1]
+            if len(dates) == 1:
+                return dates[0], None
+            return None, None
 
-            # Load schedules
-            GROUP_SCHEDULES = _load_group_schedules()
+        GROUP_SCHEDULES = _load_group_schedules()
 
-            # Pull class config quietly
-            class_cfg   = GROUP_SCHEDULES.get(class_name, {})
-            days        = class_cfg.get("days", [])
-            time_str    = class_cfg.get("time", "")
-            start_str   = class_cfg.get("start_date", "")
-            end_str     = class_cfg.get("end_date", "")
-            doc_url     = class_cfg.get("doc_url", "")
+        # Pull class config quietly
+        class_cfg   = GROUP_SCHEDULES.get(class_name, {})
+        days        = class_cfg.get("days", [])
+        time_str    = class_cfg.get("time", "")
+        start_str   = class_cfg.get("start_date", "")
+        end_str     = class_cfg.get("end_date", "")
+        doc_url     = class_cfg.get("doc_url", "")
 
-            # Parse dates (+ infer from doc if needed)
-            start_date_obj = None
-            end_date_obj   = None
-            try:
-                if start_str:
-                    start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
-            except Exception:
-                pass
-            try:
-                if end_str:
-                    end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
-            except Exception:
-                pass
-            _inferred_start = _inferred_end = False
-            if (not start_date_obj or not end_date_obj) and doc_url:
-                s, e = infer_start_end_from_doc(doc_url)
-                if s and not start_date_obj:
-                    start_date_obj = s
-                    _inferred_start = True
-                if e and not end_date_obj:
-                    end_date_obj = e
-                    _inferred_end = True
+        # Parse dates
+        start_date_obj = None
+        end_date_obj   = None
+        try:
+            if start_str:
+                start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
+        try:
+            if end_str:
+                end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
+        except Exception:
+            pass
 
-            # Parse time & days to blocks
+        # If missing, try to infer from the schedule PDF
+        _inferred_start = _inferred_end = False
+        if (not start_date_obj or not end_date_obj) and doc_url:
+            s, e = infer_start_end_from_doc(doc_url)
+            if s and not start_date_obj:
+                start_date_obj = s
+                _inferred_start = True
+            if e and not end_date_obj:
+                end_date_obj = e
+                _inferred_end = True
+
+        if not (start_date_obj and end_date_obj and isinstance(time_str, str) and time_str.strip() and days):
+            st.warning("This class doesn’t have a full calendar setup yet. Please contact the office.", icon="⚠️")
+        else:
+            # Tell students clearly the course period (and note if inferred)
+            _note_bits = []
+            if _inferred_start or _inferred_end:
+                _note_bits.append("dates inferred from the schedule document")
+            _note = f" ({', '.join(_note_bits)})" if _note_bits else ""
+            st.info(
+                f"**Course period:** {start_date_obj.strftime('%d %b %Y')} → {end_date_obj.strftime('%d %b %Y')}{_note}",
+                icon="📅",
+            )
+
+            # ---------- day/time parsing (RELAXED) ----------
             _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
             _FULL_TO_CODE = {
                 "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
                 "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
             }
-            DEFAULT_AMPM = "pm"
+
+            DEFAULT_AMPM = "pm"  # default when AM/PM not provided
 
             def _normalize_time_groups(s: str) -> str:
                 s = (s or "").strip()
                 s = s.replace("–", "-").replace("—", "-")
-                return re.sub(
+                # e.g. "friday11 - 12" → "friday: 11 - 12"
+                s = re.sub(
                     r"(?i)\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(\d)",
                     r"\1: \2",
                     s,
                 )
+                return s
 
             def _to_24h(h, m, ampm):
                 h = int(h); m = int(m); ap = (ampm or "").lower()
@@ -5370,11 +5529,13 @@ if tab == "My Course":
 
             def _parse_time_component_relaxed(s, default_ampm=DEFAULT_AMPM):
                 s = (s or "").strip().lower()
+                # Accept "14:30", "14", "2:30pm", "2pm"
                 m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", s)
                 if not m: return None
                 hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
                 if ap:
                     return _to_24h(hh, mm, ap)
+                # No AM/PM supplied → infer 24h or apply default
                 if 0 <= hh <= 23:
                     if hh <= 12 and default_ampm in ("am","pm"):
                         return _to_24h(hh, mm, default_ampm)
@@ -5387,6 +5548,7 @@ if tab == "My Course":
                 if len(parts) != 2: return None
                 a = _parse_time_component_relaxed(parts[0], default_ampm=default_ampm)
                 if not a: return None
+                # Inherit AM/PM for second if omitted
                 ap_hint = re.search(r"(am|pm)\s*$", parts[0])
                 second_default = ap_hint.group(1) if ap_hint else default_ampm
                 b = _parse_time_component_relaxed(parts[1], default_ampm=second_default)
@@ -5405,8 +5567,10 @@ if tab == "My Course":
                 return [c] if c else []
 
             def _parse_time_blocks(time_str, days_list):
+                # Accept both "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am" AND simple "Mon–Wed 2–3"
                 s = _normalize_time_groups(time_str)
                 blocks = []
+
                 if ":" in s:
                     groups = [g.strip() for g in s.split(",") if g.strip()]
                     for g in groups:
@@ -5425,6 +5589,8 @@ if tab == "My Course":
                                 "start": (sh, sm), "end": (eh, em)
                             })
                     return blocks
+
+                # Fallback: single time for provided days (e.g., "2–3")
                 tr = _parse_time_range_relaxed(s)
                 if not tr:
                     return []
@@ -5440,33 +5606,52 @@ if tab == "My Course":
                 delta = (weekday_index - d.weekday()) % 7
                 return d + _td(days=delta)
 
-            _blocks = _parse_time_blocks(time_str, days) if (time_str and days) else []
+            # Build ICS (with 15-minute preset reminder + URL field)
+            _blocks = _parse_time_blocks(time_str, days)
 
-            # Next class finder + human delta
+            # Fallback to ensure Android links still show even if parsing was shaky
+            if not _blocks and (days and str(time_str or "").strip()):
+                tr_fallback = _parse_time_range_relaxed(str(time_str))
+                if tr_fallback:
+                    (sh, sm), (eh, em) = tr_fallback
+                    codes = []
+                    for d in (days or []):
+                        c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
+                        if c: codes.append(c)
+                    if codes:
+                        codes = sorted(set(codes), key=_WKD_ORDER.index)
+                        _blocks = [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
+
+            # === Next class countdown (human label + live ticking) ======================
             def _compute_next_class_instance(now_utc: _dt):
-                if not _blocks or not (start_date_obj and end_date_obj):
+                """Return (start_dt, end_dt, label) for the next upcoming (or in-progress) class."""
+                if not _blocks:
                     return None, None, ""
                 _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
                 best = None
+
                 cur = max(start_date_obj, now_utc.date())
                 while cur <= end_date_obj:
                     widx = cur.weekday()
                     for blk in _blocks:
                         if any(_wmap[c] == widx for c in blk["byday"]):
                             sh, sm = blk["start"]; eh, em = blk["end"]
-                            sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # Accra == UTC
+                            sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # Ghana == UTC
                             edt = _dt(cur.year, cur.month, cur.day, eh, em)
                             if edt <= now_utc:
                                 continue
+
                             def _fmt_ampm(h, m):
                                 ap = "AM" if h < 12 else "PM"
                                 hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
                                 return f"{hh}:{m:02d}{ap}"
+
                             label = f"{cur.strftime('%a %d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
                             cand = (sdt, edt, label)
                             if (best is None) or (sdt < best[0]):
                                 best = cand
                     cur += _td(days=1)
+
                 return best if best else (None, None, "")
 
             def _human_delta_ms(ms: int) -> str:
@@ -5477,215 +5662,103 @@ if tab == "My Course":
                 parts = []
                 if d: parts.append(f"{d}d")
                 if h: parts.append(f"{h}h")
-                if (d == 0) and (m or not parts): parts.append(f"{m}m")
+                if (d == 0) and (m or not parts):
+                    parts.append(f"{m}m")
                 return " ".join(parts) if parts else "0m"
 
             _now = _dt.utcnow()
             nxt_start, nxt_end, nxt_label = _compute_next_class_instance(_now)
-            start_ms = int(nxt_start.timestamp() * 1000) if nxt_start else None
 
-            # ===================== ZOOM HEADER (official link + top info) =====================
-            # ensure urllib alias exists
-            try:
-                _ = _urllib.quote
-            except Exception:
-                import urllib.parse as _urllib
+            if nxt_start and nxt_end:
+                start_ms = int(nxt_start.timestamp() * 1000)
+                now_ms   = int(_now.timestamp() * 1000)
+                time_left_label = _human_delta_ms(start_ms - now_ms) if now_ms < start_ms else "now"
+                st.info(f"**Next class:** {nxt_label}  •  **Starts in:** {time_left_label}", icon="⏰")
 
-            with st.container():
-                st.markdown(
-                    """
-                    <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                         font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
-                      📣 <b>Zoom Classroom (Official)</b><br>
-                      This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                ZOOM = {
-                    "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
-                    "meeting_id": "688 690 0916",
-                    "passcode": "german",
-                }
-                # Allow secrets override
-                try:
-                    zs = st.secrets.get("zoom", {})
-                    if zs.get("link"):       ZOOM["link"]       = zs["link"]
-                    if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
-                    if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
-                except Exception:
-                    pass
-
-                # Build iOS/Android deep-link (opens Zoom app directly)
-                _mid_digits = ZOOM["meeting_id"].replace(" ", "")
-                _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
-                zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-
-                z1, z2 = st.columns([3, 2])
-                with z1:
-                    # Primary join button (browser)
-                    try:
-                        st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
-                    except Exception:
-                        st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
-
-                    # Secondary: open in Zoom app (mobile deep link)
-                    try:
-                        st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
-                    except Exception:
-                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-
-                    st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                    st.write(f"**Passcode:** `{ZOOM['passcode']}`")
-
-                    # Copy helpers (mobile-friendly, safe escaping)
-                    _link_safe = ZOOM["link"].replace("'", "\\'")
-                    _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
-                    _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
-                    if components:
-                        components.html(
-                            f"""
-                            <div style="display:flex;gap:8px;margin-top:8px;">
-                              <button id="zCopyLink"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Link
-                              </button>
-                              <button id="zCopyId"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy ID
-                              </button>
-                              <button id="zCopyPwd"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Passcode
-                              </button>
-                            </div>
-                            <script>
-                              (function(){{
-                                try {{
-                                  var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
-                                  function wire(btnId, txt, label) {{
-                                    var b = document.getElementById(btnId);
-                                    if (!b) return;
-                                    b.addEventListener('click', function(){{
-                                      navigator.clipboard.writeText(txt).then(function(){{
-                                        b.innerText = '✓ Copied ' + label;
-                                        setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
-                                      }}).catch(function(){{}});
-                                    }});
-                                  }}
-                                  wire('zCopyLink', link, 'Link');
-                                  wire('zCopyId',   mid,  'ID');
-                                  wire('zCopyPwd',  pwd,  'Passcode');
-                                }} catch(e) {{}}
-                              }})();
-                            </script>
-                            """,
-                            height=72,
-                            key=_ukey("zoom_copy_html"),
-                        )
-
-                with z2:
-                    lines = [f"You’re viewing: **{class_name}**",
-                             f"👨‍🏫 Tutor: **{TUTOR_NAME}**"]
-                    if start_date_obj and end_date_obj:
-                        note_bits = []
-                        if _inferred_start or _inferred_end:
-                            note_bits.append("dates inferred from schedule")
-                        note = f" ({', '.join(note_bits)})" if note_bits else ""
-                        lines.append(f"📅 Course period: **{start_date_obj.strftime('%d %b %Y')} → {end_date_obj.strftime('%d %b %Y')}**{note}")
-                    if nxt_start and nxt_end:
-                        now_ms = int(_now.timestamp() * 1000)
-                        time_left_label = _human_delta_ms(int(nxt_start.timestamp() * 1000) - now_ms) if now_ms < int(nxt_start.timestamp() * 1000) else "now"
-                        lines.append(f"⏰ Next: **{nxt_label}** • **Starts in:** {time_left_label}")
-                    lines.append("✅ Use the **calendar below** to receive automatic class reminders.")
-                    st.info("  \n".join(lines), icon="📅")
-
-                    # small live ticker (top-right)
-                    if components and start_ms:
-                        components.html(
-                            f"""
-                            <div id="topCountdown" style="margin:4px 0 0;color:#0f172a;font-weight:600;"></div>
-                            <script>
-                              (function(){{
-                                const startMs = {start_ms};
-                                const el = document.getElementById('topCountdown');
-                                function tick(){{
-                                  const now = Date.now();
-                                  if (now >= startMs) {{
-                                    el.textContent = "Class is LIVE or started.";
-                                  }} else {{
-                                    const diff = startMs - now;
-                                    const s = Math.floor(diff/1000);
-                                    const d = Math.floor(s/86400);
-                                    const h = Math.floor((s%86400)/3600);
-                                    const m = Math.floor((s%3600)/60);
-                                    const sec = s % 60;
-                                    let txt = "Starts in: ";
-                                    if (d) txt += d + "d ";
-                                    if (h) txt += h + "h ";
-                                    if (d || h) {{
-                                      txt += m + "m";
-                                    }} else {{
-                                      txt += m + "m " + sec + "s";
-                                    }}
-                                    el.textContent = txt;
-                                  }}
-                                  setTimeout(tick, 1000);
+                if components:
+                    components.html(
+                        f"""
+                        <div id="nextCount" style="margin:6px 0 2px;color:#0f172a;font-weight:600;"></div>
+                        <script>
+                          (function(){{
+                            const startMs = {start_ms};
+                            const el = document.getElementById('nextCount');
+                            function tick(){{
+                              const now = Date.now();
+                              if (now >= startMs) {{
+                                el.textContent = "Class is LIVE or started.";
+                              }} else {{
+                                const diff = startMs - now;
+                                const s = Math.floor(diff/1000);
+                                const d = Math.floor(s/86400);
+                                const h = Math.floor((s%86400)/3600);
+                                const m = Math.floor((s%3600)/60);
+                                const sec = s % 60;
+                                let txt = "Starts in: ";
+                                if (d) txt += d + "d ";
+                                if (h) txt += h + "h ";
+                                if (d || h) {{
+                                  txt += m + "m";
+                                }} else {{
+                                  txt += m + "m " + sec + "s";
                                 }}
-                                tick();
-                              }})();
-                            </script>
-                            """,
-                            height=26,
-                            key=_ukey("top_countdown_html"),
-                        )
+                                el.textContent = txt;
+                              }}
+                              setTimeout(tick, 1000);
+                            }}
+                            tick();
+                          }})();
+                        </script>
+                        """,
+                        height=28,
+                    )
 
-            st.divider()
+            # ================= ICS BUILD (full course) =================
+            _zl = (ZOOM or {}).get("link", "")
+            _zid = (ZOOM or {}).get("meeting_id", "")
+            _zpw = (ZOOM or {}).get("passcode", "")
+            _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
+            _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
+            _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
+            _summary = f"{class_name} — Live German Class"
 
-            # ===================== CALENDAR TAB BANNER =====================
-            with st.container():
-                st.markdown(
-                    '''
-                    <div style="
-                        padding: 12px;
-                        background: #0ea5e9;
-                        color: #ffffff;
-                        border-radius: 8px;
-                        text-align: center;
-                        margin-bottom: 12px;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-                        font-weight: 600;
-                    ">
-                        <span style="font-size:1.2rem;">📅 Calendar</span>
-                        <div style="font-weight:500; font-size:0.98rem; margin-top:2px;">
-                            You’re in the <u>Calendar</u> section — download the full course schedule or add reminders to your phone.
-                        </div>
-                    </div>
-                    ''',
-                    unsafe_allow_html=True
-                )
-            st.divider()
+            # Optional TZID mode (kept off by default; Ghana is UTC)
+            USE_TZID = False
+            TZID = "Africa/Accra"
 
-            # ===================== ICS (full course) + Android repeat links =====================
-            if not (start_date_obj and end_date_obj and _blocks):
-                st.warning("This class doesn’t have a full calendar setup yet. Please contact the office.", icon="⚠️")
-            else:
-                _zl = (ZOOM or {}).get("link", "")
-                _zid = (ZOOM or {}).get("meeting_id", "")
-                _zpw = (ZOOM or {}).get("passcode", "")
-                _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
-                _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
-                _summary = f"{class_name} — Live German Class"
-                USE_TZID = False
-                TZID = "Africa/Accra"
+            _ics_lines = [
+                "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Falowen//Course Scheduler//EN",
+                "CALSCALE:GREGORIAN","METHOD:PUBLISH",
+            ]
 
-                _until_iso = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
-                _ics_lines = [
-                    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Falowen//Course Scheduler//EN",
-                    "CALSCALE:GREGORIAN","METHOD:PUBLISH",
+            if not _blocks:
+                _start_dt = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 18, 0)
+                _end_dt   = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 19, 0)
+                if USE_TZID:
+                    dtfmt = "%Y%m%dT%H%M%S"
+                    dtstart_line = f"DTSTART;TZID={TZID}:{_start_dt.strftime(dtfmt)}"
+                    dtend_line   = f"DTEND;TZID={TZID}:{_end_dt.strftime(dtfmt)}"
+                else:
+                    dtstart_line = f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}"
+                    dtend_line   = f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}"
+                _ics_lines += [
+                    "BEGIN:VEVENT",
+                    f"UID:{uuid4()}@falowen",
+                    f"DTSTAMP:{_dtstamp}",
+                    dtstart_line,
+                    dtend_line,
+                    f"SUMMARY:{_summary}",
+                    f"DESCRIPTION:{_details}",
+                    f"URL:{_zl}",
+                    "LOCATION:Zoom",
+                    "BEGIN:VALARM",
+                    "ACTION:DISPLAY",
+                    "DESCRIPTION:Class starts soon",
+                    "TRIGGER:-PT15M",
+                    "END:VALARM",
+                    "END:VEVENT",
                 ]
-
+            else:
                 for blk in _blocks:
                     byday_codes = blk["byday"]
                     sh, sm = blk["start"]; eh, em = blk["end"]
@@ -5697,6 +5770,7 @@ if tab == "My Course":
                     first_date = min(first_dates)
                     dt_start = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
                     dt_end   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
+
                     if USE_TZID:
                         dtfmt = "%Y%m%dT%H%M%S"
                         dtstart_line = f"DTSTART;TZID={TZID}:{dt_start.strftime(dtfmt)}"
@@ -5704,13 +5778,14 @@ if tab == "My Course":
                     else:
                         dtstart_line = f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}"
                         dtend_line   = f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}"
+
                     _ics_lines += [
                         "BEGIN:VEVENT",
                         f"UID:{uuid4()}@falowen",
                         f"DTSTAMP:{_dtstamp}",
                         dtstart_line,
                         dtend_line,
-                        f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until_iso}",
+                        f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
                         f"SUMMARY:{_summary}",
                         f"DESCRIPTION:{_details}",
                         f"URL:{_zl}",
@@ -5723,33 +5798,43 @@ if tab == "My Course":
                         "END:VEVENT",
                     ]
 
-                _ics_lines.append("END:VCALENDAR")
-                _course_ics = "\n".join(_ics_lines)
+            _ics_lines.append("END:VCALENDAR")
+            _course_ics = "\n".join(_ics_lines)
 
-                c1, c2 = st.columns([1, 1])
-                with c1:
-                    st.download_button(
-                        "⬇️ Download full course (.ics)",
-                        data=_course_ics,
-                        file_name=f"{class_name.replace(' ', '_')}_course.ics",
-                        mime="text/calendar",
-                        key=_ukey("dl_course_ics"),
-                    )
-                with c2:
-                    st.caption("Calendar created. Use the download button to import the full course.")
+            # UI (full course download only; unique key avoids DuplicateElementKey)
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                st.download_button(
+                    "⬇️ Download full course (.ics)",
+                    data=_course_ics,
+                    file_name=f"{class_name.replace(' ', '_')}_course.ics",
+                    mime="text/calendar",
+                    key=_ukey("dl_course_ics"),
+                )
+            with c2:
+                st.caption("Calendar created. Use the download button to import the full course.")
 
-                # --- Phone app quick links (Android) — concise repeat links ---
-                import urllib.parse as _urllib  # ensure in scope
-                _gcal_repeat_links = []
-                try:
+            # --- Phone app quick links (Android) — concise only ---
+            # Build per-block Google Calendar repeating links from the schedule
+            _gcal_repeat_links = []
+            try:
+                if _blocks:
+                    _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
                     _code_to_pretty = {"MO":"Mon","TU":"Tue","WE":"Wed","TH":"Thu","FR":"Fri","SA":"Sat","SU":"Sun"}
+
+                    def _fmt_time(h, m):
+                        ap = "AM" if h < 12 else "PM"
+                        hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                        return f"{hh}:{m:02d}{ap}"
+
                     for blk in _blocks:
                         byday_codes = blk["byday"]
                         sh, sm = blk["start"]; eh, em = blk["end"]
 
+                        # First occurrence on/after course start for this block
                         first_dates = []
                         for code in byday_codes:
-                            widx = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}[code]
+                            widx = _wmap[code]
                             first_dates.append(_next_on_or_after(start_date_obj, widx))
                         first_date = min(first_dates)
 
@@ -5757,13 +5842,12 @@ if tab == "My Course":
                         _end_dt   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
                         _start_str = _start_dt.strftime("%Y%m%dT%H%M%SZ")
                         _end_str   = _end_dt.strftime("%Y%m%dT%H%M%SZ")
-                        _rrule     = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until_iso}"
 
-                        def _fmt_time(h, m):
-                            ap = "AM" if h < 12 else "PM"
-                            hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                            return f"{hh}:{m:02d}{ap}"
+                        # RRULE weekly until course end
+                        _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
+                        _rrule = f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}"
 
+                        # Friendly label e.g. "Thu/Fri 6:00PM–7:00PM" or "Sat 8:00AM–9:00AM"
                         _days_pretty = "/".join(_code_to_pretty[c] for c in byday_codes)
                         _label = f"{_days_pretty} {_fmt_time(sh, sm)}–{_fmt_time(eh, em)}"
 
@@ -5779,112 +5863,117 @@ if tab == "My Course":
                             f"&sf=true"
                         )
                         _gcal_repeat_links.append((_label, _recur_url))
-                except Exception:
-                    _gcal_repeat_links = []
+            except Exception:
+                _gcal_repeat_links = []
 
-                if _gcal_repeat_links:
-                    _items = "".join(
-                        f"<li style='margin:4px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>Tap here: {lbl}</a></li>"
-                        for (lbl, url) in _gcal_repeat_links
-                    )
-                    _phone_links_ul = f"<ul style='margin:6px 0 0 18px;padding:0;'>{_items}</ul>"
-                else:
-                    _phone_links_ul = (
-                        "<div style='margin:6px 0 0 2px;color:#444;'>"
-                        "No repeating blocks are set yet. Ask the office to add your class times."
-                        "</div>"
-                    )
+            # Render ultra-compact Android help with per-block links
+            if _gcal_repeat_links:
+                _items = "".join(
+                    f"<li style='margin:4px 0;'><a href='{url.replace('&','&amp;')}' target='_blank'>Tap here: {lbl}</a></li>"
+                    for (lbl, url) in _gcal_repeat_links
+                )
+                _phone_links_ul = f"<ul style='margin:6px 0 0 18px;padding:0;'>{_items}</ul>"
+            else:
+                _phone_links_ul = (
+                    "<div style='margin:6px 0 0 2px;color:#444;'>"
+                    "No repeating blocks are set yet. Ask the office to add your class times."
+                    "</div>"
+                )
 
+            st.markdown(
+                f"""
+                **Computer or iPhone:** Download the **.ics** above and install.  
+                - **Computer (Google Calendar web):** Go to [calendar.google.com](https://calendar.google.com) → **Settings** → **Import & export** → **Import** (you’ll see **“Imported X of X events.”**).
+                - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose your notification preference, then **Done**.
+
+                **Android (Google Calendar app):** The app **can’t import `.ics`**. So use the links below to add it on your phone (**with repeat**):
+                {_phone_links_ul}
+                <div style="margin:8px 0 0 2px;"></div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        # ===================== CLASS ROSTER =====================
+
+        # Subtle banner above the expander to draw attention
+        st.markdown(
+            """
+            <div style="
+                padding:10px 12px;
+                background:#f0f9ff;
+                border:1px solid #bae6fd;
+                border-radius:12px;
+                margin: 6px 0 8px 0;
+                display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
+              <span style="font-size:.92rem;color:#055d87;">Tap below to open and view the list</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        # Light CSS to make *all* expanders stand out a bit more
+        st.markdown(
+            """
+            <style>
+              /* Make expander headers pop a little */
+              div[data-testid="stExpander"] > details > summary {
+                  background:#f0f9ff !important;
+                  border:1px solid #bae6fd !important;
+                  border-radius:12px !important;
+                  padding:10px 12px !important;
+              }
+              div[data-testid="stExpander"] > details[open] > summary {
+                  background:#e0f2fe !important;
+                  border-color:#7dd3fc !important;
+              }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.expander("👥 Class Members", expanded=False):
+            try:
+                df_students = load_student_data()
+
+                # Normalize required columns
+                for col in ("ClassName", "Name", "Email", "Location"):
+                    if col not in df_students.columns:
+                        df_students[col] = ""
+                    df_students[col] = df_students[col].fillna("").astype(str).str.strip()
+
+                # Filter to this class
+                same_class = df_students[df_students["ClassName"] == class_name].copy()
+
+                # Tiny header line inside with class + count
+                _n = len(same_class)
                 st.markdown(
                     f"""
-                    **Computer or iPhone:** Download the **.ics** above and install.  
-                    - **Computer (Google Calendar web):** Go to [calendar.google.com](https://calendar.google.com) → **Settings** → **Import & export** → **Import**.
-                    - **iPhone (Apple Calendar):** Download the `.ics`, open it, choose your notification preference, then **Done**.
-
-                    **Android (Google Calendar app):** The app **can’t import `.ics`**. Use the repeat links below:
-                    {_phone_links_ul}
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px 0;">
+                      <div style="font-weight:600;color:#0f172a;">{class_name}</div>
+                      <span style="background:#0ea5e922;border:1px solid #0ea5e9;color:#0369a1;
+                                   padding:3px 8px;border-radius:999px;font-size:.9rem;">
+                        {_n} member{'' if _n==1 else 's'}
+                      </span>
+                    </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-            # ===================== CLASS ROSTER =====================
-            # Subtle banner above the expander to draw attention
-            st.markdown(
-                """
-                <div style="
-                    padding:10px 12px;
-                    background:#f0f9ff;
-                    border:1px solid #bae6fd;
-                    border-radius:12px;
-                    margin: 6px 0 8px 0;
-                    display:flex;align-items:center;gap:8px;">
-                  <span style="font-size:1.05rem;">👥 <b>Class Members</b></span>
-                  <span style="font-size:.92rem;color:#055d87;">Tap below to open and view the list</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                # Columns to display (no StudentCode)
+                cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
 
-            # Light CSS to make *all* expanders stand out a bit more
-            st.markdown(
-                """
-                <style>
-                  div[data-testid="stExpander"] > details > summary {
-                      background:#f0f9ff !important;
-                      border:1px solid #bae6fd !important;
-                      border-radius:12px !important;
-                      padding:10px 12px !important;
-                  }
-                  div[data-testid="stExpander"] > details[open] > summary {
-                      background:#e0f2fe !important;
-                      border-color:#7dd3fc !important;
-                  }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            with st.expander("👥 Class Members", expanded=False):
-                try:
-                    df_students = load_student_data()
-
-                    # Normalize required columns
-                    for col in ("ClassName", "Name", "Email", "Location"):
-                        if col not in df_students.columns:
-                            df_students[col] = ""
-                        df_students[col] = df_students[col].fillna("").astype(str).str.strip()
-
-                    # Filter to this class
-                    same_class = df_students[df_students["ClassName"] == class_name].copy()
-
-                    # Tiny header line inside with class + count
-                    _n = len(same_class)
-                    st.markdown(
-                        f"""
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 6px 0;">
-                          <div style="font-weight:600;color:#0f172a;">{class_name}</div>
-                          <span style="background:#0ea5e922;border:1px solid #0ea5e9;color:#0369a1;
-                                       padding:3px 8px;border-radius:999px;font-size:.9rem;">
-                            {_n} member{'' if _n==1 else 's'}
-                          </span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+                if not same_class.empty and cols_show:
+                    st.dataframe(
+                        same_class[cols_show].reset_index(drop=True),
+                        use_container_width=True,
+                        hide_index=True,
                     )
+                else:
+                    st.info("No members found for this class yet.")
+            except Exception as e:
+                st.warning(f"Couldn’t load the class roster right now. {e}")
 
-                    # Columns to display (no StudentCode)
-                    cols_show = [c for c in ["Name", "Email", "Location"] if c in same_class.columns]
-
-                    if not same_class.empty and cols_show:
-                        st.dataframe(
-                            same_class[cols_show].reset_index(drop=True),
-                            use_container_width=True,
-                            hide_index=True,
-                        )
-                    else:
-                        st.info("No members found for this class yet.")
-                except Exception as e:
-                    st.warning(f"Couldn’t load the class roster right now. {e}")
 
 
         # ===================== CLASS ROSTER =====================
