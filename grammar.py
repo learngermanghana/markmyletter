@@ -5110,14 +5110,53 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+        # ===================== ZOOM HEADER + JOINING REMINDERS (one block) =====================
         # ensure urllib alias exists
         try:
             _ = _urllib.quote
         except Exception:
             import urllib.parse as _urllib
 
+        # components helper (safe)
+        try:
+            import streamlit.components.v1 as components
+        except Exception:
+            components = None
+
+        import re
+        from urllib.parse import urlparse, parse_qs
+        from datetime import datetime as _dt, timedelta as _td
+
+        def _parse_zoom_invite(url: str, fallback_id: str = "", fallback_pwd: str = ""):
+            """
+            Extract meeting ID and passcode from a Zoom invite URL.
+            Supports .../j/<id>?pwd=XXX and .../wc/join/<id>?pwd=XXX
+            """
+            mid = (fallback_id or "").replace(" ", "")
+            pwd = fallback_pwd or ""
+            host = "zoom.us"
+            try:
+                u = urlparse(url or "")
+                if u.netloc:
+                    host = u.netloc
+                parts = [p for p in (u.path or "").split("/") if p]
+                # /j/<id> or /wc/join/<id>
+                if "j" in parts:
+                    i = parts.index("j")
+                    if i + 1 < len(parts):
+                        mid = parts[i + 1]
+                elif "join" in parts:
+                    mid = parts[-1]
+                q = parse_qs(u.query or "")
+                if "pwd" in q and q["pwd"]:
+                    pwd = q["pwd"][0]
+            except Exception:
+                pass
+            mid_digits = re.sub(r"\D", "", mid or "")
+            return host, mid_digits, pwd
+
         with st.container():
+            # Banner
             st.markdown(
                 """
                 <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
@@ -5129,12 +5168,12 @@ if tab == "My Course":
                 unsafe_allow_html=True,
             )
 
+            # Source of truth (+ secrets override)
             ZOOM = {
                 "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
                 "meeting_id": "688 690 0916",
                 "passcode": "german",
             }
-            # Allow secrets override
             try:
                 zs = st.secrets.get("zoom", {})
                 if zs.get("link"):       ZOOM["link"]       = zs["link"]
@@ -5143,106 +5182,46 @@ if tab == "My Course":
             except Exception:
                 pass
 
-            # Build iOS/Android deep-link (opens Zoom app directly)
-            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
-            _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
-            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+            # Parse link → keep ID/Passcode in sync
+            _host, _mid_digits, _pwd_from_link = _parse_zoom_invite(
+                ZOOM.get("link", ""), ZOOM.get("meeting_id", ""), ZOOM.get("passcode", "")
+            )
+            if _pwd_from_link:
+                ZOOM["passcode"] = _pwd_from_link
+            ZOOM["meeting_id"] = " ".join([_mid_digits[i:i+3] for i in range(0, len(_mid_digits), 3)]) or ZOOM.get("meeting_id", "")
+            _pwd_plain = ZOOM.get("passcode", "")
 
-            # Tutor name (default + optional per-class override via secrets)
+            # Deep links + web client
+            _pwd_enc = _urllib.quote(_pwd_plain or "")
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+            zoom_deeplink_alt = f"zoomus://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+            zoom_webclient = f"https://{_host}/wc/join/{_mid_digits}" + (f"?pwd={_pwd_enc}" if _pwd_plain else "")
+
+            # Tutor name (default + per-class override)
             TUTOR_NAME = "Felix Asadu"
             try:
                 TUTOR_NAME = (st.secrets.get("tutors", {}).get(class_name, TUTOR_NAME)) or TUTOR_NAME
             except Exception:
                 pass
 
-            z1, z2 = st.columns([3, 2])
-            with z1:
-                # Primary join button (browser)
-                try:
-                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
-                except Exception:
-                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+            # Precompute summary/details (used by Add-to-Calendar)
+            _summary = f"{class_name} — Live German Class"
+            _details = f"Zoom link: {ZOOM.get('link','')}\\nMeeting ID: {ZOOM.get('meeting_id','')}\\nPasscode: {_pwd_plain or ''}"
 
-                # Secondary: open in Zoom app (mobile deep link)
-                try:
-                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
-                except Exception:
-                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-
-                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
-
-                # Copy helpers (mobile-friendly, safe escaping)
-                _link_safe = ZOOM["link"].replace("'", "\\'")
-                _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
-                _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
-                if components:
-                    components.html(
-                        f"""
-                        <div style="display:flex;gap:8px;margin-top:8px;">
-                          <button id="zCopyLink"
-                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                            Copy Link
-                          </button>
-                          <button id="zCopyId"
-                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                            Copy ID
-                          </button>
-                          <button id="zCopyPwd"
-                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                            Copy Passcode
-                          </button>
-                        </div>
-                        <script>
-                          (function(){{
-                            try {{
-                              var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
-                              function wire(btnId, txt, label) {{
-                                var b = document.getElementById(btnId);
-                                if (!b) return;
-                                b.addEventListener('click', function(){{
-                                  navigator.clipboard.writeText(txt).then(function(){{
-                                    b.innerText = '✓ Copied ' + label;
-                                    setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
-                                  }}).catch(function(){{}});
-                                }});
-                              }}
-                              wire('zCopyLink', link, 'Link');
-                              wire('zCopyId',   mid,  'ID');
-                              wire('zCopyPwd',  pwd,  'Passcode');
-                            }} catch(e) {{}}
-                          }})();
-                        </script>
-                        """,
-                        height=72,
-                    )
-
-            with z2:
-                st.info(
-                    f"You’re viewing: **{class_name}**  \n"
-                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**  \n\n"
-                    "✅ Use the **calendar below** to receive automatic class reminders.",
-                    icon="📅",
-                )
-
-        st.divider()
-
-        
-             # === JOINING REMINDERS (countdown + device notifications) =========================
-            from datetime import timezone as _tz
-            NOW_UTC = _dt.utcnow()
-
+            # Compute next class (uses your parsed _blocks/start/end if available)
             def _compute_next_class_instance(now_utc: _dt):
-                """
-                Returns (start_dt_utc, end_dt_utc, label) for the next upcoming (or in-progress) class
-                within the course window, based on parsed `_blocks`.
-                """
-                if not _blocks:
+                try:
+                    _ = _blocks
+                except NameError:
+                    return None, None, ""
+                if not (_blocks and start_date_obj and end_date_obj):
                     return None, None, ""
                 _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-
-                best = None  # tuple(start_dt, end_dt, label)
-                # Search up to 8 weeks ahead to be safe
+                def _fmt_ampm(h, m):
+                    ap = "AM" if h < 12 else "PM"
+                    hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+                    return f"{hh}:{m:02d}{ap}"
+                best = None
                 horizon_days = 7 * 8
                 start_search_date = max(start_date_obj, now_utc.date())
                 for add in range(horizon_days):
@@ -5257,11 +5236,6 @@ if tab == "My Course":
                             edt = _dt(d.year, d.month, d.day, eh, em)
                             if edt <= now_utc:
                                 continue
-                            # pretty label like "Thu 22 Aug • 6:00–7:00 PM"
-                            def _fmt_ampm(h, m):
-                                ap = "AM" if h < 12 else "PM"
-                                hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                                return f"{hh}:{m:02d}{ap}"
                             weekday = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][widx]
                             label = f"{weekday} {sdt.strftime('%d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
                             cand = (sdt, edt, label)
@@ -5269,8 +5243,131 @@ if tab == "My Course":
                                 best = cand
                 return best if best else (None, None, "")
 
+            NOW_UTC = _dt.utcnow()
             nxt_start, nxt_end, nxt_label = _compute_next_class_instance(NOW_UTC)
 
+            # Buttons + details
+            z1, z2 = st.columns([3, 2])
+            with z1:
+                # Primary join (normal Zoom link)
+                try:
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key="zoom_join_btn")
+                except Exception:
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                # Mobile deep link
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key="zoom_app_btn")
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
+                # Web client (no app)
+                try:
+                    st.link_button("🌐 Try Web Client (no app)", zoom_webclient, key="zoom_web_btn")
+                except Exception:
+                    st.markdown(f"[🌐 Try Web Client (no app)]({zoom_webclient})")
+
+                # Optional alt deep-link caption
+                st.caption(f"[Open via alternate deep link]({zoom_deeplink_alt})")
+
+                # Meeting info
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `{_pwd_plain or '—'}`")
+
+                # QR join
+                try:
+                    qr_url = f"https://chart.googleapis.com/chart?cht=qr&chs=220x220&chl={_urllib.quote(ZOOM['link'])}"
+                    st.image(qr_url, caption="Scan to join on your phone", use_column_width=False)
+                except Exception:
+                    pass
+
+                # Copy helpers (+ full invite)
+                _link_safe = (ZOOM["link"] or "").replace("'", "\\'")
+                _id_safe   = (ZOOM["meeting_id"] or "").replace("'", "\\'")
+                _pwd_safe  = (_pwd_plain or "").replace("'", "\\'")
+                _invite_txt = (
+                    f"Join Zoom Meeting\\n{_link_safe}\\n\\n"
+                    f"Meeting ID: {_id_safe}\\n"
+                    f"Passcode: {_pwd_safe}"
+                )
+                if components:
+                    components.html(
+                        f"""
+                        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                          <button id="zCopyLink"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Link
+                          </button>
+                          <button id="zCopyId"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy ID
+                          </button>
+                          <button id="zCopyPwd"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Passcode
+                          </button>
+                          <button id="zCopyInvite"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#eef2ff;cursor:pointer;">
+                            Copy Full Invite
+                          </button>
+                        </div>
+                        <script>
+                          (function(){{
+                            try {{
+                              var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                              var invite = "{_invite_txt}";
+                              function wire(btnId, txt, label) {{
+                                var b = document.getElementById(btnId);
+                                if (!b) return;
+                                b.addEventListener('click', function(){{
+                                  navigator.clipboard.writeText(txt).then(function(){{
+                                    b.innerText = '✓ Copied ' + label;
+                                    setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                                  }}).catch(function(){{}});
+                                }});
+                              }}
+                              wire('zCopyLink', link, 'Link');
+                              wire('zCopyId',   mid,  'ID');
+                              wire('zCopyPwd',  pwd,  'Passcode');
+                              wire('zCopyInvite', invite, 'Invite');
+                            }} catch(e) {{}}
+                          }})();
+                        </script>
+                        """,
+                        height=84,
+                    )
+
+                # Add NEXT session to Google Calendar (one-time)
+                try:
+                    if nxt_start and nxt_end:
+                        _start_str = nxt_start.strftime("%Y%m%dT%H%M%SZ")
+                        _end_str   = nxt_end.strftime("%Y%m%dT%H%M%SZ")
+                        _one_time_url = (
+                            "https://calendar.google.com/calendar/render"
+                            f"?action=TEMPLATE"
+                            f"&text={_urllib.quote(_summary)}"
+                            f"&dates={_start_str}/{_end_str}"
+                            f"&details={_urllib.quote(_details)}"
+                            f"&location={_urllib.quote('Zoom')}"
+                            f"&ctz={_urllib.quote('Africa/Accra')}"
+                            f"&sf=true"
+                        )
+                        st.link_button("📅 Add next class to Calendar", _one_time_url, key="jr_add_next_to_gcal", use_container_width=True)
+                except Exception:
+                    pass
+
+            with z2:
+                st.info(
+                    f"You’re viewing: **{class_name}**  \n"
+                    f"👨‍🏫 Tutor: **{TUTOR_NAME}**  \n\n"
+                    "✅ Use the **calendar below** to receive automatic class reminders.",
+                    icon="📅",
+                )
+                # Troubleshooting quick links
+                st.caption("If Zoom is blocked on your network, try the **🌐 Web Client** button above or switch networks.")
+                st.markdown("[🧪 Zoom test page](https://zoom.us/test)")
+
+            # ========= NEXT-SESSION STATUS CARD + LIVE COUNTDOWN =========
             def _human_delta(ms):
                 secs = max(0, int(ms // 1000))
                 d, r = divmod(secs, 86400)
@@ -5290,7 +5387,6 @@ if tab == "My Course":
                 is_live_window = (now_ms >= start_ms - pre_live_window_ms) and (now_ms < end_ms)
                 time_to_start_ms = start_ms - now_ms
 
-                # ---- UI card
                 status_badge = "🟢 Live now" if is_live_window else f"⏳ Starts in {_human_delta(time_to_start_ms)}"
                 st.markdown(
                     f"""
@@ -5310,7 +5406,6 @@ if tab == "My Course":
                     unsafe_allow_html=True
                 )
 
-                # ---- Live countdown (client-side; updates every second)
                 if components:
                     components.html(
                         f"""
@@ -5353,7 +5448,8 @@ if tab == "My Course":
                         height=28,
                     )
 
-#
+        st.divider()
+
 
 
         # ===================== CALENDAR TAB BANNER =====================
@@ -11211,6 +11307,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
