@@ -5052,7 +5052,10 @@ if tab == "My Course":
         db = _get_db()
 
         # helpers
-        import math, os, requests
+        import math, os, requests, hashlib, re, uuid, json, io
+        import pandas as pd
+        from uuid import uuid4
+        from urllib.parse import urlparse as _urlparse
         try:
             import streamlit.components.v1 as components
         except Exception:
@@ -5107,7 +5110,8 @@ if tab == "My Course":
             except Exception:
                 pass
 
-        # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
+
+  # ===================== ZOOM HEADER (official link + reminder to use calendar) =====================
         # ensure urllib alias exists
         try:
             _ = _urllib.quote
@@ -5216,7 +5220,8 @@ if tab == "My Course":
 
         st.divider()
 
-                    # === JOINING REMINDERS (countdown + device notifications) =========================
+
+            # === JOINING REMINDERS (countdown + device notifications) =========================
             from datetime import timezone as _tz
             NOW_UTC = _dt.utcnow()
 
@@ -5405,7 +5410,7 @@ if tab == "My Course":
                 st.info("No upcoming class found in the current course window.", icon="ℹ️")
 
 
-       # ===================== CALENDAR TAB BANNER =====================
+        # ===================== CALENDAR TAB BANNER =====================
         with st.container():
             st.markdown(
                 '''
@@ -5428,11 +5433,10 @@ if tab == "My Course":
                 unsafe_allow_html=True
             )
         st.divider()
-#
 
         # ===================== CALENDAR QUICK ADD (no schedule/dictionary UI) =====================
         from datetime import datetime as _dt, timedelta as _td
-        import re, uuid, json, io, requests
+        from datetime import datetime  # used in a few places below
         import urllib.parse as _urllib
 
         # Try dateutil if available (for robust date parsing); fall back gracefully.
@@ -5676,37 +5680,62 @@ if tab == "My Course":
                 icon="📅",
             )
 
-            # ---------- helpers ----------
+            # ---------- day/time parsing (RELAXED) ----------
             _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
             _FULL_TO_CODE = {
                 "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
                 "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
             }
 
+            DEFAULT_AMPM = "pm"  # default when AM/PM not provided
+
+            def _normalize_time_groups(s: str) -> str:
+                s = (s or "").strip()
+                s = s.replace("–", "-").replace("—", "-")
+                # e.g. "friday11 - 12" → "friday: 11 - 12"
+                s = re.sub(
+                    r"(?i)\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(\d)",
+                    r"\1: \2",
+                    s,
+                )
+                return s
+
             def _to_24h(h, m, ampm):
-                h = int(h); m = int(m); ap = ampm.lower()
+                h = int(h); m = int(m); ap = (ampm or "").lower()
                 if ap == "pm" and h != 12: h += 12
                 if ap == "am" and h == 12: h = 0
                 return h, m
 
-            def _parse_time_component(s):
-                s = s.strip().lower()
-                m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$", s)
+            def _parse_time_component_relaxed(s, default_ampm=DEFAULT_AMPM):
+                s = (s or "").strip().lower()
+                # Accept "14:30", "14", "2:30pm", "2pm"
+                m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", s)
                 if not m: return None
-                h = m.group(1); mm = m.group(2) or "0"; ap = m.group(3)
-                return _to_24h(h, mm, ap)
+                hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
+                if ap:
+                    return _to_24h(hh, mm, ap)
+                # No AM/PM supplied → infer 24h or apply default
+                if 0 <= hh <= 23:
+                    if hh <= 12 and default_ampm in ("am","pm"):
+                        return _to_24h(hh, mm, default_ampm)
+                    return (hh, mm)
+                return None
 
-            def _parse_time_range(rng):
-                rng = rng.strip().lower().replace("–","-").replace("—","-")
-                parts = [p.strip() for p in rng.split("-")]
+            def _parse_time_range_relaxed(rng, default_ampm=DEFAULT_AMPM):
+                rng = (rng or "").strip().lower().replace("–","-").replace("—","-")
+                parts = [p.strip() for p in rng.split("-", 1)]
                 if len(parts) != 2: return None
-                a = _parse_time_component(parts[0]); b = _parse_time_component(parts[1])
-                if not a or not b: return None
-                return a, b
+                a = _parse_time_component_relaxed(parts[0], default_ampm=default_ampm)
+                if not a: return None
+                # Inherit AM/PM for second if omitted
+                ap_hint = re.search(r"(am|pm)\s*$", parts[0])
+                second_default = ap_hint.group(1) if ap_hint else default_ampm
+                b = _parse_time_component_relaxed(parts[1], default_ampm=second_default)
+                return (a, b) if b else None
 
             def _expand_day_token(tok):
-                tok = tok.strip().lower().replace("–","-").replace("—","-")
-                if "-" in tok:  # mon–wed
+                tok = (tok or "").strip().lower().replace("–","-").replace("—","-")
+                if "-" in tok:  # mon-wed
                     a, b = [t.strip() for t in tok.split("-", 1)]
                     a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
                     if a_code and b_code:
@@ -5717,11 +5746,11 @@ if tab == "My Course":
                 return [c] if c else []
 
             def _parse_time_blocks(time_str, days_list):
-                if not (isinstance(time_str, str) and time_str.strip()):
-                    return []
-                s = time_str.strip()
-                if ":" in s:  # grouped "Days: time"
-                    blocks = []
+                # Accept both "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am" AND simple "Mon–Wed 2–3"
+                s = _normalize_time_groups(time_str)
+                blocks = []
+
+                if ":" in s:
                     groups = [g.strip() for g in s.split(",") if g.strip()]
                     for g in groups:
                         if ":" not in g:
@@ -5731,15 +5760,19 @@ if tab == "My Course":
                         codes = []
                         for tok in day_tokens:
                             codes.extend(_expand_day_token(tok))
-                        tr = _parse_time_range(right)
+                        tr = _parse_time_range_relaxed(right)
                         if codes and tr:
                             (sh, sm), (eh, em) = tr
-                            blocks.append({"byday": sorted(set(codes), key=_WKD_ORDER.index),
-                                           "start": (sh, sm), "end": (eh, em)})
+                            blocks.append({
+                                "byday": sorted(set(codes), key=_WKD_ORDER.index),
+                                "start": (sh, sm), "end": (eh, em)
+                            })
                     return blocks
-                # single time for given days[]
-                tr = _parse_time_range(s)
-                if not tr: return []
+
+                # Fallback: single time for provided days (e.g., "2–3")
+                tr = _parse_time_range_relaxed(s)
+                if not tr:
+                    return []
                 (sh, sm), (eh, em) = tr
                 codes = []
                 for d in (days_list or []):
@@ -5754,11 +5787,29 @@ if tab == "My Course":
 
             # Build ICS (with 15-minute preset reminder + URL field)
             _blocks = _parse_time_blocks(time_str, days)
+
+            # Fallback to ensure Android links still show even if parsing was shaky
+            if not _blocks and (days and str(time_str or "").strip()):
+                tr_fallback = _parse_time_range_relaxed(str(time_str))
+                if tr_fallback:
+                    (sh, sm), (eh, em) = tr_fallback
+                    codes = []
+                    for d in (days or []):
+                        c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
+                        if c: codes.append(c)
+                    if codes:
+                        codes = sorted(set(codes), key=_WKD_ORDER.index)
+                        _blocks = [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
+
             _zl = (ZOOM or {}).get("link", ""); _zid = (ZOOM or {}).get("meeting_id", ""); _zpw = (ZOOM or {}).get("passcode", "")
             _details = f"Zoom link: {_zl}\\nMeeting ID: {_zid}\\nPasscode: {_zpw}"
             _dtstamp = _dt.utcnow().strftime("%Y%m%dT%H%M%SZ")
             _until = _dt(end_date_obj.year, end_date_obj.month, end_date_obj.day, 23, 59, 59).strftime("%Y%m%dT%H%M%SZ")
             _summary = f"{class_name} — Live German Class"
+
+            # Optional TZID mode (kept off by default; Ghana is UTC)
+            USE_TZID = False
+            TZID = "Africa/Accra"
 
             _ics_lines = [
                 "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Falowen//Course Scheduler//EN",
@@ -5768,12 +5819,19 @@ if tab == "My Course":
             if not _blocks:
                 _start_dt = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 18, 0)
                 _end_dt   = _dt(start_date_obj.year, start_date_obj.month, start_date_obj.day, 19, 0)
+                if USE_TZID:
+                    dtfmt = "%Y%m%dT%H%M%S"
+                    dtstart_line = f"DTSTART;TZID={TZID}:{_start_dt.strftime(dtfmt)}"
+                    dtend_line   = f"DTEND;TZID={TZID}:{_end_dt.strftime(dtfmt)}"
+                else:
+                    dtstart_line = f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}"
+                    dtend_line   = f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}"
                 _ics_lines += [
                     "BEGIN:VEVENT",
                     f"UID:{uuid.uuid4()}@falowen",
                     f"DTSTAMP:{_dtstamp}",
-                    f"DTSTART:{_start_dt.strftime('%Y%m%dT%H%M%SZ')}",
-                    f"DTEND:{_end_dt.strftime('%Y%m%dT%H%M%SZ')}",
+                    dtstart_line,
+                    dtend_line,
                     f"SUMMARY:{_summary}",
                     f"DESCRIPTION:{_details}",
                     f"URL:{_zl}",
@@ -5798,12 +5856,21 @@ if tab == "My Course":
                     first_date = min(first_dates)
                     dt_start = _dt(first_date.year, first_date.month, first_date.day, sh, sm)
                     dt_end   = _dt(first_date.year, first_date.month, first_date.day, eh, em)
+
+                    if USE_TZID:
+                        dtfmt = "%Y%m%dT%H%M%S"
+                        dtstart_line = f"DTSTART;TZID={TZID}:{dt_start.strftime(dtfmt)}"
+                        dtend_line   = f"DTEND;TZID={TZID}:{dt_end.strftime(dtfmt)}"
+                    else:
+                        dtstart_line = f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}"
+                        dtend_line   = f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}"
+
                     _ics_lines += [
                         "BEGIN:VEVENT",
                         f"UID:{uuid.uuid4()}@falowen",
                         f"DTSTAMP:{_dtstamp}",
-                        f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%SZ')}",
-                        f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%SZ')}",
+                        dtstart_line,
+                        dtend_line,
                         f"RRULE:FREQ=WEEKLY;BYDAY={','.join(byday_codes)};UNTIL={_until}",
                         f"SUMMARY:{_summary}",
                         f"DESCRIPTION:{_details}",
@@ -5833,8 +5900,6 @@ if tab == "My Course":
                 )
             with c2:
                 st.caption("Calendar created. Use the download button to import the full course.")
-#
-
 
             # --- Phone app quick links (Android) — concise only ---
             # Build per-block Google Calendar repeating links from the schedule
@@ -5901,7 +5966,6 @@ if tab == "My Course":
                     "</div>"
                 )
 
-
             st.markdown(
                 f"""
                 **Computer or iPhone:** Download the **.ics** above and install.  
@@ -5915,6 +5979,7 @@ if tab == "My Course":
                 """,
                 unsafe_allow_html=True,
             )
+
 
         # ===================== CLASS ROSTER =====================
 
@@ -5996,10 +6061,8 @@ if tab == "My Course":
                     st.info("No members found for this class yet.")
             except Exception as e:
                 st.warning(f"Couldn’t load the class roster right now. {e}")
-#
 
-
-          # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
+        # ===================== ANNOUNCEMENTS (CSV) + REPLIES (FIRESTORE) =====================
 
         # Prefer cached helper if exists; else fallback to direct CSV
         try:
@@ -6019,7 +6082,6 @@ if tab == "My Course":
         # ---------- Announcement banner (with NEW count) ----------
         _new_badge_html = ""
         try:
-            from datetime import datetime as _dt
             _today = _dt.today().date()
             _recent = 0
             if not df.empty and "Date" in df.columns:
@@ -6067,12 +6129,10 @@ if tab == "My Course":
                 ''',
                 unsafe_allow_html=True
             )
-#
-
 
         def _short_label_from_url(u: str) -> str:
             try:
-                p = urllib.parse.urlparse(u)
+                p = _urlparse(u)
                 host = (p.netloc or "").replace("www.", "")
                 path = (p.path or "").strip("/")
                 label = host if not path else f"{host}/{path}"
@@ -6189,7 +6249,7 @@ if tab == "My Course":
         def _update_reply_text(ann_id: str, reply_id: str, new_text: str):
             _ann_reply_coll(ann_id).document(reply_id).update({
                 "text": new_text.strip(),
-                "edited_at": datetime.utcnow(),
+                "edited_at": _dt.utcnow(),
                 "edited_by": student_name,
                 "edited_by_code": student_code,
             })
@@ -6301,7 +6361,7 @@ if tab == "My Course":
                                     _notify_slack(
                                         f"🗑️ *Announcement reply deleted* — {class_name}\n"
                                         f"*By:* {student_name} ({student_code})\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                     )
                                     st.success("Reply deleted.")
                                     st.rerun()
@@ -6322,7 +6382,7 @@ if tab == "My Course":
                                             _notify_slack(
                                                 f"✏️ *Announcement reply edited* — {class_name}\n"
                                                 f"*By:* {student_name} ({student_code})\n"
-                                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                                f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                                 f"*Preview:* {new_txt[:180]}{'…' if len(new_txt)>180 else ''}"
                                             )
                                             st.success("Reply updated.")
@@ -6353,13 +6413,13 @@ if tab == "My Course":
                             "student_code": student_code,
                             "student_name": student_name,
                             "text": reply_text.strip(),
-                            "timestamp": datetime.utcnow(),
+                            "timestamp": _dt.utcnow(),
                         }
                         _ann_reply_coll(ann_id).add(payload)
                         _notify_slack(
                             f"💬 *New announcement reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})\n"
-                            f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Preview:* {payload['text'][:180]}{'…' if len(payload['text'])>180 else ''}"
                         )
                         st.session_state[flag_key] = True
@@ -6382,12 +6442,17 @@ if tab == "My Course":
         # --- Compute NEW (≤7 days) and UNANSWERED counts for badges ---
         _new7, _unans, _total = 0, 0, 0
         try:
-            from datetime import datetime as _dt
             _now = _dt.utcnow()
 
             # Try ordered fetch first; fall back to basic stream
             try:
-                _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
+                # Use Admin SDK Query constant if available; else pass string
+                try:
+                    from firebase_admin import firestore as fbfs
+                    direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
+                    _qdocs = list(q_base.order_by("created_at", direction=direction_desc).limit(250).stream())
+                except Exception:
+                    _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
             except Exception:
                 _qdocs = list(q_base.stream())
 
@@ -6481,7 +6546,6 @@ if tab == "My Course":
                 return ts.strftime("%d %b %H:%M")
             except Exception:
                 return ""
-#
 
         # Post a new question (single click -> rerun)
         with st.expander("➕ Ask a new question", expanded=False):
@@ -6498,7 +6562,7 @@ if tab == "My Course":
                     "question": new_q.strip(),
                     "asked_by_name": student_name,
                     "asked_by_code": student_code,
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": _dt.utcnow(),
                     "topic": (topic or "").strip(),
                 }
                 q_base.document(q_id).set(payload)
@@ -6507,7 +6571,7 @@ if tab == "My Course":
                 _notify_slack(
                     f"❓ *New class question* — {class_name}{topic_tag}\n"
                     f"*From:* {student_name} ({student_code})\n"
-                    f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                    f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                     f"*Q:* {preview}"
                 )
                 # clear and rerun
@@ -6527,7 +6591,12 @@ if tab == "My Course":
 
         # Load questions (fresh each run)
         try:
-            q_docs = list(q_base.order_by("timestamp", direction=firestore.Query.DESCENDING).stream())
+            try:
+                from firebase_admin import firestore as fbfs
+                direction_desc = getattr(fbfs.Query, "DESCENDING", "DESCENDING")
+                q_docs = list(q_base.order_by("timestamp", direction=direction_desc).stream())
+            except Exception:
+                q_docs = list(q_base.order_by("timestamp", direction="DESCENDING").stream())
             questions = [dict(d.to_dict() or {}, id=d.id) for d in q_docs]
         except Exception:
             q_docs = list(q_base.stream())
@@ -6589,7 +6658,7 @@ if tab == "My Course":
                             _notify_slack(
                                 f"🗑️ *Q&A question deleted* — {class_name}\n"
                                 f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                             )
                             st.success("Question deleted.")
                             st.rerun()
@@ -6614,12 +6683,12 @@ if tab == "My Course":
                             q_base.document(q_id).update({
                                 "question": new_text.strip(),
                                 "topic": (new_topic or "").strip(),
-                                "edited_at": datetime.utcnow(),
+                                "edited_at": _dt.utcnow(),
                             })
                             _notify_slack(
                                 f"✏️ *Q&A question edited* — {class_name}\n"
                                 f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                 f"*New:* {(new_text[:180] + '…') if len(new_text) > 180 else new_text}"
                             )
                             st.session_state[f"q_editing_{q_id}"] = False
@@ -6663,7 +6732,7 @@ if tab == "My Course":
                                     _notify_slack(
                                         f"🗑️ *Q&A reply deleted* — {class_name}\n"
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                     )
                                     st.success("Reply deleted.")
                                     st.rerun()
@@ -6681,12 +6750,12 @@ if tab == "My Course":
                                 if rsave and new_rtext.strip():
                                     r.reference.update({
                                         "reply_text": new_rtext.strip(),
-                                        "edited_at": datetime.utcnow(),
+                                        "edited_at": _dt.utcnow(),
                                     })
                                     _notify_slack(
                                         f"✏️ *Q&A reply edited* — {class_name}\n"
                                         f"*By:* {student_name} ({student_code}) • QID: {q_id}\n"
-                                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                                         f"*New:* {(new_rtext[:180] + '…') if len(new_rtext) > 180 else new_rtext}"
                                     )
                                     st.session_state[f"r_editing_{q_id}_{rid}"] = False
@@ -6712,7 +6781,7 @@ if tab == "My Course":
                         "reply_text": reply_text.strip(),
                         "replied_by_name": student_name,
                         "replied_by_code": student_code,
-                        "timestamp": datetime.utcnow(),
+                        "timestamp": _dt.utcnow(),
                     }
                     r_ref = q_base.document(q_id).collection("replies")
                     r_ref.document(str(uuid4())[:8]).set(reply_payload)
@@ -6720,13 +6789,13 @@ if tab == "My Course":
                     _notify_slack(
                         f"💬 *New Q&A reply* — {class_name}\n"
                         f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
-                        f"*When:* {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                        f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
                         f"*Reply:* {prev}"
                     )
                     st.session_state[clear_key] = True
                     st.success("Reply sent!")
                     st.rerun()
-#
+
 
 
     # === LEARNING NOTES SUBTAB ===
@@ -8271,127 +8340,117 @@ if tab == "Exams Mode & Custom Chat":
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (Web Recorder only)
+    # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
         import datetime as _dt
         from io import BytesIO
-        import urllib.parse as _urllib
-        import requests
-        try:
-            FSQuery  # defined earlier as alias to firestore.Query
-        except NameError:
-            from google.cloud import firestore as _fs
-            FSQuery = _fs.Query
+        from urllib.parse import quote as _urlq
 
-        # ----- Daily limit guard (3/day)
-        code_val = (st.session_state.get("student_code") or "").strip()
-        if not code_val:
-            st.error("Missing student code in session. Please sign in again.")
-            st.stop()
-
+        # --------- daily limit (3/day) ---------
         today_str = _dt.date.today().isoformat()
-        uses_ref = db.collection("pron_uses").document(code_val)
-        snap = uses_ref.get()
-        data = snap.to_dict() if snap.exists else {}
+        uploads_ref = db.collection("pron_uses").document(st.session_state["student_code"])
+        doc = uploads_ref.get()
+        data = doc.to_dict() if doc.exists else {}
         last_date = data.get("date")
-        count = int(data.get("count", 0))
+        count = data.get("count", 0)
+
         if last_date != today_str:
             count = 0
         if count >= 3:
             st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
+            st.stop()
+
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+
+        # Simple device choice: Android → email flow; Computer/iPhone → upload here
+        device_choice = st.radio(
+            "Choose your device:",
+            ["Computer / iPhone (upload here)", "Android (send by email)"],
+            index=0,
+            help="Android web upload can fail on some phones. Use the email option for reliable feedback."
+        )
+
+        # --------- ANDROID: email option (no upload UI) ---------
+        if device_choice.startswith("Android"):
+            to_email = "Learngermanghana@gmail.com"
+            student_code = st.session_state.get("student_code", "").strip()
+            subj = f"Pronunciation Check — {student_code or 'NoCode'}"
+            body = (
+                "Hello,\n\n"
+                "Please find my German speaking sample attached (30–60 seconds). "
+                "Kindly evaluate Pronunciation, Grammar and Fluency (0–100) with 3 tips each.\n\n"
+                f"Student Code: {student_code or '(please type)'}\n"
+                "Level/Class: (type here)\n\n"
+                "Thank you."
+            )
+            mailto_url = f"mailto:{to_email}?subject={_urlq(subj)}&body={_urlq(body)}"
+
+            st.info(
+                "On **Android**, email your recording for feedback:\n\n"
+                "1) Record 30–60s in your Recorder app and **Save** the file.\n"
+                "2) Tap the button below to open your email.\n"
+                "3) **Attach** the audio file (.mp3 / .m4a / .wav) and send.",
+            )
+            st.link_button("✉️ Email your recording for feedback", mailto_url)
+
+            st.caption(
+                "We’ll transcribe with Whisper and reply with scores + tips. "
+                "You’ll also see results later in **My Results and Resources → Speaking**."
+            )
+
             if st.button("⬅️ Back to Start"):
                 st.session_state["falowen_stage"] = 1
                 st.rerun()
+
             st.stop()
 
-        # ----- UI
-        st.subheader("🎤 Pronunciation & Speaking Checker")
+        # --------- COMPUTER / iPHONE: upload + automatic feedback ---------
         st.info(
-            "Step 1) Tap **Open Web Recorder** and record (≤ 60s), then press **Upload** on that page.\n\n"
-            "Step 2) Return here and tap **Check latest upload** to transcribe and get feedback."
+            "Record or upload your speaking sample (max **60 seconds**).\n"
+            "• Use your device recorder **or** visit **vocaroo.com**, then download the file.\n"
+            "• Tap **Browse** and select **.wav / .mp3 / .m4a**."
         )
 
-        # Use the GitHub Pages recorder (speak.falowen.app not ready yet)
-        RECORDER_URL = "https://speak.falowen.app/"
-        rec_url = RECORDER_URL + f"?code={_urllib.quote(code_val)}"
+        audio_file = st.file_uploader(
+            "Upload your audio file (≤ 60 seconds, WAV/MP3/M4A).",
+            type=["mp3", "wav", "m4a", "aac", "ogg", "webm", "3gp"],
+            accept_multiple_files=False,
+            key="pron_audio_uploader",
+        )
 
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.link_button("🎙️ Open Web Recorder", rec_url, use_container_width=True)
-        with c2:
-            go = st.button("🔎 Check latest upload", use_container_width=True)
+        if audio_file:
+            # Basic size guard (Whisper ~25MB hard limit)
+            raw_bytes = audio_file.read() or b""
+            if len(raw_bytes) > 24 * 1024 * 1024:
+                st.error("File is larger than 24 MB. Please trim or export at a lower bitrate.")
+                st.stop()
 
-        st.caption("Tip: After uploading in the recorder, wait ~2 seconds before clicking **Check latest upload**.")
+            # Preview player
+            st.audio(BytesIO(raw_bytes))
 
-        if go:
-            # Query newest upload for this student (needs composite index: code==, createdAt desc)
+            # Reset file pointer for API use
             try:
-                q = (
-                    db.collection("pron_inbox")
-                    .where("code", "==", code_val)
-                    .order_by("createdAt", direction=FSQuery.DESCENDING)
-                    .limit(1)
-                )
-                docs = list(q.stream())
+                audio_file.seek(0)
             except Exception:
-                st.error("Couldn’t fetch your cloud upload. Create the Firestore index for (code ==, createdAt desc) if prompted, then try again.")
-                st.stop()
+                pass
 
-            if not docs:
-                st.info("No cloud upload found yet. Make sure you pressed **Upload** in the Web Recorder.")
-                st.stop()
-
-            rec = docs[0].to_dict() or {}
-            url = rec.get("url")
-            ctype = (rec.get("contentType") or "").lower()
-            if not url:
-                st.error("Upload record is missing a download URL. Please try uploading again.")
-                st.stop()
-
-            # Preview from cloud
-            st.audio(url)
-
-            # Download for Whisper
+            # ---------- Transcribe (German, no translation) ----------
             try:
-                resp = requests.get(url, timeout=20)
-                resp.raise_for_status()
-            except Exception as e:
-                st.error(f"Couldn’t download your audio from cloud storage: {e}")
-                st.stop()
-
-            bio = BytesIO(resp.content); bio.seek(0)
-
-            # Pick extension to help Whisper
-            ext = "webm"
-            if "mp3" in ctype:
-                ext = "mp3"
-            elif "wav" in ctype:
-                ext = "wav"
-            elif "m4a" in ctype or "mp4" in ctype or "aac" in ctype:
-                ext = "m4a"
-            elif "ogg" in ctype:
-                ext = "ogg"
-            elif "3gpp" in ctype:
-                ext = "3gp"
-            setattr(bio, "name", f"speech.{ext}")
-
-            # Transcribe (German)
-            try:
-                t = client.audio.transcriptions.create(
-                    file=bio,
+                transcript_resp = client.audio.transcriptions.create(
+                    file=audio_file,
                     model="whisper-1",
                     language="de",
                     temperature=0,
                     prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
                 )
-                transcript_text = t.text
+                transcript_text = transcript_resp.text
             except Exception as e:
                 st.error(f"Sorry, could not process audio: {e}")
                 st.stop()
 
-            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
+            st.markdown(f"**Transcribed (German):**\n\n> {transcript_text}")
 
-            # Evaluate (English)
+            # ---------- Evaluate (English feedback) ----------
             eval_prompt = (
                 "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
                 f'The student said (in German): "{transcript_text}"\n\n'
@@ -8404,26 +8463,33 @@ if tab == "Exams Mode & Custom Chat":
                 "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
                 "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
             )
+
             with st.spinner("Evaluating your sample..."):
                 try:
-                    r = client.chat.completions.create(
+                    eval_resp = client.chat.completions.create(
                         model="gpt-4o",
                         messages=[
-                            {"role": "system", "content": "You are an English-speaking tutor evaluating German speech. Always answer in clear, concise English using the requested format."},
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are an English-speaking tutor evaluating German speech. "
+                                    "Always answer in clear, concise English using the requested format."
+                                ),
+                            },
                             {"role": "user", "content": eval_prompt},
                         ],
                         temperature=0.2,
                     )
-                    result_text = r.choices[0].message.content
+                    result_text = eval_resp.choices[0].message.content
                 except Exception as e:
                     st.error(f"Evaluation error: {e}")
                     result_text = None
 
             if result_text:
                 st.markdown(result_text)
-                uses_ref.set({"count": count + 1, "date": today_str})
-                st.success(f"Saved ✅ — attempt {count + 1} of 3 for today.")
-                if st.button("🔄 Check another upload"):
+                uploads_ref.set({"count": count + 1, "date": today_str})
+                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
+                if st.button("🔄 Try Another"):
                     st.rerun()
             else:
                 st.error("Could not get feedback. Please try again later.")
@@ -11199,6 +11265,8 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
+
 
 
 
