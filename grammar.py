@@ -5432,51 +5432,71 @@ if tab == "My Course":
                 can_submit = (confirm_final and confirm_lock and (not locked))
 
                 if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
+                    # Acquire a lock FIRST; if it already exists, reflect lock and rerun.
                     if not acquire_lock(student_level, code, lesson_key):
                         st.session_state[locked_key] = True
                         st.warning("You have already submitted this assignment. It is locked.")
-                    else:
-                        posts_ref = db.collection("submissions").document(student_level).collection("posts")
-                        now = datetime.now(timezone.utc)
-                        payload = {
-                            "student_code": code,
-                            "student_name": name or "Student",
-                            "level": student_level,
-                            "day": info["day"],
-                            "chapter": chapter_name,
-                            "lesson_key": lesson_key,
-                            "answer": st.session_state.get(draft_key, "").strip(),
-                            "status": "submitted",
-                            "created_at": now,
-                            "updated_at": now,
-                            "version": 1,
-                        }
-                        _, ref = posts_ref.add(payload)
-                        short_ref = f"{ref.id[:8].upper()}-{info['day']}"
-                        st.session_state[locked_key] = True
-                        st.success("Submitted! Your work has been sent to your tutor.")
-                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
+                        st.rerun()
 
-                        # Archive the draft so it won't rehydrate again (drafts_v2)
-                        try:
-                            _draft_doc_ref(student_level, lesson_key, code).set(
-                                {"status": "submitted", "archived_at": now}, merge=True
-                            )
-                        except Exception:
-                            pass
+                    posts_ref = db.collection("submissions").document(student_level).collection("posts")
 
-                        webhook = get_slack_webhook()
-                        if webhook:
-                            notify_slack_submission(
-                                webhook_url=webhook,
-                                student_name=name or "Student",
-                                student_code=code,
-                                level=student_level,
-                                day=info["day"],
-                                chapter=chapter_name,
-                                receipt=short_ref,
-                                preview=st.session_state.get(draft_key, "")
-                            )
+                    payload = {
+                        "student_code": code,
+                        "student_name": name or "Student",
+                        "level": student_level,
+                        "day": info["day"],
+                        "chapter": chapter_name,
+                        "lesson_key": lesson_key,
+                        "answer": (st.session_state.get(draft_key, "") or "").strip(),
+                        "status": "submitted",
+                        "created_at": firestore.SERVER_TIMESTAMP,
+                        "updated_at": firestore.SERVER_TIMESTAMP,
+                        "version": 1,
+                    }
+
+                    try:
+                        # google-cloud-firestore add() -> (DocumentReference, write_time)
+                        doc_ref, write_time = posts_ref.add(payload)
+                        short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+                        # persist receipt
+                        doc_ref.update({"receipt": short_ref})
+                    except Exception:
+                        short_ref = f"{code}-{info['day']}".upper()
+
+                    # Lock UI immediately and remember receipt locally
+                    st.session_state[locked_key] = True
+                    st.session_state[f"{lesson_key}__receipt"] = short_ref
+
+                    st.success("Submitted! Your work has been sent to your tutor.")
+                    st.caption(
+                        f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
+                        "See **Results & Resources** for scores & feedback."
+                    )
+
+                    # Archive the draft so it won't rehydrate again (drafts_v2)
+                    try:
+                        _draft_doc_ref(student_level, lesson_key, code).set(
+                            {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+                        )
+                    except Exception:
+                        pass
+
+                    # Notify Slack (best-effort)
+                    webhook = get_slack_webhook()
+                    if webhook:
+                        notify_slack_submission(
+                            webhook_url=webhook,
+                            student_name=name or "Student",
+                            student_code=code,
+                            level=student_level,
+                            day=info["day"],
+                            chapter=chapter_name,
+                            receipt=short_ref,
+                            preview=st.session_state.get(draft_key, "")
+                        )
+
+                    # Rerun so hydration path immediately shows locked view
+                    st.rerun()
 
             with col2:
                 st.markdown("#### ❓ Ask the Teacher")
@@ -5496,6 +5516,14 @@ if tab == "My Course":
                 ts = latest.get('updated_at')
                 when = f"{ts.strftime('%Y-%m-%d %H:%M')} UTC" if ts else ""
                 st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
+
+                # show receipt from doc or session
+                rec_local = st.session_state.get(f"{lesson_key}__receipt")
+                rec_doc = latest.get("receipt")
+                rec = rec_doc or rec_local
+                if rec:
+                    st.caption(f"Receipt: `{rec}`")
+
                 st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
