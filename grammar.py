@@ -1935,9 +1935,9 @@ def render_dropdown_nav():
 # --- Query-param helpers (single API; no experimental mix) ---
 if "_qp_get_first" not in globals():
     def _qp_get_first(key: str, default: str = "") -> str:
+        """Return first value from st.query_params (new API-safe)."""
         try:
             val = st.query_params.get(key, default)
-            # New Streamlit returns str; old could be list -> normalize
             if isinstance(val, list):
                 return (val[0] if val else default)
             return str(val)
@@ -1946,11 +1946,12 @@ if "_qp_get_first" not in globals():
 
 if "_qp_set" not in globals():
     def _qp_set(**kwargs):
-        # Use only the production API
+        """Set URL query params using only the production API."""
         try:
             for k, v in kwargs.items():
-                st.query_params[k] = str(v)
+                st.query_params[k] = "" if v is None else str(v)
         except Exception:
+            # If browser doesn't allow URL changes, just skip
             pass
 
 # --- Minimal CSS injector fallback so NameError never happens ---
@@ -1964,12 +1965,14 @@ if "inject_notice_css" not in globals():
               .mini-card {border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:8px 0;}
               .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
                         background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
+              /* Sticky nav container for mobile */
+              .nav-sticky {position: sticky; top: 0; z-index: 50; background: white; padding-top: 6px;}
             </style>
             """,
             unsafe_allow_html=True,
         )
 
-# --- Nav dropdown (mobile-friendly, very simple text) ---
+# --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
     tabs = [
         "Dashboard",
@@ -1988,13 +1991,15 @@ def render_dropdown_nav():
         "Schreiben Trainer": "✍️",
     }
 
-    # Banner
+    # Sticky banner
     st.markdown(
         """
-        <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
-                    margin:4px 0 10px 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
-          <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
-          <div style="color:#0c4a6e;font-size:0.95rem;">Use the selector <b>below</b> to switch sections</div>
+        <div class="nav-sticky">
+          <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
+                      margin:4px 0 10px 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
+            <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
+            <div style="color:#0c4a6e;font-size:0.95rem;">Use the selector <b>below</b> to switch sections</div>
+          </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -2038,14 +2043,16 @@ def render_dropdown_nav():
     return sel
 
 # --- Initialize nav (MUST be before any "if tab == ..." checks) ---
+inject_notice_css()
 try:
     if "nav_sel" not in st.session_state:
-        st.session_state["nav_sel"] = "Dashboard"
-        st.session_state["main_tab_select"] = "Dashboard"
+        st.session_state["nav_sel"] = _qp_get_first("tab", "Dashboard")
+        st.session_state["main_tab_select"] = st.session_state["nav_sel"]
     tab = render_dropdown_nav()
 except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
+
 
 
 # =========================================================
