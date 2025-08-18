@@ -1781,30 +1781,41 @@ def inject_notice_css():
 
 
 # =========================================================
-# ================== Demo data for announcements ==========
+# ================== App Announcements ====================
 # =========================================================
 announcements = [
     {
-        "title": "New! Dictionary tab in Vocab Trainer",
-        "body":  "Look up quick definitions and example sentences. Open: Vocab Trainer → Dictionary.",
+        "title": "Autosave + Cloud Drafts",
+        "body":  "Your answer box now autosaves every few seconds to the cloud. Drafts persist across refresh/devices. Use “↻ Reload last saved draft” in Submit to pull the server copy.",
         "tag":   "Update"
     },
     {
-        "title": "Calendar & Zoom in My Course → Classroom (no WhatsApp)",
-        "body":  "All class reminders and updates are now inside the app. Go to My Course → Classroom to add the calendar and join Zoom.",
+        "title": "Submit Flow & Locking",
+        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
         "tag":   "Action"
     },
     {
-        "title": "Answers by Email + Weekly Summary",
-        "body":  "Your marked answers will arrive in your email. You’ll also get a weekly summary of your submissions.",
-        "tag":   "Email"
+        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
+        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
+        "tag":   "Tip"
     },
     {
-        "title": "Before You Submit Assignments",
-        "body":  "Always make sure your assignment is fully complete before submitting — add your Schreiben, Lesen & Hören work if required, type your final answers in My Course → Classroom (answer box), then submit.",
-        "tag":   "Reminder"
+        "title": "Lesson Links — One Download",
+        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
+        "tag":   "New"
+    },
+    {
+        "title": "Video of the Day + Translator",
+        "body":  "Each level gets a rotating ‘Video of the Day’ in Supporting Materials, plus quick links to DeepL and Google Translate.",
+        "tag":   "Support"
+    },
+    {
+        "title": "Sprechen: Instant Pronunciation Feedback",
+        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
+        "tag":   "New"
     }
 ]
+
 
 
 # =========================================================
