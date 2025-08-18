@@ -8255,15 +8255,22 @@ if tab == "Exams Mode & Custom Chat":
 
     # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
-        import datetime as _dt
         import urllib.parse as _urllib
-        from io import BytesIO
 
-        # Optional: validate code against your Students sheet
-        STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
+        # Optional: validate code against your Students sheet (CSV view)
+        STUDENTS_CSV_URL = (
+            "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
+            "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
+        )
 
         def _norm_code(v: str) -> str:
-            return str(v or "").strip().lower().replace(" ", "")
+            return (
+                str(v or "")
+                .strip()
+                .lower()
+                .replace("\u00a0", " ")
+                .replace(" ", "")
+            )
 
         # 1) Try session
         student_code = _norm_code(st.session_state.get("student_code"))
@@ -8272,10 +8279,9 @@ if tab == "Exams Mode & Custom Chat":
         if not student_code:
             try:
                 qp = st.query_params
-                if isinstance(qp.get("code"), list):
-                    q_from_url = qp.get("code")[0]
-                else:
-                    q_from_url = qp.get("code", "")
+                q_from_url = qp.get("code")
+                if isinstance(q_from_url, list):
+                    q_from_url = q_from_url[0]
                 q_from_url = _norm_code(q_from_url)
                 if q_from_url:
                     student_code = q_from_url
@@ -8294,155 +8300,55 @@ if tab == "Exams Mode & Custom Chat":
                     st.rerun()
             st.stop()
 
-        # Validate code against the Students sheet (soft-fail if sheet not reachable)
+        # ---- (Optional) Validate against sheet: code must exist in StudentCode column
         try:
             import pandas as pd
+
             df_students = pd.read_csv(STUDENTS_CSV_URL)
-            # find a likely column name
+            # map columns in a forgiving way
             _cands = {c.strip().lower(): c for c in df_students.columns}
-            for key in ["student_code", "studentcode", "code", "student code"]:
+            col = None
+            for key in ["studentcode", "student_code", "code", "student code"]:
                 if key in _cands:
                     col = _cands[key]
-                    codes = set(_norm_code(x) for x in df_students[col].astype(str))
-                    if student_code not in codes:
-                        st.error("Student code not found in our records. Please check and try again.")
-                        st.stop()
                     break
+            if col:
+                codes = {_norm_code(x) for x in df_students[col].astype(str)}
+                if student_code not in codes:
+                    st.error("Student code not found in our records. Please check and try again.")
+                    st.stop()
         except Exception:
-            # Not fatal: continue if validation can’t run
+            # Soft-fail if sheet can’t be reached; the recorder page will validate again anyway.
             pass
 
-        # Daily upload limit (per student)
-        today_str = _dt.date.today().isoformat()
-        uploads_ref = db.collection("pron_uses").document(student_code or "unknown")
-        doc = uploads_ref.get()
-        data = doc.to_dict() if doc.exists else {}
-        last_date = data.get("date")
-        count = data.get("count", 0)
-        if last_date != today_str:
-            count = 0
-        if count >= 3:
-            st.warning("You’ve hit your daily upload limit (3). Try again tomorrow.")
-            st.stop()
-
         st.subheader("🎤 Pronunciation & Speaking Checker")
-        st.info(
-            """
-            You have two options:
-            1) **Record directly** (recommended) — opens a small recorder page.
-            2) **Upload a file** (≤ 60 seconds) — works well on computer and iOS.
-            """
-        )
+        st.info("Click the button below to open the Sprechen Recorder.")
 
-        # Quick steps banner (your updated copy)
-        with st.expander("Tap for quick steps"):
+        # Build recorder URL with code param
+        RECORDER_URL = (
+            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+        )
+        rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
+
+        # Big primary button (opens in new tab)
+        try:
+            st.link_button("📼 Open Sprechen Recorder", rec_url, type="primary", use_container_width=True)
+        except Exception:
+            # Fallback for older Streamlit versions
             st.markdown(
-                """
-                • **Direct recording works on all devices.**  
-                • **Uploading is only possible on computer and iOS.**  
-                • When uploading here, choose **Files → Audio/Recordings** (not Photos).
-                """
+                f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
+                'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
+                'text-decoration:none;font-weight:700;">📼 Open Sprechen Recorder</a>',
+                unsafe_allow_html=True,
             )
 
-        # External recorder link (includes student code)
-        _host = "https://language-academy-3e1de.web.app"
-        rec_url = f"{_host}/recorder?code={_urllib.quote(student_code)}"
-        rec_url_fallback = f"{_host}/recorder.html?code={_urllib.quote(student_code)}"
-
-        st.markdown(
-            f"""
-            <div style="margin:6px 0 14px 0;">
-              <a href="{rec_url}" target="_blank" style="display:inline-block;padding:10px 14px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none;font-weight:600;">📼 Open Recorder (recommended)</a>
-              <div style="font-size:13px;color:#475569;margin-top:6px;">If the link doesn’t open, try the fallback: <a href="{rec_url_fallback}" target="_blank">/recorder.html</a></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        # —— Upload flow (desktop/iOS best)
-        audio_file = st.file_uploader(
-            "Or upload an audio file (≤ 60 seconds):",
-            type=["mp3", "wav", "m4a", "aac", "ogg", "webm", "3gp"],
-            accept_multiple_files=False,
-            key="pron_audio_uploader",
-            help="Supported: .mp3, .wav, .m4a, .aac, .ogg, .webm, .3gp",
-        )
-
-        if audio_file:
-            # Preview
-            try:
-                audio_file.seek(0)
-            except Exception:
-                pass
-            st.audio(audio_file)
-
-            # 1) Transcribe (German only)
-            try:
-                transcript_resp = client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-1",
-                    language="de",
-                    temperature=0,
-                    prompt="Dies ist deutsche Sprache. Bitte nur transkribieren (keine Übersetzung).",
-                )
-                transcript_text = (transcript_resp.text or "").strip()
-            except Exception as e:
-                st.error(f"Sorry, could not process audio: {e}")
-                st.stop()
-
-            if not transcript_text:
-                st.error("We couldn’t detect any speech. Please re-record closer to the mic and try again.")
-                st.stop()
-
-            st.markdown(f"**Transcribed (German):**  \n> {transcript_text}")
-
-            # 2) Evaluate (English-only feedback)
-            eval_prompt = (
-                "You are an English-speaking tutor evaluating a **German** speaking sample.\n"
-                f'The student said (in German): "{transcript_text}"\n\n'
-                "Please provide scores **in English only**:\n"
-                "• Rate Pronunciation, Grammar, and Fluency each from 0–100.\n"
-                "• Give three concise, actionable tips for each category.\n"
-                "• Do not translate the student's text; focus on evaluating it.\n\n"
-                "Respond exactly in this format:\n"
-                "Pronunciation: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Grammar: XX/100\nTips:\n1. …\n2. …\n3. …\n\n"
-                "Fluency: XX/100\nTips:\n1. …\n2. …\n3. …"
-            )
-
-            with st.spinner("Evaluating your sample..."):
-                try:
-                    eval_resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": (
-                                    "You are an English-speaking tutor evaluating German speech. "
-                                    "Always answer in clear, concise English using the requested format."
-                                ),
-                            },
-                            {"role": "user", "content": eval_prompt},
-                        ],
-                        temperature=0.2,
-                    )
-                    result_text = eval_resp.choices[0].message.content
-                except Exception as e:
-                    st.error(f"Evaluation error: {e}")
-                    result_text = None
-
-            if result_text:
-                st.markdown(result_text)
-                uploads_ref.set({"count": count + 1, "date": today_str})
-                st.info("💡 Tip: Use **Custom Chat** first to build ideas, then record and upload here.")
-                if st.button("🔄 Try Another"):
-                    st.rerun()
-            else:
-                st.error("Could not get feedback. Please try again later.")
+        st.caption("If the button doesn’t open, copy & paste this link:")
+        st.code(rec_url, language="text")
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#
 
 
 
@@ -11211,6 +11117,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
