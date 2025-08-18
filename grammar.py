@@ -1,23 +1,12 @@
 # ==== Standard Library ====
-import atexit
-import base64
-import calendar
-import difflib
-import hashlib
+import atexit, base64, difflib, hashlib
 import html as html_stdlib
-import io
-import json
-import math
-import os
-import random
-import re
-import sqlite3
-import tempfile
-import time
+import io, json, os, random, math, re, sqlite3, tempfile, time
 import urllib.parse as _urllib
+import calendar
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
 from uuid import uuid4
+from typing import Optional
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -36,7 +25,6 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
-
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
@@ -1929,51 +1917,14 @@ def render_dropdown_nav():
 
 
 # =========================================================
-# ===================== NAV & HELPERS =====================
+# ===================== Tabs UI ===========================
 # =========================================================
-
-# --- Query-param helpers (single API; no experimental mix) ---
-if "_qp_get_first" not in globals():
-    def _qp_get_first(key: str, default: str = "") -> str:
-        """Return first value from st.query_params (new API-safe)."""
-        try:
-            val = st.query_params.get(key, default)
-            if isinstance(val, list):
-                return (val[0] if val else default)
-            return str(val)
-        except Exception:
-            return default
-
-if "_qp_set" not in globals():
-    def _qp_set(**kwargs):
-        """Set URL query params using only the production API."""
-        try:
-            for k, v in kwargs.items():
-                st.query_params[k] = "" if v is None else str(v)
-        except Exception:
-            # If browser doesn't allow URL changes, just skip
-            pass
-
-# --- Minimal CSS injector fallback so NameError never happens ---
-if "inject_notice_css" not in globals():
-    def inject_notice_css():
-        st.markdown(
-            """
-            <style>
-              .mini-chip {display:inline-block;background:#eef2ff;color:#3730a3;
-                          padding:4px 10px;border-radius:999px;font-size:0.85rem;margin-right:6px;}
-              .mini-card {border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:8px 0;}
-              .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
-                        background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
-              /* Sticky nav container for mobile */
-              .nav-sticky {position: sticky; top: 0; z-index: 50; background: white; padding-top: 6px;}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-# --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
+    """
+    Mobile-friendly dropdown nav with a clear banner that says:
+    '🧭 Main Menu — use the selector below to switch sections.'
+    Also keeps URL (?tab=...) and st.session_state in sync.
+    """
     tabs = [
         "Dashboard",
         "My Course",
@@ -1991,25 +1942,36 @@ def render_dropdown_nav():
         "Schreiben Trainer": "✍️",
     }
 
-    # Sticky banner
+    # --- Clean, simple banner: always visible, right above the selector ---
     st.markdown(
         """
-        <div class="nav-sticky">
-          <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
-                      margin:4px 0 10px 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
-            <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
-            <div style="color:#0c4a6e;font-size:0.95rem;">Use the selector <b>below</b> to switch sections</div>
+        <div style="
+            padding:12px 14px;
+            background:#ecfeff;
+            border:1px solid #67e8f9;
+            border-radius:12px;
+            margin: 4px 0 10px 0;
+            display:flex;align-items:center;gap:10px;justify-content:space-between;">
+          <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">
+            🧭 Main Menu
+          </div>
+          <div style="color:#0c4a6e;font-size:0.95rem;">
+            Use the selector <b>below</b> to switch sections
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Default from URL OR session
-    default = _qp_get_first("tab", st.session_state.get("main_tab_select", "Dashboard"))
+    # --- Default from URL (?tab=...) or session ---
+    default = st.query_params.get(
+        "tab",
+        [st.session_state.get("main_tab_select", "Dashboard")]
+    )[0]
     if default not in tabs:
         default = "Dashboard"
 
+    # --- Selectbox with icons in labels ---
     def _fmt(x: str) -> str:
         return f"{icons.get(x,'•')}  {x}"
 
@@ -2019,16 +1981,15 @@ def render_dropdown_nav():
         index=tabs.index(default),
         key="nav_dd",
         format_func=_fmt,
-        help="This is the main selector. Tap ▾ to view all sections.",
+        help="This is the main selector. Tap the arrow ▾ to view all sections.",
     )
 
-    # Persist to URL + session (no rerun storm)
+    # --- Persist selection to URL + session ---
     if sel != default:
-        _qp_set(tab=sel)
+        st.query_params["tab"] = sel
     st.session_state["main_tab_select"] = sel
-    st.session_state["nav_sel"] = sel  # stable name used later
 
-    # “You’re here” chip
+    # Small “you are here” chip (helps on mobile)
     st.markdown(
         f"""
         <div style="margin-top:6px;">
@@ -2040,19 +2001,11 @@ def render_dropdown_nav():
         """,
         unsafe_allow_html=True,
     )
+
     return sel
 
-# --- Initialize nav (MUST be before any "if tab == ..." checks) ---
-inject_notice_css()
-try:
-    if "nav_sel" not in st.session_state:
-        st.session_state["nav_sel"] = _qp_get_first("tab", "Dashboard")
-        st.session_state["main_tab_select"] = st.session_state["nav_sel"]
-    tab = render_dropdown_nav()
-except Exception as e:
-    st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
-    tab = "Dashboard"
-
+# usage:
+tab = render_dropdown_nav()
 
 
 # =========================================================
@@ -4669,11 +4622,8 @@ if tab == "My Course":
         key="coursebook_subtab"
     )
 
-
-    # === COURSE BOOK SUBTAB (mini-tabs inside) ===
+    # === COURSE BOOK SUBTAB ===
     if cb_subtab == "📘 Course Book":
-        from datetime import date, timedelta  # needed inside this branch
-
         st.markdown(
             '''
             <div style="
@@ -4685,14 +4635,13 @@ if tab == "My Course":
                 margin-bottom: 16px;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             ">
-                <span style="font-size:1.8rem; font-weight:600;">📘 Course Book</span>
+                <span style="font-size:1.8rem; font-weight:600;">📈 Course Book</span>
             </div>
             ''',
             unsafe_allow_html=True
         )
         st.divider()
 
-        # ---- Load schedule & search ----
         schedules = load_level_schedules()
         schedule = schedules.get(student_level, schedules.get("A1", []))
 
@@ -4709,18 +4658,37 @@ if tab == "My Course":
             for _, d in matches:
                 title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
                 grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
-                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
+                labels.append(
+                    f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
+                )
 
-            st.markdown("<span style='font-weight:700; font-size:1rem;'>Lessons:</span>", unsafe_allow_html=True)
-            sel = st.selectbox("", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
+            # Bold header for lessons dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Lessons:</span>",
+                unsafe_allow_html=True
+            )
+            sel = st.selectbox(
+                "",  # label hidden
+                list(range(len(matches))),
+                format_func=lambda i: labels[i],
+                key="course_search_sel"
+            )
             idx = matches[sel][0]
         else:
-            st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
-            idx = st.selectbox("", range(len(schedule)), format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}")
+            # Bold header for lesson/day dropdown
+            st.markdown(
+                "<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>",
+                unsafe_allow_html=True
+            )
+            idx = st.selectbox(
+                "",  # label hidden
+                range(len(schedule)),
+                format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
+            )
 
         st.divider()
 
-        # ---- Progress ----
+        # Progress Bar
         total = len(schedule)
         done = idx + 1
         pct = int(done / total * 100) if total else 0
@@ -4728,225 +4696,136 @@ if tab == "My Course":
         st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
         st.divider()
 
-        # ---- Lesson info ----
+        # ===== COURSE BOOK INFO =====
+        with st.expander("📚 Course Book & Study Recommendations", expanded=False):
+
+            # Recommended time
+            LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
+            rec_time = LEVEL_TIME.get(student_level, 20)
+            st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
+
+            # Suggested end dates
+            start_str = student_row.get("ContractStart", "")
+            start_date = None
+            for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+                try:
+                    start_date = datetime.strptime(start_str, fmt).date()
+                    break
+                except:
+                    continue
+
+            if start_date:
+                total = total
+                weeks_three = (total + 2) // 3
+                weeks_two   = (total + 1) // 2
+                weeks_one   = total
+
+                end_three = start_date + timedelta(weeks=weeks_three)
+                end_two   = start_date + timedelta(weeks=weeks_two)
+                end_one   = start_date + timedelta(weeks=weeks_one)
+
+                spacer, content = st.columns([3, 7])
+                with content:
+                    st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
+                    st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
+                    st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
+            else:
+                spacer, content = st.columns([3, 7])
+                with content:
+                    st.warning("❓ Start date missing or invalid. Please update your contract start date.")
+
         info = schedule[idx]
-        title_txt = f"Day {info['day']}: {info['topic']}"
-        st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
+        # ---- Fix for highlight and header ----
+        lesson_title = f"Day {info['day']}: {info['topic']}"
+        highlighted_title = highlight_terms(lesson_title, search_terms)
+        st.markdown(
+            f"### {highlighted_title} (Chapter {info['chapter']})",
+            unsafe_allow_html=True
+        )
+        st.divider()
+
         if info.get("grammar_topic"):
-            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+            st.markdown(
+                f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}",
+                unsafe_allow_html=True
+            )
         if info.get("goal"):
             st.markdown(f"**🎯 Goal:**  {info['goal']}")
         if info.get("instruction"):
             st.markdown(f"**📝 Instruction:**  {info['instruction']}")
 
-        st.divider()
-
-
-        # ---------- mini-tabs inside Course Book ----------
-        t_overview, t_worklinks, t_tv, t_submit = st.tabs(
-            ["Overview", "Your Work & Links", "E", "Submit"]
-        )
-
-        # OVERVIEW
-        with t_overview:
-            with st.expander("📚 Course Book & Study Recommendations", expanded=True):
-                LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-                rec_time = LEVEL_TIME.get(student_level, 20)
-                st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
-
-                start_str = student_row.get("ContractStart", "")
-                start_date = None
-                for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-                    try:
-                        start_date = datetime.strptime(start_str, fmt).date()
-                        break
-                    except Exception:
-                        continue
-
-                if start_date and total:
-                    weeks_three = (total + 2) // 3
-                    weeks_two   = (total + 1) // 2
-                    weeks_one   = total
-                    end_three = start_date + timedelta(weeks=weeks_three)
-                    end_two   = start_date + timedelta(weeks=weeks_two)
-                    end_one   = start_date + timedelta(weeks=weeks_one)
-                    _, content = st.columns([3, 7])
-                    with content:
-                        st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
-                        st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
-                        st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
-                else:
-                    _, content = st.columns([3, 7])
-                    with content:
-                        st.warning("❓ Start date missing or invalid. Please update your contract start date.")
-
-        # YOUR WORK & LINKS (Activities + Resources together) — no duplicate videos, links download only
-        with t_worklinks:
-            from urllib.parse import urlsplit, parse_qs, urlparse
-            import io, json
-
-            # ---------- helpers ----------
-            def _as_list(x):
-                if not x: return []
-                return x if isinstance(x, list) else [x]
-
-            def _is_url(u: str) -> bool:
-                try:
-                    p = urlparse(str(u))
-                    return p.scheme in ("http", "https") and bool(p.netloc)
-                except Exception:
-                    return False
-
-            def _dedup(seq):
-                out, seen = [], set()
-                for s in seq:
-                    if s and s not in seen:
-                        seen.add(s); out.append(s)
-                return out
-
-            def _canon_video(u: str) -> str:
-                """Stable id for a video url (YouTube => yt:ID, else normalized url)."""
-                if not u:
-                    return ""
-                try:
-                    p = urlsplit(u)
-                    host = (p.netloc or "").lower().replace("www.", "")
-                    if "youtube.com" in host:
-                        q = parse_qs(p.query or "")
-                        vid = (q.get("v", [""])[0] or "").strip()
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    if "youtu.be" in host:
-                        vid = (p.path or "/").strip("/").split("/")[0]
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    return u.strip().lower()
-                except Exception:
-                    return str(u).strip().lower()
-
-            seen_videos = set()
-
-            def _embed_video_once(url: str):
-                cid = _canon_video(url)
-                if not cid or cid in seen_videos:
-                    return
-                st.video(url)
-                st.markdown(f"[▶️ Watch on YouTube]({url})")
-                seen_videos.add(cid)
-
-            # ---------- YOUR WORK (shows activities; embeds each video at most once) ----------
-            st.markdown("### 🧪 Your Work")
-
-            def render_section_no_dupe(day_info, key, title, icon):
-                content = day_info.get(key)
-                if not content:
-                    return
-                items = content if isinstance(content, list) else [content]
-                st.markdown(f"#### {icon} {title}")
-                for idx_part, part in enumerate(items):
-                    if len(items) > 1:
-                        st.markdown(f"###### {icon} Part {idx_part+1} of {len(items)}: Chapter {part.get('chapter','')}")
-                    # videos (embed once)
-                    for maybe_vid in [part.get("video"), part.get("youtube_link")]:
-                        if _is_url(maybe_vid):
-                            _embed_video_once(maybe_vid)
-                    # links/resources inline (so students can open them)
-                    if part.get('grammarbook_link'):
-                        st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
-                        st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
-                    if part.get('workbook_link'):
-                        st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
-                        render_assignment_reminder()
-                    extras = part.get('extra_resources')
-                    if extras:
-                        for ex in _as_list(extras):
-                            st.markdown(f"- [🔗 Extra]({ex})")
-
-            render_section_no_dupe(info, "lesen_hören", "Lesen & Hören", "📚")
-            render_section_no_dupe(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
-
-            # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
-            st.divider()
-            st.markdown("### 📎 Lesson Links — Download")
-
-            # Collect links (top-level + nested)
-            resources = {"Grammar Notes": [], "Workbook": [], "Videos": [], "Extras": []}
-
-            def _add(kind, val):
-                for v in _as_list(val):
-                    if _is_url(v):
-                        resources[kind].append(v)
-
-            # top-level
-            _add("Videos", info.get("video"))
-            _add("Grammar Notes", info.get("grammarbook_link"))
-            _add("Workbook", info.get("workbook_link"))
-            _add("Extras", info.get("extra_resources"))
-
-            # nested
-            for section in ("lesen_hören", "schreiben_sprechen"):
-                for part in _as_list(info.get(section)):
-                    if not isinstance(part, dict):
-                        continue
-                    _add("Videos", [part.get("video"), part.get("youtube_link")])
-                    _add("Grammar Notes", part.get("grammarbook_link"))
-                    _add("Workbook", part.get("workbook_link"))
-                    _add("Extras", part.get("extra_resources"))
-
-            # dedupe + remove videos already embedded above
-            for k in list(resources.keys()):
-                resources[k] = _dedup(resources[k])
-            resources["Videos"] = [v for v in resources["Videos"] if _canon_video(v) not in seen_videos]
-
-            # If nothing remains after filtering, don't show anything
-            if not any(resources.values()):
-                st.caption("All lesson links are already shown above. No extra links to download.")
-            else:
-                # Prepare TXT bundle
-                lesson_header = f"Level: {student_level} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
-                parts_txt = [lesson_header, "-" * len(lesson_header)]
-                for title, key in [("📘 Grammar Notes", "Grammar Notes"),
-                                   ("📒 Workbook", "Workbook"),
-                                   ("🎥 Videos", "Videos"),
-                                   ("🔗 Extras", "Extras")]:
-                    if resources[key]:
-                        parts_txt.append(title)
-                        parts_txt.extend([f"- {u}" for u in resources[key]])
-                        parts_txt.append("")
-                bundle_txt = "\n".join(parts_txt).strip() + "\n"
-
-
-                # Download buttons (no on-page list)
-                cdl1, cdl2 = st.columns([1, 1])
-                with cdl1:
-                    st.download_button(
-                        "⬇️ Download lesson links (TXT)",
-                        data=bundle_txt.encode("utf-8"),
-                        file_name=f"lesson_links_{student_level}_day{info.get('day','')}.txt",
-                        mime="text/plain",
-                        key="dl_links_txt",
+        # ---- RENDER SECTION: lesen_hören, schreiben_sprechen, each with fallback YouTube link ----
+        def render_section(day_info, key, title, icon):
+            content = day_info.get(key)
+            if not content:
+                return
+            items = content if isinstance(content, list) else [content]
+            st.markdown(f"#### {icon} {title}")
+            for idx, part in enumerate(items):
+                if len(items) > 1:
+                    st.markdown(
+                        f"###### {icon} Part {idx+1} of {len(items)}: Chapter {part.get('chapter','')}"
                     )
+                # --- Embed video and show link if available ---
+                if part.get('video'):
+                    st.video(part['video'])
+                    st.markdown(f"[▶️ Watch on YouTube]({part['video']})")
+                elif part.get('youtube_link'):
+                    st.markdown(f"[▶️ Watch on YouTube]({part['youtube_link']})")
+                if part.get('grammarbook_link'):
+                    st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
+                    st.markdown(
+                        '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                        unsafe_allow_html=True
+                    )
+                if part.get('workbook_link'):
+                    st.markdown(f"- [📒 Workbook (Assignment)]({part['workbook_link']})")
+                    render_assignment_reminder()
+                extras = part.get('extra_resources')
+                if extras:
+                    for ex in (extras if isinstance(extras, list) else [extras]):
+                        st.markdown(f"- [🔗 Extra]({ex})")
 
+        render_section(info, "lesen_hören", "Lesen & Hören", "📚")
+        render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
-        # TRANSLATOR & VIDEO OF THE DAY
-        with t_tv:
-            from datetime import date
-            st.markdown("### 🌐 Translator & 🎬 Video of the Day")
-
-            st.markdown("**Need a quick translation?**")
+        # ---- Show resource links for upper levels if needed ----
+        if student_level in ["A2", "B1", "B2", "C1"]:
+            for res, label in RESOURCE_LABELS.items():
+                val = info.get(res)
+                if val:
+                    if res == "video":
+                        st.video(val)
+                        st.markdown(f"[▶️ Watch on YouTube]({val})")
+                    else:
+                        st.markdown(f"- [{label}]({val})", unsafe_allow_html=True)
             st.markdown(
-                "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
-                "[🌐 Google Translate](https://translate.google.com)",
+                '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
                 unsafe_allow_html=True
             )
-            st.caption("Copy any text from the course book and paste it into your translator.")
 
-            st.divider()
-            st.markdown("#### 🎬 Video of the Day for Your Level")
-            playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
-            if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
+        # --- Translation Tools ---
+        with st.expander("🌐 Translation Tools", expanded=False):
+            st.markdown("---")
+            st.markdown(
+                '**Need translation?** '
+                '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
+                '[🌐 Google Translate](https://translate.google.com)',
+                unsafe_allow_html=True
+            )
+            st.caption("Copy any text from the course book and paste it into your preferred translator.")
+
+        st.divider()
+
+        # --- Video of the Day ---
+        with st.expander("🎬 Video of the Day for Your Level", expanded=False):
+            playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level)
+            if playlist_id:
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
-                    today_idx = date.today().toordinal() % len(video_list)
-                    video = video_list[today_idx]
+                    today_idx = date.today().toordinal()
+                    pick = today_idx % len(video_list)
+                    video = video_list[pick]
                     st.markdown(f"**{video['title']}**")
                     st.video(video['url'])
                 else:
@@ -4954,154 +4833,174 @@ if tab == "My Course":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
+        st.divider()
 
+        # === SUBMIT ASSIGNMENT (DB-locked) ===
+        st.markdown("### ✅ Submit Your Assignment")
 
-        # SUBMIT
-        with t_submit:
-            st.markdown("### ✅ Submit Your Assignment")
-            st.markdown(
-                f"""
-                <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
-                            background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
-                  <div style="font-size:1.05rem;">
-                    📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
-                  </div>
-                  <div style="color:#0369a1;margin-top:4px;">
-                    Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
+        # Clear context banner so students see exactly where they are
+        st.markdown(
+            f"""
+            <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
+                        background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
+              <div style="font-size:1.05rem;">
+                📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
+              </div>
+              <div style="color:#0369a1;margin-top:4px;">
+                Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # --- Core context
+        code = student_row.get('StudentCode', 'demo001')
+        lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])  # unique, DB-safe
+        chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+        name = st.text_input("Name", value=student_row.get('Name', ''))
+
+        # --- Draft persistence (use a separate draft key)
+        draft_key = f"draft_{lesson_key}"
+
+        # DB-backed lock (persists across refresh/devices)
+        db_locked = is_locked(student_level, code, lesson_key)
+        locked_key = f"{lesson_key}_locked"
+        if db_locked:
+            st.session_state[locked_key] = True
+        locked = db_locked or st.session_state.get(locked_key, False)
+
+        # One-time hydration from Firestore so text survives refresh/restart
+        if not st.session_state.get(f"{draft_key}__hydrated", False):
+            existing = load_draft_from_db(code, draft_key)
+            if existing and not st.session_state.get(draft_key):
+                st.session_state[draft_key] = existing
+                st.info("💾 Loaded your saved draft.")
+            st.session_state[f"{draft_key}__hydrated"] = True
+
+        # Answer Box (autosaves on change ONLY)
+        st.subheader("✍️ Your Answer (Autosaves)")
+
+        def autosave_draft():
+            text = st.session_state.get(draft_key, "")
+            save_draft_to_db(code, draft_key, text)
+            st.session_state[f"{draft_key}_saved"] = True
+            st.session_state[f"{draft_key}_saved_at"] = datetime.utcnow()
+
+        st.text_area(
+            "Type all your answers here",
+            value=st.session_state.get(draft_key, ""),
+            height=500,
+            key=draft_key,
+            on_change=autosave_draft,
+            disabled=locked,
+            help="Draft autosaves when you click outside the box or change focus."
+        )
+
+        cols_save = st.columns([1,2])
+        with cols_save[0]:
+            if st.button("💾 Save Draft now", disabled=locked):
+                autosave_draft()
+                st.success("Draft saved.")
+        with cols_save[1]:
+            ts = st.session_state.get(f"{draft_key}_saved_at")
+            if ts:
+                st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+
+        # Instructions
+        with st.expander("📌 How to Submit", expanded=False):
+            st.markdown(f"""
+                1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
+                2) Tick the two confirmations below.  
+                3) Click **Confirm & Submit**.  
+                4) Your box will lock (read-only).  
+                _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
+            """)
+
+        # Two-step confirm + Submit / Save to Notes / Ask a Question
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("#### 🧾 Finalize")
+            confirm_final = st.checkbox(
+                f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
+                key=f"confirm_final_{lesson_key}",
+                disabled=locked
             )
-
-            code = student_row.get('StudentCode', 'demo001')
-            lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
-            chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-            name = st.text_input("Name", value=student_row.get('Name', ''))
-
-            draft_key = f"draft_{lesson_key}"
-            db_locked = is_locked(student_level, code, lesson_key)
-            locked_key = f"{lesson_key}_locked"
-            if db_locked:
-                st.session_state[locked_key] = True
-            locked = db_locked or st.session_state.get(locked_key, False)
-
-            if not st.session_state.get(f"{draft_key}__hydrated", False):
-                existing = load_draft_from_db(code, draft_key)
-                if existing and not st.session_state.get(draft_key):
-                    st.session_state[draft_key] = existing
-                    st.info("💾 Loaded your saved draft.")
-                st.session_state[f"{draft_key}__hydrated"] = True
-
-            st.subheader("✍️ Your Answer (Autosaves)")
-            def autosave_draft():
-                text = st.session_state.get(draft_key, "")
-                save_draft_to_db(code, draft_key, text)
-                st.session_state[f"{draft_key}_saved"] = True
-                st.session_state[f"{draft_key}_saved_at"] = datetime.utcnow()
-
-            st.text_area(
-                "Type all your answers here",
-                value=st.session_state.get(draft_key, ""),
-                height=500,
-                key=draft_key,
-                on_change=autosave_draft,
-                disabled=locked,
-                help="Draft autosaves when you click outside the box or change focus."
+            confirm_lock = st.checkbox(
+                "I understand it will be locked after I submit.",
+                key=f"confirm_lock_{lesson_key}",
+                disabled=locked
             )
+            can_submit = (confirm_final and confirm_lock and (not locked))
 
-            csave1, csave2 = st.columns([1,2])
-            with csave1:
-                if st.button("💾 Save Draft now", disabled=locked):
-                    autosave_draft(); st.success("Draft saved.")
-            with csave2:
-                ts = st.session_state.get(f"{draft_key}_saved_at")
-                if ts: st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+            if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
+                # Atomic lock first (prevents double writes)
+                if not acquire_lock(student_level, code, lesson_key):
+                    st.session_state[locked_key] = True
+                    st.warning("You have already submitted this assignment. It is locked.")
+                else:
+                    # Write the submission (first and only time)
+                    posts_ref = db.collection("submissions").document(student_level).collection("posts")
+                    now = datetime.utcnow()
+                    payload = {
+                        "student_code": code,
+                        "student_name": name or "Student",
+                        "level": student_level,
+                        "day": info["day"],
+                        "chapter": chapter_name,
+                        "lesson_key": lesson_key,
+                        "answer": st.session_state.get(draft_key, "").strip(),
+                        "status": "submitted",
+                        "created_at": now,
+                        "updated_at": now,
+                        "version": 1,
+                    }
+                    _, ref = posts_ref.add(payload)
+                    short_ref = f"{ref.id[:8].upper()}-{info['day']}"
 
-            with st.expander("📌 How to Submit", expanded=False):
-                st.markdown(f"""
-                    1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
-                    2) Tick the two confirmations below.  
-                    3) Click **Confirm & Submit**.  
-                    4) Your box will lock (read-only).  
-                    _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-                """)
+                    st.session_state[locked_key] = True
+                    st.success("Submitted! Your work has been sent to your tutor.")
+                    st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("#### 🧾 Finalize")
-                confirm_final = st.checkbox(
-                    f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
-                    key=f"confirm_final_{lesson_key}",
-                    disabled=locked
-                )
-                confirm_lock = st.checkbox(
-                    "I understand it will be locked after I submit.",
-                    key=f"confirm_lock_{lesson_key}",
-                    disabled=locked
-                )
-                can_submit = (confirm_final and confirm_lock and (not locked))
+                    webhook = get_slack_webhook()
+                    if webhook:
+                        notify_slack_submission(
+                            webhook_url=webhook,
+                            student_name=name or "Student",
+                            student_code=code,
+                            level=student_level,
+                            day=info["day"],
+                            chapter=chapter_name,
+                            receipt=short_ref,
+                            preview=st.session_state.get(draft_key, "")
+                        )
 
-                if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-                    if not acquire_lock(student_level, code, lesson_key):
-                        st.session_state[locked_key] = True
-                        st.warning("You have already submitted this assignment. It is locked.")
-                    else:
-                        posts_ref = db.collection("submissions").document(student_level).collection("posts")
-                        now = datetime.utcnow()
-                        payload = {
-                            "student_code": code,
-                            "student_name": name or "Student",
-                            "level": student_level,
-                            "day": info["day"],
-                            "chapter": chapter_name,
-                            "lesson_key": lesson_key,
-                            "answer": st.session_state.get(draft_key, "").strip(),
-                            "status": "submitted",
-                            "created_at": now,
-                            "updated_at": now,
-                            "version": 1,
-                        }
-                        _, ref = posts_ref.add(payload)
-                        short_ref = f"{ref.id[:8].upper()}-{info['day']}"
-                        st.session_state[locked_key] = True
-                        st.success("Submitted! Your work has been sent to your tutor.")
-                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
+        # --- Column 2: Ask the Teacher (jump to Classroom Q&A) ---
+        with col2:
+            st.markdown("#### ❓ Ask the Teacher")
+            if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
+                st.session_state["__go_classroom"] = True
+                st.rerun()
 
-                        webhook = get_slack_webhook()
-                        if webhook:
-                            notify_slack_submission(
-                                webhook_url=webhook,
-                                student_name=name or "Student",
-                                student_code=code,
-                                level=student_level,
-                                day=info["day"],
-                                chapter=chapter_name,
-                                receipt=short_ref,
-                                preview=st.session_state.get(draft_key, "")
-                            )
+        # --- Column 3: Add Notes (just jump to Notes tab) ---
+        with col3:
+            st.markdown("#### 📝 Add Notes")
+            if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
+                st.session_state["__go_notes"] = True
+                st.rerun()
 
-            with col2:
-                st.markdown("#### ❓ Ask the Teacher")
-                if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                    st.session_state["__go_classroom"] = True
-                    st.rerun()
+        st.divider()
 
-            with col3:
-                st.markdown("#### 📝 Add Notes")
-                if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                    st.session_state["__go_notes"] = True
-                    st.rerun()
-
-            st.divider()
-            latest = fetch_latest(student_level, code, lesson_key)
-            if latest:
-                ts = latest.get('updated_at')
-                when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
-                st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-                st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
-            else:
-                st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+        # Submission status (latest only; no receipt shown)
+        latest = fetch_latest(student_level, code, lesson_key)
+        if latest:
+            ts = latest.get('updated_at')
+            when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
+            st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
+            st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
+        else:
+            st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
 
 
@@ -7119,6 +7018,7 @@ if tab == "My Course":
                         st.caption("")
 
 
+
 # =========================== MY RESULTS & RESOURCES ===========================
 # Safe utilities (define only if missing to avoid duplicates)
 if "html_stdlib" not in globals():
@@ -7212,7 +7112,9 @@ def fetch_scores(csv_url: str):
         if src in df.columns and dst not in df.columns:
             df = df.rename(columns={src: dst})
     required = ["student_code", "name", "assignment", "score", "date", "level"]
-    if not set(required).issubset(df.columns):
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        # Return empty with diagnostic columns so UI can error cleanly
         return pd.DataFrame(columns=required)
     df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
     return df
@@ -7248,13 +7150,17 @@ if tab == "My Results and Resources":
     # Live CSV URL (secrets/env-aware)
     GOOGLE_SHEET_CSV = _results_csv_url()
 
+    # Utility: manual download link for PDF
+    def _pdf_dl_link(pdf_bytes, filename="results.pdf"):
+        import base64 as _b64
+        b64 = _b64.b64encode(pdf_bytes).decode()
+        return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
+
     # Refresh
-    top_cols = st.columns([1, 1, 2])
-    with top_cols[0]:
-        if st.button("🔄 Refresh"):
-            st.cache_data.clear()
-            st.success("Cache cleared! Reloading…")
-            st.rerun()
+    if st.button("🔄 Refresh for your latest results"):
+        st.cache_data.clear()
+        st.success("Cache cleared! Reloading…")
+        st.rerun()
 
     # Load data
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
@@ -7268,6 +7174,9 @@ if tab == "My Results and Resources":
     student_code, student_name, _ = _get_current_student()
     code_key = (student_code or "").lower().strip()
 
+    st.header("📈 My Results and Resources Hub")
+    st.markdown("View and download your assignment history. All results are private and only visible to you.")
+
     # Filter to user
     df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
     if df_user.empty:
@@ -7280,62 +7189,35 @@ if tab == "My Results and Resources":
     levels = sorted(df_user["level"].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level].copy()
-    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
 
-    # Precompute metrics once
+    # Metrics
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = int(totals.get(level, 0))
     completed = int(df_lvl["assignment"].nunique())
+    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
     avg_score = float(df_lvl["score"].mean() or 0)
     best_score = float(df_lvl["score"].max() or 0)
 
-    # Prepare default display dataframe
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Assignments", total)
+    c2.metric("Completed", completed)
+    c3.metric("Average Score", f"{avg_score:.1f}")
+    c4.metric("Best Score", f"{best_score:.0f}")
+
+    # Detailed results
+    st.markdown("---")
+    st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
+
+    # Default display (available to PDF section below)
     df_display = (
         df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
               .reset_index(drop=True)
     )
+    # Ensure optional cols exist
     if "comments" not in df_display.columns: df_display["comments"] = ""
     if "link" not in df_display.columns: df_display["link"] = ""
 
-    # Pull schedule for missed/next tabs
-    schedules_map = _get_level_schedules()
-    schedule = schedules_map.get(level, [])
-
-    # ---------- SUB-TABS ----------
-    t_overview, t_assign, t_badges, t_missed, t_pdf, t_res = st.tabs(
-        ["Overview", "Assignments", "Badges", "Missed & Next", "PDF", "Resources"]
-    )
-
-    # ============ OVERVIEW ============
-    with t_overview:
-        st.subheader("Quick Overview")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Assignments", total)
-        c2.metric("Completed", completed)
-        c3.metric("Average Score", f"{avg_score:.1f}")
-        c4.metric("Best Score", f"{best_score:.0f}")
-
-        st.markdown("---")
-        st.markdown("**Latest 5 results**")
-        latest = df_display.head(5)
-        for _, row in latest.iterrows():
-            perf = score_label_fmt(row["score"])
-            st.markdown(
-                f"""
-                <div style="margin-bottom: 12px;">
-                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
-                    | Date: {row['date']}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        if len(df_display) > 5:
-            st.caption("See the **Assignments** tab for the full list and feedback.")
-
-    # ============ ASSIGNMENTS ============
-    with t_assign:
-        st.subheader("All Assignments & Feedback")
+    with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
         base_cols = ["assignment", "score", "date", "comments", "link"]
         for _, row in df_display[base_cols].iterrows():
             perf = score_label_fmt(row["score"])
@@ -7347,8 +7229,7 @@ if tab == "My Results and Resources":
                 f"""
                 <div style="margin-bottom: 18px;">
                     <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
-                    | Date: {row['date']}<br>
+                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
                     <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
                         <b>Feedback:</b> {comment_html}
                     </div>
@@ -7363,234 +7244,220 @@ if tab == "My Results and Resources":
                 )
             st.divider()
 
-    # ============ BADGES ============
-    with t_badges:
-        st.subheader("Badges & Trophies")
-        with st.expander("What badges can you earn?", expanded=False):
-            st.markdown(
-                """
-                - 🏆 **Completion Trophy**: Finish all assignments for your level.
-                - 🥇 **Gold Badge**: Maintain an average score above 80.
-                - 🥈 **Silver Badge**: Average score above 70.
-                - 🥉 **Bronze Badge**: Average score above 60.
-                - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-                """
-            )
-
-        badge_count = 0
-        if completed >= total and total > 0:
-            st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-            badge_count += 1
-        if avg_score >= 90:
-            st.info("🥇 **Gold Badge:** Average score above 90!")
-            badge_count += 1
-        elif avg_score >= 75:
-            st.info("🥈 **Silver Badge:** Average score above 75!")
-            badge_count += 1
-        elif avg_score >= 60:
-            st.info("🥉 **Bronze Badge:** Average score above 60!")
-            badge_count += 1
-        if best_score >= 95:
-            st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-            badge_count += 1
-        if badge_count == 0:
-            st.warning("No badges yet. Complete more assignments to earn badges!")
-
-    # ============ MISSED & NEXT ============
-    with t_missed:
-        st.subheader("Missed Assignments & Next Recommendation")
-
-        def _extract_all_nums(chapter_str):
-            parts = re.split(r'[_\s,;]+', str(chapter_str))
-            nums = []
-            for part in parts:
-                m = re.search(r'\d+(?:\.\d+)?', part)
-                if m: nums.append(float(m.group()))
-            return nums
-
-        completed_nums = set()
-        for _, row in df_lvl.iterrows():
-            for num in _extract_all_nums(row["assignment"]):
-                completed_nums.add(num)
-        last_num = max(completed_nums) if completed_nums else 0.0
-
-        skipped_assignments = []
-        for lesson in schedule:
-            chapter_field = lesson.get("chapter", "")
-            lesson_nums = _extract_all_nums(chapter_field)
-            day = lesson.get("day", "")
-            has_assignment = lesson.get("assignment", False)
-            for chap_num in lesson_nums:
-                if has_assignment and chap_num < last_num and chap_num not in completed_nums:
-                    skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
-                    break
-
-        if skipped_assignments:
-            st.markdown(
-                f"""
-                <div style="
-                    background-color: #fff3cd;
-                    border-left: 6px solid #ffecb5;
-                    color: #7a6001;
-                    padding: 16px 18px;
-                    border-radius: 8px;
-                    margin: 12px 0;
-                    font-size: 1.05em;">
-                    <b>⚠️ You have skipped the following assignments.<br>
-                    Please complete them for full progress:</b><br>
-                    {"<br>".join(skipped_assignments)}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.success("No missed assignments detected. Great job!")
-
-        # Next assignment recommendation (skip Schreiben & Sprechen-only)
-        def _is_recommendable(lesson):
-            topic = str(lesson.get("topic", "")).lower()
-            return not ("schreiben" in topic and "sprechen" in topic)
-        def _extract_max_num(chapter):
-            nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-            return max([float(n) for n in nums], default=None)
-
-        completed_chapters = []
-        for a in df_lvl["assignment"]:
-            n = _extract_max_num(a)
-            if n is not None: completed_chapters.append(n)
-        last_num2 = max(completed_chapters) if completed_chapters else 0.0
-
-        next_assignment = None
-        for lesson in schedule:
-            chap_num = _extract_max_num(lesson.get("chapter", ""))
-            if not _is_recommendable(lesson):
-                continue
-            if chap_num and chap_num > last_num2:
-                next_assignment = lesson
-                break
-        if next_assignment:
-            st.info(
-                f"**Your next recommended assignment:**\n\n"
-                f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
-                f"**Goal:** {next_assignment.get('goal','')}\n\n"
-                f"**Instruction:** {next_assignment.get('instruction','')}"
-            )
-        else:
-            st.success("🎉 You’re up to date!")
-
-    # ============ PDF ============
-    with t_pdf:
-        st.subheader("Download PDF Summary")
-
-        COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
-        PAGE_WIDTH, MARGIN = 210, 10
-        FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
-        LOGO_URL = "https://i.imgur.com/iFiehrp.png"
-
-        @st.cache_data(ttl=3600)
-        def fetch_logo():
-            try:
-                r = requests.get(LOGO_URL, timeout=6)
-                r.raise_for_status()
-                import tempfile
-                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-                tmp.write(r.content); tmp.flush()
-                return tmp.name
-            except Exception:
-                return None
-
-        from fpdf import FPDF
-        class PDFReport(FPDF):
-            def header(self):
-                logo_path = fetch_logo()
-                if logo_path:
-                    try:
-                        self.image(logo_path, 10, 8, 30)
-                        self.ln(20)
-                    except Exception:
-                        self.ln(20)
-                else:
-                    self.ln(28)
-                self.set_font("Arial", 'B', 16)
-                self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
-                self.ln(3)
-            def footer(self):
-                self.set_y(-15)
-                self.set_font("Arial", 'I', 9)
-                self.set_text_color(120, 120, 120)
-                footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
-                self.cell(0, 8, footer_text, 0, 0, 'C')
-                self.set_text_color(0, 0, 0)
-                self.alias_nb_pages()
-
-        if st.button("⬇️ Create & Download PDF"):
-            pdf = PDFReport()
-            pdf.add_page()
-
-            # Student Info
-            pdf.set_font("Arial", '', 12)
-            try:
-                shown_name = df_user.name.iloc[0]
-            except Exception:
-                shown_name = student_name or "Student"
-            pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
-            pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
-            pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-            pdf.ln(5)
-
-            # Summary Metrics
-            pdf.set_font("Arial", 'B', 13)
-            pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-            pdf.set_font("Arial", '', 11)
-            pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
-            pdf.ln(6)
-
-            # Table header
-            pdf.set_font("Arial", 'B', 11)
-            pdf.set_fill_color(235, 235, 245)
-            pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
-            pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
-            pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
-            pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
-
-            # Rows
-            pdf.set_font("Arial", '', 10)
-            pdf.set_fill_color(249, 249, 249)
-            row_fill = False
-
-            for _, row in df_display.iterrows():
-                assn = clean_for_pdf(str(row['assignment'])[:24])
-                score_txt = clean_for_pdf(str(row['score']))
-                date_txt = clean_for_pdf(str(row['date']))
-                label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
-                pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
-                pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
-                pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
-                pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
-                row_fill = not row_fill
-
-            pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-            st.download_button(
-                label="Download PDF",
-                data=pdf_bytes,
-                file_name=f"{code_key}_results_{level}.pdf",
-                mime="application/pdf"
-            )
-            # Manual link fallback
-            import base64 as _b64
-            b64 = _b64.b64encode(pdf_bytes).decode()
-            st.markdown(
-                f'<a href="data:application/pdf;base64,{b64}" download="{code_key}_results_{level}.pdf" '
-                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>',
-                unsafe_allow_html=True
-            )
-            st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
-
-    # ============ RESOURCES ============
-    with t_res:
-        st.subheader("Useful Resources")
+    # Badges
+    st.markdown("---")
+    st.markdown("### 🏅 Badges & Trophies")
+    with st.expander("What badges can you earn?", expanded=False):
         st.markdown(
             """
+            - 🏆 **Completion Trophy**: Finish all assignments for your level.
+            - 🥇 **Gold Badge**: Maintain an average score above 80.
+            - 🥈 **Silver Badge**: Average score above 70.
+            - 🥉 **Bronze Badge**: Average score above 60.
+            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
+            """
+        )
+
+    badge_count = 0
+    if completed >= total and total > 0:
+        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
+        badge_count += 1
+    if avg_score >= 90:
+        st.info("🥇 **Gold Badge:** Average score above 90!")
+        badge_count += 1
+    elif avg_score >= 75:
+        st.info("🥈 **Silver Badge:** Average score above 75!")
+        badge_count += 1
+    elif avg_score >= 60:
+        st.info("🥉 **Bronze Badge:** Average score above 60!")
+        badge_count += 1
+    if best_score >= 95:
+        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
+        badge_count += 1
+    if badge_count == 0:
+        st.warning("No badges yet. Complete more assignments to earn badges!")
+
+    # Skipped assignments (use shared schedule cache)
+    schedules_map = _get_level_schedules()
+    schedule = schedules_map.get(level, [])
+    def _extract_all_nums(chapter_str):
+        parts = re.split(r'[_\s,;]+', str(chapter_str))
+        nums = []
+        for part in parts:
+            m = re.search(r'\d+(?:\.\d+)?', part)
+            if m: nums.append(float(m.group()))
+        return nums
+
+    completed_nums = set()
+    for _, row in df_lvl.iterrows():
+        for num in _extract_all_nums(row["assignment"]):
+            completed_nums.add(num)
+    last_num = max(completed_nums) if completed_nums else 0.0
+
+    skipped_assignments = []
+    for lesson in schedule:
+        chapter_field = lesson.get("chapter", "")
+        lesson_nums = _extract_all_nums(chapter_field)
+        day = lesson.get("day", "")
+        has_assignment = lesson.get("assignment", False)
+        for chap_num in lesson_nums:
+            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
+                skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
+                break
+    if skipped_assignments:
+        st.markdown(
+            f"""
+            <div style="
+                background-color: #fff3cd;
+                border-left: 6px solid #ffecb5;
+                color: #7a6001;
+                padding: 16px 18px;
+                border-radius: 8px;
+                margin: 12px 0;
+                font-size: 1.05em;">
+                <b>⚠️ You have skipped the following assignments.<br>
+                Please complete them for full progress:</b><br>
+                {"<br>".join(skipped_assignments)}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # Next assignment recommendation (skip Schreiben & Sprechen-only)
+    def _is_recommendable(lesson):
+        topic = str(lesson.get("topic", "")).lower()
+        return not ("schreiben" in topic and "sprechen" in topic)
+    def _extract_max_num(chapter):
+        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+        return max([float(n) for n in nums], default=None)
+
+    completed_chapters = []
+    for a in df_lvl["assignment"]:
+        n = _extract_max_num(a)
+        if n is not None: completed_chapters.append(n)
+    last_num = max(completed_chapters) if completed_chapters else 0.0
+
+    next_assignment = None
+    for lesson in schedule:
+        chap_num = _extract_max_num(lesson.get("chapter", ""))
+        if not _is_recommendable(lesson):
+            continue
+        if chap_num and chap_num > last_num:
+            next_assignment = lesson
+            break
+    if next_assignment:
+        st.success(
+            f"**Your next recommended assignment:**\n\n"
+            f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
+            f"**Goal:** {next_assignment.get('goal','')}\n\n"
+            f"**Instruction:** {next_assignment.get('instruction','')}"
+        )
+    else:
+        st.info("🎉 Great Job!")
+
+    # ======================= PDF SUMMARY DOWNLOAD =======================
+    COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+    PAGE_WIDTH, MARGIN = 210, 10
+    FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+    LOGO_URL = "https://i.imgur.com/iFiehrp.png"
+
+    @st.cache_data(ttl=3600)
+    def fetch_logo():
+        try:
+            r = requests.get(LOGO_URL, timeout=6)
+            r.raise_for_status()
+            import tempfile
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            tmp.write(r.content); tmp.flush()
+            return tmp.name
+        except Exception:
+            return None
+
+    from fpdf import FPDF
+    class PDFReport(FPDF):
+        def header(self):
+            logo_path = fetch_logo()
+            if logo_path:
+                try:
+                    self.image(logo_path, 10, 8, 30)
+                    self.ln(20)
+                except Exception:
+                    self.ln(20)
+            else:
+                self.ln(28)
+            self.set_font("Arial", 'B', 16)
+            self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
+            self.ln(3)
+        def footer(self):
+            self.set_y(-15)
+            self.set_font("Arial", 'I', 9)
+            self.set_text_color(120, 120, 120)
+            footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
+            self.cell(0, 8, footer_text, 0, 0, 'C')
+            self.set_text_color(0, 0, 0)
+            self.alias_nb_pages()
+
+    if st.button("⬇️ Download PDF Summary"):
+        pdf = PDFReport()
+        pdf.add_page()
+
+        # Student Info
+        pdf.set_font("Arial", '', 12)
+        # Find a name to show (prefer df_user)
+        try:
+            shown_name = df_user.name.iloc[0]
+        except Exception:
+            shown_name = student_name or "Student"
+        pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
+        pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+        pdf.ln(5)
+
+        # Summary Metrics
+        pdf.set_font("Arial", 'B', 13)
+        pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
+        pdf.set_font("Arial", '', 11)
+        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
+        pdf.ln(6)
+
+        # Table
+        pdf.set_font("Arial", 'B', 11)
+        pdf.set_fill_color(235, 235, 245)
+        pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
+        pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
+        pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
+        pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
+
+        pdf.set_font("Arial", '', 10)
+        pdf.set_fill_color(249, 249, 249)
+        row_fill = False
+
+        for _, row in df_display.iterrows():
+            assn = clean_for_pdf(str(row['assignment'])[:24])
+            score_txt = clean_for_pdf(str(row['score']))
+            date_txt = clean_for_pdf(str(row['date']))
+            label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
+            pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
+            pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
+            pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
+            pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
+            row_fill = not row_fill
+
+        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+        st.download_button(
+            label="Download PDF",
+            data=pdf_bytes,
+            file_name=f"{code_key}_results_{level}.pdf",
+            mime="application/pdf"
+        )
+        st.markdown(_pdf_dl_link(pdf_bytes, f"{code_key}_results_{level}.pdf"), unsafe_allow_html=True)
+        st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
+
+    # ======================= USEFUL RESOURCES =======================
+    st.markdown("---")
+    st.subheader("📚 Useful Resources")
+    st.markdown(
+        """
 **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
 Practice writing tasks and sample questions for A1.
 
@@ -7605,8 +7472,8 @@ A2-level speaking exam guide.
 
 **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
 How to prepare for your B1 oral exam.
-            """
-        )
+        """
+    )
 
 
 # ================================
@@ -7614,10 +7481,6 @@ How to prepare for your B1 oral exam.
 # ================================
 
 # —— keep Firestore `db` and OpenAI `client` from above (not redefined here) ——
-
-# Ensure these are available in this tab
-import re, random
-import urllib.parse as _urllib
 
 # Optional: progress saver (kept from your code; safe if unused)
 def save_exam_progress(student_code, progress_items):
@@ -7689,6 +7552,8 @@ highlight_words = [
     "Bitte", "Vergessen Sie nicht"
 ]
 
+import re, random
+
 def highlight_keywords(text, words, ignore_case=True):
     flags = re.IGNORECASE if ignore_case else 0
     for w in words:
@@ -7744,7 +7609,10 @@ def build_a1_exam_intro():
     )
 
 def build_exam_instruction(level, teil):
-    # (your original long strings kept)
+    # ... (UNCHANGED: keep the long per-level/per-teil instructions you shared)
+    # Paste your full original version here (omitted for brevity in this snippet)
+    # — I kept your earlier long strings exactly as-is in my local version.
+    # BEGIN exact content
     if level == "A1":
         if "Teil 1" in teil:
             return build_a1_exam_intro()
@@ -7828,22 +7696,26 @@ def build_exam_instruction(level, teil):
                 "Bewerte deine eigene Präsentation. Was würdest du beim nächsten Mal besser machen?"
             )
     return ""
+    # END exact content
 
 def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1") -> str:
     """
     Builds the system prompt for the examiner persona.
-    (Your original logic retained.)
+    Adds a clickable recorder link AFTER EVERY PROMPT/FEEDBACK the AI sends.
     """
     rec_url = (
         f"https://script.google.com/macros/s/"
         f"AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA"
         f"/exec?code={student_code}"
     )
+
+    # This line instructs the AI to always append a clickable link.
     record_line = (
         "IMPORTANT: After EVERY question, prompt, correction, or feedback, append this line on its own:\n"
         f"• 🎙️ **You can chat here for more ideas or Record your answer now**: [Open Sprechen Recorder]({rec_url})\n"
         f"If Markdown is not supported, show the raw URL: {rec_url}\n"
     )
+
     if level == "A1":
         if "Teil 1" in teil:
             return (
@@ -7943,10 +7815,29 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
             )
 
     return ""
-    # (Your B2/C1 fallbacks left as in your working version)
+    if level == "B2":
+        if "Teil 1" in teil:
+            return (
+                "You are Herr Felix, a B2 examiner. Discuss a topic with the student. Challenge their points. Correct errors (mostly in German, but use English if it's a big mistake), and always provide the correct form."
+            )
+        elif "Teil 2" in teil:
+            return (
+                "You are Herr Felix, a B2 examiner. Listen to the student's presentation. Give high-level feedback (mostly in German), ask probing questions, and always highlight advanced vocabulary and connectors."
+            )
+        elif "Teil 3" in teil:
+            return (
+                "You are Herr Felix, a B2 examiner. Argue your perspective. Give detailed, advanced corrections (mostly German, use English if truly needed). Encourage native-like answers."
+            )
+    if level == "C1":
+        if "Teil 1" in teil or "Teil 2" in teil or "Teil 3" in teil:
+            return (
+                "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
+                "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
+            )
+    return ""
 
 def build_custom_chat_prompt(level):
-    # (kept exactly as your working version—no recorder line added here to respect your request)
+    # exact content from your message kept
     if level == "C1":
         return (
             "You are supportive German C1 Teacher. Speak both english and German "
@@ -7975,11 +7866,12 @@ def build_custom_chat_prompt(level):
             f"Never ask more than 2 questions about the same keyword. "
             f"After the student answers 6 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
             f"Tell them to visit this link to record their audio: [Record your audio here]({rec_url}). "
-            f"Also give them 60 words from their own words in a presentation form that they can use in class.  Wish them luck in their next class and tell them to apply everything they have learnt. "
+            f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
             f"All feedback and corrections should be {correction_lang}. "
             f"Encourage the student and keep the chat motivating. "
         )
     return ""
+
 
 # ================= SESSION DEFAULTS (reuse your falowen_* keys) =================
 default_state = {
@@ -8185,194 +8077,192 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["used_topics"]             = []
                     st.rerun()
 
-# ——— Step 4: Chat (Exam or Custom) ———
-if st.session_state.get("falowen_stage") == 4:
-    level = st.session_state.get("falowen_level")
-    teil  = st.session_state.get("falowen_teil")
-    mode  = st.session_state.get("falowen_mode")
-    is_exam = mode == "Exams Mode"
-    student_code = st.session_state.get("student_code", "demo")
+    # ——— Step 4: Chat (Exam or Custom) ———
+    if st.session_state.get("falowen_stage") == 4:
+        level = st.session_state.get("falowen_level")
+        teil  = st.session_state.get("falowen_teil")
+        mode  = st.session_state.get("falowen_mode")
+        is_exam = mode == "Exams Mode"
+        student_code = st.session_state.get("student_code", "demo")
 
-    # Load chat from db once
-    if not st.session_state.get("_falowen_loaded"):
-        def _chat_key(mode, level, teil): return f"{mode}_{level}_{(teil or 'custom')}"
-        doc = db.collection("falowen_chats").document(student_code).get()
-        if doc.exists:
-            chats = (doc.to_dict() or {}).get("chats", {})
-            loaded = chats.get(_chat_key(mode, level, teil), [])
-            if loaded:
-                st.session_state["falowen_messages"] = loaded
-        st.session_state["_falowen_loaded"] = True
+        # Load chat from db once
+        if not st.session_state.get("_falowen_loaded"):
+            # reuse same storage key format
+            def _chat_key(mode, level, teil): return f"{mode}_{level}_{(teil or 'custom')}"
+            doc = db.collection("falowen_chats").document(student_code).get()
+            if doc.exists:
+                chats = (doc.to_dict() or {}).get("chats", {})
+                loaded = chats.get(_chat_key(mode, level, teil), [])
+                if loaded:
+                    st.session_state["falowen_messages"] = loaded
+            st.session_state["_falowen_loaded"] = True
 
-    # Seed the first assistant instruction if chat is empty
-    if not st.session_state["falowen_messages"]:
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-        )
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-        try:
-            doc = db.collection("falowen_chats").document(student_code)
-            snap = doc.get()
-            chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-            chats[f"{mode}_{level}_{(teil or 'custom')}"] = st.session_state["falowen_messages"]
-            doc.set({"chats": chats}, merge=True)
-        except Exception:
-            pass
-
-    # Build system prompt (your personas)
-    if is_exam:
-        if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
-            next_topic = st.session_state["remaining_topics"].pop(0)
-            if " – " in next_topic:
-                topic, keyword = next_topic.split(" – ", 1)
-                st.session_state["falowen_exam_topic"] = topic
-                st.session_state["falowen_exam_keyword"] = keyword
-            else:
-                st.session_state["falowen_exam_topic"] = next_topic
-                st.session_state["falowen_exam_keyword"] = None
-            st.session_state["used_topics"].append(next_topic)
-        base_prompt = build_exam_system_prompt(level, teil)
-        topic = st.session_state.get("falowen_exam_topic")
-        if topic:
-            system_prompt = f"{base_prompt} Thema: {topic}."
-            if st.session_state.get("falowen_exam_keyword"):
-                system_prompt += f" Keyword: {st.session_state['falowen_exam_keyword']}."
-        else:
-            system_prompt = base_prompt
-    else:
-        system_prompt = build_custom_chat_prompt(level)
-
-    # ---- Always-visible recorder button + reminder (simple UI)
-    RECORDER_BASE = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-    rec_url = f"{RECORDER_BASE}?code={_urllib.quote(student_code)}"
-    try:
-        st.link_button("🎙️ Record your answer now (Sprechen Recorder)", rec_url, type="primary", use_container_width=True)
-    except Exception:
-        st.markdown(
-            f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
-            'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
-            'text-decoration:none;font-weight:700;">🎙️ Record your answer now (Sprechen Recorder)</a>',
-            unsafe_allow_html=True,
-        )
-    st.caption("You can keep chatting here or record your answer now.")
-
-    # ========= Handle new input FIRST (so student bubble shows immediately) =========
-    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-    if user_input:
-        # 1) append user message
-        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        try:
-            if "inc_sprechen_usage" in globals():
-                inc_sprechen_usage(student_code)
-        except Exception:
-            pass
-
-        # 2) get assistant reply
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+        # Initial instruction if chat is empty (uses YOUR builders)
+        if not st.session_state["falowen_messages"]:
+            instruction = build_exam_instruction(level, teil) if is_exam else (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+            )
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # save
             try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    temperature=0.15,
-                    max_tokens=600
-                )
-                ai_reply = (resp.choices[0].message.content or "").strip()
-            except Exception as e:
-                ai_reply = f"Sorry, an error occurred: {e}"
+                doc = db.collection("falowen_chats").document(student_code)
+                snap = doc.get()
+                chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                chats[f"{mode}_{level}_{(teil or 'custom')}"] = st.session_state["falowen_messages"]
+                doc.set({"chats": chats}, merge=True)
+            except Exception:
+                pass
 
-        # 3) append assistant message
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+        # Build system prompt (YOUR detailed personas)
+        if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
+            base_prompt = build_exam_system_prompt(level, teil)
+            topic = st.session_state.get("falowen_exam_topic")
+            if topic:
+                system_prompt = f"{base_prompt} Thema: {topic}."
+                if st.session_state.get("falowen_exam_keyword"):
+                    system_prompt += f" Keyword: {st.session_state['falowen_exam_keyword']}."
+            else:
+                system_prompt = base_prompt
+        else:
+            system_prompt = build_custom_chat_prompt(level)
 
-        # 4) save thread
-        try:
-            key = f"{mode}_{level}_{(teil or 'custom')}"
-            doc = db.collection("falowen_chats").document(student_code)
-            snap = doc.get()
-            chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-            chats[key] = st.session_state["falowen_messages"]
-            doc.set({"chats": chats}, merge=True)
-        except Exception:
-            pass
+        # Render chat (your bubble UI + highlights)
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                with st.chat_message("user"):
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        unsafe_allow_html=True
+                    )
 
-    # ========= Render the whole conversation (both student & examiner) =========
-    for msg in st.session_state["falowen_messages"]:
-        if msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
+        # Downloads
+        if st.session_state["falowen_messages"]:
+            from fpdf import FPDF
+            def falowen_download_pdf(messages, filename):
+                def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
+                pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
+                for m in messages:
+                    who = "Herr Felix" if m["role"]=="assistant" else "Student"
+                    pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
+                    pdf.ln(1)
+                return pdf.output(dest='S').encode('latin1','replace')
+
+            teil_str = str(teil) if teil else "chat"
+            pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}")
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
+                mime="application/pdf"
+            )
+            chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
+                mime="text/plain"
+            )
+
+        # Actions
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Delete All Chat History"):
+                try:
+                    db.collection("falowen_chats").document(student_code).delete()
+                except Exception as e:
+                    st.error(f"Could not delete chat history: {e}")
+                else:
+                    for key in [
+                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                    ]:
+                        st.session_state.pop(key, None)
+                    st.session_state["falowen_stage"] = 1
+                    st.success("All chat history deleted.")
+                    st.rerun()
+        with col2:
+            if st.button("⬅️ Back"):
+                back_step()
+
+        # Input + model call
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        if user_input:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            try:
+                if "inc_sprechen_usage" in globals():
+                    inc_sprechen_usage(student_code)
+            except Exception:
+                pass
+
+            with st.chat_message(
+                "assistant",
+                avatar="🧑‍🏫"
+            ):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600
+                        )
+                        ai_reply = (resp.choices[0].message.content or "").strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
                 st.markdown(
                     "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
-                    unsafe_allow_html=True
-                )
-        else:  # user
-            with st.chat_message("user"):
-                st.markdown(
-                    f"<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
 
-    # ---- Downloads (unchanged)
-    if st.session_state["falowen_messages"]:
-        from fpdf import FPDF
-        def falowen_download_pdf(messages, filename):
-            def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
-            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
-            for m in messages:
-                who = "Herr Felix" if m["role"]=="assistant" else "Student"
-                pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
-                pdf.ln(1)
-            return pdf.output(dest='S').encode('latin1','replace')
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-        teil_str = str(teil) if teil else "chat"
-        pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}")
-        st.download_button(
-            "⬇️ Download Chat as PDF",
-            pdf_bytes,
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
-            mime="application/pdf"
-        )
-        chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
-        st.download_button(
-            "⬇️ Download Chat as TXT",
-            chat_as_text.encode("utf-8"),
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
-            mime="text/plain"
-        )
-
-    # ---- Actions
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🗑️ Delete All Chat History"):
+            # save thread
             try:
-                db.collection("falowen_chats").document(student_code).delete()
-            except Exception as e:
-                st.error(f"Could not delete chat history: {e}")
-            else:
-                for key in [
-                    "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
-                    "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
-                    "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
-                ]:
-                    st.session_state.pop(key, None)
-                st.session_state["falowen_stage"] = 1
-                st.success("All chat history deleted.")
-                st.rerun()
-    with col2:
-        if st.button("⬅️ Back"):
-            back_step()
+                key = f"{mode}_{level}_{(teil or 'custom')}"
+                doc = db.collection("falowen_chats").document(student_code)
+                snap = doc.get()
+                chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                chats[key] = st.session_state["falowen_messages"]
+                doc.set({"chats": chats}, merge=True)
+            except Exception:
+                pass
 
-    st.divider()
-    if st.button("✅ End Session & Show Summary"):
-        st.session_state["falowen_stage"] = 5
-        st.rerun()
-
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
 
     # ——— Step 5: Summary ———
     if st.session_state.get("falowen_stage") == 5:
         st.success("🎉 Practice Session Complete!")
         st.markdown("#### Your Exam Summary")
         if st.session_state.get("falowen_messages"):
+            for msg in st.session_state["falowen_messages"]:
+                who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
+                st.markdown(f"**{who}:** {msg['content']}")
+            # downloads (same as above)
             from fpdf import FPDF
             def _pdf(messages, filename):
                 def s(x): return (x or "").encode("latin1","replace").decode("latin1")
@@ -8392,10 +8282,11 @@ if st.session_state.get("falowen_stage") == 4:
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
+    # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
         import urllib.parse as _urllib
 
+        # Optional: validate code against your Students sheet (CSV view)
         STUDENTS_CSV_URL = (
             "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
             "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
@@ -8410,8 +8301,10 @@ if st.session_state.get("falowen_stage") == 4:
                 .replace(" ", "")
             )
 
+        # 1) Try session
         student_code = _norm_code(st.session_state.get("student_code"))
 
+        # 2) Fallback to URL (?code=STUDENTCODE)
         if not student_code:
             try:
                 qp = st.query_params
@@ -8425,6 +8318,7 @@ if st.session_state.get("falowen_stage") == 4:
             except Exception:
                 pass
 
+        # 3) Final fallback: ask user
         if not student_code:
             st.warning("Missing student code. Please enter it to continue.")
             _entered = st.text_input("Student Code", value="", key="enter_student_code")
@@ -8435,9 +8329,12 @@ if st.session_state.get("falowen_stage") == 4:
                     st.rerun()
             st.stop()
 
+        # ---- (Optional) Validate against sheet: code must exist in StudentCode column
         try:
             import pandas as pd
+
             df_students = pd.read_csv(STUDENTS_CSV_URL)
+            # map columns in a forgiving way
             _cands = {c.strip().lower(): c for c in df_students.columns}
             col = None
             for key in ["studentcode", "student_code", "code", "student code"]:
@@ -8450,19 +8347,23 @@ if st.session_state.get("falowen_stage") == 4:
                     st.error("Student code not found in our records. Please check and try again.")
                     st.stop()
         except Exception:
+            # Soft-fail if sheet can’t be reached; the recorder page will validate again anyway.
             pass
 
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info("Click the button below to open the Sprechen Recorder.")
 
+        # Build recorder URL with code param
         RECORDER_URL = (
             "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
         )
         rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
 
+        # Big primary button (opens in new tab)
         try:
             st.link_button("📼 Open Sprechen Recorder", rec_url, type="primary", use_container_width=True)
         except Exception:
+            # Fallback for older Streamlit versions
             st.markdown(
                 f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
                 'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
@@ -8476,8 +8377,7 @@ if st.session_state.get("falowen_stage") == 4:
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
-
-
+#
 
 
 
@@ -11246,7 +11146,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
