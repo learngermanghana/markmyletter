@@ -8186,187 +8186,188 @@ if tab == "Exams Mode & Custom Chat":
                     st.rerun()
 
     # ——— Step 4: Chat (Exam or Custom) ———
-if st.session_state.get("falowen_stage") == 4:
-    level = st.session_state.get("falowen_level")
-    teil  = st.session_state.get("falowen_teil")
-    mode  = st.session_state.get("falowen_mode")
-    is_exam = mode == "Exams Mode"
-    student_code = st.session_state.get("student_code", "demo")
+    if st.session_state.get("falowen_stage") == 4:
+        import urllib.parse as _urllib  # ensure alias exists for recorder link
 
-    # Load chat from db once
-    if not st.session_state.get("_falowen_loaded"):
-        def _chat_key(mode, level, teil): return f"{mode}_{level}_{(teil or 'custom')}"
-        doc = db.collection("falowen_chats").document(student_code).get()
-        if doc.exists:
-            chats = (doc.to_dict() or {}).get("chats", {})
-            loaded = chats.get(_chat_key(mode, level, teil), [])
-            if loaded:
-                st.session_state["falowen_messages"] = loaded
-        st.session_state["_falowen_loaded"] = True
+        level = st.session_state.get("falowen_level")
+        teil  = st.session_state.get("falowen_teil")
+        mode  = st.session_state.get("falowen_mode")
+        is_exam = mode == "Exams Mode"
+        student_code = st.session_state.get("student_code", "demo")
 
-    # Seed the first assistant instruction if chat is empty
-    if not st.session_state["falowen_messages"]:
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-        )
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-        try:
-            doc = db.collection("falowen_chats").document(student_code)
-            snap = doc.get()
-            chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-            chats[f"{mode}_{level}_{(teil or 'custom')}"] = st.session_state["falowen_messages"]
-            doc.set({"chats": chats}, merge=True)
-        except Exception:
-            pass
+        # Load chat from db once
+        if not st.session_state.get("_falowen_loaded"):
+            def _chat_key(mode, level, teil): return f"{mode}_{level}_{(teil or 'custom')}"
+            doc = db.collection("falowen_chats").document(student_code).get()
+            if doc.exists:
+                chats = (doc.to_dict() or {}).get("chats", {})
+                loaded = chats.get(_chat_key(mode, level, teil), [])
+                if loaded:
+                    st.session_state["falowen_messages"] = loaded
+            st.session_state["_falowen_loaded"] = True
 
-    # Build system prompt (your personas)
-    if is_exam:
-        if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
-            next_topic = st.session_state["remaining_topics"].pop(0)
-            if " – " in next_topic:
-                topic, keyword = next_topic.split(" – ", 1)
-                st.session_state["falowen_exam_topic"] = topic
-                st.session_state["falowen_exam_keyword"] = keyword
+        # Seed the first assistant instruction if chat is empty
+        if not st.session_state["falowen_messages"]:
+            instruction = build_exam_instruction(level, teil) if is_exam else (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+            )
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            try:
+                doc = db.collection("falowen_chats").document(student_code)
+                snap = doc.get()
+                chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                chats[f"{mode}_{level}_{(teil or 'custom')}"] = st.session_state["falowen_messages"]
+                doc.set({"chats": chats}, merge=True)
+            except Exception:
+                pass
+
+        # Build system prompt (your personas)
+        if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
+            base_prompt = build_exam_system_prompt(level, teil)
+            topic = st.session_state.get("falowen_exam_topic")
+            if topic:
+                system_prompt = f"{base_prompt} Thema: {topic}."
+                if st.session_state.get("falowen_exam_keyword"):
+                    system_prompt += f" Keyword: {st.session_state['falowen_exam_keyword']}."
             else:
-                st.session_state["falowen_exam_topic"] = next_topic
-                st.session_state["falowen_exam_keyword"] = None
-            st.session_state["used_topics"].append(next_topic)
-        base_prompt = build_exam_system_prompt(level, teil)
-        topic = st.session_state.get("falowen_exam_topic")
-        if topic:
-            system_prompt = f"{base_prompt} Thema: {topic}."
-            if st.session_state.get("falowen_exam_keyword"):
-                system_prompt += f" Keyword: {st.session_state['falowen_exam_keyword']}."
+                system_prompt = base_prompt
         else:
-            system_prompt = base_prompt
-    else:
-        system_prompt = build_custom_chat_prompt(level)
+            system_prompt = build_custom_chat_prompt(level)
 
-    # ---- Always-visible recorder button + reminder (simple UI)
-    RECORDER_BASE = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-    rec_url = f"{RECORDER_BASE}?code={_urllib.quote(student_code)}"
-    try:
-        st.link_button("🎙️ Record your answer now (Sprechen Recorder)", rec_url, type="primary", use_container_width=True)
-    except Exception:
-        st.markdown(
-            f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
-            'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
-            'text-decoration:none;font-weight:700;">🎙️ Record your answer now (Sprechen Recorder)</a>',
-            unsafe_allow_html=True,
-        )
-    st.caption("You can keep chatting here or record your answer now.")
-
-    # ========= Handle new input FIRST (so student bubble shows immediately) =========
-    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-    if user_input:
-        # 1) append user message
-        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+        # ---- Always-visible recorder button + reminder (simple UI)
+        RECORDER_BASE = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+        rec_url = f"{RECORDER_BASE}?code={_urllib.quote(student_code)}"
         try:
-            if "inc_sprechen_usage" in globals():
-                inc_sprechen_usage(student_code)
+            st.link_button("🎙️ Record your answer now (Sprechen Recorder)", rec_url, type="primary", use_container_width=True)
         except Exception:
-            pass
+            st.markdown(
+                f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
+                'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
+                'text-decoration:none;font-weight:700;">🎙️ Record your answer now (Sprechen Recorder)</a>',
+                unsafe_allow_html=True,
+            )
+        st.caption("You can keep chatting here or record your answer now.")
 
-        # 2) get assistant reply
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+        # ========= Handle new input FIRST (so student bubble shows immediately) =========
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        if user_input:
+            # 1) append user message
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
             try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    temperature=0.15,
-                    max_tokens=600
-                )
-                ai_reply = (resp.choices[0].message.content or "").strip()
-            except Exception as e:
-                ai_reply = f"Sorry, an error occurred: {e}"
+                if "inc_sprechen_usage" in globals():
+                    inc_sprechen_usage(student_code)
+            except Exception:
+                pass
 
-        # 3) append assistant message
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+            # 2) get assistant reply
+            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                try:
+                    resp = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=messages,
+                        temperature=0.15,
+                        max_tokens=600
+                    )
+                    ai_reply = (resp.choices[0].message.content or "").strip()
+                except Exception as e:
+                    ai_reply = f"Sorry, an error occurred: {e}"
 
-        # 4) save thread
-        try:
-            key = f"{mode}_{level}_{(teil or 'custom')}"
-            doc = db.collection("falowen_chats").document(student_code)
-            snap = doc.get()
-            chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-            chats[key] = st.session_state["falowen_messages"]
-            doc.set({"chats": chats}, merge=True)
-        except Exception:
-            pass
+            # 3) append assistant message
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-    # ========= Render the whole conversation (both student & examiner) =========
-    for msg in st.session_state["falowen_messages"]:
-        if msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
-                st.markdown(
-                    "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
-                    unsafe_allow_html=True
-                )
-        else:  # user
-            with st.chat_message("user"):
-                st.markdown(
-                    f"<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
-                    unsafe_allow_html=True
-                )
-
-    # ---- Downloads (unchanged)
-    if st.session_state["falowen_messages"]:
-        from fpdf import FPDF
-        def falowen_download_pdf(messages, filename):
-            def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
-            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
-            for m in messages:
-                who = "Herr Felix" if m["role"]=="assistant" else "Student"
-                pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
-                pdf.ln(1)
-            return pdf.output(dest='S').encode('latin1','replace')
-
-        teil_str = str(teil) if teil else "chat"
-        pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}")
-        st.download_button(
-            "⬇️ Download Chat as PDF",
-            pdf_bytes,
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
-            mime="application/pdf"
-        )
-        chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
-        st.download_button(
-            "⬇️ Download Chat as TXT",
-            chat_as_text.encode("utf-8"),
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
-            mime="text/plain"
-        )
-
-    # ---- Actions
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🗑️ Delete All Chat History"):
+            # 4) save thread
             try:
-                db.collection("falowen_chats").document(student_code).delete()
-            except Exception as e:
-                st.error(f"Could not delete chat history: {e}")
-            else:
-                for key in [
-                    "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
-                    "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
-                    "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
-                ]:
-                    st.session_state.pop(key, None)
-                st.session_state["falowen_stage"] = 1
-                st.success("All chat history deleted.")
-                st.rerun()
-    with col2:
-        if st.button("⬅️ Back"):
-            back_step()
+                key = f"{mode}_{level}_{(teil or 'custom')}"
+                doc = db.collection("falowen_chats").document(student_code)
+                snap = doc.get()
+                chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                chats[key] = st.session_state["falowen_messages"]
+                doc.set({"chats": chats}, merge=True)
+            except Exception:
+                pass
 
-    st.divider()
-    if st.button("✅ End Session & Show Summary"):
-        st.session_state["falowen_stage"] = 5
-        st.rerun()
+        # ========= Render the whole conversation (both student & examiner) =========
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                        unsafe_allow_html=True
+                    )
+            else:  # user
+                with st.chat_message("user"):
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        unsafe_allow_html=True
+                    )
 
+        # ---- Downloads (unchanged)
+        if st.session_state["falowen_messages"]:
+            from fpdf import FPDF
+            def falowen_download_pdf(messages, filename):
+                def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
+                pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
+                for m in messages:
+                    who = "Herr Felix" if m["role"]=="assistant" else "Student"
+                    pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
+                    pdf.ln(1)
+                return pdf.output(dest='S').encode('latin1','replace')
+
+            teil_str = str(teil) if teil else "chat"
+            pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}")
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
+                mime="application/pdf"
+            )
+            chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
+                mime="text/plain"
+            )
+
+        # ---- Actions
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Delete All Chat History"):
+                try:
+                    db.collection("falowen_chats").document(student_code).delete()
+                except Exception as e:
+                    st.error(f"Could not delete chat history: {e}")
+                else:
+                    for key in [
+                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                    ]:
+                        st.session_state.pop(key, None)
+                    st.session_state["falowen_stage"] = 1
+                    st.success("All chat history deleted.")
+                    st.rerun()
+        with col2:
+            if st.button("⬅️ Back"):
+                back_step()
+
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
 
     # ——— Step 5: Summary ———
     if st.session_state.get("falowen_stage") == 5:
@@ -8391,6 +8392,93 @@ if st.session_state.get("falowen_stage") == 4:
 
         if st.button("⬅️ Back"):
             back_step()
+
+    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
+    if st.session_state.get("falowen_stage") == 99:
+        import urllib.parse as _urllib
+
+        STUDENTS_CSV_URL = (
+            "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
+            "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
+        )
+
+        def _norm_code(v: str) -> str:
+            return (
+                str(v or "")
+                .strip()
+                .lower()
+                .replace("\u00a0", " ")
+                .replace(" ", "")
+            )
+
+        student_code = _norm_code(st.session_state.get("student_code"))
+
+        if not student_code:
+            try:
+                qp = st.query_params
+                q_from_url = qp.get("code")
+                if isinstance(q_from_url, list):
+                    q_from_url = q_from_url[0]
+                q_from_url = _norm_code(q_from_url)
+                if q_from_url:
+                    student_code = q_from_url
+                    st.session_state["student_code"] = student_code
+            except Exception:
+                pass
+
+        if not student_code:
+            st.warning("Missing student code. Please enter it to continue.")
+            _entered = st.text_input("Student Code", value="", key="enter_student_code")
+            if st.button("Continue", type="primary", key="enter_code_btn"):
+                _entered = _norm_code(_entered)
+                if _entered:
+                    st.session_state["student_code"] = _entered
+                    st.rerun()
+            st.stop()
+
+        try:
+            import pandas as pd
+            df_students = pd.read_csv(STUDENTS_CSV_URL)
+            _cands = {c.strip().lower(): c for c in df_students.columns}
+            col = None
+            for key in ["studentcode", "student_code", "code", "student code"]:
+                if key in _cands:
+                    col = _cands[key]
+                    break
+            if col:
+                codes = {_norm_code(x) for x in df_students[col].astype(str)}
+                if student_code not in codes:
+                    st.error("Student code not found in our records. Please check and try again.")
+                    st.stop()
+        except Exception:
+            pass
+
+        st.subheader("🎤 Pronunciation & Speaking Checker")
+        st.info("Click the button below to open the Sprechen Recorder.")
+
+        RECORDER_URL = (
+            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
+        )
+        rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
+
+        try:
+            st.link_button("📼 Open Sprechen Recorder", rec_url, type="primary", use_container_width=True)
+        except Exception:
+            st.markdown(
+                f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
+                'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
+                'text-decoration:none;font-weight:700;">📼 Open Sprechen Recorder</a>',
+                unsafe_allow_html=True,
+            )
+
+        st.caption("If the button doesn’t open, copy & paste this link:")
+        st.code(rec_url, language="text")
+
+        if st.button("⬅️ Back to Start"):
+            st.session_state["falowen_stage"] = 1
+            st.rerun()
+#
+
 
     # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
     if st.session_state.get("falowen_stage") == 99:
