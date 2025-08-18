@@ -4512,6 +4512,8 @@ def notify_slack_submission(webhook_url: str, *, student_name: str, student_code
 # -------------------------
 # Firestore helpers (Firebase)
 # -------------------------
+from google.cloud import firestore  # needed for SERVER_TIMESTAMP and Query.DESCENDING
+
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
     """Unique key for this lesson (safe for reuse in docs)."""
     safe_ch = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(chapter))
@@ -4524,11 +4526,12 @@ def lock_id(level: str, code: str, lesson_key: str) -> str:
 def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        q = posts_ref.where("student_code", "==", code)\
-                     .where("lesson_key", "==", lesson_key)\
-                     .limit(1).stream()
+        q = (posts_ref.where("student_code", "==", code)
+                      .where("lesson_key", "==", lesson_key)
+                      .limit(1).stream())
         return any(True for _ in q)
     except Exception:
+        # Fallback (older client libs without .limit in compound queries)
         try:
             for _ in posts_ref.where("student_code", "==", code)\
                               .where("lesson_key", "==", lesson_key).stream():
@@ -4545,20 +4548,23 @@ def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
             "level": level,
             "student_code": code,
             "lesson_key": lesson_key,
-            "created_at": datetime.utcnow(),
+            "created_at": firestore.SERVER_TIMESTAMP,  # server time
         })
         return True
     except AlreadyExists:
         return False
     except Exception:
         # Fallback path if .create() isn’t available: check-then-set (not fully atomic, but acceptable)
-        if ref.get().exists:
-            return False
+        try:
+            if ref.get().exists:
+                return False
+        except Exception:
+            pass
         ref.set({
             "level": level,
             "student_code": code,
             "lesson_key": lesson_key,
-            "created_at": datetime.utcnow(),
+            "created_at": firestore.SERVER_TIMESTAMP,
         }, merge=False)
         return True
 
@@ -4572,36 +4578,59 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
     except Exception:
         return False
 
-def save_draft_to_db(code, lesson_key, text):
-    doc_ref = db.collection('draft_answers').document(code)
-    doc_ref.set(
-        {lesson_key: text, f"{lesson_key}__updated_at": datetime.utcnow()},
-        merge=True
-    )
+# ---- DRAFTS: content + timestamp (server-side) ----
+def save_draft_to_db(code: str, field_key: str, text: str):
+    """
+    Save the draft body AND server timestamp into draft_answers/{code}.
+    field_key is your per-lesson field name (e.g., 'draft_A1_day3_chX').
+    """
+    if text is None:
+        text = ""
+    payload = {
+        field_key: text,                                       # <- content
+        f"{field_key}__updated_at": firestore.SERVER_TIMESTAMP # <- server timestamp
+    }
+    db.collection("draft_answers").document(code).set(payload, merge=True)
 
-def load_draft_from_db(code, lesson_key) -> str:
+def load_draft_from_db(code: str, field_key: str) -> str:
+    """Return the draft body for field_key from draft_answers/{code} ('' if missing)."""
     try:
-        doc = db.collection('draft_answers').document(code).get()
+        doc = db.collection("draft_answers").document(code).get()
         if doc.exists:
             data = doc.to_dict() or {}
-            return data.get(lesson_key, "")
+            return data.get(field_key, "")
     except Exception:
         pass
     return ""
 
+def load_draft_meta_from_db(code: str, field_key: str):
+    """
+    Return (text, updated_at_or_None) for the given field_key.
+    Useful for a '↻ Reload last saved draft' button.
+    """
+    try:
+        doc = db.collection("draft_answers").document(code).get()
+        if doc.exists:
+            data = doc.to_dict() or {}
+            return data.get(field_key, ""), data.get(f"{field_key}__updated_at")
+    except Exception:
+        pass
+    return "", None
+
 def fetch_latest(level: str, code: str, lesson_key: str):
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
-        docs = posts_ref.where("student_code","==",code)\
-                        .where("lesson_key","==",lesson_key)\
-                        .order_by("updated_at", direction=firestore.Query.DESCENDING)\
-                        .limit(1).stream()
+        docs = (posts_ref.where("student_code", "==", code)
+                         .where("lesson_key", "==", lesson_key)
+                         .order_by("updated_at", direction=firestore.Query.DESCENDING)
+                         .limit(1).stream())
         for d in docs:
             return d.to_dict()
     except Exception:
+        # Fallback if order_by/limit path fails
         try:
-            docs = posts_ref.where("student_code","==",code)\
-                            .where("lesson_key","==",lesson_key).stream()
+            docs = posts_ref.where("student_code", "==", code)\
+                            .where("lesson_key", "==", lesson_key).stream()
             items = [d.to_dict() for d in docs]
             items.sort(key=lambda x: x.get("updated_at"), reverse=True)
             return items[0] if items else None
@@ -5030,8 +5059,9 @@ if tab == "My Course":
             current_text = st.session_state.get(draft_key, "")
             autosave_maybe(code, draft_key, current_text, min_secs=5.0, min_delta=30, locked=locked)
 
-            # Manual save + last saved time
-            csave1, csave2 = st.columns([1,2])
+            # Manual save + last saved time + reload from cloud
+            csave1, csave2, csave3 = st.columns([1, 1, 1])
+
             with csave1:
                 if st.button("💾 Save Draft now", disabled=locked):
                     save_draft_to_db(code, draft_key, current_text)
@@ -5042,11 +5072,35 @@ if tab == "My Course":
                     st.session_state[saved_flag_key] = True
                     st.session_state[saved_at_key]  = datetime.utcnow()
                     st.success("Draft saved.")
+
             with csave2:
                 _, _, _, saved_at_key = _draft_state_keys(draft_key)
                 ts = st.session_state.get(saved_at_key)
                 if ts:
                     st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+                else:
+                    st.caption("No local save yet")
+
+            with csave3:
+                if st.button("↻ Reload last saved draft", disabled=locked, help="Pull the latest saved draft from the server"):
+                    cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
+                    # Overwrite the editor with the cloud copy
+                    st.session_state[draft_key] = cloud_text
+                    # Update autosave trackers so we don't instantly overwrite cloud copy
+                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+                    st.session_state[last_val_key] = cloud_text
+                    st.session_state[last_ts_key]  = time.time()
+                    st.session_state[saved_flag_key] = True
+                    st.session_state[saved_at_key]  = (cloud_ts or datetime.utcnow())
+                    if cloud_ts:
+                        try:
+                            when = cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC"
+                        except Exception:
+                            when = str(cloud_ts)
+                        st.info(f"Reloaded cloud draft from {when}.")
+                    else:
+                        st.info("Reloaded cloud draft.")
+                    st.rerun()
 
             with st.expander("📌 How to Submit", expanded=False):
                 st.markdown(f"""
@@ -5096,7 +5150,7 @@ if tab == "My Course":
                         short_ref = f"{ref.id[:8].upper()}-{info['day']}"
                         st.session_state[locked_key] = True
                         st.success("Submitted! Your work has been sent to your tutor.")
-                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for scores & feedback.")
+                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
                         webhook = get_slack_webhook()
                         if webhook:
@@ -5127,12 +5181,13 @@ if tab == "My Course":
             latest = fetch_latest(student_level, code, lesson_key)
             if latest:
                 ts = latest.get('updated_at')
-                when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
+                when = f"{ts.strftime('%Y-%m-%d %H:%M')} UTC" if ts else ""
                 st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
                 st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 #
+
 
 
 
