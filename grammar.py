@@ -1,12 +1,23 @@
 # ==== Standard Library ====
-import atexit, base64, difflib, hashlib
-import html as html_stdlib
-import io, json, os, random, math, re, sqlite3, tempfile, time
-import urllib.parse as _urllib
+import atexit
+import base64
 import calendar
+import difflib
+import hashlib
+import html as html_stdlib
+import io
+import json
+import math
+import os
+import random
+import re
+import sqlite3
+import tempfile
+import time
+import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
-from uuid import uuid4
 from typing import Optional
+from uuid import uuid4
 
 # ==== Third-Party Packages ====
 import bcrypt
@@ -25,6 +36,7 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
