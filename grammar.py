@@ -4467,8 +4467,8 @@ def autosave_maybe(
     Also updates local 'last saved' markers to avoid redundant writes.
 
     Args:
-        code: Student code (document id in draft_answers).
-        lesson_field_key: Field name in the draft doc (e.g., 'draft_A1_day3_chX').
+        code: Student code (document id).
+        lesson_field_key: Field name / draft key (e.g., 'draft_A1_day3_chX').
         text: Current textarea content.
         min_secs: Minimum seconds between saves for small changes.
         min_delta: Minimum character count difference to treat as 'big change'.
@@ -4648,37 +4648,85 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
     except Exception:
         return False
 
-# ---- DRAFTS: content + timestamp (server-side) ----
+# ---- Drafts v2 path helpers ----
+def _extract_level_and_lesson(field_key: str) -> tuple[str, str]:
+    """
+    From a field_key like 'draft_A1_day3_chX', return (level, lesson_key).
+    If field_key doesn't start with 'draft_', treat the whole thing as lesson_key.
+    """
+    lesson_key = field_key[6:] if field_key.startswith("draft_") else field_key
+    level = (lesson_key.split("_day")[0] or "").upper()
+    return level, lesson_key
+
+def _draft_doc_ref(level: str, lesson_key: str, code: str):
+    """
+    Return doc ref at: drafts_v2/{level}/lessons/{lesson_key}/users/{code}
+    """
+    return (db.collection("drafts_v2")
+              .document(level)
+              .collection("lessons")
+              .document(lesson_key)
+              .collection("users")
+              .document(code))
+
+# ---- DRAFTS (server-side) — now stored separately from submissions ----
 def save_draft_to_db(code: str, field_key: str, text: str) -> None:
     """
-    Save the draft body AND server timestamp into draft_answers/{code}.
-    field_key is your per-lesson field name (e.g., 'draft_A1_day3_chX').
+    Save the draft to a dedicated path:
+      drafts_v2/{level}/lessons/{lesson_key}/users/{code}
     """
     if text is None:
         text = ""
+    level, lesson_key = _extract_level_and_lesson(field_key)
+    ref = _draft_doc_ref(level, lesson_key, code)
     payload = {
-        field_key: text,
-        f"{field_key}__updated_at": firestore.SERVER_TIMESTAMP,
+        "text": text,
+        "updated_at": firestore.SERVER_TIMESTAMP,
+        "level": level,
+        "lesson_key": lesson_key,
+        "student_code": code,
     }
-    db.collection("draft_answers").document(code).set(payload, merge=True)
+    ref.set(payload, merge=True)
 
 def load_draft_from_db(code: str, field_key: str) -> str:
-    """Return the draft body for field_key from draft_answers/{code} ('' if missing)."""
+    """Return the draft text (checks drafts_v2, then legacy draft_answers fallback)."""
+    text, _ = load_draft_meta_from_db(code, field_key)
+    return text or ""
+
+def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
+    """
+    Return (text, updated_at_or_None).
+    1) Try new nested location: drafts_v2/{level}/lessons/{lesson_key}/users/{code}
+    2) Fallback to legacy:     draft_answers/{code} (field_key & field_key__updated_at)
+    """
+    level, lesson_key = _extract_level_and_lesson(field_key)
+
+    # New nested draft location
     try:
-        doc = db.collection("draft_answers").document(code).get()
-        if doc.exists:
-            data = doc.to_dict() or {}
-            return data.get(field_key, "")
+        snap = _draft_doc_ref(level, lesson_key, code).get()
+        if snap.exists:
+            data = snap.to_dict() or {}
+            return data.get("text", ""), data.get("updated_at")
     except Exception:
         pass
-    return ""
+
+    # Legacy fallback
+    try:
+        legacy_doc = db.collection("draft_answers").document(code).get()
+        if legacy_doc.exists:
+            data = legacy_doc.to_dict() or {}
+            return data.get(field_key, ""), data.get(f"{field_key}__updated_at")
+    except Exception:
+        pass
+
+    return "", None
 
 def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
     """
     Decide what the editor should show for this lesson.
     Priority:
       1) Submitted answer (locked, read-only)
-      2) Saved draft from Firestore (editable)
+      2) Saved draft (from drafts_v2 or legacy)
       3) Empty
     """
     latest = fetch_latest(level, code, lesson_key)
@@ -4708,20 +4756,6 @@ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: s
         "locked": False,
         "source": "empty",
     }
-
-def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
-    """
-    Return (text, updated_at_or_None) for the given field_key.
-    Useful for a '↻ Reload last saved draft' button.
-    """
-    try:
-        doc = db.collection("draft_answers").document(code).get()
-        if doc.exists:
-            data = doc.to_dict() or {}
-            return data.get(field_key, ""), data.get(f"{field_key}__updated_at")
-    except Exception:
-        pass
-    return "", None
 
 def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
     """Fetch the most recent submission for this user/lesson (or None)."""
@@ -4758,13 +4792,13 @@ def post_message(level: str, code: str, name: str, text: str, reply_to: str | No
         "reply_to": reply_to,
     })
 
-
 RESOURCE_LABELS = {
     'video': '🎥 Video',
     'grammarbook_link': '📘 Grammar',
     'workbook_link': '📒 Workbook',
     'extra_resources': '🔗 Extra'
 }
+
 
 
 # ---- Firestore Helpers ----
@@ -5179,11 +5213,11 @@ if tab == "My Course":
                 st.session_state[locked_key] = True
             locked = db_locked or st.session_state.get(locked_key, False)
 
-               # ---------- Decide what to show (guarded hydration) ----------
+            # ---------- Decide what to show (guarded hydration) ----------
             pending_key      = f"{draft_key}__pending_reload"
             pending_text_key = f"{draft_key}__reload_text"
             pending_ts_key   = f"{draft_key}__reload_ts"
-            hydrated_key     = f"{draft_key}__hydrated_v2"  # new: only hydrate once per lesson
+            hydrated_key     = f"{draft_key}__hydrated_v2"  # only hydrate once per lesson
 
             last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
 
@@ -5265,9 +5299,11 @@ if tab == "My Course":
                 help="Autosaves on blur and in the background while you type."
             )
 
-            # Debounced autosave (kept so small ongoing edits also persist)
+            # Debounced autosave (safe so empty first-render won't wipe a non-empty cloud draft)
             current_text = st.session_state.get(draft_key, "")
-            autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+            last_val = st.session_state.get(last_val_key, "")
+            if not locked and (current_text.strip() or not last_val.strip()):
+                autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
 
             # ---------- Manual save + last saved time + safe reload ----------
             csave1, csave2, csave3 = st.columns([1, 1, 1])
@@ -5383,6 +5419,14 @@ if tab == "My Course":
                         st.success("Submitted! Your work has been sent to your tutor.")
                         st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
 
+                        # Archive the draft so it won't rehydrate again (drafts_v2)
+                        try:
+                            _draft_doc_ref(student_level, lesson_key, code).set(
+                                {"status": "submitted", "archived_at": now}, merge=True
+                            )
+                        except Exception:
+                            pass
+
                         webhook = get_slack_webhook()
                         if webhook:
                             notify_slack_submission(
@@ -5417,6 +5461,8 @@ if tab == "My Course":
                 st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+
+
 
 
     if cb_subtab == "🧑‍🏫 Classroom":
