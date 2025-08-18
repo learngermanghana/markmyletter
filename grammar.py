@@ -4638,6 +4638,33 @@ def fetch_latest(level: str, code: str, lesson_key: str):
             return None
     return None
 
+# Firestore init (put this once near the top of your app, after imports)
+from google.cloud import firestore
+from google.oauth2 import service_account
+import streamlit as st
+
+def init_db():
+    # 1) Try Application Default Credentials (works on GCP, Cloud Run, etc.)
+    try:
+        return firestore.Client()
+    except Exception:
+        pass
+
+    # 2) Fallback: use service account from Streamlit secrets
+    # st.secrets["gcp_service_account"] should contain the full JSON dict
+    try:
+        sa_info = dict(st.secrets["gcp_service_account"])
+        creds = service_account.Credentials.from_service_account_info(sa_info)
+        return firestore.Client(project=sa_info.get("project_id"), credentials=creds)
+    except Exception as e:
+        raise RuntimeError(
+            "Failed to initialize Firestore client. "
+            "Ensure ADC is configured or add gcp_service_account to st.secrets."
+        ) from e
+
+db = init_db()
+
+
 # -------------------------
 # Misc existing helper preserved
 # -------------------------
