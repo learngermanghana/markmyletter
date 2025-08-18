@@ -4746,7 +4746,7 @@ if tab == "My Course":
 
         # ---------- mini-tabs inside Course Book ----------
         t_overview, t_worklinks, t_tv, t_submit = st.tabs(
-            ["Overview", "Your Work & Links", "Supporting Materials", "Submit"]
+            ["Overview", "Assignment", "Support Materials", "Submit"]
         )
 
         # OVERVIEW
