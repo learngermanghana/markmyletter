@@ -5098,17 +5098,16 @@ if tab == "My Course":
                 st.session_state[locked_key] = True
             locked = db_locked or st.session_state.get(locked_key, False)
 
-            # ---------- ALWAYS decide what to show (submission beats draft) ----------
-            # Reload support keys (used by the Reload button)
+               # ---------- Decide what to show (guarded hydration) ----------
             pending_key      = f"{draft_key}__pending_reload"
             pending_text_key = f"{draft_key}__reload_text"
             pending_ts_key   = f"{draft_key}__reload_ts"
+            hydrated_key     = f"{draft_key}__hydrated_v2"  # new: only hydrate once per lesson
 
-            # Track autosave meta keys
             last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
 
+            # 1) If a forced reload was requested, apply it BEFORE widget creation
             if st.session_state.get(pending_key):
-                # Apply server text requested by the Reload button (before widget exists this run)
                 cloud_text = st.session_state.pop(pending_text_key, "")
                 cloud_ts   = st.session_state.pop(pending_ts_key, None)
                 st.session_state[pending_key] = False
@@ -5118,6 +5117,7 @@ if tab == "My Course":
                 st.session_state[last_ts_key]    = time.time()
                 st.session_state[saved_flag_key] = True
                 st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
+                st.session_state[hydrated_key]   = True
 
                 try:
                     when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
@@ -5126,7 +5126,7 @@ if tab == "My Course":
                 st.info(f"Reloaded cloud draft (saved {when}).")
 
             else:
-                # 1) If a submission exists, always show it and lock
+                # 2) If a SUBMISSION exists, always enforce it (locked) on every run
                 latest = fetch_latest(student_level, code, lesson_key)
                 if latest and (latest.get("answer", "") is not None):
                     sub_txt = latest.get("answer", "") or ""
@@ -5138,30 +5138,40 @@ if tab == "My Course":
                     st.session_state[saved_flag_key] = True
                     st.session_state[saved_at_key]   = (sub_ts or datetime.now(timezone.utc))
                     st.session_state[locked_key]     = True
-                    locked = True
+                    st.session_state[hydrated_key]   = True
+                    locked = True  # enforce read-only
 
                     when = f"{sub_ts.strftime('%Y-%m-%d %H:%M')} UTC" if sub_ts else ""
                     st.success(f"Showing your submitted answer. {('Updated ' + when) if when else ''}")
 
                 else:
-                    # 2) Otherwise show latest saved draft (if any)
-                    cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                    if cloud_text:
-                        st.session_state[draft_key]      = cloud_text
-                        st.session_state[last_val_key]   = cloud_text
-                        st.session_state[last_ts_key]    = time.time()
-                        st.session_state[saved_flag_key] = True
-                        st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
-                        when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
-                        st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
-                    else:
-                        # 3) Nothing saved yet — start empty
-                        st.session_state.setdefault(draft_key, "")
-                        st.session_state.setdefault(last_val_key, "")
-                        st.session_state.setdefault(last_ts_key, time.time())
-                        st.session_state.setdefault(saved_flag_key, False)
-                        st.session_state.setdefault(saved_at_key, None)
-                        st.caption("Start typing your answer. It will autosave to the cloud.")
+                    # 3) No submission → hydrate ONCE from cloud; after that, never clobber local typing
+                    if not st.session_state.get(hydrated_key, False):
+                        cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
+                        if cloud_text is not None:
+                            st.session_state[draft_key]      = cloud_text or ""
+                            st.session_state[last_val_key]   = st.session_state[draft_key]
+                            st.session_state[last_ts_key]    = time.time()
+                            st.session_state[saved_flag_key] = True
+                            st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
+                        else:
+                            st.session_state.setdefault(draft_key, "")
+                            st.session_state.setdefault(last_val_key, "")
+                            st.session_state.setdefault(last_ts_key, time.time())
+                            st.session_state.setdefault(saved_flag_key, False)
+                            st.session_state.setdefault(saved_at_key, None)
+
+                        st.session_state[hydrated_key] = True
+
+                        # Friendly notice
+                        if cloud_text:
+                            when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
+                            st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
+                        else:
+                            st.caption("Start typing your answer.")
+                    # else: already hydrated this lesson → DO NOTHING (preserve in-progress typing)
+#
+
 
             st.subheader("✍️ Your Answer")
 
