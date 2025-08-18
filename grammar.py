@@ -5127,7 +5127,7 @@ if tab == "My Course":
             latest = fetch_latest(student_level, code, lesson_key)
             if latest:
                 ts = latest.get('updated_at')
-                when = ts.strftime('%Y-%m-%d %H:%M") + " UTC" if ts else ""
+                when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
                 st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
                 st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
             else:
