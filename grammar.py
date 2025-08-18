@@ -1928,43 +1928,49 @@ def render_dropdown_nav():
     return tab
 
 
-# ---------- Query param compatibility (use ONE API only) ----------
-_USE_NEW_QP = hasattr(st, "query_params")
+# =========================================================
+# ===================== NAV & HELPERS =====================
+# =========================================================
 
-def _qp_get_first(key: str, default=None):
-    try:
-        if _USE_NEW_QP:
-            val = st.query_params.get(key)
-            # new API may return str or list[str]; normalize to first
+# --- Query-param helpers (single API; no experimental mix) ---
+if "_qp_get_first" not in globals():
+    def _qp_get_first(key: str, default: str = "") -> str:
+        try:
+            val = st.query_params.get(key, default)
+            # New Streamlit returns str; old could be list -> normalize
             if isinstance(val, list):
-                return val[0] if val else default
-            return val if val is not None else default
-        else:
-            qp = st.experimental_get_query_params()
-            val = qp.get(key)
-            if isinstance(val, list):
-                return val[0] if val else default
-            return val if val is not None else default
-    except Exception:
-        return default
+                return (val[0] if val else default)
+            return str(val)
+        except Exception:
+            return default
 
-def _qp_set(**kwargs):
-    try:
-        if _USE_NEW_QP:
-            # set keys individually to avoid mixing APIs
+if "_qp_set" not in globals():
+    def _qp_set(**kwargs):
+        # Use only the production API
+        try:
             for k, v in kwargs.items():
-                st.query_params[k] = v
-        else:
-            st.experimental_set_query_params(**kwargs)
-    except Exception:
-        pass
+                st.query_params[k] = str(v)
+        except Exception:
+            pass
 
+# --- Minimal CSS injector fallback so NameError never happens ---
+if "inject_notice_css" not in globals():
+    def inject_notice_css():
+        st.markdown(
+            """
+            <style>
+              .mini-chip {display:inline-block;background:#eef2ff;color:#3730a3;
+                          padding:4px 10px;border-radius:999px;font-size:0.85rem;margin-right:6px;}
+              .mini-card {border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:8px 0;}
+              .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
+                        background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+# --- Nav dropdown (mobile-friendly, very simple text) ---
 def render_dropdown_nav():
-    """
-    Mobile-friendly dropdown nav that persists across reruns.
-    Single source of truth = st.session_state["nav_sel"].
-    URL (?tab=...) <-> session are kept in sync using ONE query-params API.
-    """
     tabs = [
         "Dashboard",
         "My Course",
@@ -1985,81 +1991,61 @@ def render_dropdown_nav():
     # Banner
     st.markdown(
         """
-        <div style="
-            padding:12px 14px;
-            background:#ecfeff;
-            border:1px solid #67e8f9;
-            border-radius:12px;
-            margin: 4px 0 10px 0;
-            display:flex;align-items:center;gap:10px;justify-content:space-between;">
-          <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">
-            🧭 Main Menu
-          </div>
-          <div style="color:#0c4a6e;font-size:0.95rem;">
-            Use the selector <b>below</b> to switch sections
-          </div>
+        <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
+                    margin:4px 0 10px 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
+          <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
+          <div style="color:#0c4a6e;font-size:0.95rem;">Use the selector <b>below</b> to switch sections</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Determine desired tab from URL or last session
-    url_tab = _qp_get_first("tab")
-    remembered = st.session_state.get("main_tab_select", "Dashboard")
-    initial = url_tab or (remembered if remembered in tabs else "Dashboard")
-    if initial not in tabs:
-        initial = "Dashboard"
+    # Default from URL OR session
+    default = _qp_get_first("tab", st.session_state.get("main_tab_select", "Dashboard"))
+    if default not in tabs:
+        default = "Dashboard"
 
-    # Initialize / reconcile single source of truth
-    if "nav_sel" not in st.session_state:
-        st.session_state["nav_sel"] = initial
-        st.session_state["main_tab_select"] = initial
-    else:
-        # If URL changed externally (e.g., shared link), honor it
-        if url_tab and url_tab in tabs and url_tab != st.session_state["nav_sel"]:
-            st.session_state["nav_sel"] = url_tab
-            st.session_state["main_tab_select"] = url_tab
-
-    # Pretty labels
     def _fmt(x: str) -> str:
         return f"{icons.get(x,'•')}  {x}"
 
-    # Selector
-    current = st.session_state["nav_sel"]
     sel = st.selectbox(
         "🧭 Main menu (tap ▾)",
         tabs,
-        index=tabs.index(current),
+        index=tabs.index(default),
         key="nav_dd",
         format_func=_fmt,
-        help="This is the main selector. Tap the arrow ▾ to view all sections.",
+        help="This is the main selector. Tap ▾ to view all sections.",
     )
 
-    # Update both session + URL when changed
-    if sel != current:
-        st.session_state["nav_sel"] = sel
-        st.session_state["main_tab_select"] = sel
+    # Persist to URL + session (no rerun storm)
+    if sel != default:
         _qp_set(tab=sel)
+    st.session_state["main_tab_select"] = sel
+    st.session_state["nav_sel"] = sel  # stable name used later
 
-    # Ensure URL matches session (no drift on reruns)
-    if _qp_get_first("tab") != st.session_state["nav_sel"]:
-        _qp_set(tab=st.session_state["nav_sel"])
-
-    # You are here chip
+    # “You’re here” chip
     st.markdown(
         f"""
         <div style="margin-top:6px;">
           <span style="background:#e0f2fe;border:1px solid #7dd3fc;color:#075985;
                        padding:4px 10px;border-radius:999px;font-size:0.92rem;">
-            You’re viewing: {icons.get(st.session_state['nav_sel'],'•')} <b>{st.session_state['nav_sel']}</b>
+            You’re viewing: {icons.get(sel,'•')} <b>{sel}</b>
           </span>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    return sel
 
-    return st.session_state["nav_sel"]
-
+# --- Initialize nav (MUST be before any "if tab == ..." checks) ---
+try:
+    if "nav_sel" not in st.session_state:
+        st.session_state["nav_sel"] = "Dashboard"
+        st.session_state["main_tab_select"] = "Dashboard"
+    tab = render_dropdown_nav()
+except Exception as e:
+    st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
+    tab = "Dashboard"
 
 
 # =========================================================
