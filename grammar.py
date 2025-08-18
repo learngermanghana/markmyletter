@@ -7492,20 +7492,17 @@ How to prepare for your B1 oral exam.
 # 5. EXAMS MODE & CUSTOM CHAT — one clean block (no duplicates)
 # ================================
 
-
-# ---------- Mini TTS (FREE, browser-based) ----------
 def tts_controls(sentence: str, level: str = "B1", key: str = "tts_main"):
-    """
-    Client-side TTS using the browser's SpeechSynthesis (no API cost).
-    Renders: Voice picker + Listen / Slow / Shadow / Stop for one sentence.
-    """
+    """Free, browser-based TTS controls (no API)."""
     rate_by_level = {"A1": 0.85, "A2": 0.90, "B1": 0.95, "B2": 1.00, "C1": 1.05}
     normal_rate = rate_by_level.get(level, 1.0)
-    safe = _html.escape(sentence or "")
-    # use __repr__ to keep quotes safe inside JS
+
+    safe_html = html_stdlib.escape(sentence or "")
+    sentence_js = json.dumps(sentence or "")  # safe JS string
+
     components.html(f"""
 <div id="{key}_wrap" style="border:1px solid #eee;border-radius:10px;padding:10px;margin:8px 0;">
-  <div style="margin-bottom:6px;"><b>Model line:</b> {safe}</div>
+  <div style="margin-bottom:6px;"><b>Model line:</b> {safe_html}</div>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <select id="{key}_voice" style="padding:6px 8px;min-width:220px;"></select>
     <button onclick="{key}_listen()">▶️ Listen</button>
@@ -7519,7 +7516,7 @@ def tts_controls(sentence: str, level: str = "B1", key: str = "tts_main"):
   const synth = window.speechSynthesis;
   let voices = [];
   let chosen = localStorage.getItem("{key}_voice_uri") || "";
-  const sentence = {safe.__repr__()};
+  const sentence = {sentence_js};
   const normalRate = {normal_rate};
 
   function loadVoices(){{
@@ -7563,7 +7560,6 @@ def tts_controls(sentence: str, level: str = "B1", key: str = "tts_main"):
     osc.connect(g); g.connect(ctx.destination);
     osc.start(); setTimeout(()=>{{ osc.stop(); ctx.close(); }}, d);
   }}
-
   window.{key}_listen = ()=> speak(sentence, normalRate);
   window.{key}_slow   = ()=> speak(sentence, Math.max(0.75, normalRate - 0.15));
   window.{key}_shadow = ()=> {{
@@ -7584,7 +7580,7 @@ def tts_controls(sentence: str, level: str = "B1", key: str = "tts_main"):
   }};
   window.{key}_stop   = ()=> synth.cancel();
 
-  // iOS/Safari warm-up so first tap works
+  // iOS warm-up so first tap speaks
   document.addEventListener("click", function once(){{
     if (!synth.speaking){{ const u=new SpeechSynthesisUtterance(" "); u.rate=2; synth.speak(u); }}
     document.removeEventListener("click", once);
@@ -7592,6 +7588,7 @@ def tts_controls(sentence: str, level: str = "B1", key: str = "tts_main"):
 }})();
 </script>
 """, height=190, scrolling=False)
+
 
 # ---------- Helper: pick a "model" sentence from an AI reply ----------
 def extract_model_line(ai_text: str) -> str:
