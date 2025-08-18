@@ -4415,6 +4415,26 @@ def filter_matches(lesson, terms):
     )
     return any(term in searchable for term in terms)
 
+def _draft_state_keys(draft_key: str):
+    return (f"{draft_key}__last_val", f"{draft_key}__last_ts", f"{draft_key}_saved", f"{draft_key}_saved_at")
+
+def autosave_maybe(code: str, lesson_field_key: str, text: str, *, min_secs: float = 5.0, min_delta: int = 30, locked: bool = False):
+    if locked: return
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(lesson_field_key)
+    last_val = st.session_state.get(last_val_key, "")
+    last_ts  = float(st.session_state.get(last_ts_key, 0.0))
+    now = time.time()
+    changed    = (text != last_val)
+    big_change = abs(len(text) - len(last_val)) >= min_delta
+    time_ok    = (now - last_ts) >= min_secs
+    if changed and (time_ok or big_change):
+        save_draft_to_db(code, lesson_field_key, text)
+        st.session_state[last_val_key]  = text
+        st.session_state[last_ts_key]   = now
+        st.session_state[saved_flag_key] = True
+        st.session_state[saved_at_key]   = datetime.utcnow()
+
+
 def render_section(day_info, key, title, icon):
     content = day_info.get(key)
     if not content:
@@ -4956,8 +4976,6 @@ if tab == "My Course":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
-
-
         # SUBMIT
         with t_submit:
             st.markdown("### ✅ Submit Your Assignment")
@@ -4988,6 +5006,7 @@ if tab == "My Course":
                 st.session_state[locked_key] = True
             locked = db_locked or st.session_state.get(locked_key, False)
 
+            # ---- Hydrate draft once from Firestore on first load ----
             if not st.session_state.get(f"{draft_key}__hydrated", False):
                 existing = load_draft_from_db(code, draft_key)
                 if existing and not st.session_state.get(draft_key):
@@ -4996,29 +5015,38 @@ if tab == "My Course":
                 st.session_state[f"{draft_key}__hydrated"] = True
 
             st.subheader("✍️ Your Answer (Autosaves)")
-            def autosave_draft():
-                text = st.session_state.get(draft_key, "")
-                save_draft_to_db(code, draft_key, text)
-                st.session_state[f"{draft_key}_saved"] = True
-                st.session_state[f"{draft_key}_saved_at"] = datetime.utcnow()
 
+            # Editor (no on_change needed; we autosave below every few seconds)
             st.text_area(
                 "Type all your answers here",
                 value=st.session_state.get(draft_key, ""),
                 height=500,
                 key=draft_key,
-                on_change=autosave_draft,
                 disabled=locked,
-                help="Draft autosaves when you click outside the box or change focus."
+                help="Autosaves as you type (every few seconds). You can also click 'Save Draft now'."
             )
 
+            # Debounced autosave (persists to Firestore even if the page is refreshed)
+            current_text = st.session_state.get(draft_key, "")
+            autosave_maybe(code, draft_key, current_text, min_secs=5.0, min_delta=30, locked=locked)
+
+            # Manual save + last saved time
             csave1, csave2 = st.columns([1,2])
             with csave1:
                 if st.button("💾 Save Draft now", disabled=locked):
-                    autosave_draft(); st.success("Draft saved.")
+                    save_draft_to_db(code, draft_key, current_text)
+                    # Update autosave tracking so we don't immediately re-save the same content
+                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+                    st.session_state[last_val_key] = current_text
+                    st.session_state[last_ts_key]  = time.time()
+                    st.session_state[saved_flag_key] = True
+                    st.session_state[saved_at_key]  = datetime.utcnow()
+                    st.success("Draft saved.")
             with csave2:
-                ts = st.session_state.get(f"{draft_key}_saved_at")
-                if ts: st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+                _, _, _, saved_at_key = _draft_state_keys(draft_key)
+                ts = st.session_state.get(saved_at_key)
+                if ts:
+                    st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
 
             with st.expander("📌 How to Submit", expanded=False):
                 st.markdown(f"""
@@ -5068,7 +5096,7 @@ if tab == "My Course":
                         short_ref = f"{ref.id[:8].upper()}-{info['day']}"
                         st.session_state[locked_key] = True
                         st.success("Submitted! Your work has been sent to your tutor.")
-                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
+                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for scores & feedback.")
 
                         webhook = get_slack_webhook()
                         if webhook:
@@ -5099,13 +5127,12 @@ if tab == "My Course":
             latest = fetch_latest(student_level, code, lesson_key)
             if latest:
                 ts = latest.get('updated_at')
-                when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
+                when = ts.strftime('%Y-%m-%d %H:%M") + " UTC" if ts else ""
                 st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
                 st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-
-
+#
 
 
 
