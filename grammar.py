@@ -1928,14 +1928,42 @@ def render_dropdown_nav():
     return tab
 
 
-# =========================================================
-# ===================== Tabs UI ===========================
-# =========================================================
+# ---------- Query param compatibility (use ONE API only) ----------
+_USE_NEW_QP = hasattr(st, "query_params")
+
+def _qp_get_first(key: str, default=None):
+    try:
+        if _USE_NEW_QP:
+            val = st.query_params.get(key)
+            # new API may return str or list[str]; normalize to first
+            if isinstance(val, list):
+                return val[0] if val else default
+            return val if val is not None else default
+        else:
+            qp = st.experimental_get_query_params()
+            val = qp.get(key)
+            if isinstance(val, list):
+                return val[0] if val else default
+            return val if val is not None else default
+    except Exception:
+        return default
+
+def _qp_set(**kwargs):
+    try:
+        if _USE_NEW_QP:
+            # set keys individually to avoid mixing APIs
+            for k, v in kwargs.items():
+                st.query_params[k] = v
+        else:
+            st.experimental_set_query_params(**kwargs)
+    except Exception:
+        pass
+
 def render_dropdown_nav():
     """
-    Mobile-friendly dropdown nav that **never resets** on reruns.
+    Mobile-friendly dropdown nav that persists across reruns.
     Single source of truth = st.session_state["nav_sel"].
-    URL (?tab=...) <-> session are kept in sync on every run.
+    URL (?tab=...) <-> session are kept in sync using ONE query-params API.
     """
     tabs = [
         "Dashboard",
@@ -1954,7 +1982,7 @@ def render_dropdown_nav():
         "Schreiben Trainer": "✍️",
     }
 
-    # ---------- Banner ----------
+    # Banner
     st.markdown(
         """
         <div style="
@@ -1975,40 +2003,28 @@ def render_dropdown_nav():
         unsafe_allow_html=True,
     )
 
-    # ---------- Read URL param once ----------
-    url_tab = st.query_params.get("tab", [None])[0]
-    if url_tab not in tabs:
-        url_tab = None
+    # Determine desired tab from URL or last session
+    url_tab = _qp_get_first("tab")
+    remembered = st.session_state.get("main_tab_select", "Dashboard")
+    initial = url_tab or (remembered if remembered in tabs else "Dashboard")
+    if initial not in tabs:
+        initial = "Dashboard"
 
-    # ---------- Initialize / reconcile single source of truth ----------
+    # Initialize / reconcile single source of truth
     if "nav_sel" not in st.session_state:
-        # First run: prefer URL; else last remembered main_tab_select; else Dashboard
-        remembered = st.session_state.get("main_tab_select", "Dashboard")
-        st.session_state["nav_sel"] = url_tab or (remembered if remembered in tabs else "Dashboard")
+        st.session_state["nav_sel"] = initial
+        st.session_state["main_tab_select"] = initial
     else:
-        # If URL changed externally (e.g., share link), respect it
-        if url_tab and url_tab != st.session_state["nav_sel"]:
+        # If URL changed externally (e.g., shared link), honor it
+        if url_tab and url_tab in tabs and url_tab != st.session_state["nav_sel"]:
             st.session_state["nav_sel"] = url_tab
+            st.session_state["main_tab_select"] = url_tab
 
-    # ---------- Helper: set both session + URL safely ----------
-    def _set_nav(tab_name: str):
-        st.session_state["nav_sel"] = tab_name
-        st.session_state["main_tab_select"] = tab_name
-        # Use experimental_set_query_params when available for maximum compatibility
-        try:
-            st.experimental_set_query_params(tab=tab_name)
-        except Exception:
-            try:
-                # Newer Streamlit allows assignment to st.query_params
-                st.query_params["tab"] = tab_name
-            except Exception:
-                pass  # Last resort: ignore URL update, session still holds
-
-    # ---------- Pretty labels ----------
+    # Pretty labels
     def _fmt(x: str) -> str:
         return f"{icons.get(x,'•')}  {x}"
 
-    # ---------- Selectbox (index derived from session source of truth) ----------
+    # Selector
     current = st.session_state["nav_sel"]
     sel = st.selectbox(
         "🧭 Main menu (tap ▾)",
@@ -2019,15 +2035,17 @@ def render_dropdown_nav():
         help="This is the main selector. Tap the arrow ▾ to view all sections.",
     )
 
-    # If user changed selection, update both session + URL immediately
+    # Update both session + URL when changed
     if sel != current:
-        _set_nav(sel)
+        st.session_state["nav_sel"] = sel
+        st.session_state["main_tab_select"] = sel
+        _qp_set(tab=sel)
 
-    # Ensure URL always matches session (protect against other reruns)
-    if st.query_params.get("tab", [None])[0] != st.session_state["nav_sel"]:
-        _set_nav(st.session_state["nav_sel"])
+    # Ensure URL matches session (no drift on reruns)
+    if _qp_get_first("tab") != st.session_state["nav_sel"]:
+        _qp_set(tab=st.session_state["nav_sel"])
 
-    # ---------- You are here ----------
+    # You are here chip
     st.markdown(
         f"""
         <div style="margin-top:6px;">
@@ -2041,9 +2059,6 @@ def render_dropdown_nav():
     )
 
     return st.session_state["nav_sel"]
-
-# usage (call once, near the very top of the script — before any other UI):
-tab = render_dropdown_nav()
 
 
 
