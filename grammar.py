@@ -5298,6 +5298,7 @@ if tab == "My Course":
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
+
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
         st.markdown(
@@ -6848,7 +6849,7 @@ if tab == "My Course":
                         st.session_state[clear_key] = True
                         st.success("Reply sent!")
                         st.rerun()
-#    
+
 
     # === LEARNING NOTES SUBTAB ===
     elif cb_subtab == "📒 Learning Notes":
