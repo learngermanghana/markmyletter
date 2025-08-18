@@ -1933,9 +1933,9 @@ def render_dropdown_nav():
 # =========================================================
 def render_dropdown_nav():
     """
-    Mobile-friendly dropdown nav with a clear banner that says:
-    '🧭 Main Menu — use the selector below to switch sections.'
-    Also keeps URL (?tab=...) and st.session_state in sync.
+    Mobile-friendly dropdown nav that **never resets** on reruns.
+    Single source of truth = st.session_state["nav_sel"].
+    URL (?tab=...) <-> session are kept in sync on every run.
     """
     tabs = [
         "Dashboard",
@@ -1954,7 +1954,7 @@ def render_dropdown_nav():
         "Schreiben Trainer": "✍️",
     }
 
-    # --- Clean, simple banner: always visible, right above the selector ---
+    # ---------- Banner ----------
     st.markdown(
         """
         <div style="
@@ -1975,49 +1975,76 @@ def render_dropdown_nav():
         unsafe_allow_html=True,
     )
 
-    # --- Default from URL (?tab=...) or session ---
-    default = st.query_params.get(
-        "tab",
-        [st.session_state.get("main_tab_select", "Dashboard")]
-    )[0]
-    if default not in tabs:
-        default = "Dashboard"
+    # ---------- Read URL param once ----------
+    url_tab = st.query_params.get("tab", [None])[0]
+    if url_tab not in tabs:
+        url_tab = None
 
-    # --- Selectbox with icons in labels ---
+    # ---------- Initialize / reconcile single source of truth ----------
+    if "nav_sel" not in st.session_state:
+        # First run: prefer URL; else last remembered main_tab_select; else Dashboard
+        remembered = st.session_state.get("main_tab_select", "Dashboard")
+        st.session_state["nav_sel"] = url_tab or (remembered if remembered in tabs else "Dashboard")
+    else:
+        # If URL changed externally (e.g., share link), respect it
+        if url_tab and url_tab != st.session_state["nav_sel"]:
+            st.session_state["nav_sel"] = url_tab
+
+    # ---------- Helper: set both session + URL safely ----------
+    def _set_nav(tab_name: str):
+        st.session_state["nav_sel"] = tab_name
+        st.session_state["main_tab_select"] = tab_name
+        # Use experimental_set_query_params when available for maximum compatibility
+        try:
+            st.experimental_set_query_params(tab=tab_name)
+        except Exception:
+            try:
+                # Newer Streamlit allows assignment to st.query_params
+                st.query_params["tab"] = tab_name
+            except Exception:
+                pass  # Last resort: ignore URL update, session still holds
+
+    # ---------- Pretty labels ----------
     def _fmt(x: str) -> str:
         return f"{icons.get(x,'•')}  {x}"
 
+    # ---------- Selectbox (index derived from session source of truth) ----------
+    current = st.session_state["nav_sel"]
     sel = st.selectbox(
         "🧭 Main menu (tap ▾)",
         tabs,
-        index=tabs.index(default),
+        index=tabs.index(current),
         key="nav_dd",
         format_func=_fmt,
         help="This is the main selector. Tap the arrow ▾ to view all sections.",
     )
 
-    # --- Persist selection to URL + session ---
-    if sel != default:
-        st.query_params["tab"] = sel
-    st.session_state["main_tab_select"] = sel
+    # If user changed selection, update both session + URL immediately
+    if sel != current:
+        _set_nav(sel)
 
-    # Small “you are here” chip (helps on mobile)
+    # Ensure URL always matches session (protect against other reruns)
+    if st.query_params.get("tab", [None])[0] != st.session_state["nav_sel"]:
+        _set_nav(st.session_state["nav_sel"])
+
+    # ---------- You are here ----------
     st.markdown(
         f"""
         <div style="margin-top:6px;">
           <span style="background:#e0f2fe;border:1px solid #7dd3fc;color:#075985;
                        padding:4px 10px;border-radius:999px;font-size:0.92rem;">
-            You’re viewing: {icons.get(sel,'•')} <b>{sel}</b>
+            You’re viewing: {icons.get(st.session_state['nav_sel'],'•')} <b>{st.session_state['nav_sel']}</b>
           </span>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    return sel
+    return st.session_state["nav_sel"]
 
-# usage:
+# usage (call once, near the very top of the script — before any other UI):
 tab = render_dropdown_nav()
+
 
 
 # =========================================================
