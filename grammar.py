@@ -4780,41 +4780,12 @@ if tab == "My Course":
                     with content:
                         st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 
-        # YOUR WORK & LINKS (Activities + Resources together) — no duplicate videos
+        # YOUR WORK & LINKS (Activities + Resources together) — no duplicate videos, links download only
         with t_worklinks:
-            from urllib.parse import urlparse, urlsplit, parse_qs
+            from urllib.parse import urlsplit, parse_qs, urlparse
+            import io, json
 
-            # --- helpers to dedupe videos across the whole panel ---
-            def _canon_video(u: str) -> str:
-                """Return a stable id for a video url (YouTube => yt:ID, else normalized url)."""
-                if not u:
-                    return ""
-                try:
-                    p = urlsplit(u)
-                    host = (p.netloc or "").lower().replace("www.", "")
-                    if "youtube.com" in host:
-                        q = parse_qs(p.query or "")
-                        vid = (q.get("v", [""])[0] or "").strip()
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    if "youtu.be" in host:
-                        # /VIDEOID or /VIDEOID/...
-                        vid = (p.path or "/").strip("/").split("/")[0]
-                        return f"yt:{vid}" if vid else u.strip().lower()
-                    return u.strip().lower()
-                except Exception:
-                    return str(u).strip().lower()
-
-            seen_videos = set()  # canonical ids we've already embedded
-
-            def _embed_video_once(url: str):
-                cid = _canon_video(url)
-                if not cid or cid in seen_videos:
-                    return
-                st.video(url)
-                # optional: link under the embed
-                st.markdown(f"[▶️ Watch on YouTube]({url})")
-                seen_videos.add(cid)
-
+            # ---------- helpers ----------
             def _as_list(x):
                 if not x: return []
                 return x if isinstance(x, list) else [x]
@@ -4833,7 +4804,35 @@ if tab == "My Course":
                         seen.add(s); out.append(s)
                 return out
 
-            # ---------- YOUR WORK (renders activities; embeds each video at most once) ----------
+            def _canon_video(u: str) -> str:
+                """Stable id for a video url (YouTube => yt:ID, else normalized url)."""
+                if not u:
+                    return ""
+                try:
+                    p = urlsplit(u)
+                    host = (p.netloc or "").lower().replace("www.", "")
+                    if "youtube.com" in host:
+                        q = parse_qs(p.query or "")
+                        vid = (q.get("v", [""])[0] or "").strip()
+                        return f"yt:{vid}" if vid else u.strip().lower()
+                    if "youtu.be" in host:
+                        vid = (p.path or "/").strip("/").split("/")[0]
+                        return f"yt:{vid}" if vid else u.strip().lower()
+                    return u.strip().lower()
+                except Exception:
+                    return str(u).strip().lower()
+
+            seen_videos = set()
+
+            def _embed_video_once(url: str):
+                cid = _canon_video(url)
+                if not cid or cid in seen_videos:
+                    return
+                st.video(url)
+                st.markdown(f"[▶️ Watch on YouTube]({url})")
+                seen_videos.add(cid)
+
+            # ---------- YOUR WORK (shows activities; embeds each video at most once) ----------
             st.markdown("### 🧪 Your Work")
 
             def render_section_no_dupe(day_info, key, title, icon):
@@ -4849,7 +4848,7 @@ if tab == "My Course":
                     for maybe_vid in [part.get("video"), part.get("youtube_link")]:
                         if _is_url(maybe_vid):
                             _embed_video_once(maybe_vid)
-                    # links/resources unchanged
+                    # links/resources inline (so students can open them)
                     if part.get('grammarbook_link'):
                         st.markdown(f"- [📘 Grammar Book (Notes)]({part['grammarbook_link']})")
                         st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
@@ -4858,17 +4857,17 @@ if tab == "My Course":
                         render_assignment_reminder()
                     extras = part.get('extra_resources')
                     if extras:
-                        for ex in (_as_list(extras)):
+                        for ex in _as_list(extras):
                             st.markdown(f"- [🔗 Extra]({ex})")
 
-            # render both sections with de-duped video embeds
             render_section_no_dupe(info, "lesen_hören", "Lesen & Hören", "📚")
             render_section_no_dupe(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
+            # ---------- Build a clean downloadable bundle of links (no on-page repetition) ----------
             st.divider()
-            st.markdown("### 🔗 Links & Materials")
+            st.markdown("### 📎 Lesson Links — Download")
 
-            # ---------- RESOURCES (collect all, but skip videos already shown) ----------
+            # Collect links (top-level + nested)
             resources = {"Grammar Notes": [], "Workbook": [], "Videos": [], "Extras": []}
 
             def _add(kind, val):
@@ -4892,47 +4891,56 @@ if tab == "My Course":
                     _add("Workbook", part.get("workbook_link"))
                     _add("Extras", part.get("extra_resources"))
 
-            # dedupe lists
+            # dedupe + remove videos already embedded above
             for k in list(resources.keys()):
                 resources[k] = _dedup(resources[k])
+            resources["Videos"] = [v for v in resources["Videos"] if _canon_video(v) not in seen_videos]
 
-            # render (NO duplicate video embeds; videos already shown are skipped entirely)
+            # If nothing remains after filtering, don't show anything
             if not any(resources.values()):
-                st.info("No resources attached to this lesson yet.")
+                st.caption("All lesson links are already shown above. No extra links to download.")
             else:
-                if resources["Grammar Notes"]:
-                    st.subheader("📘 Grammar Notes")
-                    for u in resources["Grammar Notes"]:
-                        st.markdown(f"- [Open notes]({u})")
+                # Prepare TXT bundle
+                lesson_header = f"Level: {student_level} | Day: {info.get('day','?')} | Chapter: {info.get('chapter','?')} | Topic: {info.get('topic','')}"
+                parts_txt = [lesson_header, "-" * len(lesson_header)]
+                for title, key in [("📘 Grammar Notes", "Grammar Notes"),
+                                   ("📒 Workbook", "Workbook"),
+                                   ("🎥 Videos", "Videos"),
+                                   ("🔗 Extras", "Extras")]:
+                    if resources[key]:
+                        parts_txt.append(title)
+                        parts_txt.extend([f"- {u}" for u in resources[key]])
+                        parts_txt.append("")
+                bundle_txt = "\n".join(parts_txt).strip() + "\n"
 
-                if resources["Workbook"]:
-                    st.subheader("📒 Workbook Assignments")
-                    for u in resources["Workbook"]:
-                        st.markdown(f"- [Open assignment]({u})")
-                    render_assignment_reminder()
+                # Optional JSON bundle too
+                bundle_json = {
+                    "level": student_level,
+                    "day": info.get("day"),
+                    "chapter": info.get("chapter"),
+                    "topic": info.get("topic"),
+                    "links": resources,
+                }
+                json_bytes = json.dumps(bundle_json, ensure_ascii=False, indent=2).encode("utf-8")
 
-                if resources["Videos"]:
-                    # keep only videos NOT already embedded in "Your Work"
-                    remaining_vids = [v for v in resources["Videos"] if _canon_video(v) not in seen_videos]
-                    if remaining_vids:
-                        st.subheader("🎥 Videos")
-                        for v in remaining_vids:
-                            lv = v.lower()
-                            if "youtu.be" in lv or "youtube.com" in lv:
-                                _embed_video_once(v)  # safe: won't re-embed if somehow seen
-                            else:
-                                st.markdown(f"- [Watch video]({v})")
-                    # else: all lesson videos already shown above → nothing to render here
-
-                if resources["Extras"]:
-                    st.subheader("🔗 Extra Resources")
-                    for u in resources["Extras"]:
-                        st.markdown(f"- [{u}]({u})")
-
-                st.markdown(
-                    '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
-                    unsafe_allow_html=True
-                )
+                # Download buttons (no on-page list)
+                cdl1, cdl2 = st.columns([1, 1])
+                with cdl1:
+                    st.download_button(
+                        "⬇️ Download lesson links (TXT)",
+                        data=bundle_txt.encode("utf-8"),
+                        file_name=f"lesson_links_{student_level}_day{info.get('day','')}.txt",
+                        mime="text/plain",
+                        key="dl_links_txt",
+                    )
+                with cdl2:
+                    st.download_button(
+                        "⬇️ Download lesson links (JSON)",
+                        data=json_bytes,
+                        file_name=f"lesson_links_{student_level}_day{info.get('day','')}.json",
+                        mime="application/json",
+                        key="dl_links_json",
+                    )
 
 
         # TRANSLATOR & VIDEO OF THE DAY
