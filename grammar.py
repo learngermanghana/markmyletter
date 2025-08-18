@@ -7712,7 +7712,7 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
     # This line instructs the AI to always append a clickable link.
     record_line = (
         "IMPORTANT: After EVERY question, prompt, correction, or feedback, append this line on its own:\n"
-        f"• 🎙️ **Record your answer now**: [Open Sprechen Recorder]({rec_url})\n"
+        f"• 🎙️ **You can chat here for more ideas or Record your answer now**: [Open Sprechen Recorder]({rec_url})\n"
         f"If Markdown is not supported, show the raw URL: {rec_url}\n"
     )
 
@@ -11146,8 +11146,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
-
 
 
 
