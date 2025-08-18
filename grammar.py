@@ -7491,6 +7491,11 @@ How to prepare for your B1 oral exam.
 # ================================
 # 5. EXAMS MODE & CUSTOM CHAT — stable, German-first TTS, no prompt changes
 # ================================
+import re
+import json
+from datetime import datetime
+import random
+import urllib.parse as _urllib
 
 # --- CONFIG (same doc, no duplicate db init) ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
