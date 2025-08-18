@@ -4627,6 +4627,46 @@ def load_draft_from_db(code: str, field_key: str) -> str:
         pass
     return ""
 
+ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str):
+    """
+    Return the content that should appear in the editor for this lesson.
+    Priority:
+      1) Submitted answer (locked, read-only)
+      2) Saved draft from Firestore (editable)
+      3) Empty
+    """
+    # 1) If submitted exists, always show it (read-only)
+    latest = fetch_latest(level, code, lesson_key)
+    if latest:
+        return {
+            "text": latest.get("answer", "") or "",
+            "ts": latest.get("updated_at"),
+            "status": "submitted",
+            "locked": True,
+            "source": "submission",
+        }
+
+    # 2) Otherwise show the saved draft (if any)
+    draft_text, draft_ts = load_draft_meta_from_db(code, draft_key)
+    if draft_text:
+        return {
+            "text": draft_text,
+            "ts": draft_ts,
+            "status": "draft",
+            "locked": False,
+            "source": "draft",
+        }
+
+    # 3) Nothing saved yet
+    return {
+        "text": "",
+        "ts": None,
+        "status": "empty",
+        "locked": False,
+        "source": "empty",
+    }
+
+
 def load_draft_meta_from_db(code: str, field_key: str):
     """
     Return (text, updated_at_or_None) for the given field_key.
@@ -5030,203 +5070,7 @@ if tab == "My Course":
                 st.info("No playlist found for your level yet. Stay tuned!")
 
 
-        # SUBMIT
-        with t_submit:
-            st.markdown("### ✅ Submit Your Assignment")
-            st.markdown(
-                f"""
-                <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
-                            background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
-                  <div style="font-size:1.05rem;">
-                    📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
-                  </div>
-                  <div style="color:#0369a1;margin-top:4px;">
-                    Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
 
-            code = student_row.get('StudentCode', 'demo001')
-            lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
-            chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-            name = st.text_input("Name", value=student_row.get('Name', ''))
-
-            draft_key = f"draft_{lesson_key}"
-            db_locked = is_locked(student_level, code, lesson_key)
-            locked_key = f"{lesson_key}_locked"
-            if db_locked:
-                st.session_state[locked_key] = True
-            locked = db_locked or st.session_state.get(locked_key, False)
-
-            # ---- Handle a pending "Reload from cloud" BEFORE the text_area exists ----
-            pending_key       = f"{draft_key}__pending_reload"
-            pending_text_key  = f"{draft_key}__reload_text"
-            pending_ts_key    = f"{draft_key}__reload_ts"
-            if st.session_state.get(pending_key):
-                cloud_text = st.session_state.pop(pending_text_key, "")
-                cloud_ts   = st.session_state.pop(pending_ts_key, None)
-                st.session_state[pending_key] = False
-
-                # Apply value to the widget's state safely (before creation in this run)
-                st.session_state[draft_key] = cloud_text
-
-                # Sync autosave trackers
-                last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
-                st.session_state[last_val_key]   = cloud_text
-                st.session_state[last_ts_key]    = time.time()
-                st.session_state[saved_flag_key] = True
-                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
-
-                # Optional note
-                try:
-                    when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
-                except Exception:
-                    when = "now"
-                st.info(f"Reloaded cloud draft (saved {when}).")
-
-            # ---- First-load hydration from Firestore (only once) ----
-            if not st.session_state.get(f"{draft_key}__hydrated", False):
-                existing = load_draft_from_db(code, draft_key)
-                if existing and not st.session_state.get(draft_key):
-                    st.session_state[draft_key] = existing
-                    st.info("💾 Loaded your saved draft.")
-                st.session_state[f"{draft_key}__hydrated"] = True
-
-            st.subheader("✍️ Your Answer ")
-
-            # Editor (we autosave below with debounce)
-            st.text_area(
-                "Type all your answers here",
-                value=st.session_state.get(draft_key, ""),
-                height=500,
-                key=draft_key,
-                disabled=locked,
-                help="Autosaves as you type (every few seconds). You can also click 'Save Draft now'."
-            )
-
-            # Debounced autosave (persists even if the page is refreshed)
-            current_text = st.session_state.get(draft_key, "")
-            autosave_maybe(code, draft_key, current_text, min_secs=5.0, min_delta=30, locked=locked)
-
-            # Manual save + last saved time + safe reload
-            csave1, csave2, csave3 = st.columns([1, 1, 1])
-
-            with csave1:
-                if st.button("💾 Save Draft now", disabled=locked):
-                    save_draft_to_db(code, draft_key, current_text)
-                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
-                    st.session_state[last_val_key]   = current_text
-                    st.session_state[last_ts_key]    = time.time()
-                    st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]   = datetime.now(timezone.utc)
-                    st.success("Draft saved.")
-
-            with csave2:
-                _, _, _, saved_at_key = _draft_state_keys(draft_key)
-                ts = st.session_state.get(saved_at_key)
-                if ts:
-                    st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
-                else:
-                    st.caption("No local save yet")
-
-            with csave3:
-                if st.button("↻ Reload last saved draft", disabled=locked, help="Pull the latest saved draft from the server"):
-                    cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                    if not (cloud_text or cloud_ts):
-                        st.warning("No saved draft found for this assignment.")
-                    else:
-                        # Stash and rerun; apply before widget is created next run
-                        st.session_state[pending_text_key] = cloud_text
-                        st.session_state[pending_ts_key]   = cloud_ts
-                        st.session_state[pending_key]      = True
-                        st.rerun()
-
-            with st.expander("📌 How to Submit", expanded=False):
-                st.markdown(f"""
-                    1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
-                    2) Tick the two confirmations below.  
-                    3) Click **Confirm & Submit**.  
-                    4) Your box will lock (read-only).  
-                    _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-                """)
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("#### 🧾 Finalize")
-                confirm_final = st.checkbox(
-                    f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
-                    key=f"confirm_final_{lesson_key}",
-                    disabled=locked
-                )
-                confirm_lock = st.checkbox(
-                    "I understand it will be locked after I submit.",
-                    key=f"confirm_lock_{lesson_key}",
-                    disabled=locked
-                )
-                can_submit = (confirm_final and confirm_lock and (not locked))
-
-                if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-                    if not acquire_lock(student_level, code, lesson_key):
-                        st.session_state[locked_key] = True
-                        st.warning("You have already submitted this assignment. It is locked.")
-                    else:
-                        posts_ref = db.collection("submissions").document(student_level).collection("posts")
-                        now = datetime.now(timezone.utc)
-                        payload = {
-                            "student_code": code,
-                            "student_name": name or "Student",
-                            "level": student_level,
-                            "day": info["day"],
-                            "chapter": chapter_name,
-                            "lesson_key": lesson_key,
-                            "answer": st.session_state.get(draft_key, "").strip(),
-                            "status": "submitted",
-                            "created_at": now,
-                            "updated_at": now,
-                            "version": 1,
-                        }
-                        _, ref = posts_ref.add(payload)
-                        short_ref = f"{ref.id[:8].upper()}-{info['day']}"
-                        st.session_state[locked_key] = True
-                        st.success("Submitted! Your work has been sent to your tutor.")
-                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
-
-                        webhook = get_slack_webhook()
-                        if webhook:
-                            notify_slack_submission(
-                                webhook_url=webhook,
-                                student_name=name or "Student",
-                                student_code=code,
-                                level=student_level,
-                                day=info["day"],
-                                chapter=chapter_name,
-                                receipt=short_ref,
-                                preview=st.session_state.get(draft_key, "")
-                            )
-
-            with col2:
-                st.markdown("#### ❓ Ask the Teacher")
-                if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                    st.session_state["__go_classroom"] = True
-                    st.rerun()
-
-            with col3:
-                st.markdown("#### 📝 Add Notes")
-                if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                    st.session_state["__go_notes"] = True
-                    st.rerun()
-
-            st.divider()
-            latest = fetch_latest(student_level, code, lesson_key)
-            if latest:
-                ts = latest.get('updated_at')
-                when = f"{ts.strftime('%Y-%m-%d %H:%M')} UTC" if ts else ""
-                st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-                st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
-            else:
-                st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
@@ -5440,54 +5284,67 @@ if tab == "My Course":
                             height=72,
                         )
 
+
                 with z2:
                     # === Tutor + Next-class card (right column) ===
                     from datetime import datetime as _dt, timedelta as _td
                     import re
 
-                    # Tutor name (prefer data, else secrets, else fallback)
-                    TUTOR_NAME = (
-                        (student_row.get("TutorName") or "").strip()
-                        or ((st.secrets.get("class", {}).get("tutor", "") if hasattr(st, "secrets") else "").strip())
-                        or "Felix Asadu"
-                    )
-
-                    # --- pull the class schedule for this class from memory/config ---
+                    # ---------- pull class config ----------
                     def _get_class_cfg(_class_name: str) -> dict:
+                        # 1) global dict you already load elsewhere
                         gs = globals().get("GROUP_SCHEDULES")
-                        if not isinstance(gs, dict) or not gs:
-                            gs = st.session_state.get("GROUP_SCHEDULES", {})
                         if isinstance(gs, dict) and _class_name in gs:
                             return gs[_class_name]
-                        # minimal fallback so UI still renders
+                        # 2) session_state (if stashed there)
+                        gs = st.session_state.get("GROUP_SCHEDULES", {})
+                        if isinstance(gs, dict) and _class_name in gs:
+                            return gs[_class_name]
+                        # 3) fallback minimal structure so UI renders
                         return {
                             "days": ["Thursday", "Friday", "Saturday"],
                             "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
                             "start_date": "2025-06-14",
                             "end_date": "2025-08-09",
+                            # "tutor": "Felix Asadu",
+                            # "upcoming": {"date": "2025-08-21", "start": "6:00pm", "end": "7:00pm"}
                         }
 
                     cfg = _get_class_cfg(class_name)
-                    days      = cfg.get("days", [])
-                    time_str  = cfg.get("time", "")
-                    start_str = (cfg.get("start_date") or "").strip()
-                    end_str   = (cfg.get("end_date") or "").strip()
 
-                    # Parse dates (YYYY-MM-DD expected)
-                    start_date_obj = None
-                    end_date_obj   = None
-                    try:
-                        if start_str:
-                            start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
-                    except Exception:
-                        pass
-                    try:
-                        if end_str:
-                            end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
-                    except Exception:
-                        pass
+                    # ---------- tutor name (dictionary first) ----------
+                    TUTOR_NAME = (
+                        str(cfg.get("tutor") or "").strip()
+                        or str(student_row.get("TutorName") or "").strip()
+                        or (str((st.secrets.get("class", {}).get("tutor", "")) if hasattr(st, "secrets") else "").strip())
+                        or "Felix Asadu"
+                    )
 
-                    # --- relaxed time parsing (same as Calendar tab, compact form) ---
+                    # ---------- upcoming override dictionary (3 sources) ----------
+                    def _get_upcoming_override(_class_name: str):
+                        # Prefer embedded in GROUP_SCHEDULES[class]["upcoming"]
+                        up = cfg.get("upcoming")
+                        if isinstance(up, dict) and (up.get("date") and up.get("start") and up.get("end")):
+                            return up
+                        # Global CLASS_UPCOMING dict (if you keep it separately)
+                        cu = globals().get("CLASS_UPCOMING", {})
+                        if isinstance(cu, dict):
+                            up = cu.get(_class_name)
+                            if isinstance(up, dict) and (up.get("date") and up.get("start") and up.get("end")):
+                                return up
+                        # Firestore config (optional)
+                        try:
+                            updoc = db.collection("config").document("class_upcoming").get()
+                            if updoc and getattr(updoc, "exists", False):
+                                data = (updoc.to_dict() or {}).get("data", {})
+                                up = data.get(_class_name)
+                                if isinstance(up, dict) and (up.get("date") and up.get("start") and up.get("end")):
+                                    return up
+                        except Exception:
+                            pass
+                        return None
+
+                    # ---------- helpers ----------
                     _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
                     _FULL_TO_CODE = {
                         "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
@@ -5547,8 +5404,7 @@ if tab == "My Course":
                         if ":" in s:
                             groups = [g.strip() for g in s.split(",") if g.strip()]
                             for g in groups:
-                                if ":" not in g:
-                                    continue
+                                if ":" not in g: continue
                                 left, right = [x.strip() for x in g.split(":", 1)]
                                 day_tokens = re.split(r"/", left)
                                 codes = []
@@ -5573,10 +5429,6 @@ if tab == "My Course":
                         codes = sorted(set(codes), key=_WKD_ORDER.index) or _WKD_ORDER[:]
                         return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
 
-                    def _next_on_or_after(d, weekday_index):  # Mon=0..Sun=6
-                        delta = (weekday_index - d.weekday()) % 7
-                        return d + _td(days=delta)
-
                     def _fmt_ampm(h, m):
                         ap = "AM" if h < 12 else "PM"
                         hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
@@ -5593,32 +5445,85 @@ if tab == "My Course":
                         if h: return f"{h}h"
                         return f"{m}m"
 
-                    # Compute next upcoming (or in-progress) class
-                    next_line = "No upcoming class set."
-                    if start_date_obj and end_date_obj and time_str.strip() and days:
-                        _blocks = _parse_time_blocks(time_str, days)
-                        if _blocks:
-                            _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-                            best = None
-                            cur = max(start_date_obj, _dt.utcnow().date())
-                            while cur <= end_date_obj and best is None:
-                                widx = cur.weekday()
-                                for blk in _blocks:
-                                    if any(_wmap[c] == widx for c in blk["byday"]):
-                                        sh, sm = blk["start"]; eh, em = blk["end"]
-                                        sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # UTC (Ghana)
-                                        edt = _dt(cur.year, cur.month, cur.day, eh, em)
-                                        if edt <= _dt.utcnow():
-                                            continue
-                                        best = (sdt, edt, sh, sm, eh, em, cur)
-                                        break
-                                cur += _td(days=1)
+                    # ---------- prefer explicit upcoming from dictionary ----------
+                    next_line = None
+                    up = _get_upcoming_override(class_name)
+                    if isinstance(up, dict) and up.get("date") and up.get("start") and up.get("end"):
+                        # Expect: date="YYYY-MM-DD" or "21 Aug 2025", start="6:00pm", end="7:00pm"
+                        # Normalize date
+                        d_raw = str(up["date"]).strip()
+                        d_obj = None
+                        for fmt in ("%Y-%m-%d", "%d %b %Y", "%d %B %Y", "%b %d, %Y", "%d/%m/%Y", "%m/%d/%Y"):
+                            try:
+                                d_obj = _dt.strptime(d_raw, fmt).date()
+                                break
+                            except Exception:
+                                continue
+                        if not d_obj:
+                            # last resort: try pandas if available
+                            try:
+                                import pandas as _pd
+                                d_obj = _pd.to_datetime(d_raw, errors="coerce").date()
+                            except Exception:
+                                d_obj = None
 
-                            if best:
-                                sdt, edt, sh, sm, eh, em, day_date = best
-                                label = f"{day_date.strftime('%a %d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
-                                left  = _human_left(sdt)
-                                next_line = f"{label} • Starts in: {left}"
+                        # Parse start/end
+                        def _hmm(s): 
+                            return _parse_time_component_relaxed(str(s), default_ampm="pm") or (18,0)
+                        sh, sm = _hmm(up["start"])
+                        eh, em = _hmm(up["end"])
+
+                        if d_obj:
+                            sdt = _dt(d_obj.year, d_obj.month, d_obj.day, sh, sm)
+                            label = f"{d_obj.strftime('%a %d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
+                            next_line = f"{label} • Starts in: {_human_left(sdt)}"
+
+                    # ---------- otherwise compute from GROUP_SCHEDULES dictionary ----------
+                    if not next_line:
+                        days      = cfg.get("days", [])
+                        time_str  = cfg.get("time", "")
+                        start_str = (cfg.get("start_date") or "").strip()
+                        end_str   = (cfg.get("end_date") or "").strip()
+
+                        start_date_obj = None
+                        end_date_obj   = None
+                        try:
+                            if start_str:
+                                start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
+                        except Exception:
+                            pass
+                        try:
+                            if end_str:
+                                end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
+                        except Exception:
+                            pass
+
+                        if start_date_obj and end_date_obj and time_str.strip() and days:
+                            _blocks = _parse_time_blocks(time_str, days)
+                            if _blocks:
+                                _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+                                best = None
+                                cur = max(start_date_obj, _dt.utcnow().date())
+                                while cur <= end_date_obj and best is None:
+                                    widx = cur.weekday()
+                                    for blk in _blocks:
+                                        if any(_wmap[c] == widx for c in blk["byday"]):
+                                            sh, sm = blk["start"]; eh, em = blk["end"]
+                                            sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # UTC (Ghana)
+                                            edt = _dt(cur.year, cur.month, cur.day, eh, em)
+                                            if edt <= _dt.utcnow():
+                                                continue
+                                            best = (sdt, sh, sm, eh, em, cur)
+                                            break
+                                    cur += _td(days=1)
+
+                                if best:
+                                    sdt, sh, sm, eh, em, day_date = best
+                                    label = f"{day_date.strftime('%a %d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
+                                    next_line = f"{label} • Starts in: {_human_left(sdt)}"
+
+                    if not next_line:
+                        next_line = "No upcoming class set."
 
                     st.info(
                         f"You’re viewing: **{class_name}**  \n\n"
@@ -5628,6 +5533,7 @@ if tab == "My Course":
                         icon="📅",
                     )
 #
+
 
         # ===================== CALENDAR =====================
         with t_calendar:
