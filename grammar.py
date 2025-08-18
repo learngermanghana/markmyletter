@@ -1932,6 +1932,8 @@ def render_dropdown_nav():
 # ===================== NAV & HELPERS =====================
 # =========================================================
 
+
+
 # --- Query-param helpers (single API; no experimental mix) ---
 if "_qp_get_first" not in globals():
     def _qp_get_first(key: str, default: str = "") -> str:
@@ -8392,93 +8394,6 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("⬅️ Back"):
             back_step()
-
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
-    if st.session_state.get("falowen_stage") == 99:
-        import urllib.parse as _urllib
-
-        STUDENTS_CSV_URL = (
-            "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
-            "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
-        )
-
-        def _norm_code(v: str) -> str:
-            return (
-                str(v or "")
-                .strip()
-                .lower()
-                .replace("\u00a0", " ")
-                .replace(" ", "")
-            )
-
-        student_code = _norm_code(st.session_state.get("student_code"))
-
-        if not student_code:
-            try:
-                qp = st.query_params
-                q_from_url = qp.get("code")
-                if isinstance(q_from_url, list):
-                    q_from_url = q_from_url[0]
-                q_from_url = _norm_code(q_from_url)
-                if q_from_url:
-                    student_code = q_from_url
-                    st.session_state["student_code"] = student_code
-            except Exception:
-                pass
-
-        if not student_code:
-            st.warning("Missing student code. Please enter it to continue.")
-            _entered = st.text_input("Student Code", value="", key="enter_student_code")
-            if st.button("Continue", type="primary", key="enter_code_btn"):
-                _entered = _norm_code(_entered)
-                if _entered:
-                    st.session_state["student_code"] = _entered
-                    st.rerun()
-            st.stop()
-
-        try:
-            import pandas as pd
-            df_students = pd.read_csv(STUDENTS_CSV_URL)
-            _cands = {c.strip().lower(): c for c in df_students.columns}
-            col = None
-            for key in ["studentcode", "student_code", "code", "student code"]:
-                if key in _cands:
-                    col = _cands[key]
-                    break
-            if col:
-                codes = {_norm_code(x) for x in df_students[col].astype(str)}
-                if student_code not in codes:
-                    st.error("Student code not found in our records. Please check and try again.")
-                    st.stop()
-        except Exception:
-            pass
-
-        st.subheader("🎤 Pronunciation & Speaking Checker")
-        st.info("Click the button below to open the Sprechen Recorder.")
-
-        RECORDER_URL = (
-            "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-        )
-        rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
-
-        try:
-            st.link_button("📼 Open Sprechen Recorder", rec_url, type="primary", use_container_width=True)
-        except Exception:
-            st.markdown(
-                f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
-                'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
-                'text-decoration:none;font-weight:700;">📼 Open Sprechen Recorder</a>',
-                unsafe_allow_html=True,
-            )
-
-        st.caption("If the button doesn’t open, copy & paste this link:")
-        st.code(rec_url, language="text")
-
-        if st.button("⬅️ Back to Start"):
-            st.session_state["falowen_stage"] = 1
-            st.rerun()
-#
-
 
     # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
     if st.session_state.get("falowen_stage") == 99:
