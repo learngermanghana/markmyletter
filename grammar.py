@@ -4627,15 +4627,14 @@ def load_draft_from_db(code: str, field_key: str) -> str:
         pass
     return ""
 
- def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str):
+def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str):
     """
-    Return the content that should appear in the editor for this lesson.
+    Decide what the editor should show for this lesson.
     Priority:
       1) Submitted answer (locked, read-only)
       2) Saved draft from Firestore (editable)
       3) Empty
     """
-    # 1) If submitted exists, always show it (read-only)
     latest = fetch_latest(level, code, lesson_key)
     if latest:
         return {
@@ -4646,7 +4645,6 @@ def load_draft_from_db(code: str, field_key: str) -> str:
             "source": "submission",
         }
 
-    # 2) Otherwise show the saved draft (if any)
     draft_text, draft_ts = load_draft_meta_from_db(code, draft_key)
     if draft_text:
         return {
@@ -4657,7 +4655,6 @@ def load_draft_from_db(code: str, field_key: str) -> str:
             "source": "draft",
         }
 
-    # 3) Nothing saved yet
     return {
         "text": "",
         "ts": None,
@@ -4665,6 +4662,7 @@ def load_draft_from_db(code: str, field_key: str) -> str:
         "locked": False,
         "source": "empty",
     }
+
 
 
 def load_draft_meta_from_db(code: str, field_key: str):
@@ -5419,289 +5417,343 @@ if tab == "My Course":
             ["Join", "Calendar", "Members", "Announcements", "Q&A"]
         )
 
-        # ===================== JOIN =====================
-        with t_join:
-            with st.container():
-                st.markdown(
-                    """
-                    <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                         font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
-                      📣 <b>Zoom Classroom (Official)</b><br>
-                      This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+    # ===================== JOIN =====================
+    with t_join:
+        # Safe imports used in this block
+        import re
+        from datetime import datetime as _dt, timedelta as _td
+        try:
+            import urllib.parse as _urllib  # alias for URL encoding
+        except Exception:
+            _urllib = None
+        try:
+            components  # type: ignore  # may already exist
+        except NameError:
+            try:
+                import streamlit.components.v1 as components  # type: ignore
+            except Exception:
+                components = None
 
-                ZOOM = {
-                    "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
-                    "meeting_id": "688 690 0916",
-                    "passcode": "german",
-                }
-                # Allow secrets override
-                try:
-                    zs = st.secrets.get("zoom", {})
-                    if zs.get("link"):       ZOOM["link"]       = zs["link"]
-                    if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
-                    if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
-                except Exception:
-                    pass
+        # Helper: unique widget key per class (prevents duplicate-key crashes)
+        try:
+            _ukey  # type: ignore
+        except NameError:
+            import hashlib
+            def _ukey(base: str) -> str:
+                seed = f"{base}|{class_name}"
+                return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
 
-                # Build iOS/Android deep-link (opens Zoom app directly)
-                _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+        # ---------- tiny helpers for "Next class" ----------
+        def _human_delta_ms(ms: int) -> str:
+            s = max(0, ms // 1000)
+            d, r = divmod(s, 86400)
+            h, r = divmod(r, 3600)
+            m, _ = divmod(r, 60)
+            parts = []
+            if d: parts.append(f"{d}d")
+            if h and not d: parts.append(f"{h}h")
+            if (d == 0) and m: parts.append(f"{m}m")
+            return " ".join(parts) if parts else "0m"
+
+        # Accept both “Mon–Wed 6–7” and “Thu/Fri: 6:00pm–7:00pm, Sat: 8–9am”
+        _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
+        _FULL_TO_CODE = {
+            "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
+            "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
+        }
+
+        def _to_24h(h, m, ampm):
+            ap = (ampm or "").lower()
+            h = int(h); m = int(m)
+            if ap == "pm" and h != 12: h += 12
+            if ap == "am" and h == 12: h = 0
+            return h, m
+
+        def _parse_time_component_relaxed(s, default_ampm="pm"):
+            s = (s or "").strip().lower()
+            m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", s)
+            if not m: return None
+            hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
+            if ap:
+                return _to_24h(hh, mm, ap)
+            if 0 <= hh <= 23:
+                if hh <= 12 and default_ampm in ("am","pm"):
+                    return _to_24h(hh, mm, default_ampm)
+                return (hh, mm)
+            return None
+
+        def _parse_time_range_relaxed(rng, default_ampm="pm"):
+            rng = (rng or "").strip().lower().replace("–","-").replace("—","-")
+            parts = [p.strip() for p in rng.split("-", 1)]
+            if len(parts) != 2: return None
+            a = _parse_time_component_relaxed(parts[0], default_ampm=default_ampm)
+            if not a: return None
+            ap_hint = re.search(r"(am|pm)\s*$", parts[0])
+            second_default = ap_hint.group(1) if ap_hint else default_ampm
+            b = _parse_time_component_relaxed(parts[1], default_ampm=second_default)
+            return (a, b) if b else None
+
+        def _expand_day_token(tok):
+            tok = (tok or "").strip().lower().replace("–","-").replace("—","-")
+            if "-" in tok:  # e.g. mon-wed
+                a, b = [t.strip() for t in tok.split("-", 1)]
+                a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
+                if a_code and b_code:
+                    ai = _WKD_ORDER.index(a_code); bi = _WKD_ORDER.index(b_code)
+                    return _WKD_ORDER[ai:bi+1] if ai <= bi else _WKD_ORDER[ai:] + _WKD_ORDER[:bi+1]
+                return []
+            c = _FULL_TO_CODE.get(tok, "")
+            return [c] if c else []
+
+        def _parse_time_blocks(time_str, days_list):
+            s = (time_str or "").strip().replace("–","-").replace("—","-")
+            # Make “fri11-12” → “fri: 11-12”
+            s = re.sub(r"(?i)\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(\d)",
+                       r"\1: \2", s)
+
+            blocks = []
+            if ":" in s:
+                groups = [g.strip() for g in s.split(",") if g.strip()]
+                for g in groups:
+                    if ":" not in g:
+                        continue
+                    left, right = [x.strip() for x in g.split(":", 1)]
+                    day_tokens = re.split(r"/", left)
+                    codes = []
+                    for tok in day_tokens:
+                        codes.extend(_expand_day_token(tok))
+                    tr = _parse_time_range_relaxed(right)
+                    if codes and tr:
+                        (sh, sm), (eh, em) = tr
+                        blocks.append({
+                            "byday": sorted(set(codes), key=_WKD_ORDER.index),
+                            "start": (sh, sm), "end": (eh, em)
+                        })
+                return blocks
+
+            # Fallback: single time for provided days (e.g., "2–3")
+            tr = _parse_time_range_relaxed(s)
+            if not tr:
+                return []
+            (sh, sm), (eh, em) = tr
+            codes = []
+            for d in (days_list or []):
+                c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
+                if c: codes.append(c)
+            codes = sorted(set(codes), key=_WKD_ORDER.index) or _WKD_ORDER[:]
+            return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
+
+        def _next_on_or_after(d, weekday_index):  # Mon=0..Sun=6
+            delta = (weekday_index - d.weekday()) % 7
+            return d + _td(days=delta)
+
+        def _format_ampm(h, m):
+            ap = "AM" if h < 12 else "PM"
+            hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
+            return f"{hh}:{m:02d}{ap}"
+
+        def _compute_next_label():
+            """
+            Returns (label:str, starts_in:str) or (None, None) if missing schedule.
+            Uses GROUP_SCHEDULES / session_state for the current class.
+            """
+            # Get schedules from memory the app already keeps
+            schedules = {}
+            try:
+                if isinstance(globals().get("GROUP_SCHEDULES"), dict):
+                    schedules = globals()["GROUP_SCHEDULES"]
+                elif isinstance(st.session_state.get("GROUP_SCHEDULES"), dict):
+                    schedules = st.session_state["GROUP_SCHEDULES"]
+            except Exception:
+                schedules = {}
+
+            cfg = (schedules or {}).get(class_name, {})
+            days     = cfg.get("days", [])
+            time_str = cfg.get("time", "")
+            start_s  = cfg.get("start_date", "")
+            end_s    = cfg.get("end_date", "")
+
+            # Parse dates
+            try:
+                start_d = _dt.strptime(start_s, "%Y-%m-%d").date() if start_s else None
+            except Exception:
+                start_d = None
+            try:
+                end_d   = _dt.strptime(end_s, "%Y-%m-%d").date() if end_s else None
+            except Exception:
+                end_d = None
+            if not (start_d and end_d and time_str and days):
+                return None, None
+
+            blocks = _parse_time_blocks(time_str, days)
+            if not blocks:
+                return None, None
+
+            wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
+            now = _dt.utcnow()
+            cur = max(start_d, now.date())
+
+            best = None
+            while cur <= end_d:
+                widx = cur.weekday()
+                for blk in blocks:
+                    if any(wmap[c] == widx for c in blk["byday"]):
+                        sh, sm = blk["start"]; eh, em = blk["end"]
+                        sdt = _dt(cur.year, cur.month, cur.day, sh, sm)
+                        edt = _dt(cur.year, cur.month, cur.day, eh, em)
+                        if edt <= now:
+                            continue
+                        label = f"{cur.strftime('%a %d %b')} • {_format_ampm(sh, sm)}–{_format_ampm(eh, em)}"
+                        cand = (sdt, edt, label)
+                        if (best is None) or (sdt < best[0]):
+                            best = cand
+                cur += _td(days=1)
+
+            if not best:
+                return None, None
+
+            sdt, _edt, label = best
+            ms = int(sdt.timestamp() * 1000) - int(now.timestamp() * 1000)
+            return label, _human_delta_ms(ms)
+
+        # ---------------- Banner ----------------
+        with st.container():
+            st.markdown(
+                """
+                <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                     font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                  📣 <b>Zoom Classroom (Official)</b><br>
+                  This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # ---------------- Zoom config ----------------
+            ZOOM = {
+                "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+                "meeting_id": "688 690 0916",
+                "passcode": "german",
+            }
+            # Allow secrets override
+            try:
+                zs = st.secrets.get("zoom", {})
+                if zs.get("link"):       ZOOM["link"]       = zs["link"]
+                if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
+            except Exception:
+                pass
+
+            # Build iOS/Android deep-link (opens Zoom app directly)
+            _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+            if _urllib and hasattr(_urllib, "quote"):
                 _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
-                zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+            else:
+                _pwd_enc = ZOOM["passcode"]
+            zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
 
-                z1, z2 = st.columns([3, 2])
-                with z1:
-                    # Primary join button (browser)
-                    try:
-                        st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
-                    except Exception:
-                        st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+            # ---------------- Layout ----------------
+            z1, z2 = st.columns([3, 2])
 
-                    # Secondary: open in Zoom app (mobile deep link)
-                    try:
-                        st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
-                    except Exception:
-                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+            # Left: join buttons + copy helpers
+            with z1:
+                # Primary join button (browser)
+                try:
+                    st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
+                except Exception:
+                    st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
 
-                    st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                    st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+                # Secondary: open in Zoom app (mobile deep link)
+                try:
+                    st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
+                except Exception:
+                    st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
 
-                    # Copy helpers (mobile-friendly, safe escaping)
-                    _link_safe = ZOOM["link"].replace("'", "\\'")
-                    _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
-                    _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
-                    if components:
-                        components.html(
-                            f"""
-                            <div style="display:flex;gap:8px;margin-top:8px;">
-                              <button id="zCopyLink"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Link
-                              </button>
-                              <button id="zCopyId"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy ID
-                              </button>
-                              <button id="zCopyPwd"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Passcode
-                              </button>
-                            </div>
-                            <script>
-                              (function(){{
-                                try {{
-                                  var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
-                                  function wire(btnId, txt, label) {{
-                                    var b = document.getElementById(btnId);
-                                    if (!b) return;
-                                    b.addEventListener('click', function(){{
-                                      navigator.clipboard.writeText(txt).then(function(){{
-                                        b.innerText = '✓ Copied ' + label;
-                                        setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
-                                      }}).catch(function(){{}});
-                                    }});
-                                  }}
-                                  wire('zCopyLink', link, 'Link');
-                                  wire('zCopyId',   mid,  'ID');
-                                  wire('zCopyPwd',  pwd,  'Passcode');
-                                }} catch(e) {{}}
-                              }})();
-                            </script>
-                            """,
-                            height=72,
-                        )
+                st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                st.write(f"**Passcode:** `{ZOOM['passcode']}`")
 
-                with z2:
-                    # === Tutor + Next-class card (right column) ===
-                    from datetime import datetime as _dt, timedelta as _td
-                    import re
-
-                    # Tutor name (prefer data, else secrets, else fallback)
-                    TUTOR_NAME = (
-                        (student_row.get("TutorName") or "").strip()
-                        or ((st.secrets.get("class", {}).get("tutor", "") if hasattr(st, "secrets") else "").strip())
-                        or "Felix Asadu"
+                # Copy helpers (mobile-friendly, safe escaping)
+                _link_safe = ZOOM["link"].replace("'", "\\'")
+                _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
+                if components:
+                    components.html(
+                        f"""
+                        <div style="display:flex;gap:8px;margin-top:8px;">
+                          <button id="zCopyLink"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Link
+                          </button>
+                          <button id="zCopyId"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy ID
+                          </button>
+                          <button id="zCopyPwd"
+                                  style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                            Copy Passcode
+                          </button>
+                        </div>
+                        <script>
+                          (function(){{
+                            try {{
+                              var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                              function wire(btnId, txt, label) {{
+                                var b = document.getElementById(btnId);
+                                if (!b) return;
+                                b.addEventListener('click', function(){{
+                                  navigator.clipboard.writeText(txt).then(function(){{
+                                    b.innerText = '✓ Copied ' + label;
+                                    setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                                  }}).catch(function(){{}});
+                                }});
+                              }}
+                              wire('zCopyLink', link, 'Link');
+                              wire('zCopyId',   mid,  'ID');
+                              wire('zCopyPwd',  pwd,  'Passcode');
+                            }} catch(e) {{}}
+                          }})();
+                        </script>
+                        """,
+                        height=72,
                     )
 
-                    # --- pull the class schedule for this class from memory/config ---
-                    def _get_class_cfg(_class_name: str) -> dict:
-                        gs = globals().get("GROUP_SCHEDULES")
-                        if not isinstance(gs, dict) or not gs:
-                            gs = st.session_state.get("GROUP_SCHEDULES", {})
-                        if isinstance(gs, dict) and _class_name in gs:
-                            return gs[_class_name]
-                        # minimal fallback so UI still renders
-                        return {
-                            "days": ["Thursday", "Friday", "Saturday"],
-                            "time": "Thu/Fri: 6:00pm–7:00pm, Sat: 8:00am–9:00am",
-                            "start_date": "2025-06-14",
-                            "end_date": "2025-08-09",
-                        }
+            # Right: class/tutor + upcoming class info
+            with z2:
+                # Compute upcoming from stored schedule dicts
+                nxt_label, starts_in = _compute_next_label()
 
-                    cfg = _get_class_cfg(class_name)
-                    days      = cfg.get("days", [])
-                    time_str  = cfg.get("time", "")
-                    start_str = (cfg.get("start_date") or "").strip()
-                    end_str   = (cfg.get("end_date") or "").strip()
-
-                    # Parse dates (YYYY-MM-DD expected)
-                    start_date_obj = None
-                    end_date_obj   = None
-                    try:
-                        if start_str:
-                            start_date_obj = _dt.strptime(start_str, "%Y-%m-%d").date()
-                    except Exception:
-                        pass
-                    try:
-                        if end_str:
-                            end_date_obj = _dt.strptime(end_str, "%Y-%m-%d").date()
-                    except Exception:
-                        pass
-
-                    # --- relaxed time parsing (same as Calendar tab, compact form) ---
-                    _WKD_ORDER = ["MO","TU","WE","TH","FR","SA","SU"]
-                    _FULL_TO_CODE = {
-                        "monday":"MO","tuesday":"TU","wednesday":"WE","thursday":"TH","friday":"FR","saturday":"SA","sunday":"SU",
-                        "mon":"MO","tue":"TU","tues":"TU","wed":"WE","thu":"TH","thur":"TH","thurs":"TH","fri":"FR","sat":"SA","sun":"SU"
-                    }
-
-                    def _to_24h(h, m, ampm):
-                        h = int(h); m = int(m); ap = (ampm or "").lower()
-                        if ap == "pm" and h != 12: h += 12
-                        if ap == "am" and h == 12: h = 0
-                        return h, m
-
-                    def _parse_time_component_relaxed(s, default_ampm="pm"):
-                        s = (s or "").strip().lower()
-                        m = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$", s)
-                        if not m: return None
-                        hh = int(m.group(1)); mm = int(m.group(2) or 0); ap = m.group(3)
-                        if ap:
-                            return _to_24h(hh, mm, ap)
-                        if 0 <= hh <= 23:
-                            if hh <= 12 and default_ampm in ("am","pm"):
-                                return _to_24h(hh, mm, default_ampm)
-                            return (hh, mm)
-                        return None
-
-                    def _parse_time_range_relaxed(rng, default_ampm="pm"):
-                        rng = (rng or "").strip().lower().replace("–","-").replace("—","-")
-                        parts = [p.strip() for p in rng.split("-", 1)]
-                        if len(parts) != 2: return None
-                        a = _parse_time_component_relaxed(parts[0], default_ampm=default_ampm)
-                        if not a: return None
-                        ap_hint = re.search(r"(am|pm)\s*$", parts[0])
-                        second_default = ap_hint.group(1) if ap_hint else default_ampm
-                        b = _parse_time_component_relaxed(parts[1], default_ampm=second_default)
-                        return (a, b) if b else None
-
-                    def _expand_day_token(tok):
-                        tok = (tok or "").strip().lower().replace("–","-").replace("—","-")
-                        if "-" in tok:  # mon-wed
-                            a, b = [t.strip() for t in tok.split("-", 1)]
-                            a_code = _FULL_TO_CODE.get(a, ""); b_code = _FULL_TO_CODE.get(b, "")
-                            if a_code and b_code:
-                                ai = _WKD_ORDER.index(a_code); bi = _WKD_ORDER.index(b_code)
-                                return _WKD_ORDER[ai:bi+1] if ai <= bi else _WKD_ORDER[ai:] + _WKD_ORDER[:bi+1]
-                            return []
-                        c = _FULL_TO_CODE.get(tok, "")
-                        return [c] if c else []
-
-                    def _parse_time_blocks(time_str, days_list):
-                        s = (time_str or "").replace("–","-").replace("—","-")
-                        s = re.sub(
-                            r"(?i)\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*(\d)",
-                            r"\1: \2",
-                            s,
-                        )
-                        blocks = []
-                        if ":" in s:
-                            groups = [g.strip() for g in s.split(",") if g.strip()]
-                            for g in groups:
-                                if ":" not in g:
-                                    continue
-                                left, right = [x.strip() for x in g.split(":", 1)]
-                                day_tokens = re.split(r"/", left)
-                                codes = []
-                                for tok in day_tokens:
-                                    codes.extend(_expand_day_token(tok))
-                                tr = _parse_time_range_relaxed(right)
-                                if codes and tr:
-                                    (sh, sm), (eh, em) = tr
-                                    blocks.append({
-                                        "byday": sorted(set(codes), key=_WKD_ORDER.index),
-                                        "start": (sh, sm), "end": (eh, em)
-                                    })
-                            return blocks
-                        tr = _parse_time_range_relaxed(s)
-                        if not tr:
-                            return []
-                        (sh, sm), (eh, em) = tr
-                        codes = []
-                        for d in (days_list or []):
-                            c = _FULL_TO_CODE.get(str(d).lower().strip(), "")
-                            if c: codes.append(c)
-                        codes = sorted(set(codes), key=_WKD_ORDER.index) or _WKD_ORDER[:]
-                        return [{"byday": codes, "start": (sh, sm), "end": (eh, em)}]
-
-                    def _next_on_or_after(d, weekday_index):  # Mon=0..Sun=6
-                        delta = (weekday_index - d.weekday()) % 7
-                        return d + _td(days=delta)
-
-                    def _fmt_ampm(h, m):
-                        ap = "AM" if h < 12 else "PM"
-                        hh = h if 1 <= h <= 12 else (12 if h % 12 == 0 else h % 12)
-                        return f"{hh}:{m:02d}{ap}"
-
-                    def _human_left(start_dt_utc: _dt) -> str:
-                        diff = (start_dt_utc - _dt.utcnow()).total_seconds()
-                        if diff <= 0:
-                            return "now"
-                        d = int(diff // 86400)
-                        h = int((diff % 86400) // 3600)
-                        m = int((diff % 3600) // 60)
-                        if d: return f"{d}d"
-                        if h: return f"{h}h"
-                        return f"{m}m"
-
-                    # Compute next upcoming (or in-progress) class
-                    next_line = "No upcoming class set."
-                    if start_date_obj and end_date_obj and time_str.strip() and days:
-                        _blocks = _parse_time_blocks(time_str, days)
-                        if _blocks:
-                            _wmap = {"MO":0,"TU":1,"WE":2,"TH":3,"FR":4,"SA":5,"SU":6}
-                            best = None
-                            cur = max(start_date_obj, _dt.utcnow().date())
-                            while cur <= end_date_obj and best is None:
-                                widx = cur.weekday()
-                                for blk in _blocks:
-                                    if any(_wmap[c] == widx for c in blk["byday"]):
-                                        sh, sm = blk["start"]; eh, em = blk["end"]
-                                        sdt = _dt(cur.year, cur.month, cur.day, sh, sm)   # UTC (Ghana)
-                                        edt = _dt(cur.year, cur.month, cur.day, eh, em)
-                                        if edt <= _dt.utcnow():
-                                            continue
-                                        best = (sdt, edt, sh, sm, eh, em, cur)
-                                        break
-                                cur += _td(days=1)
-
-                            if best:
-                                sdt, edt, sh, sm, eh, em, day_date = best
-                                label = f"{day_date.strftime('%a %d %b')} • {_fmt_ampm(sh, sm)}–{_fmt_ampm(eh, em)}"
-                                left  = _human_left(sdt)
-                                next_line = f"{label} • Starts in: {left}"
-
-                    st.info(
-                        f"You’re viewing: **{class_name}**  \n\n"
-                        f"👨‍🏫 Tutor: **{TUTOR_NAME}**  \n"
-                        f"⏰ Next class: {next_line}  \n\n"
-                        f"✅ Use the **calendar** tab to receive automatic class reminders.",
-                        icon="📅",
+                # Pretty card with class & tutor
+                tutor_name = "Felix Asadu"
+                if nxt_label and starts_in is not None:
+                    st.markdown(
+                        f"""
+                        <div style="box-sizing:border-box;padding:12px;border-radius:12px;background:#eff6ff;
+                                    border:1px solid #bfdbfe;">
+                          <div style="font-weight:700;color:#0f172a;">You’re viewing:</div>
+                          <div style="margin-top:2px;font-weight:600;">{class_name}</div>
+                          <div style="margin-top:8px;">👨‍🏫 <b>Tutor:</b> {tutor_name}</div>
+                          <div style="margin-top:6px;">⏰ <b>Next class:</b> {nxt_label} • <b>Starts in:</b> {starts_in}</div>
+                          <div style="margin-top:8px;color:#075985;">✅ Use the <b>Calendar</b> tab to get reminders.</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"""
+                        <div style="box-sizing:border-box;padding:12px;border-radius:12px;background:#eff6ff;
+                                    border:1px solid #bfdbfe;">
+                          <div style="font-weight:700;color:#0f172a;">You’re viewing:</div>
+                          <div style="margin-top:2px;font-weight:600;">{class_name}</div>
+                          <div style="margin-top:8px;">👨‍🏫 <b>Tutor:</b> {tutor_name}</div>
+                          <div style="margin-top:6px;">⏰ <b>Next class:</b> Not set yet</div>
+                          <div style="margin-top:8px;color:#075985;">If your schedule is missing, check the <b>Calendar</b> tab.</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
 #
+
 
         # ===================== CALENDAR =====================
         with t_calendar:
