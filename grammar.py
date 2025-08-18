@@ -5094,7 +5094,7 @@ if tab == "My Course":
                     st.info("💾 Loaded your saved draft.")
                 st.session_state[f"{draft_key}__hydrated"] = True
 
-            st.subheader("✍️ Your Answer (Autosaves)")
+            st.subheader("✍️ Your Answer ")
 
             # Editor (we autosave below with debounce)
             st.text_area(
@@ -5134,11 +5134,14 @@ if tab == "My Course":
             with csave3:
                 if st.button("↻ Reload last saved draft", disabled=locked, help="Pull the latest saved draft from the server"):
                     cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                    # Stash and rerun; apply before widget is created next run
-                    st.session_state[pending_text_key] = cloud_text
-                    st.session_state[pending_ts_key]   = cloud_ts
-                    st.session_state[pending_key]      = True
-                    st.rerun()
+                    if not (cloud_text or cloud_ts):
+                        st.warning("No saved draft found for this assignment.")
+                    else:
+                        # Stash and rerun; apply before widget is created next run
+                        st.session_state[pending_text_key] = cloud_text
+                        st.session_state[pending_ts_key]   = cloud_ts
+                        st.session_state[pending_key]      = True
+                        st.rerun()
 
             with st.expander("📌 How to Submit", expanded=False):
                 st.markdown(f"""
