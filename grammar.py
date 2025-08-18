@@ -4345,7 +4345,6 @@ def load_level_schedules():
         "B2": get_b2_schedule(),
         "C1": get_c1_schedule(),
     }
-
 # -------------------------
 # UI helpers
 # -------------------------
@@ -4381,6 +4380,7 @@ def render_link(label, url):
 @st.cache_data(ttl=86400)
 def build_wa_message(name, code, level, day, chapter, answer):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    body = (answer or "").strip()
     return (
         f"Learn Language Education Academy – Assignment Submission\n"
         f"Name: {name}\n"
@@ -4389,14 +4389,14 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Day: {day}\n"
         f"Chapter: {chapter}\n"
         f"Date: {timestamp}\n"
-        f"Answer: {answer if answer.strip() else '[See attached file/photo]'}"
+        f"Answer: {body if body else '[See attached file/photo]'}"
     )
 
 def highlight_terms(text, terms):
     if not text:
         return ""
     for term in terms:
-        if not term.strip():
+        if not str(term).strip():
             continue
         pattern = re.compile(re.escape(term), re.IGNORECASE)
         text = pattern.sub(
@@ -4415,25 +4415,39 @@ def filter_matches(lesson, terms):
     )
     return any(term in searchable for term in terms)
 
+# ---- Draft autosave helpers (debounced) ----
 def _draft_state_keys(draft_key: str):
-    return (f"{draft_key}__last_val", f"{draft_key}__last_ts", f"{draft_key}_saved", f"{draft_key}_saved_at")
+    return (
+        f"{draft_key}__last_val",
+        f"{draft_key}__last_ts",
+        f"{draft_key}_saved",
+        f"{draft_key}_saved_at"
+    )
 
-def autosave_maybe(code: str, lesson_field_key: str, text: str, *, min_secs: float = 5.0, min_delta: int = 30, locked: bool = False):
-    if locked: return
+def autosave_maybe(code: str, lesson_field_key: str, text: str,
+                   *, min_secs: float = 5.0, min_delta: int = 30, locked: bool = False):
+    """
+    Debounced autosave:
+      - Save only if content changed AND enough time passed OR change is large.
+      - Stores last saved value & time in session state to avoid redundant writes.
+    """
+    if locked:
+        return
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(lesson_field_key)
     last_val = st.session_state.get(last_val_key, "")
     last_ts  = float(st.session_state.get(last_ts_key, 0.0))
     now = time.time()
+
     changed    = (text != last_val)
     big_change = abs(len(text) - len(last_val)) >= min_delta
     time_ok    = (now - last_ts) >= min_secs
+
     if changed and (time_ok or big_change):
         save_draft_to_db(code, lesson_field_key, text)
-        st.session_state[last_val_key]  = text
-        st.session_state[last_ts_key]   = now
+        st.session_state[last_val_key]   = text
+        st.session_state[last_ts_key]    = now
         st.session_state[saved_flag_key] = True
-        st.session_state[saved_at_key]   = datetime.utcnow()
-
+        st.session_state[saved_at_key]   = datetime.now(timezone.utc)
 
 def render_section(day_info, key, title, icon):
     content = day_info.get(key)
@@ -4466,7 +4480,7 @@ def render_section(day_info, key, title, icon):
 SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
 
 def _slack_url() -> str:
-    # 1) Render env var  2) optional fallback to st.secrets.slack.webhook_url
+    # 1) ENV var  2) optional fallback to st.secrets.slack.webhook_url
     url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
     if not url:
         try:
@@ -4510,10 +4524,8 @@ def notify_slack_submission(webhook_url: str, *, student_name: str, student_code
         pass  # never block the student
 
 # -------------------------
-# Firestore helpers (Firebase)
+# Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
-from google.cloud import firestore  # needed for SERVER_TIMESTAMP and Query.DESCENDING
-
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
     """Unique key for this lesson (safe for reuse in docs)."""
     safe_ch = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(chapter))
@@ -4531,7 +4543,6 @@ def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
                       .limit(1).stream())
         return any(True for _ in q)
     except Exception:
-        # Fallback (older client libs without .limit in compound queries)
         try:
             for _ in posts_ref.where("student_code", "==", code)\
                               .where("lesson_key", "==", lesson_key).stream():
@@ -4541,32 +4552,34 @@ def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
         return False
 
 def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
-    """Atomic lock using Firestore .create(). Returns True if acquired, False if already locked."""
+    """
+    Create a lock doc; if it already exists, treat as locked.
+    Works without importing AlreadyExists explicitly.
+    """
     ref = db.collection("submission_locks").document(lock_id(level, code, lesson_key))
     try:
         ref.create({
             "level": level,
             "student_code": code,
             "lesson_key": lesson_key,
-            "created_at": firestore.SERVER_TIMESTAMP,  # server time
+            "created_at": firestore.SERVER_TIMESTAMP,
         })
         return True
-    except AlreadyExists:
-        return False
     except Exception:
-        # Fallback path if .create() isn’t available: check-then-set (not fully atomic, but acceptable)
         try:
-            if ref.get().exists:
+            # If it exists, it's locked; if not, create it
+            exists = ref.get().exists
+            if exists:
                 return False
+            ref.set({
+                "level": level,
+                "student_code": code,
+                "lesson_key": lesson_key,
+                "created_at": firestore.SERVER_TIMESTAMP,
+            }, merge=False)
+            return True
         except Exception:
-            pass
-        ref.set({
-            "level": level,
-            "student_code": code,
-            "lesson_key": lesson_key,
-            "created_at": firestore.SERVER_TIMESTAMP,
-        }, merge=False)
-        return True
+            return False
 
 def is_locked(level: str, code: str, lesson_key: str) -> bool:
     """Treat either an existing submission OR a lock doc as 'locked'."""
@@ -4587,8 +4600,8 @@ def save_draft_to_db(code: str, field_key: str, text: str):
     if text is None:
         text = ""
     payload = {
-        field_key: text,                                       # <- content
-        f"{field_key}__updated_at": firestore.SERVER_TIMESTAMP # <- server timestamp
+        field_key: text,
+        f"{field_key}__updated_at": firestore.SERVER_TIMESTAMP,
     }
     db.collection("draft_answers").document(code).set(payload, merge=True)
 
@@ -4627,7 +4640,6 @@ def fetch_latest(level: str, code: str, lesson_key: str):
         for d in docs:
             return d.to_dict()
     except Exception:
-        # Fallback if order_by/limit path fails
         try:
             docs = posts_ref.where("student_code", "==", code)\
                             .where("lesson_key", "==", lesson_key).stream()
@@ -4637,32 +4649,6 @@ def fetch_latest(level: str, code: str, lesson_key: str):
         except Exception:
             return None
     return None
-
-# Firestore init (put this once near the top of your app, after imports)
-from google.cloud import firestore
-from google.oauth2 import service_account
-import streamlit as st
-
-def init_db():
-    # 1) Try Application Default Credentials (works on GCP, Cloud Run, etc.)
-    try:
-        return firestore.Client()
-    except Exception:
-        pass
-
-    # 2) Fallback: use service account from Streamlit secrets
-    # st.secrets["gcp_service_account"] should contain the full JSON dict
-    try:
-        sa_info = dict(st.secrets["gcp_service_account"])
-        creds = service_account.Credentials.from_service_account_info(sa_info)
-        return firestore.Client(project=sa_info.get("project_id"), credentials=creds)
-    except Exception as e:
-        raise RuntimeError(
-            "Failed to initialize Firestore client. "
-            "Ensure ADC is configured or add gcp_service_account to st.secrets."
-        ) from e
-
-db = init_db()
 
 
 # -------------------------
