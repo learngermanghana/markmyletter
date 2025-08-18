@@ -4648,10 +4648,10 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
     except Exception:
         return False
 
-# ---- Drafts v2 path helpers ----
+# ---- Drafts v2 path helpers (user-rooted) ----
 def _extract_level_and_lesson(field_key: str) -> tuple[str, str]:
     """
-    From a field_key like 'draft_A1_day3_chX', return (level, lesson_key).
+    From a field_key like 'draft_A2_day3_chX', return (level, lesson_key).
     If field_key doesn't start with 'draft_', treat the whole thing as lesson_key.
     """
     lesson_key = field_key[6:] if field_key.startswith("draft_") else field_key
@@ -4660,20 +4660,21 @@ def _extract_level_and_lesson(field_key: str) -> tuple[str, str]:
 
 def _draft_doc_ref(level: str, lesson_key: str, code: str):
     """
-    Return doc ref at: drafts_v2/{level}/lessons/{lesson_key}/users/{code}
+    New user-rooted location:
+      drafts_v2/{code}/lessons/{lesson_key}
+    (We keep 'level' in signature for compatibility; not used in the path.)
     """
     return (db.collection("drafts_v2")
-              .document(level)
+              .document(code)
               .collection("lessons")
-              .document(lesson_key)
-              .collection("users")
-              .document(code))
+              .document(lesson_key))
 
 # ---- DRAFTS (server-side) — now stored separately from submissions ----
 def save_draft_to_db(code: str, field_key: str, text: str) -> None:
     """
-    Save the draft to a dedicated path:
-      drafts_v2/{level}/lessons/{lesson_key}/users/{code}
+    Save the draft to:
+      drafts_v2/{code}/lessons/{lesson_key}
+    Includes metadata (level, lesson_key, student_code).
     """
     if text is None:
         text = ""
@@ -4687,21 +4688,25 @@ def save_draft_to_db(code: str, field_key: str, text: str) -> None:
         "student_code": code,
     }
     ref.set(payload, merge=True)
+    # Optional: uncomment to see where it saved
+    # st.caption(f"Draft saved to: {ref.path}")
 
 def load_draft_from_db(code: str, field_key: str) -> str:
-    """Return the draft text (checks drafts_v2, then legacy draft_answers fallback)."""
+    """Return the draft text (prefers new path; falls back to legacy paths)."""
     text, _ = load_draft_meta_from_db(code, field_key)
     return text or ""
 
 def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
     """
     Return (text, updated_at_or_None).
-    1) Try new nested location: drafts_v2/{level}/lessons/{lesson_key}/users/{code}
-    2) Fallback to legacy:     draft_answers/{code} (field_key & field_key__updated_at)
+    Search order:
+      1) drafts_v2/{code}/lessons/{lesson_key}
+      2) (compat) drafts_v2/{level}/lessons/{lesson_key}/users/{code}
+      3) (legacy) draft_answers/{code} (field_key & field_key__updated_at)
     """
     level, lesson_key = _extract_level_and_lesson(field_key)
 
-    # New nested draft location
+    # 1) New user-rooted path
     try:
         snap = _draft_doc_ref(level, lesson_key, code).get()
         if snap.exists:
@@ -4710,7 +4715,18 @@ def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | 
     except Exception:
         pass
 
-    # Legacy fallback
+    # 2) Compatibility: old level-rooted nested path (if you wrote there earlier)
+    try:
+        comp = (db.collection("drafts_v2").document(level)
+                  .collection("lessons").document(lesson_key)
+                  .collection("users").document(code).get())
+        if comp.exists:
+            data = comp.to_dict() or {}
+            return data.get("text", ""), data.get("updated_at")
+    except Exception:
+        pass
+
+    # 3) Legacy flat doc
     try:
         legacy_doc = db.collection("draft_answers").document(code).get()
         if legacy_doc.exists:
@@ -4720,6 +4736,7 @@ def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | 
         pass
 
     return "", None
+
 
 def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
     """
