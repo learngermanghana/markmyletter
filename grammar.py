@@ -5246,32 +5246,51 @@ if tab == "My Course":
                     st.caption("No local save yet")
 
             with csave3:
-                # Download current draft as a TXT backup (always available)
+                # Current draft text
                 draft_txt = st.session_state.get(draft_key, "") or ""
+
+                # Last-saved timestamp (for header)
                 _, _, _, saved_at_key = _draft_state_keys(draft_key)
                 ts = st.session_state.get(saved_at_key)
-                when = f"{ts.strftime('%Y-%m-%d %H:%M')} UTC" if ts else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-                header = (
-                    "Falowen — Draft Backup\n"
-                    f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info['chapter']}\n"
-                    f"Student: {name}  •  Code: {code}\n"
-                    f"Saved: {when}\n"
-                    "-" * 48 + "\n\n"
+                when = (
+                    ts.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                    if ts else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                 )
-                file_bytes = (header + draft_txt).encode("utf-8")
-                safe_chapter = str(info.get("chapter", "")).replace(" ", "_")
+
+                # Strip any previous backup header the student may have pasted back
+                def _strip_old_header(txt: str) -> str:
+                    if not txt:
+                        return ""
+                    # Remove ONE leading “Falowen — Draft Backup … ======” block if present
+                    pattern = r"(?s)\AFalowen\s+—\s+Draft\s+Backup.*?\n[-=]{8,}\n\n"
+                    return re.sub(pattern, "", txt, count=1)
+
+                clean_body = (_strip_old_header(draft_txt).rstrip() + "\n")
+
+                # Build a simple, single header
+                header_lines = [
+                    "Falowen — Draft Backup",
+                    f"Level: {student_level}  •  Day: {info['day']}  •  Chapter: {info.get('chapter','')}",
+                    f"Student: {name}  •  Code: {code}",
+                    f"Saved (UTC): {when}",
+                    "=" * 56,
+                    ""  # blank line before body
+                ]
+                header = "\n".join(header_lines)
+
+                # Safe filename
+                safe_chapter = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(info.get("chapter", "")))
                 fname = f"falowen_draft_{student_level}_day{info['day']}_{safe_chapter}.txt"
 
                 st.download_button(
                     "⬇️ Download draft (TXT)",
-                    data=file_bytes,
+                    data=(header + clean_body).encode("utf-8"),
                     file_name=fname,
                     mime="text/plain",
-                    disabled=False,
-                    help="Save a local backup of your current draft"
+                    help="Save a clean backup of your current draft"
                 )
 #
+
 
             with st.expander("📌 How to Submit", expanded=False):
                 st.markdown(f"""
@@ -11356,6 +11375,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
