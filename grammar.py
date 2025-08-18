@@ -5018,6 +5018,7 @@ if tab == "My Course":
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
 
+
         # SUBMIT
         with t_submit:
             st.markdown("### ✅ Submit Your Assignment")
@@ -5048,7 +5049,33 @@ if tab == "My Course":
                 st.session_state[locked_key] = True
             locked = db_locked or st.session_state.get(locked_key, False)
 
-            # ---- Hydrate draft once from Firestore on first load ----
+            # ---- Handle a pending "Reload from cloud" BEFORE the text_area exists ----
+            pending_key       = f"{draft_key}__pending_reload"
+            pending_text_key  = f"{draft_key}__reload_text"
+            pending_ts_key    = f"{draft_key}__reload_ts"
+            if st.session_state.get(pending_key):
+                cloud_text = st.session_state.pop(pending_text_key, "")
+                cloud_ts   = st.session_state.pop(pending_ts_key, None)
+                st.session_state[pending_key] = False
+
+                # Apply value to the widget's state safely (before creation in this run)
+                st.session_state[draft_key] = cloud_text
+
+                # Sync autosave trackers
+                last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+                st.session_state[last_val_key]   = cloud_text
+                st.session_state[last_ts_key]    = time.time()
+                st.session_state[saved_flag_key] = True
+                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
+
+                # Optional note
+                try:
+                    when = (cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC") if cloud_ts else "now"
+                except Exception:
+                    when = "now"
+                st.info(f"Reloaded cloud draft (saved {when}).")
+
+            # ---- First-load hydration from Firestore (only once) ----
             if not st.session_state.get(f"{draft_key}__hydrated", False):
                 existing = load_draft_from_db(code, draft_key)
                 if existing and not st.session_state.get(draft_key):
@@ -5058,7 +5085,7 @@ if tab == "My Course":
 
             st.subheader("✍️ Your Answer (Autosaves)")
 
-            # Editor (no on_change needed; we autosave below every few seconds)
+            # Editor (we autosave below with debounce)
             st.text_area(
                 "Type all your answers here",
                 value=st.session_state.get(draft_key, ""),
@@ -5068,22 +5095,21 @@ if tab == "My Course":
                 help="Autosaves as you type (every few seconds). You can also click 'Save Draft now'."
             )
 
-            # Debounced autosave (persists to Firestore even if the page is refreshed)
+            # Debounced autosave (persists even if the page is refreshed)
             current_text = st.session_state.get(draft_key, "")
             autosave_maybe(code, draft_key, current_text, min_secs=5.0, min_delta=30, locked=locked)
 
-            # Manual save + last saved time + reload from cloud
+            # Manual save + last saved time + safe reload
             csave1, csave2, csave3 = st.columns([1, 1, 1])
 
             with csave1:
                 if st.button("💾 Save Draft now", disabled=locked):
                     save_draft_to_db(code, draft_key, current_text)
-                    # Update autosave tracking so we don't immediately re-save the same content
                     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
-                    st.session_state[last_val_key] = current_text
-                    st.session_state[last_ts_key]  = time.time()
+                    st.session_state[last_val_key]   = current_text
+                    st.session_state[last_ts_key]    = time.time()
                     st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]  = datetime.utcnow()
+                    st.session_state[saved_at_key]   = datetime.now(timezone.utc)
                     st.success("Draft saved.")
 
             with csave2:
@@ -5097,22 +5123,10 @@ if tab == "My Course":
             with csave3:
                 if st.button("↻ Reload last saved draft", disabled=locked, help="Pull the latest saved draft from the server"):
                     cloud_text, cloud_ts = load_draft_meta_from_db(code, draft_key)
-                    # Overwrite the editor with the cloud copy
-                    st.session_state[draft_key] = cloud_text
-                    # Update autosave trackers so we don't instantly overwrite cloud copy
-                    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
-                    st.session_state[last_val_key] = cloud_text
-                    st.session_state[last_ts_key]  = time.time()
-                    st.session_state[saved_flag_key] = True
-                    st.session_state[saved_at_key]  = (cloud_ts or datetime.utcnow())
-                    if cloud_ts:
-                        try:
-                            when = cloud_ts.strftime('%Y-%m-%d %H:%M') + " UTC"
-                        except Exception:
-                            when = str(cloud_ts)
-                        st.info(f"Reloaded cloud draft from {when}.")
-                    else:
-                        st.info("Reloaded cloud draft.")
+                    # Stash and rerun; apply before widget is created next run
+                    st.session_state[pending_text_key] = cloud_text
+                    st.session_state[pending_ts_key]   = cloud_ts
+                    st.session_state[pending_key]      = True
                     st.rerun()
 
             with st.expander("📌 How to Submit", expanded=False):
@@ -5145,7 +5159,7 @@ if tab == "My Course":
                         st.warning("You have already submitted this assignment. It is locked.")
                     else:
                         posts_ref = db.collection("submissions").document(student_level).collection("posts")
-                        now = datetime.utcnow()
+                        now = datetime.now(timezone.utc)
                         payload = {
                             "student_code": code,
                             "student_name": name or "Student",
@@ -5200,6 +5214,7 @@ if tab == "My Course":
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 #
+
 
 
 
