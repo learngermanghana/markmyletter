@@ -4784,28 +4784,98 @@ if tab == "My Course":
             render_section(info, "lesen_hören", "Lesen & Hören", "📚")
             render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
-        # RESOURCES
+        # RESOURCES (flatten top-level + nested, all levels)
         with t_resources:
-            if student_level in ["A2", "B1", "B2", "C1"]:
-                for res, label in RESOURCE_LABELS.items():
-                    val = info.get(res)
-                    if val:
-                        if res == "video":
-                            st.video(val); st.markdown(f"[▶️ Watch on YouTube]({val})")
-                        else:
-                            st.markdown(f"- {label}: [{val}]({val})", unsafe_allow_html=True)
-                st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
+            from urllib.parse import urlparse
 
-            # quick summary of extra links if present at top level
-            links = []
-            for key in ("grammarbook_link", "workbook_link", "extra_resources"):
-                if info.get(key):
-                    val = info[key]
-                    links.extend(val if isinstance(val, list) else [val])
-            if links:
-                st.markdown("**Quick Links:**")
-                for ln in links:
-                    st.markdown(f"- 🔗 [{ln}]({ln})")
+            def _as_list(x):
+                if not x: return []
+                return x if isinstance(x, list) else [x]
+
+            def _is_url(u: str) -> bool:
+                try:
+                    p = urlparse(str(u))
+                    return p.scheme in ("http", "https") and bool(p.netloc)
+                except Exception:
+                    return False
+
+            def _dedup(seq):
+                out, seen = [], set()
+                for s in seq:
+                    if s and s not in seen:
+                        seen.add(s); out.append(s)
+                return out
+
+            resources = {
+                "Grammar Notes": [],
+                "Workbook": [],
+                "Videos": [],
+                "Extras": [],
+            }
+
+            def _add(kind, val):
+                for v in _as_list(val):
+                    if _is_url(v):
+                        resources[kind].append(v)
+
+            # ---- collect top-level ----
+            _add("Videos", info.get("video"))
+            _add("Grammar Notes", info.get("grammarbook_link"))
+            _add("Workbook", info.get("workbook_link"))
+            _add("Extras", info.get("extra_resources"))
+
+            # ---- collect nested (lesen_hören / schreiben_sprechen) ----
+            for section in ("lesen_hören", "schreiben_sprechen"):
+                parts = _as_list(info.get(section))
+                for part in parts:
+                    if not isinstance(part, dict): 
+                        continue
+                    _add("Videos", [part.get("video"), part.get("youtube_link")])
+                    _add("Grammar Notes", part.get("grammarbook_link"))
+                    _add("Workbook", part.get("workbook_link"))
+                    _add("Extras", part.get("extra_resources"))
+
+            # dedupe
+            for k in list(resources.keys()):
+                resources[k] = _dedup(resources[k])
+
+            # render
+            if not any(resources.values()):
+                st.info("No resources attached to this lesson yet.")
+            else:
+                if resources["Grammar Notes"]:
+                    st.subheader("📘 Grammar Notes")
+                    for u in resources["Grammar Notes"]:
+                        st.markdown(f"- [Open notes]({u})")
+
+                if resources["Workbook"]:
+                    st.subheader("📒 Workbook Assignments")
+                    for u in resources["Workbook"]:
+                        st.markdown(f"- [Open assignment]({u})")
+                    # consistent reminder
+                    render_assignment_reminder()
+
+                if resources["Videos"]:
+                    st.subheader("🎥 Videos")
+                    for v in resources["Videos"]:
+                        lv = v.lower()
+                        # embed only for YouTube-like links; otherwise show as a link
+                        if "youtu.be" in lv or "youtube.com" in lv:
+                            st.video(v)
+                            st.markdown(f"[▶️ Watch on YouTube]({v})")
+                        else:
+                            st.markdown(f"- [Watch video]({v})")
+
+                if resources["Extras"]:
+                    st.subheader("🔗 Extra Resources")
+                    for u in resources["Extras"]:
+                        st.markdown(f"- [{u}]({u})")
+
+                st.markdown(
+                    '<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.',
+                    unsafe_allow_html=True
+                )
+
 
         # TOOLS
         with t_tools:
