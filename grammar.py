@@ -1785,9 +1785,9 @@ def inject_notice_css():
 # =========================================================
 announcements = [
     {
-        "title": "Autosave + Cloud Drafts",
-        "body":  "Your answer box now autosaves every few seconds to the cloud. Drafts persist across refresh/devices. Use “↻ Reload last saved draft” in Submit to pull the server copy.",
-        "tag":   "Update"
+        "title": "Download Draft (TXT) Backup",
+        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
+        "tag":   "New"
     },
     {
         "title": "Submit Flow & Locking",
@@ -1803,11 +1803,6 @@ announcements = [
         "title": "Lesson Links — One Download",
         "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
         "tag":   "New"
-    },
-    {
-        "title": "Video of the Day + Translator",
-        "body":  "Each level gets a rotating ‘Video of the Day’ in Supporting Materials, plus quick links to DeepL and Google Translate.",
-        "tag":   "Support"
     },
     {
         "title": "Sprechen: Instant Pronunciation Feedback",
@@ -4356,10 +4351,12 @@ def load_level_schedules():
         "B2": get_b2_schedule(),
         "C1": get_c1_schedule(),
     }
+
 # -------------------------
 # UI helpers
 # -------------------------
-def render_assignment_reminder():
+def render_assignment_reminder() -> None:
+    """Show a yellow assignment reminder box."""
     st.markdown(
         '''
         <div style="
@@ -4385,11 +4382,13 @@ def render_assignment_reminder():
         unsafe_allow_html=True
     )
 
-def render_link(label, url):
+def render_link(label: str, url: str) -> None:
+    """Render a bullet link."""
     st.markdown(f"- [{label}]({url})")
 
 @st.cache_data(ttl=86400)
-def build_wa_message(name, code, level, day, chapter, answer):
+def build_wa_message(name: str, code: str, level: str, day: int, chapter: str, answer: str) -> str:
+    """Build a WhatsApp-friendly submission message."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     body = (answer or "").strip()
     return (
@@ -4403,7 +4402,8 @@ def build_wa_message(name, code, level, day, chapter, answer):
         f"Answer: {body if body else '[See attached file/photo]'}"
     )
 
-def highlight_terms(text, terms):
+def highlight_terms(text: str, terms: list[str]) -> str:
+    """Wrap each term in <span> to highlight matches inside text."""
     if not text:
         return ""
     for term in terms:
@@ -4415,7 +4415,8 @@ def highlight_terms(text, terms):
         )
     return text
 
-def filter_matches(lesson, terms):
+def filter_matches(lesson: dict, terms: list[str]) -> bool:
+    """True if any search term appears in key lesson fields."""
     searchable = (
         str(lesson.get('topic', '')).lower() +
         str(lesson.get('chapter', '')).lower() +
@@ -4426,8 +4427,9 @@ def filter_matches(lesson, terms):
     )
     return any(term in searchable for term in terms)
 
-# ---- Draft autosave helpers (debounced) ----
-def _draft_state_keys(draft_key: str):
+# ---- Draft autosave helpers (on-blur + debounced) ----
+def _draft_state_keys(draft_key: str) -> tuple[str, str, str, str]:
+    """Return the session-state keys used to track last save info for a draft."""
     return (
         f"{draft_key}__last_val",
         f"{draft_key}__last_ts",
@@ -4435,15 +4437,46 @@ def _draft_state_keys(draft_key: str):
         f"{draft_key}_saved_at"
     )
 
-def autosave_maybe(code: str, lesson_field_key: str, text: str,
-                   *, min_secs: float = 5.0, min_delta: int = 30, locked: bool = False):
+def save_now(draft_key: str, code: str) -> None:
     """
-    Debounced autosave:
-      - Save only if content changed AND enough time passed OR change is large.
-      - Stores last saved value & time in session state to avoid redundant writes.
+    Immediate save invoked by the text area's on_change hook.
+    Guarantees a Firestore write on blur or explicit change.
+    """
+    text = st.session_state.get(draft_key, "") or ""
+    save_draft_to_db(code, draft_key, text)
+
+    # Update local 'last saved' markers so the UI shows the correct time.
+    last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(draft_key)
+    st.session_state[last_val_key]   = text
+    st.session_state[last_ts_key]    = time.time()
+    st.session_state[saved_flag_key] = True
+    st.session_state[saved_at_key]   = datetime.now(timezone.utc)
+
+def autosave_maybe(
+    code: str,
+    lesson_field_key: str,
+    text: str,
+    *,
+    min_secs: float = 5.0,
+    min_delta: int = 30,
+    locked: bool = False
+) -> None:
+    """
+    Debounced background autosave.
+    Saves only if content changed AND (enough time passed OR change is large).
+    Also updates local 'last saved' markers to avoid redundant writes.
+
+    Args:
+        code: Student code (document id in draft_answers).
+        lesson_field_key: Field name in the draft doc (e.g., 'draft_A1_day3_chX').
+        text: Current textarea content.
+        min_secs: Minimum seconds between saves for small changes.
+        min_delta: Minimum character count difference to treat as 'big change'.
+        locked: If True, do nothing (submitted/locked state).
     """
     if locked:
         return
+
     last_val_key, last_ts_key, saved_flag_key, saved_at_key = _draft_state_keys(lesson_field_key)
     last_val = st.session_state.get(last_val_key, "")
     last_ts  = float(st.session_state.get(last_ts_key, 0.0))
@@ -4460,7 +4493,8 @@ def autosave_maybe(code: str, lesson_field_key: str, text: str,
         st.session_state[saved_flag_key] = True
         st.session_state[saved_at_key]   = datetime.now(timezone.utc)
 
-def render_section(day_info, key, title, icon):
+def render_section(day_info: dict, key: str, title: str, icon: str) -> None:
+    """Render a lesson section (supports list or single dict)."""
     content = day_info.get(key)
     if not content:
         return
@@ -4491,7 +4525,7 @@ def render_section(day_info, key, title, icon):
 SLACK_DEBUG = (os.getenv("SLACK_DEBUG", "0") == "1")
 
 def _slack_url() -> str:
-    # 1) ENV var  2) optional fallback to st.secrets.slack.webhook_url
+    """Resolve Slack webhook URL (ENV first, then st.secrets)."""
     url = (os.getenv("SLACK_WEBHOOK_URL") or "").strip()
     if not url:
         try:
@@ -4500,13 +4534,14 @@ def _slack_url() -> str:
             url = ""
     return url
 
-def get_slack_webhook() -> str:  # back-compat alias
+def get_slack_webhook() -> str:
+    """Back-compat alias to _slack_url()."""
     return _slack_url()
 
-def notify_slack(text: str):
+def notify_slack(text: str) -> tuple[bool, str]:
     """
-    Returns (ok: bool, info: str). Uses one webhook for all events.
-    Set SLACK_DEBUG=1 in Render to see failure details in-app (admins only).
+    Post a plain text message to the Slack webhook.
+    Returns (ok, info). If SLACK_DEBUG=1, more verbose info is printed in logs.
     """
     url = _slack_url()
     if not url:
@@ -4518,8 +4553,18 @@ def notify_slack(text: str):
     except Exception as e:
         return False, str(e)
 
-def notify_slack_submission(webhook_url: str, *, student_name: str, student_code: str,
-                            level: str, day: int, chapter: str, receipt: str, preview: str):
+def notify_slack_submission(
+    webhook_url: str,
+    *,
+    student_name: str,
+    student_code: str,
+    level: str,
+    day: int,
+    chapter: str,
+    receipt: str,
+    preview: str
+) -> None:
+    """Send a compact submission notification to Slack (best-effort)."""
     if not webhook_url:
         return
     text = (
@@ -4538,15 +4583,17 @@ def notify_slack_submission(webhook_url: str, *, student_name: str, student_code
 # Firestore helpers (uses your existing `db` and `from firebase_admin import firestore`)
 # -------------------------
 def lesson_key_build(level: str, day: int, chapter: str) -> str:
-    """Unique key for this lesson (safe for reuse in docs)."""
+    """Unique, safe key for this lesson (reusable in docs/fields)."""
     safe_ch = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(chapter))
     return f"{level}_day{day}_ch{safe_ch}"
 
 def lock_id(level: str, code: str, lesson_key: str) -> str:
+    """Stable document id for submission lock."""
     safe_code = re.sub(r'[^A-Za-z0-9_\-]+', '_', str(code))
     return f"{level}__{safe_code}__{lesson_key}"
 
 def has_existing_submission(level: str, code: str, lesson_key: str) -> bool:
+    """True if a submission exists for this (level, code, lesson_key)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
         q = (posts_ref.where("student_code", "==", code)
@@ -4578,7 +4625,6 @@ def acquire_lock(level: str, code: str, lesson_key: str) -> bool:
         return True
     except Exception:
         try:
-            # If it exists, it's locked; if not, create it
             exists = ref.get().exists
             if exists:
                 return False
@@ -4603,7 +4649,7 @@ def is_locked(level: str, code: str, lesson_key: str) -> bool:
         return False
 
 # ---- DRAFTS: content + timestamp (server-side) ----
-def save_draft_to_db(code: str, field_key: str, text: str):
+def save_draft_to_db(code: str, field_key: str, text: str) -> None:
     """
     Save the draft body AND server timestamp into draft_answers/{code}.
     field_key is your per-lesson field name (e.g., 'draft_A1_day3_chX').
@@ -4627,7 +4673,7 @@ def load_draft_from_db(code: str, field_key: str) -> str:
         pass
     return ""
 
-def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str):
+def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: str) -> dict:
     """
     Decide what the editor should show for this lesson.
     Priority:
@@ -4663,9 +4709,7 @@ def resolve_current_content(level: str, code: str, lesson_key: str, draft_key: s
         "source": "empty",
     }
 
-
-
-def load_draft_meta_from_db(code: str, field_key: str):
+def load_draft_meta_from_db(code: str, field_key: str) -> tuple[str, datetime | None]:
     """
     Return (text, updated_at_or_None) for the given field_key.
     Useful for a '↻ Reload last saved draft' button.
@@ -4679,7 +4723,8 @@ def load_draft_meta_from_db(code: str, field_key: str):
         pass
     return "", None
 
-def fetch_latest(level: str, code: str, lesson_key: str):
+def fetch_latest(level: str, code: str, lesson_key: str) -> dict | None:
+    """Fetch the most recent submission for this user/lesson (or None)."""
     posts_ref = db.collection("submissions").document(level).collection("posts")
     try:
         docs = (posts_ref.where("student_code", "==", code)
@@ -4699,11 +4744,11 @@ def fetch_latest(level: str, code: str, lesson_key: str):
             return None
     return None
 
-
 # -------------------------
 # Misc existing helper preserved
 # -------------------------
-def post_message(level, code, name, text, reply_to=None):
+def post_message(level: str, code: str, name: str, text: str, reply_to: str | None = None) -> None:
+    """Post a message to the class board."""
     posts_ref = db.collection("class_board").document(level).collection("posts")
     posts_ref.add({
         "student_code": code,
@@ -4712,6 +4757,7 @@ def post_message(level, code, name, text, reply_to=None):
         "timestamp": datetime.utcnow(),
         "reply_to": reply_to,
     })
+
 
 RESOURCE_LABELS = {
     'video': '🎥 Video',
@@ -5206,23 +5252,20 @@ if tab == "My Course":
                             st.caption("Start typing your answer.")
                     # else: already hydrated this lesson → DO NOTHING (preserve in-progress typing)
 
-
             st.subheader("✍️ Your Answer")
 
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
                 "Type all your answers here",
-                value=st.session_state.get(draft_key, ""),
                 height=500,
-                key=draft_key,
-                # OPTIONAL: if you added save_now helper, uncomment next two lines:
-                # on_change=save_now,
-                # args=(draft_key, code),
+                key=draft_key,              # value already hydrated in st.session_state[draft_key]
+                on_change=save_now,         # guaranteed save on blur/change
+                args=(draft_key, code),
                 disabled=locked,
-                help="Autosaves while you type and when you leave this box."
+                help="Autosaves on blur and in the background while you type."
             )
 
-            # Debounced autosave (more eager so it feels alive)
+            # Debounced autosave (kept so small ongoing edits also persist)
             current_text = st.session_state.get(draft_key, "")
             autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
 
@@ -5289,8 +5332,6 @@ if tab == "My Course":
                     mime="text/plain",
                     help="Save a clean backup of your current draft"
                 )
-#
-
 
             with st.expander("📌 How to Submit", expanded=False):
                 st.markdown(f"""
@@ -5376,7 +5417,7 @@ if tab == "My Course":
                 st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
             else:
                 st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-#
+
 
     if cb_subtab == "🧑‍🏫 Classroom":
         # --- Classroom banner (top of subtab) ---
