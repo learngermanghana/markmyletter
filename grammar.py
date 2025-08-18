@@ -5230,6 +5230,18 @@ if tab == "My Course":
                 st.session_state[locked_key] = True
             locked = db_locked or st.session_state.get(locked_key, False)
 
+            # ---------- save previous lesson on switch + force hydrate for this one ----------
+            prev_active_key = st.session_state.get("__active_draft_key")
+            if prev_active_key and prev_active_key != draft_key:
+                try:
+                    prev_text = st.session_state.get(prev_active_key, "")
+                    save_draft_to_db(code, prev_active_key, prev_text)
+                except Exception:
+                    pass  # never block UI
+                # ensure the newly selected lesson re-hydrates from cloud
+                st.session_state.pop(f"{draft_key}__hydrated_v2", None)
+            st.session_state["__active_draft_key"] = draft_key
+
             # ---------- Decide what to show (guarded hydration) ----------
             pending_key      = f"{draft_key}__pending_reload"
             pending_text_key = f"{draft_key}__reload_text"
@@ -5295,15 +5307,24 @@ if tab == "My Course":
 
                         st.session_state[hydrated_key] = True
 
-                        # Friendly notice
                         if cloud_text:
                             when = f"{cloud_ts.strftime('%Y-%m-%d %H:%M')} UTC" if cloud_ts else ""
                             st.info(f"💾 Restored your saved draft. {('Last saved ' + when) if when else ''}")
                         else:
                             st.caption("Start typing your answer.")
-                    # else: already hydrated this lesson → DO NOTHING (preserve in-progress typing)
+                    else:
+                        # If 'hydrated' but local is empty, pull cloud once
+                        if not st.session_state.get(draft_key, "") and not locked:
+                            ctext, cts = load_draft_meta_from_db(code, draft_key)
+                            if ctext:
+                                st.session_state[draft_key]      = ctext
+                                st.session_state[last_val_key]   = ctext
+                                st.session_state[last_ts_key]    = time.time()
+                                st.session_state[saved_flag_key] = True
+                                st.session_state[saved_at_key]   = (cts or datetime.now(timezone.utc))
 
             st.subheader("✍️ Your Answer")
+
 
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
