@@ -4741,9 +4741,10 @@ if tab == "My Course":
 
         st.divider()
 
+
         # ---------- mini-tabs inside Course Book ----------
-        t_overview, t_activities, t_resources, t_tools, t_submit = st.tabs(
-            ["Overview", "Activities", "Resources", "Tools", "Submit"]
+        t_overview, t_worklinks, t_tv, t_submit = st.tabs(
+            ["Overview", "Your Work & Links", "Translator & Video of the Day", "Submit"]
         )
 
         # OVERVIEW
@@ -4779,13 +4780,15 @@ if tab == "My Course":
                     with content:
                         st.warning("❓ Start date missing or invalid. Please update your contract start date.")
 
-        # ACTIVITIES
-        with t_activities:
+        # YOUR WORK & LINKS (Activities + Resources together)
+        with t_worklinks:
+            st.markdown("### 🧪 Your Work")
             render_section(info, "lesen_hören", "Lesen & Hören", "📚")
             render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
 
-        # RESOURCES (flatten top-level + nested, all levels)
-        with t_resources:
+            st.divider()
+            st.markdown("### 🔗 Links & Materials")
+
             from urllib.parse import urlparse
 
             def _as_list(x):
@@ -4828,7 +4831,7 @@ if tab == "My Course":
             for section in ("lesen_hören", "schreiben_sprechen"):
                 parts = _as_list(info.get(section))
                 for part in parts:
-                    if not isinstance(part, dict): 
+                    if not isinstance(part, dict):
                         continue
                     _add("Videos", [part.get("video"), part.get("youtube_link")])
                     _add("Grammar Notes", part.get("grammarbook_link"))
@@ -4852,14 +4855,12 @@ if tab == "My Course":
                     st.subheader("📒 Workbook Assignments")
                     for u in resources["Workbook"]:
                         st.markdown(f"- [Open assignment]({u})")
-                    # consistent reminder
-                    render_assignment_reminder()
+                    render_assignment_reminder()  # consistent reminder
 
                 if resources["Videos"]:
                     st.subheader("🎥 Videos")
                     for v in resources["Videos"]:
                         lv = v.lower()
-                        # embed only for YouTube-like links; otherwise show as a link
                         if "youtu.be" in lv or "youtube.com" in lv:
                             st.video(v)
                             st.markdown(f"[▶️ Watch on YouTube]({v})")
@@ -4876,33 +4877,35 @@ if tab == "My Course":
                     unsafe_allow_html=True
                 )
 
+        # TRANSLATOR & VIDEO OF THE DAY
+        with t_tv:
+            from datetime import date
+            st.markdown("### 🌐 Translator & 🎬 Video of the Day")
 
-        # TOOLS
-        with t_tools:
-            st.markdown("#### 🌐 Translation Tools")
+            st.markdown("**Need a quick translation?**")
             st.markdown(
-                '**Need translation?** '
-                '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
-                '[🌐 Google Translate](https://translate.google.com)',
+                "[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; "
+                "[🌐 Google Translate](https://translate.google.com)",
                 unsafe_allow_html=True
             )
-            st.caption("Copy any text from the course book and paste it into your preferred translator.")
-            st.divider()
+            st.caption("Copy any text from the course book and paste it into your translator.")
 
+            st.divider()
             st.markdown("#### 🎬 Video of the Day for Your Level")
             playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
             if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
                 video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
                 if video_list:
-                    today_idx = date.today().toordinal()
-                    pick = today_idx % len(video_list)
-                    video = video_list[pick]
+                    today_idx = date.today().toordinal() % len(video_list)
+                    video = video_list[today_idx]
                     st.markdown(f"**{video['title']}**")
                     st.video(video['url'])
                 else:
                     st.info("No videos found for your level’s playlist. Check back soon!")
             else:
                 st.info("No playlist found for your level yet. Stay tuned!")
+
+
 
         # SUBMIT
         with t_submit:
