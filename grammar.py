@@ -5432,21 +5432,24 @@ if tab == "My Course":
                 can_submit = (confirm_final and confirm_lock and (not locked))
 
                 if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-
-                    # Try to acquire the lock first
+                    # 1) Try to acquire the lock first
                     got_lock = acquire_lock(student_level, code, lesson_key)
 
-                    # If we didn't get the lock, recover from a stale lock (no submission yet)
+                    # If lock exists already, check whether a submission exists; if yes, reflect lock and rerun.
                     if not got_lock:
-                        if not has_existing_submission(student_level, code, lesson_key):
-                            st.info("Found an old lock without a submission — recovering and submitting now…")
-                        else:
-                            # Real prior submission — reflect locked state and rerun
+                        if has_existing_submission(student_level, code, lesson_key):
                             st.session_state[locked_key] = True
                             st.warning("You have already submitted this assignment. It is locked.")
                             st.rerun()
+                        else:
+                            st.info("Found an old lock without a submission — recovering and submitting now…")
 
                     posts_ref = db.collection("submissions").document(student_level).collection("posts")
+
+                    # 2) Pre-create doc (avoids add() tuple-order mismatch)
+                    doc_ref = posts_ref.document()  # auto-ID now available
+                    short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
+
                     payload = {
                         "student_code": code,
                         "student_name": name or "Student",
@@ -5456,58 +5459,63 @@ if tab == "My Course":
                         "lesson_key": lesson_key,
                         "answer": (st.session_state.get(draft_key, "") or "").strip(),
                         "status": "submitted",
+                        "receipt": short_ref,  # persist receipt immediately
                         "created_at": firestore.SERVER_TIMESTAMP,
                         "updated_at": firestore.SERVER_TIMESTAMP,
                         "version": 1,
                     }
 
+                    saved_ok = False
                     try:
-                        # Write submission
-                        doc_ref, write_time = posts_ref.add(payload)  # (DocumentReference, write_time)
-                        short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
-                        # persist receipt
-                        doc_ref.update({"receipt": short_ref})
-
-                        # DEBUG (optional): show where it saved
-                        st.caption(f"Saved to: `{doc_ref.path}`")
+                        doc_ref.set(payload)  # write the submission
+                        saved_ok = True
+                        st.caption(f"Saved to: `{doc_ref.path}`")  # optional debug
                     except Exception as e:
-                        short_ref = f"{code}-{info['day']}".upper()
                         st.error(f"Could not save submission: {e}")
 
-                    # Lock UI immediately and remember receipt locally
-                    st.session_state[locked_key] = True
-                    st.session_state[f"{lesson_key}__receipt"] = short_ref
+                    if saved_ok:
+                        # 3) Success: lock UI, remember receipt, archive draft, notify, rerun
+                        st.session_state[locked_key] = True
+                        st.session_state[f"{lesson_key}__receipt"] = short_ref
 
-                    st.success("Submitted! Your work has been sent to your tutor.")
-                    st.caption(
-                        f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
-                        "See **Results & Resources** for scores & feedback."
-                    )
-
-                    # Archive the draft so it won't rehydrate again (drafts_v2)
-                    try:
-                        _draft_doc_ref(student_level, lesson_key, code).set(
-                            {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
-                        )
-                    except Exception:
-                        pass
-
-                    # Notify Slack (best-effort)
-                    webhook = get_slack_webhook()
-                    if webhook:
-                        notify_slack_submission(
-                            webhook_url=webhook,
-                            student_name=name or "Student",
-                            student_code=code,
-                            level=student_level,
-                            day=info["day"],
-                            chapter=chapter_name,
-                            receipt=short_ref,
-                            preview=st.session_state.get(draft_key, "")
+                        st.success("Submitted! Your work has been sent to your tutor.")
+                        st.caption(
+                            f"Receipt: `{short_ref}` • You’ll be emailed when it’s marked. "
+                            "See **Results & Resources** for scores & feedback."
                         )
 
-                    # Rerun so hydration path immediately shows locked view, no second click needed
-                    st.rerun()
+                        # Archive the draft so it won't rehydrate again (drafts_v2)
+                        try:
+                            _draft_doc_ref(student_level, lesson_key, code).set(
+                                {"status": "submitted", "archived_at": firestore.SERVER_TIMESTAMP}, merge=True
+                            )
+                        except Exception:
+                            pass
+
+                        # Notify Slack (best-effort)
+                        webhook = get_slack_webhook()
+                        if webhook:
+                            notify_slack_submission(
+                                webhook_url=webhook,
+                                student_name=name or "Student",
+                                student_code=code,
+                                level=student_level,
+                                day=info["day"],
+                                chapter=chapter_name,
+                                receipt=short_ref,
+                                preview=st.session_state.get(draft_key, "")
+                            )
+
+                        # Rerun so hydration path immediately shows locked view
+                        st.rerun()
+                    else:
+                        # 4) Failure: remove the lock doc so student can retry cleanly
+                        try:
+                            db.collection("submission_locks").document(lock_id(student_level, code, lesson_key)).delete()
+                        except Exception:
+                            pass
+                        st.warning("Submission not saved. Please fix the issue and try again.")
+
 
 
     if cb_subtab == "🧑‍🏫 Classroom":
