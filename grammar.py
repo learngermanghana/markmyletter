@@ -7527,10 +7527,11 @@ highlight_words = [
 ]
 
 def highlight_keywords(text, words, ignore_case=True):
-    flags = _re.IGNORECASE if ignore_case else 0
+    import re
+    flags = re.IGNORECASE if ignore_case else 0
     for w in words:
-        pattern = r'\b' + _re.escape(w) + r'\b'
-        text = _re.sub(
+        pattern = r'\b' + re.escape(w) + r'\b'
+        text = re.sub(
             pattern,
             lambda m: f"<span style='background:#ffe082; color:#d84315; font-weight:bold;'>{m.group(0)}</span>",
             text,
@@ -7540,6 +7541,7 @@ def highlight_keywords(text, words, ignore_case=True):
 
 def _last_assistant_sentence(messages):
     """Pick a short German-looking sentence from the last assistant reply for TTS."""
+    import re
     last = None
     for m in reversed(messages):
         if m.get("role") == "assistant" and (m.get("content") or "").strip():
@@ -7547,13 +7549,12 @@ def _last_assistant_sentence(messages):
             break
     if not last:
         return ""
-    # Try to pick the first 1–2 sentences (keep it short for TTS)
-    parts = _re.split(r'(?<=[\.\!\?])\s+', last)
+    parts = re.split(r'(?<=[\.\!\?])\s+', last)
     if not parts:
         return last[:240]
     candidate = " ".join(parts[:2]).strip()
-    # If it looks very English-heavy, still use it; SpeechSynthesis voice will be German.
     return candidate[:400]
+
 
 def tts_controls(sentence: str, level: str = "B1", key: str = "tts_main"):
     """Free, browser-based TTS controls; prefers native German voices if available."""
