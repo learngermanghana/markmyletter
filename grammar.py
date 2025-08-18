@@ -4913,15 +4913,6 @@ if tab == "My Course":
                         parts_txt.append("")
                 bundle_txt = "\n".join(parts_txt).strip() + "\n"
 
-                # Optional JSON bundle too
-                bundle_json = {
-                    "level": student_level,
-                    "day": info.get("day"),
-                    "chapter": info.get("chapter"),
-                    "topic": info.get("topic"),
-                    "links": resources,
-                }
-                json_bytes = json.dumps(bundle_json, ensure_ascii=False, indent=2).encode("utf-8")
 
                 # Download buttons (no on-page list)
                 cdl1, cdl2 = st.columns([1, 1])
@@ -4932,14 +4923,6 @@ if tab == "My Course":
                         file_name=f"lesson_links_{student_level}_day{info.get('day','')}.txt",
                         mime="text/plain",
                         key="dl_links_txt",
-                    )
-                with cdl2:
-                    st.download_button(
-                        "⬇️ Download lesson links (JSON)",
-                        data=json_bytes,
-                        file_name=f"lesson_links_{student_level}_day{info.get('day','')}.json",
-                        mime="application/json",
-                        key="dl_links_json",
                     )
 
 
