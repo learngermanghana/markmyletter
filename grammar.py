@@ -4638,7 +4638,25 @@ def _student_meta():
     cname = _safe_str(row.get("ClassName")) or f"{level} General"
     return row, code, name, level, cname
 
-
+# ---------- OPTIONAL: try to get Firestore ----------
+def _get_db():
+    try:
+        _existing = globals().get("db")
+        if _existing is not None:
+            return _existing
+        import firebase_admin
+        from firebase_admin import firestore as fbfs
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app()
+        globals()["db"] = fbfs.client()
+        return globals()["db"]
+    except Exception:
+        try:
+            from google.cloud import firestore as gcf
+            globals()["db"] = gcf.Client()
+            return globals()["db"]
+        except Exception:
+            return None
 
 # =============== PAGE START ===============
 if tab == "My Course":
