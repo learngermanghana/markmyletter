@@ -5432,14 +5432,21 @@ if tab == "My Course":
                 can_submit = (confirm_final and confirm_lock and (not locked))
 
                 if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-                    # Acquire a lock FIRST; if it already exists, reflect lock and rerun.
-                    if not acquire_lock(student_level, code, lesson_key):
-                        st.session_state[locked_key] = True
-                        st.warning("You have already submitted this assignment. It is locked.")
-                        st.rerun()
+
+                    # Try to acquire the lock first
+                    got_lock = acquire_lock(student_level, code, lesson_key)
+
+                    # If we didn't get the lock, recover from a stale lock (no submission yet)
+                    if not got_lock:
+                        if not has_existing_submission(student_level, code, lesson_key):
+                            st.info("Found an old lock without a submission — recovering and submitting now…")
+                        else:
+                            # Real prior submission — reflect locked state and rerun
+                            st.session_state[locked_key] = True
+                            st.warning("You have already submitted this assignment. It is locked.")
+                            st.rerun()
 
                     posts_ref = db.collection("submissions").document(student_level).collection("posts")
-
                     payload = {
                         "student_code": code,
                         "student_name": name or "Student",
@@ -5455,13 +5462,17 @@ if tab == "My Course":
                     }
 
                     try:
-                        # google-cloud-firestore add() -> (DocumentReference, write_time)
-                        doc_ref, write_time = posts_ref.add(payload)
+                        # Write submission
+                        doc_ref, write_time = posts_ref.add(payload)  # (DocumentReference, write_time)
                         short_ref = f"{doc_ref.id[:8].upper()}-{info['day']}"
                         # persist receipt
                         doc_ref.update({"receipt": short_ref})
-                    except Exception:
+
+                        # DEBUG (optional): show where it saved
+                        st.caption(f"Saved to: `{doc_ref.path}`")
+                    except Exception as e:
                         short_ref = f"{code}-{info['day']}".upper()
+                        st.error(f"Could not save submission: {e}")
 
                     # Lock UI immediately and remember receipt locally
                     st.session_state[locked_key] = True
@@ -5495,40 +5506,8 @@ if tab == "My Course":
                             preview=st.session_state.get(draft_key, "")
                         )
 
-                    # Rerun so hydration path immediately shows locked view
+                    # Rerun so hydration path immediately shows locked view, no second click needed
                     st.rerun()
-
-            with col2:
-                st.markdown("#### ❓ Ask the Teacher")
-                if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                    st.session_state["__go_classroom"] = True
-                    st.rerun()
-
-            with col3:
-                st.markdown("#### 📝 Add Notes")
-                if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                    st.session_state["__go_notes"] = True
-                    st.rerun()
-
-            st.divider()
-            latest = fetch_latest(student_level, code, lesson_key)
-            if latest:
-                ts = latest.get('updated_at')
-                when = f"{ts.strftime('%Y-%m-%d %H:%M')} UTC" if ts else ""
-                st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-
-                # show receipt from doc or session
-                rec_local = st.session_state.get(f"{lesson_key}__receipt")
-                rec_doc = latest.get("receipt")
-                rec = rec_doc or rec_local
-                if rec:
-                    st.caption(f"Receipt: `{rec}`")
-
-                st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
-            else:
-                st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
-
-
 
 
     if cb_subtab == "🧑‍🏫 Classroom":
