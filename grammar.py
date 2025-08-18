@@ -7112,9 +7112,7 @@ def fetch_scores(csv_url: str):
         if src in df.columns and dst not in df.columns:
             df = df.rename(columns={src: dst})
     required = ["student_code", "name", "assignment", "score", "date", "level"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        # Return empty with diagnostic columns so UI can error cleanly
+    if not set(required).issubset(df.columns):
         return pd.DataFrame(columns=required)
     df = df.dropna(subset=["student_code", "assignment", "score", "date", "level"])
     return df
@@ -7150,17 +7148,13 @@ if tab == "My Results and Resources":
     # Live CSV URL (secrets/env-aware)
     GOOGLE_SHEET_CSV = _results_csv_url()
 
-    # Utility: manual download link for PDF
-    def _pdf_dl_link(pdf_bytes, filename="results.pdf"):
-        import base64 as _b64
-        b64 = _b64.b64encode(pdf_bytes).decode()
-        return f'<a href="data:application/pdf;base64,{b64}" download="{filename}" style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>'
-
     # Refresh
-    if st.button("🔄 Refresh for your latest results"):
-        st.cache_data.clear()
-        st.success("Cache cleared! Reloading…")
-        st.rerun()
+    top_cols = st.columns([1, 1, 2])
+    with top_cols[0]:
+        if st.button("🔄 Refresh"):
+            st.cache_data.clear()
+            st.success("Cache cleared! Reloading…")
+            st.rerun()
 
     # Load data
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
@@ -7174,9 +7168,6 @@ if tab == "My Results and Resources":
     student_code, student_name, _ = _get_current_student()
     code_key = (student_code or "").lower().strip()
 
-    st.header("📈 My Results and Resources Hub")
-    st.markdown("View and download your assignment history. All results are private and only visible to you.")
-
     # Filter to user
     df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
     if df_user.empty:
@@ -7189,35 +7180,62 @@ if tab == "My Results and Resources":
     levels = sorted(df_user["level"].unique())
     level = st.selectbox("Select level:", levels)
     df_lvl = df_user[df_user.level == level].copy()
+    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
 
-    # Metrics
+    # Precompute metrics once
     totals = {"A1": 18, "A2": 29, "B1": 28, "B2": 24, "C1": 24}
     total = int(totals.get(level, 0))
     completed = int(df_lvl["assignment"].nunique())
-    df_lvl["score"] = pd.to_numeric(df_lvl["score"], errors="coerce")
     avg_score = float(df_lvl["score"].mean() or 0)
     best_score = float(df_lvl["score"].max() or 0)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Assignments", total)
-    c2.metric("Completed", completed)
-    c3.metric("Average Score", f"{avg_score:.1f}")
-    c4.metric("Best Score", f"{best_score:.0f}")
-
-    # Detailed results
-    st.markdown("---")
-    st.info("🔎 **Scroll down and expand the box below to see your full assignment history and feedback!**")
-
-    # Default display (available to PDF section below)
+    # Prepare default display dataframe
     df_display = (
         df_lvl.sort_values(["assignment", "score"], ascending=[True, False])
               .reset_index(drop=True)
     )
-    # Ensure optional cols exist
     if "comments" not in df_display.columns: df_display["comments"] = ""
     if "link" not in df_display.columns: df_display["link"] = ""
 
-    with st.expander("📋 SEE DETAILED RESULTS (ALL ASSIGNMENTS & FEEDBACK)", expanded=False):
+    # Pull schedule for missed/next tabs
+    schedules_map = _get_level_schedules()
+    schedule = schedules_map.get(level, [])
+
+    # ---------- SUB-TABS ----------
+    t_overview, t_assign, t_badges, t_missed, t_pdf, t_res = st.tabs(
+        ["Overview", "Assignments", "Badges", "Missed & Next", "PDF", "Resources"]
+    )
+
+    # ============ OVERVIEW ============
+    with t_overview:
+        st.subheader("Quick Overview")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total Assignments", total)
+        c2.metric("Completed", completed)
+        c3.metric("Average Score", f"{avg_score:.1f}")
+        c4.metric("Best Score", f"{best_score:.0f}")
+
+        st.markdown("---")
+        st.markdown("**Latest 5 results**")
+        latest = df_display.head(5)
+        for _, row in latest.iterrows():
+            perf = score_label_fmt(row["score"])
+            st.markdown(
+                f"""
+                <div style="margin-bottom: 12px;">
+                    <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
+                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
+                    | Date: {row['date']}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        if len(df_display) > 5:
+            st.caption("See the **Assignments** tab for the full list and feedback.")
+
+    # ============ ASSIGNMENTS ============
+    with t_assign:
+        st.subheader("All Assignments & Feedback")
         base_cols = ["assignment", "score", "date", "comments", "link"]
         for _, row in df_display[base_cols].iterrows():
             perf = score_label_fmt(row["score"])
@@ -7229,7 +7247,8 @@ if tab == "My Results and Resources":
                 f"""
                 <div style="margin-bottom: 18px;">
                     <span style="font-size:1.05em;font-weight:600;">{row['assignment']}</span><br>
-                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span> | Date: {row['date']}<br>
+                    Score: <b>{row['score']}</b> <span style='margin-left:12px;'>{perf}</span>
+                    | Date: {row['date']}<br>
                     <div style='margin:8px 0; padding:10px 14px; background:#f2f8fa; border-left:5px solid #007bff; border-radius:7px; color:#333; font-size:1em;'>
                         <b>Feedback:</b> {comment_html}
                     </div>
@@ -7244,220 +7263,234 @@ if tab == "My Results and Resources":
                 )
             st.divider()
 
-    # Badges
-    st.markdown("---")
-    st.markdown("### 🏅 Badges & Trophies")
-    with st.expander("What badges can you earn?", expanded=False):
-        st.markdown(
-            """
-            - 🏆 **Completion Trophy**: Finish all assignments for your level.
-            - 🥇 **Gold Badge**: Maintain an average score above 80.
-            - 🥈 **Silver Badge**: Average score above 70.
-            - 🥉 **Bronze Badge**: Average score above 60.
-            - 🌟 **Star Performer**: Score 85 or higher on any assignment.
-            """
-        )
+    # ============ BADGES ============
+    with t_badges:
+        st.subheader("Badges & Trophies")
+        with st.expander("What badges can you earn?", expanded=False):
+            st.markdown(
+                """
+                - 🏆 **Completion Trophy**: Finish all assignments for your level.
+                - 🥇 **Gold Badge**: Maintain an average score above 80.
+                - 🥈 **Silver Badge**: Average score above 70.
+                - 🥉 **Bronze Badge**: Average score above 60.
+                - 🌟 **Star Performer**: Score 85 or higher on any assignment.
+                """
+            )
 
-    badge_count = 0
-    if completed >= total and total > 0:
-        st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
-        badge_count += 1
-    if avg_score >= 90:
-        st.info("🥇 **Gold Badge:** Average score above 90!")
-        badge_count += 1
-    elif avg_score >= 75:
-        st.info("🥈 **Silver Badge:** Average score above 75!")
-        badge_count += 1
-    elif avg_score >= 60:
-        st.info("🥉 **Bronze Badge:** Average score above 60!")
-        badge_count += 1
-    if best_score >= 95:
-        st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
-        badge_count += 1
-    if badge_count == 0:
-        st.warning("No badges yet. Complete more assignments to earn badges!")
+        badge_count = 0
+        if completed >= total and total > 0:
+            st.success("🏆 **Congratulations!** You have completed all assignments for this level!")
+            badge_count += 1
+        if avg_score >= 90:
+            st.info("🥇 **Gold Badge:** Average score above 90!")
+            badge_count += 1
+        elif avg_score >= 75:
+            st.info("🥈 **Silver Badge:** Average score above 75!")
+            badge_count += 1
+        elif avg_score >= 60:
+            st.info("🥉 **Bronze Badge:** Average score above 60!")
+            badge_count += 1
+        if best_score >= 95:
+            st.info("🌟 **Star Performer:** You scored 95 or above on an assignment!")
+            badge_count += 1
+        if badge_count == 0:
+            st.warning("No badges yet. Complete more assignments to earn badges!")
 
-    # Skipped assignments (use shared schedule cache)
-    schedules_map = _get_level_schedules()
-    schedule = schedules_map.get(level, [])
-    def _extract_all_nums(chapter_str):
-        parts = re.split(r'[_\s,;]+', str(chapter_str))
-        nums = []
-        for part in parts:
-            m = re.search(r'\d+(?:\.\d+)?', part)
-            if m: nums.append(float(m.group()))
-        return nums
+    # ============ MISSED & NEXT ============
+    with t_missed:
+        st.subheader("Missed Assignments & Next Recommendation")
 
-    completed_nums = set()
-    for _, row in df_lvl.iterrows():
-        for num in _extract_all_nums(row["assignment"]):
-            completed_nums.add(num)
-    last_num = max(completed_nums) if completed_nums else 0.0
+        def _extract_all_nums(chapter_str):
+            parts = re.split(r'[_\s,;]+', str(chapter_str))
+            nums = []
+            for part in parts:
+                m = re.search(r'\d+(?:\.\d+)?', part)
+                if m: nums.append(float(m.group()))
+            return nums
 
-    skipped_assignments = []
-    for lesson in schedule:
-        chapter_field = lesson.get("chapter", "")
-        lesson_nums = _extract_all_nums(chapter_field)
-        day = lesson.get("day", "")
-        has_assignment = lesson.get("assignment", False)
-        for chap_num in lesson_nums:
-            if has_assignment and chap_num < last_num and chap_num not in completed_nums:
-                skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
+        completed_nums = set()
+        for _, row in df_lvl.iterrows():
+            for num in _extract_all_nums(row["assignment"]):
+                completed_nums.add(num)
+        last_num = max(completed_nums) if completed_nums else 0.0
+
+        skipped_assignments = []
+        for lesson in schedule:
+            chapter_field = lesson.get("chapter", "")
+            lesson_nums = _extract_all_nums(chapter_field)
+            day = lesson.get("day", "")
+            has_assignment = lesson.get("assignment", False)
+            for chap_num in lesson_nums:
+                if has_assignment and chap_num < last_num and chap_num not in completed_nums:
+                    skipped_assignments.append(f"Day {day}: Chapter {chapter_field} – {lesson.get('topic','')}")
+                    break
+
+        if skipped_assignments:
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #fff3cd;
+                    border-left: 6px solid #ffecb5;
+                    color: #7a6001;
+                    padding: 16px 18px;
+                    border-radius: 8px;
+                    margin: 12px 0;
+                    font-size: 1.05em;">
+                    <b>⚠️ You have skipped the following assignments.<br>
+                    Please complete them for full progress:</b><br>
+                    {"<br>".join(skipped_assignments)}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.success("No missed assignments detected. Great job!")
+
+        # Next assignment recommendation (skip Schreiben & Sprechen-only)
+        def _is_recommendable(lesson):
+            topic = str(lesson.get("topic", "")).lower()
+            return not ("schreiben" in topic and "sprechen" in topic)
+        def _extract_max_num(chapter):
+            nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
+            return max([float(n) for n in nums], default=None)
+
+        completed_chapters = []
+        for a in df_lvl["assignment"]:
+            n = _extract_max_num(a)
+            if n is not None: completed_chapters.append(n)
+        last_num2 = max(completed_chapters) if completed_chapters else 0.0
+
+        next_assignment = None
+        for lesson in schedule:
+            chap_num = _extract_max_num(lesson.get("chapter", ""))
+            if not _is_recommendable(lesson):
+                continue
+            if chap_num and chap_num > last_num2:
+                next_assignment = lesson
                 break
-    if skipped_assignments:
+        if next_assignment:
+            st.info(
+                f"**Your next recommended assignment:**\n\n"
+                f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
+                f"**Goal:** {next_assignment.get('goal','')}\n\n"
+                f"**Instruction:** {next_assignment.get('instruction','')}"
+            )
+        else:
+            st.success("🎉 You’re up to date!")
+
+    # ============ PDF ============
+    with t_pdf:
+        st.subheader("Download PDF Summary")
+
+        COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
+        PAGE_WIDTH, MARGIN = 210, 10
+        FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
+        LOGO_URL = "https://i.imgur.com/iFiehrp.png"
+
+        @st.cache_data(ttl=3600)
+        def fetch_logo():
+            try:
+                r = requests.get(LOGO_URL, timeout=6)
+                r.raise_for_status()
+                import tempfile
+                tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+                tmp.write(r.content); tmp.flush()
+                return tmp.name
+            except Exception:
+                return None
+
+        from fpdf import FPDF
+        class PDFReport(FPDF):
+            def header(self):
+                logo_path = fetch_logo()
+                if logo_path:
+                    try:
+                        self.image(logo_path, 10, 8, 30)
+                        self.ln(20)
+                    except Exception:
+                        self.ln(20)
+                else:
+                    self.ln(28)
+                self.set_font("Arial", 'B', 16)
+                self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
+                self.ln(3)
+            def footer(self):
+                self.set_y(-15)
+                self.set_font("Arial", 'I', 9)
+                self.set_text_color(120, 120, 120)
+                footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
+                self.cell(0, 8, footer_text, 0, 0, 'C')
+                self.set_text_color(0, 0, 0)
+                self.alias_nb_pages()
+
+        if st.button("⬇️ Create & Download PDF"):
+            pdf = PDFReport()
+            pdf.add_page()
+
+            # Student Info
+            pdf.set_font("Arial", '', 12)
+            try:
+                shown_name = df_user.name.iloc[0]
+            except Exception:
+                shown_name = student_name or "Student"
+            pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
+            pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
+            pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
+            pdf.ln(5)
+
+            # Summary Metrics
+            pdf.set_font("Arial", 'B', 13)
+            pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
+            pdf.set_font("Arial", '', 11)
+            pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
+            pdf.ln(6)
+
+            # Table header
+            pdf.set_font("Arial", 'B', 11)
+            pdf.set_fill_color(235, 235, 245)
+            pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
+            pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
+            pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
+            pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
+
+            # Rows
+            pdf.set_font("Arial", '', 10)
+            pdf.set_fill_color(249, 249, 249)
+            row_fill = False
+
+            for _, row in df_display.iterrows():
+                assn = clean_for_pdf(str(row['assignment'])[:24])
+                score_txt = clean_for_pdf(str(row['score']))
+                date_txt = clean_for_pdf(str(row['date']))
+                label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
+                pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
+                pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
+                pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
+                pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
+                row_fill = not row_fill
+
+            pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
+            st.download_button(
+                label="Download PDF",
+                data=pdf_bytes,
+                file_name=f"{code_key}_results_{level}.pdf",
+                mime="application/pdf"
+            )
+            # Manual link fallback
+            import base64 as _b64
+            b64 = _b64.b64encode(pdf_bytes).decode()
+            st.markdown(
+                f'<a href="data:application/pdf;base64,{b64}" download="{code_key}_results_{level}.pdf" '
+                f'style="font-size:1.1em;font-weight:600;color:#2563eb;">📥 Click here to download PDF (manual)</a>',
+                unsafe_allow_html=True
+            )
+            st.info("If the button does not work, right-click the blue link above and choose 'Save link as...'")
+
+    # ============ RESOURCES ============
+    with t_res:
+        st.subheader("Useful Resources")
         st.markdown(
-            f"""
-            <div style="
-                background-color: #fff3cd;
-                border-left: 6px solid #ffecb5;
-                color: #7a6001;
-                padding: 16px 18px;
-                border-radius: 8px;
-                margin: 12px 0;
-                font-size: 1.05em;">
-                <b>⚠️ You have skipped the following assignments.<br>
-                Please complete them for full progress:</b><br>
-                {"<br>".join(skipped_assignments)}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # Next assignment recommendation (skip Schreiben & Sprechen-only)
-    def _is_recommendable(lesson):
-        topic = str(lesson.get("topic", "")).lower()
-        return not ("schreiben" in topic and "sprechen" in topic)
-    def _extract_max_num(chapter):
-        nums = re.findall(r'\d+(?:\.\d+)?', str(chapter))
-        return max([float(n) for n in nums], default=None)
-
-    completed_chapters = []
-    for a in df_lvl["assignment"]:
-        n = _extract_max_num(a)
-        if n is not None: completed_chapters.append(n)
-    last_num = max(completed_chapters) if completed_chapters else 0.0
-
-    next_assignment = None
-    for lesson in schedule:
-        chap_num = _extract_max_num(lesson.get("chapter", ""))
-        if not _is_recommendable(lesson):
-            continue
-        if chap_num and chap_num > last_num:
-            next_assignment = lesson
-            break
-    if next_assignment:
-        st.success(
-            f"**Your next recommended assignment:**\n\n"
-            f"**Day {next_assignment.get('day','?')}: {next_assignment.get('chapter','?')} – {next_assignment.get('topic','')}**\n\n"
-            f"**Goal:** {next_assignment.get('goal','')}\n\n"
-            f"**Instruction:** {next_assignment.get('instruction','')}"
-        )
-    else:
-        st.info("🎉 Great Job!")
-
-    # ======================= PDF SUMMARY DOWNLOAD =======================
-    COL_ASSN_W, COL_SCORE_W, COL_DATE_W = 45, 18, 30
-    PAGE_WIDTH, MARGIN = 210, 10
-    FEEDBACK_W = PAGE_WIDTH - 2 * MARGIN - (COL_ASSN_W + COL_SCORE_W + COL_DATE_W)
-    LOGO_URL = "https://i.imgur.com/iFiehrp.png"
-
-    @st.cache_data(ttl=3600)
-    def fetch_logo():
-        try:
-            r = requests.get(LOGO_URL, timeout=6)
-            r.raise_for_status()
-            import tempfile
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            tmp.write(r.content); tmp.flush()
-            return tmp.name
-        except Exception:
-            return None
-
-    from fpdf import FPDF
-    class PDFReport(FPDF):
-        def header(self):
-            logo_path = fetch_logo()
-            if logo_path:
-                try:
-                    self.image(logo_path, 10, 8, 30)
-                    self.ln(20)
-                except Exception:
-                    self.ln(20)
-            else:
-                self.ln(28)
-            self.set_font("Arial", 'B', 16)
-            self.cell(0, 12, clean_for_pdf("Learn Language Education Academy"), ln=1, align='C')
-            self.ln(3)
-        def footer(self):
-            self.set_y(-15)
-            self.set_font("Arial", 'I', 9)
-            self.set_text_color(120, 120, 120)
-            footer_text = clean_for_pdf("Learn Language Education Academy — Results generated on ") + pd.Timestamp.now().strftime("%d.%m.%Y")
-            self.cell(0, 8, footer_text, 0, 0, 'C')
-            self.set_text_color(0, 0, 0)
-            self.alias_nb_pages()
-
-    if st.button("⬇️ Download PDF Summary"):
-        pdf = PDFReport()
-        pdf.add_page()
-
-        # Student Info
-        pdf.set_font("Arial", '', 12)
-        # Find a name to show (prefer df_user)
-        try:
-            shown_name = df_user.name.iloc[0]
-        except Exception:
-            shown_name = student_name or "Student"
-        pdf.cell(0, 8, clean_for_pdf(f"Name: {shown_name}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Code: {code_key}     Level: {level}"), ln=1)
-        pdf.cell(0, 8, clean_for_pdf(f"Date: {pd.Timestamp.now():%Y-%m-%d %H:%M}"), ln=1)
-        pdf.ln(5)
-
-        # Summary Metrics
-        pdf.set_font("Arial", 'B', 13)
-        pdf.cell(0, 10, clean_for_pdf("Summary Metrics"), ln=1)
-        pdf.set_font("Arial", '', 11)
-        pdf.cell(0, 8, clean_for_pdf(f"Total: {total}   Completed: {completed}   Avg: {avg_score:.1f}   Best: {best_score:.0f}"), ln=1)
-        pdf.ln(6)
-
-        # Table
-        pdf.set_font("Arial", 'B', 11)
-        pdf.set_fill_color(235, 235, 245)
-        pdf.cell(COL_ASSN_W, 9, "Assignment", 1, 0, 'C', True)
-        pdf.cell(COL_SCORE_W, 9, "Score", 1, 0, 'C', True)
-        pdf.cell(COL_DATE_W, 9, "Date", 1, 0, 'C', True)
-        pdf.cell(FEEDBACK_W, 9, "Feedback", 1, 1, 'C', True)
-
-        pdf.set_font("Arial", '', 10)
-        pdf.set_fill_color(249, 249, 249)
-        row_fill = False
-
-        for _, row in df_display.iterrows():
-            assn = clean_for_pdf(str(row['assignment'])[:24])
-            score_txt = clean_for_pdf(str(row['score']))
-            date_txt = clean_for_pdf(str(row['date']))
-            label = clean_for_pdf(score_label_fmt(row['score'], plain=True))
-            pdf.cell(COL_ASSN_W, 8, assn, 1, 0, 'L', row_fill)
-            pdf.cell(COL_SCORE_W, 8, score_txt, 1, 0, 'C', row_fill)
-            pdf.cell(COL_DATE_W, 8, date_txt, 1, 0, 'C', row_fill)
-            pdf.multi_cell(FEEDBACK_W, 8, label, 1, 'C', row_fill)
-            row_fill = not row_fill
-
-        pdf_bytes = pdf.output(dest='S').encode('latin1', 'replace')
-        st.download_button(
-            label="Download PDF",
-            data=pdf_bytes,
-            file_name=f"{code_key}_results_{level}.pdf",
-            mime="application/pdf"
-        )
-        st.markdown(_pdf_dl_link(pdf_bytes, f"{code_key}_results_{level}.pdf"), unsafe_allow_html=True)
-        st.info("If the button does not work, right-click the blue link above and choose 'Save link as...' to download your PDF.")
-
-    # ======================= USEFUL RESOURCES =======================
-    st.markdown("---")
-    st.subheader("📚 Useful Resources")
-    st.markdown(
-        """
+            """
 **1. [A1 Schreiben Practice Questions](https://drive.google.com/file/d/1X_PFF2AnBXSrGkqpfrArvAnEIhqdF6fv/view?usp=sharing)**  
 Practice writing tasks and sample questions for A1.
 
@@ -7472,19 +7505,15 @@ A2-level speaking exam guide.
 
 **5. [B1 Sprechen Guide](https://drive.google.com/file/d/1snk4mL_Q9-xTBXSRfgiZL_gYRI9tya8F/view?usp=sharing)**  
 How to prepare for your B1 oral exam.
-        """
-    )
+            """
+        )
 
-
+        
 # ================================
 # 5. EXAMS MODE & CUSTOM CHAT — uses your prompts + bubble UI + highlighting
 # ================================
 
 # —— keep Firestore `db` and OpenAI `client` from above (not redefined here) ——
-
-# Ensure these are available in this tab
-import re, random
-import urllib.parse as _urllib
 
 # Optional: progress saver (kept from your code; safe if unused)
 def save_exam_progress(student_code, progress_items):
@@ -7556,6 +7585,8 @@ highlight_words = [
     "Bitte", "Vergessen Sie nicht"
 ]
 
+import re, random
+
 def highlight_keywords(text, words, ignore_case=True):
     flags = re.IGNORECASE if ignore_case else 0
     for w in words:
@@ -7611,7 +7642,10 @@ def build_a1_exam_intro():
     )
 
 def build_exam_instruction(level, teil):
-    # (your original long strings kept)
+    # ... (UNCHANGED: keep the long per-level/per-teil instructions you shared)
+    # Paste your full original version here (omitted for brevity in this snippet)
+    # — I kept your earlier long strings exactly as-is in my local version.
+    # BEGIN exact content
     if level == "A1":
         if "Teil 1" in teil:
             return build_a1_exam_intro()
@@ -7695,22 +7729,26 @@ def build_exam_instruction(level, teil):
                 "Bewerte deine eigene Präsentation. Was würdest du beim nächsten Mal besser machen?"
             )
     return ""
+    # END exact content
 
 def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1") -> str:
     """
     Builds the system prompt for the examiner persona.
-    (Your original logic retained.)
+    Adds a clickable recorder link AFTER EVERY PROMPT/FEEDBACK the AI sends.
     """
     rec_url = (
         f"https://script.google.com/macros/s/"
         f"AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA"
         f"/exec?code={student_code}"
     )
+
+    # This line instructs the AI to always append a clickable link.
     record_line = (
         "IMPORTANT: After EVERY question, prompt, correction, or feedback, append this line on its own:\n"
         f"• 🎙️ **You can chat here for more ideas or Record your answer now**: [Open Sprechen Recorder]({rec_url})\n"
         f"If Markdown is not supported, show the raw URL: {rec_url}\n"
     )
+
     if level == "A1":
         if "Teil 1" in teil:
             return (
@@ -7810,10 +7848,29 @@ def build_exam_system_prompt(level: str, teil: str, student_code: str = "felixa1
             )
 
     return ""
-    # (Your B2/C1 fallbacks left as in your working version)
+    if level == "B2":
+        if "Teil 1" in teil:
+            return (
+                "You are Herr Felix, a B2 examiner. Discuss a topic with the student. Challenge their points. Correct errors (mostly in German, but use English if it's a big mistake), and always provide the correct form."
+            )
+        elif "Teil 2" in teil:
+            return (
+                "You are Herr Felix, a B2 examiner. Listen to the student's presentation. Give high-level feedback (mostly in German), ask probing questions, and always highlight advanced vocabulary and connectors."
+            )
+        elif "Teil 3" in teil:
+            return (
+                "You are Herr Felix, a B2 examiner. Argue your perspective. Give detailed, advanced corrections (mostly German, use English if truly needed). Encourage native-like answers."
+            )
+    if level == "C1":
+        if "Teil 1" in teil or "Teil 2" in teil or "Teil 3" in teil:
+            return (
+                "Du bist Herr Felix, ein C1-Prüfer. Sprich nur Deutsch. "
+                "Stelle herausfordernde Fragen, gib ausschließlich auf Deutsch Feedback, und fordere den Studenten zu komplexen Strukturen auf."
+            )
+    return ""
 
 def build_custom_chat_prompt(level):
-    # (kept exactly as your working version—no recorder line added here to respect your request)
+    # exact content from your message kept
     if level == "C1":
         return (
             "You are supportive German C1 Teacher. Speak both english and German "
@@ -7842,11 +7899,12 @@ def build_custom_chat_prompt(level):
             f"Never ask more than 2 questions about the same keyword. "
             f"After the student answers 6 questions, write a summary of their performance: what they did well, mistakes, and what to improve in English and end the chat with motivation and tips. "
             f"Tell them to visit this link to record their audio: [Record your audio here]({rec_url}). "
-            f"Also give them 60 words from their own words in a presentation form that they can use in class.  Wish them luck in their next class and tell them to apply everything they have learnt. "
+            f"Also give them 60 words from their own words in a presentation form that they can use in class. Add your own points if their words and responses were small. Tell them to improve on it, record with phones as wav or mp3 and upload at Pronunciation & Speaking Checker for further assessment and learn to speak without reading "
             f"All feedback and corrections should be {correction_lang}. "
             f"Encourage the student and keep the chat motivating. "
         )
     return ""
+
 
 # ================= SESSION DEFAULTS (reuse your falowen_* keys) =================
 default_state = {
@@ -8052,194 +8110,192 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["used_topics"]             = []
                     st.rerun()
 
-# ——— Step 4: Chat (Exam or Custom) ———
-if st.session_state.get("falowen_stage") == 4:
-    level = st.session_state.get("falowen_level")
-    teil  = st.session_state.get("falowen_teil")
-    mode  = st.session_state.get("falowen_mode")
-    is_exam = mode == "Exams Mode"
-    student_code = st.session_state.get("student_code", "demo")
+    # ——— Step 4: Chat (Exam or Custom) ———
+    if st.session_state.get("falowen_stage") == 4:
+        level = st.session_state.get("falowen_level")
+        teil  = st.session_state.get("falowen_teil")
+        mode  = st.session_state.get("falowen_mode")
+        is_exam = mode == "Exams Mode"
+        student_code = st.session_state.get("student_code", "demo")
 
-    # Load chat from db once
-    if not st.session_state.get("_falowen_loaded"):
-        def _chat_key(mode, level, teil): return f"{mode}_{level}_{(teil or 'custom')}"
-        doc = db.collection("falowen_chats").document(student_code).get()
-        if doc.exists:
-            chats = (doc.to_dict() or {}).get("chats", {})
-            loaded = chats.get(_chat_key(mode, level, teil), [])
-            if loaded:
-                st.session_state["falowen_messages"] = loaded
-        st.session_state["_falowen_loaded"] = True
+        # Load chat from db once
+        if not st.session_state.get("_falowen_loaded"):
+            # reuse same storage key format
+            def _chat_key(mode, level, teil): return f"{mode}_{level}_{(teil or 'custom')}"
+            doc = db.collection("falowen_chats").document(student_code).get()
+            if doc.exists:
+                chats = (doc.to_dict() or {}).get("chats", {})
+                loaded = chats.get(_chat_key(mode, level, teil), [])
+                if loaded:
+                    st.session_state["falowen_messages"] = loaded
+            st.session_state["_falowen_loaded"] = True
 
-    # Seed the first assistant instruction if chat is empty
-    if not st.session_state["falowen_messages"]:
-        instruction = build_exam_instruction(level, teil) if is_exam else (
-            "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
-        )
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
-        try:
-            doc = db.collection("falowen_chats").document(student_code)
-            snap = doc.get()
-            chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-            chats[f"{mode}_{level}_{(teil or 'custom')}"] = st.session_state["falowen_messages"]
-            doc.set({"chats": chats}, merge=True)
-        except Exception:
-            pass
-
-    # Build system prompt (your personas)
-    if is_exam:
-        if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
-            next_topic = st.session_state["remaining_topics"].pop(0)
-            if " – " in next_topic:
-                topic, keyword = next_topic.split(" – ", 1)
-                st.session_state["falowen_exam_topic"] = topic
-                st.session_state["falowen_exam_keyword"] = keyword
-            else:
-                st.session_state["falowen_exam_topic"] = next_topic
-                st.session_state["falowen_exam_keyword"] = None
-            st.session_state["used_topics"].append(next_topic)
-        base_prompt = build_exam_system_prompt(level, teil)
-        topic = st.session_state.get("falowen_exam_topic")
-        if topic:
-            system_prompt = f"{base_prompt} Thema: {topic}."
-            if st.session_state.get("falowen_exam_keyword"):
-                system_prompt += f" Keyword: {st.session_state['falowen_exam_keyword']}."
-        else:
-            system_prompt = base_prompt
-    else:
-        system_prompt = build_custom_chat_prompt(level)
-
-    # ---- Always-visible recorder button + reminder (simple UI)
-    RECORDER_BASE = "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
-    rec_url = f"{RECORDER_BASE}?code={_urllib.quote(student_code)}"
-    try:
-        st.link_button("🎙️ Record your answer now (Sprechen Recorder)", rec_url, type="primary", use_container_width=True)
-    except Exception:
-        st.markdown(
-            f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
-            'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
-            'text-decoration:none;font-weight:700;">🎙️ Record your answer now (Sprechen Recorder)</a>',
-            unsafe_allow_html=True,
-        )
-    st.caption("You can keep chatting here or record your answer now.")
-
-    # ========= Handle new input FIRST (so student bubble shows immediately) =========
-    user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
-    if user_input:
-        # 1) append user message
-        st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
-        try:
-            if "inc_sprechen_usage" in globals():
-                inc_sprechen_usage(student_code)
-        except Exception:
-            pass
-
-        # 2) get assistant reply
-        with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-            messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+        # Initial instruction if chat is empty (uses YOUR builders)
+        if not st.session_state["falowen_messages"]:
+            instruction = build_exam_instruction(level, teil) if is_exam else (
+                "Hallo! 👋 What would you like to talk about? Give me details of what you want so I can understand."
+            )
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": instruction})
+            # save
             try:
-                resp = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    temperature=0.15,
-                    max_tokens=600
-                )
-                ai_reply = (resp.choices[0].message.content or "").strip()
-            except Exception as e:
-                ai_reply = f"Sorry, an error occurred: {e}"
+                doc = db.collection("falowen_chats").document(student_code)
+                snap = doc.get()
+                chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                chats[f"{mode}_{level}_{(teil or 'custom')}"] = st.session_state["falowen_messages"]
+                doc.set({"chats": chats}, merge=True)
+            except Exception:
+                pass
 
-        # 3) append assistant message
-        st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
+        # Build system prompt (YOUR detailed personas)
+        if is_exam:
+            if (not st.session_state.get("falowen_exam_topic")) and st.session_state.get("remaining_topics"):
+                next_topic = st.session_state["remaining_topics"].pop(0)
+                if " – " in next_topic:
+                    topic, keyword = next_topic.split(" – ", 1)
+                    st.session_state["falowen_exam_topic"] = topic
+                    st.session_state["falowen_exam_keyword"] = keyword
+                else:
+                    st.session_state["falowen_exam_topic"] = next_topic
+                    st.session_state["falowen_exam_keyword"] = None
+                st.session_state["used_topics"].append(next_topic)
+            base_prompt = build_exam_system_prompt(level, teil)
+            topic = st.session_state.get("falowen_exam_topic")
+            if topic:
+                system_prompt = f"{base_prompt} Thema: {topic}."
+                if st.session_state.get("falowen_exam_keyword"):
+                    system_prompt += f" Keyword: {st.session_state['falowen_exam_keyword']}."
+            else:
+                system_prompt = base_prompt
+        else:
+            system_prompt = build_custom_chat_prompt(level)
 
-        # 4) save thread
-        try:
-            key = f"{mode}_{level}_{(teil or 'custom')}"
-            doc = db.collection("falowen_chats").document(student_code)
-            snap = doc.get()
-            chats = snap.to_dict().get("chats", {}) if snap.exists else {}
-            chats[key] = st.session_state["falowen_messages"]
-            doc.set({"chats": chats}, merge=True)
-        except Exception:
-            pass
+        # Render chat (your bubble UI + highlights)
+        for msg in st.session_state["falowen_messages"]:
+            if msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🧑‍🏫"):
+                    st.markdown(
+                        "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
+                        f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                with st.chat_message("user"):
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:flex-end;'>"
+                        f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                        unsafe_allow_html=True
+                    )
 
-    # ========= Render the whole conversation (both student & examiner) =========
-    for msg in st.session_state["falowen_messages"]:
-        if msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧑‍🏫"):
+        # Downloads
+        if st.session_state["falowen_messages"]:
+            from fpdf import FPDF
+            def falowen_download_pdf(messages, filename):
+                def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
+                pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
+                for m in messages:
+                    who = "Herr Felix" if m["role"]=="assistant" else "Student"
+                    pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
+                    pdf.ln(1)
+                return pdf.output(dest='S').encode('latin1','replace')
+
+            teil_str = str(teil) if teil else "chat"
+            pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}")
+            st.download_button(
+                "⬇️ Download Chat as PDF",
+                pdf_bytes,
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
+                mime="application/pdf"
+            )
+            chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
+            st.download_button(
+                "⬇️ Download Chat as TXT",
+                chat_as_text.encode("utf-8"),
+                file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
+                mime="text/plain"
+            )
+
+        # Actions
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Delete All Chat History"):
+                try:
+                    db.collection("falowen_chats").document(student_code).delete()
+                except Exception as e:
+                    st.error(f"Could not delete chat history: {e}")
+                else:
+                    for key in [
+                        "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
+                        "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
+                        "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
+                    ]:
+                        st.session_state.pop(key, None)
+                    st.session_state["falowen_stage"] = 1
+                    st.success("All chat history deleted.")
+                    st.rerun()
+        with col2:
+            if st.button("⬅️ Back"):
+                back_step()
+
+        # Input + model call
+        user_input = st.chat_input("Type your answer or message here...", key="falowen_user_input")
+        if user_input:
+            st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
+            try:
+                if "inc_sprechen_usage" in globals():
+                    inc_sprechen_usage(student_code)
+            except Exception:
+                pass
+
+            with st.chat_message(
+                "assistant",
+                avatar="🧑‍🏫"
+            ):
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600
+                        )
+                        ai_reply = (resp.choices[0].message.content or "").strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
                 st.markdown(
                     "<span style='color:#cddc39;font-weight:bold'>🧑‍🏫 Herr Felix:</span><br>"
-                    f"<div style='{bubble_assistant}'>{highlight_keywords(msg['content'], highlight_words)}</div>",
-                    unsafe_allow_html=True
-                )
-        else:  # user
-            with st.chat_message("user"):
-                st.markdown(
-                    f"<div style='display:flex;justify-content:flex-end;'>"
-                    f"<div style='{bubble_user}'>🗣️ {msg['content']}</div></div>",
+                    f"<div style='{bubble_assistant}'>{highlight_keywords(ai_reply, highlight_words)}</div>",
                     unsafe_allow_html=True
                 )
 
-    # ---- Downloads (unchanged)
-    if st.session_state["falowen_messages"]:
-        from fpdf import FPDF
-        def falowen_download_pdf(messages, filename):
-            def safe_latin1(text): return text.encode("latin1","replace").decode("latin1")
-            pdf = FPDF(); pdf.add_page(); pdf.set_font("Arial", size=12)
-            for m in messages:
-                who = "Herr Felix" if m["role"]=="assistant" else "Student"
-                pdf.multi_cell(0, 8, safe_latin1(f"{who}: {m['content']}"))
-                pdf.ln(1)
-            return pdf.output(dest='S').encode('latin1','replace')
+            st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
 
-        teil_str = str(teil) if teil else "chat"
-        pdf_bytes = falowen_download_pdf(st.session_state["falowen_messages"], f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}")
-        st.download_button(
-            "⬇️ Download Chat as PDF",
-            pdf_bytes,
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.pdf",
-            mime="application/pdf"
-        )
-        chat_as_text = "\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["falowen_messages"]])
-        st.download_button(
-            "⬇️ Download Chat as TXT",
-            chat_as_text.encode("utf-8"),
-            file_name=f"Falowen_Chat_{level}_{teil_str.replace(' ', '_')}.txt",
-            mime="text/plain"
-        )
-
-    # ---- Actions
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🗑️ Delete All Chat History"):
+            # save thread
             try:
-                db.collection("falowen_chats").document(student_code).delete()
-            except Exception as e:
-                st.error(f"Could not delete chat history: {e}")
-            else:
-                for key in [
-                    "falowen_stage", "falowen_mode", "falowen_level", "falowen_teil",
-                    "falowen_messages", "custom_topic_intro_done", "falowen_exam_topic",
-                    "falowen_exam_keyword", "remaining_topics", "used_topics", "_falowen_loaded"
-                ]:
-                    st.session_state.pop(key, None)
-                st.session_state["falowen_stage"] = 1
-                st.success("All chat history deleted.")
-                st.rerun()
-    with col2:
-        if st.button("⬅️ Back"):
-            back_step()
+                key = f"{mode}_{level}_{(teil or 'custom')}"
+                doc = db.collection("falowen_chats").document(student_code)
+                snap = doc.get()
+                chats = snap.to_dict().get("chats", {}) if snap.exists else {}
+                chats[key] = st.session_state["falowen_messages"]
+                doc.set({"chats": chats}, merge=True)
+            except Exception:
+                pass
 
-    st.divider()
-    if st.button("✅ End Session & Show Summary"):
-        st.session_state["falowen_stage"] = 5
-        st.rerun()
-
+        st.divider()
+        if st.button("✅ End Session & Show Summary"):
+            st.session_state["falowen_stage"] = 5
+            st.rerun()
 
     # ——— Step 5: Summary ———
     if st.session_state.get("falowen_stage") == 5:
         st.success("🎉 Practice Session Complete!")
         st.markdown("#### Your Exam Summary")
         if st.session_state.get("falowen_messages"):
+            for msg in st.session_state["falowen_messages"]:
+                who = "👨‍🎓 You" if msg["role"] == "user" else "🧑‍🏫 Herr Felix"
+                st.markdown(f"**{who}:** {msg['content']}")
+            # downloads (same as above)
             from fpdf import FPDF
             def _pdf(messages, filename):
                 def s(x): return (x or "").encode("latin1","replace").decode("latin1")
@@ -8259,10 +8315,11 @@ if st.session_state.get("falowen_stage") == 4:
         if st.button("⬅️ Back"):
             back_step()
 
-    # ——— Stage 99: Pronunciation & Speaking Checker (unchanged)
+    # ——— Stage 99: Pronunciation & Speaking Checker
     if st.session_state.get("falowen_stage") == 99:
         import urllib.parse as _urllib
 
+        # Optional: validate code against your Students sheet (CSV view)
         STUDENTS_CSV_URL = (
             "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-"
             "TC1yhPS7ZG6nzZVTt1U/export?format=csv&gid=104087906"
@@ -8277,8 +8334,10 @@ if st.session_state.get("falowen_stage") == 4:
                 .replace(" ", "")
             )
 
+        # 1) Try session
         student_code = _norm_code(st.session_state.get("student_code"))
 
+        # 2) Fallback to URL (?code=STUDENTCODE)
         if not student_code:
             try:
                 qp = st.query_params
@@ -8292,6 +8351,7 @@ if st.session_state.get("falowen_stage") == 4:
             except Exception:
                 pass
 
+        # 3) Final fallback: ask user
         if not student_code:
             st.warning("Missing student code. Please enter it to continue.")
             _entered = st.text_input("Student Code", value="", key="enter_student_code")
@@ -8302,9 +8362,12 @@ if st.session_state.get("falowen_stage") == 4:
                     st.rerun()
             st.stop()
 
+        # ---- (Optional) Validate against sheet: code must exist in StudentCode column
         try:
             import pandas as pd
+
             df_students = pd.read_csv(STUDENTS_CSV_URL)
+            # map columns in a forgiving way
             _cands = {c.strip().lower(): c for c in df_students.columns}
             col = None
             for key in ["studentcode", "student_code", "code", "student code"]:
@@ -8317,19 +8380,23 @@ if st.session_state.get("falowen_stage") == 4:
                     st.error("Student code not found in our records. Please check and try again.")
                     st.stop()
         except Exception:
+            # Soft-fail if sheet can’t be reached; the recorder page will validate again anyway.
             pass
 
         st.subheader("🎤 Pronunciation & Speaking Checker")
         st.info("Click the button below to open the Sprechen Recorder.")
 
+        # Build recorder URL with code param
         RECORDER_URL = (
             "https://script.google.com/macros/s/AKfycbzMIhHuWKqM2ODaOCgtS7uZCikiZJRBhpqv2p6OyBmK1yAVba8HlmVC1zgTcGWSTfrsHA/exec"
         )
         rec_url = f"{RECORDER_URL}?code={_urllib.quote(student_code)}"
 
+        # Big primary button (opens in new tab)
         try:
             st.link_button("📼 Open Sprechen Recorder", rec_url, type="primary", use_container_width=True)
         except Exception:
+            # Fallback for older Streamlit versions
             st.markdown(
                 f'<a href="{rec_url}" target="_blank" style="display:block;text-align:center;'
                 'padding:12px 16px;border-radius:10px;background:#2563eb;color:#fff;'
@@ -8343,6 +8410,8 @@ if st.session_state.get("falowen_stage") == 4:
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
             st.rerun()
+#
+
 
 
 # =========================================
@@ -11110,7 +11179,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
 
 
 
