@@ -4669,348 +4669,317 @@ if tab == "My Course":
         key="coursebook_subtab"
     )
 
-# === COURSE BOOK SUBTAB ===
-if cb_subtab == "📘 Course Book":
-    from datetime import date, timedelta  # needed for study plan & video-of-day
 
-    st.markdown(
-        '''
-        <div style="
-            padding: 16px;
-            background: #007bff;
-            color: #ffffff;
-            border-radius: 8px;
-            text-align: center;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        ">
-            <span style="font-size:1.8rem; font-weight:600;">📘 Course Book</span>
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
-    st.divider()
+    # === COURSE BOOK SUBTAB (mini-tabs inside) ===
+    if cb_subtab == "📘 Course Book":
+        from datetime import date, timedelta  # needed inside this branch
 
-    # ---- Load schedule & search ----
-    schedules = load_level_schedules()
-    schedule = schedules.get(student_level, schedules.get("A1", []))
-
-    query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
-    search_terms = [q for q in query.strip().lower().split() if q] if query else []
-
-    if search_terms:
-        matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
-        if not matches:
-            st.warning("No matching lessons. Try simpler terms or check spelling.")
-            st.stop()
-
-        labels = []
-        for _, d in matches:
-            title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
-            grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
-            labels.append(
-                f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}"
-            )
-
-        st.markdown("<span style='font-weight:700; font-size:1rem;'>Lessons:</span>", unsafe_allow_html=True)
-        sel = st.selectbox("", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
-        idx = matches[sel][0]
-    else:
-        st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
-        idx = st.selectbox(
-            "",  # label hidden
-            range(len(schedule)),
-            format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}"
-        )
-
-    st.divider()
-
-    # ---- Progress Bar ----
-    total = len(schedule)
-    done = idx + 1
-    pct = int(done / total * 100) if total else 0
-    st.progress(pct)
-    st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
-    st.divider()
-
-    # ---- Lesson info ----
-    info = schedule[idx]
-    lesson_title = f"Day {info['day']}: {info['topic']}"
-    highlighted_title = highlight_terms(lesson_title, search_terms)
-    st.markdown(f"### {highlighted_title} (Chapter {info['chapter']})", unsafe_allow_html=True)
-
-    if info.get("grammar_topic"):
-        st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
-    if info.get("goal"):
-        st.markdown(f"**🎯 Goal:**  {info['goal']}")
-    if info.get("instruction"):
-        st.markdown(f"**📝 Instruction:**  {info['instruction']}")
-
-    st.divider()
-
-    # ===================== SUB-TABS =====================
-    t_overview, t_activities, t_resources, t_tools, t_submit = st.tabs(
-        ["Overview", "Activities", "Resources", "Tools", "Submit"]
-    )
-
-    # ---------- OVERVIEW ----------
-    with t_overview:
-        with st.expander("📚 Course Book & Study Recommendations", expanded=True):
-            LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
-            rec_time = LEVEL_TIME.get(student_level, 20)
-            st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
-
-            # Suggested end dates (based on contract start in student_row)
-            start_str = student_row.get("ContractStart", "")
-            start_date = None
-            for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
-                try:
-                    start_date = datetime.strptime(start_str, fmt).date()
-                    break
-                except Exception:
-                    continue
-
-            if start_date and total:
-                weeks_three = (total + 2) // 3
-                weeks_two   = (total + 1) // 2
-                weeks_one   = total
-
-                end_three = start_date + timedelta(weeks=weeks_three)
-                end_two   = start_date + timedelta(weeks=weeks_two)
-                end_one   = start_date + timedelta(weeks=weeks_one)
-
-                spacer, content = st.columns([3, 7])
-                with content:
-                    st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
-                    st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
-                    st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
-            else:
-                spacer, content = st.columns([3, 7])
-                with content:
-                    st.warning("❓ Start date missing or invalid. Please update your contract start date.")
-
-    # ---------- ACTIVITIES ----------
-    with t_activities:
-        # Uses the global render_section() you defined earlier (no duplicate)
-        render_section(info, "lesen_hören", "Lesen & Hören", "📚")
-        render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
-
-    # ---------- RESOURCES ----------
-    with t_resources:
-        if student_level in ["A2", "B1", "B2", "C1"]:
-            for res, label in RESOURCE_LABELS.items():
-                val = info.get(res)
-                if val:
-                    if res == "video":
-                        st.video(val)
-                        st.markdown(f"[▶️ Watch on YouTube]({val})")
-                    else:
-                        st.markdown(f"- {label}: [{val}]({val})", unsafe_allow_html=True)
-            st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
-
-        # Also show grammar/workbook/extras if on lower levels and present inside parts
-        # (render_section already covers these, but an extra compact summary helps)
-        links = []
-        for key in ("grammarbook_link", "workbook_link", "extra_resources"):
-            if info.get(key):
-                val = info[key]
-                if isinstance(val, list):
-                    links.extend(val)
-                else:
-                    links.append(val)
-        if links:
-            st.markdown("**Quick Links:**")
-            for ln in links:
-                st.markdown(f"- 🔗 [{ln}]({ln})")
-
-    # ---------- TOOLS ----------
-    with t_tools:
-        st.markdown("#### 🌐 Translation Tools")
         st.markdown(
-            '**Need translation?** '
-            '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
-            '[🌐 Google Translate](https://translate.google.com)',
-            unsafe_allow_html=True
-        )
-        st.caption("Copy any text from the course book and paste it into your preferred translator.")
-        st.divider()
-
-        st.markdown("#### 🎬 Video of the Day for Your Level")
-        playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
-        if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
-            video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
-            if video_list:
-                today_idx = date.today().toordinal()
-                pick = today_idx % len(video_list)
-                video = video_list[pick]
-                st.markdown(f"**{video['title']}**")
-                st.video(video['url'])
-            else:
-                st.info("No videos found for your level’s playlist. Check back soon!")
-        else:
-            st.info("No playlist found for your level yet. Stay tuned!")
-
-    # ---------- SUBMIT ----------
-    with t_submit:
-        st.markdown("### ✅ Submit Your Assignment")
-
-        # Context banner
-        st.markdown(
-            f"""
-            <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
-                        background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
-              <div style="font-size:1.05rem;">
-                📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
-              </div>
-              <div style="color:#0369a1;margin-top:4px;">
-                Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
-              </div>
+            '''
+            <div style="
+                padding: 16px;
+                background: #007bff;
+                color: #ffffff;
+                border-radius: 8px;
+                text-align: center;
+                margin-bottom: 16px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">
+                <span style="font-size:1.8rem; font-weight:600;">📘 Course Book</span>
             </div>
-            """,
+            ''',
             unsafe_allow_html=True
         )
+        st.divider()
 
-        # Core context
-        code = student_row.get('StudentCode', 'demo001')
-        lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])  # unique, DB-safe
-        chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
-        name = st.text_input("Name", value=student_row.get('Name', ''))
+        # ---- Load schedule & search ----
+        schedules = load_level_schedules()
+        schedule = schedules.get(student_level, schedules.get("A1", []))
 
-        # Draft persistence
-        draft_key = f"draft_{lesson_key}"
+        query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
+        search_terms = [q for q in query.strip().lower().split() if q] if query else []
 
-        # DB-backed lock
-        db_locked = is_locked(student_level, code, lesson_key)
-        locked_key = f"{lesson_key}_locked"
-        if db_locked:
-            st.session_state[locked_key] = True
-        locked = db_locked or st.session_state.get(locked_key, False)
+        if search_terms:
+            matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
+            if not matches:
+                st.warning("No matching lessons. Try simpler terms or check spelling.")
+                st.stop()
 
-        # One-time hydration from Firestore so text survives refresh/restart
-        if not st.session_state.get(f"{draft_key}__hydrated", False):
-            existing = load_draft_from_db(code, draft_key)
-            if existing and not st.session_state.get(draft_key):
-                st.session_state[draft_key] = existing
-                st.info("💾 Loaded your saved draft.")
-            st.session_state[f"{draft_key}__hydrated"] = True
+            labels = []
+            for _, d in matches:
+                title = highlight_terms(f"Day {d['day']}: {d['topic']}", search_terms)
+                grammar = highlight_terms(d.get("grammar_topic", ""), search_terms)
+                labels.append(f"{title}  {'<span style=\"color:#007bff\">['+grammar+']</span>' if grammar else ''}")
 
-        st.subheader("✍️ Your Answer (Autosaves)")
-
-        def autosave_draft():
-            text = st.session_state.get(draft_key, "")
-            save_draft_to_db(code, draft_key, text)
-            st.session_state[f"{draft_key}_saved"] = True
-            st.session_state[f"{draft_key}_saved_at"] = datetime.utcnow()
-
-        st.text_area(
-            "Type all your answers here",
-            value=st.session_state.get(draft_key, ""),
-            height=500,
-            key=draft_key,
-            on_change=autosave_draft,
-            disabled=locked,
-            help="Draft autosaves when you click outside the box or change focus."
-        )
-
-        cols_save = st.columns([1,2])
-        with cols_save[0]:
-            if st.button("💾 Save Draft now", disabled=locked):
-                autosave_draft()
-                st.success("Draft saved.")
-        with cols_save[1]:
-            ts = st.session_state.get(f"{draft_key}_saved_at")
-            if ts:
-                st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
-
-        with st.expander("📌 How to Submit", expanded=False):
-            st.markdown(f"""
-                1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
-                2) Tick the two confirmations below.  
-                3) Click **Confirm & Submit**.  
-                4) Your box will lock (read-only).  
-                _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
-            """)
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.markdown("#### 🧾 Finalize")
-            confirm_final = st.checkbox(
-                f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
-                key=f"confirm_final_{lesson_key}",
-                disabled=locked
-            )
-            confirm_lock = st.checkbox(
-                "I understand it will be locked after I submit.",
-                key=f"confirm_lock_{lesson_key}",
-                disabled=locked
-            )
-            can_submit = (confirm_final and confirm_lock and (not locked))
-
-            if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
-                # Atomic lock first (prevents double writes)
-                if not acquire_lock(student_level, code, lesson_key):
-                    st.session_state[locked_key] = True
-                    st.warning("You have already submitted this assignment. It is locked.")
-                else:
-                    posts_ref = db.collection("submissions").document(student_level).collection("posts")
-                    now = datetime.utcnow()
-                    payload = {
-                        "student_code": code,
-                        "student_name": name or "Student",
-                        "level": student_level,
-                        "day": info["day"],
-                        "chapter": chapter_name,
-                        "lesson_key": lesson_key,
-                        "answer": st.session_state.get(draft_key, "").strip(),
-                        "status": "submitted",
-                        "created_at": now,
-                        "updated_at": now,
-                        "version": 1,
-                    }
-                    _, ref = posts_ref.add(payload)
-                    short_ref = f"{ref.id[:8].upper()}-{info['day']}"
-
-                    st.session_state[locked_key] = True
-                    st.success("Submitted! Your work has been sent to your tutor.")
-                    st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
-
-                    webhook = get_slack_webhook()
-                    if webhook:
-                        notify_slack_submission(
-                            webhook_url=webhook,
-                            student_name=name or "Student",
-                            student_code=code,
-                            level=student_level,
-                            day=info["day"],
-                            chapter=chapter_name,
-                            receipt=short_ref,
-                            preview=st.session_state.get(draft_key, "")
-                        )
-
-        with col2:
-            st.markdown("#### ❓ Ask the Teacher")
-            if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
-                st.session_state["__go_classroom"] = True
-                st.rerun()
-
-        with col3:
-            st.markdown("#### 📝 Add Notes")
-            if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
-                st.session_state["__go_notes"] = True
-                st.rerun()
+            st.markdown("<span style='font-weight:700; font-size:1rem;'>Lessons:</span>", unsafe_allow_html=True)
+            sel = st.selectbox("", list(range(len(matches))), format_func=lambda i: labels[i], key="course_search_sel")
+            idx = matches[sel][0]
+        else:
+            st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
+            idx = st.selectbox("", range(len(schedule)), format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}")
 
         st.divider()
 
-        latest = fetch_latest(student_level, code, lesson_key)
-        if latest:
-            ts = latest.get('updated_at')
-            when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
-            st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
-            st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
-        else:
-            st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
+        # ---- Progress ----
+        total = len(schedule)
+        done = idx + 1
+        pct = int(done / total * 100) if total else 0
+        st.progress(pct)
+        st.markdown(f"**You’ve loaded {done} / {total} lessons ({pct}%)**")
+        st.divider()
 
+        # ---- Lesson info ----
+        info = schedule[idx]
+        title_txt = f"Day {info['day']}: {info['topic']}"
+        st.markdown(f"### {highlight_terms(title_txt, search_terms)} (Chapter {info['chapter']})", unsafe_allow_html=True)
+        if info.get("grammar_topic"):
+            st.markdown(f"**🔤 Grammar Focus:** {highlight_terms(info['grammar_topic'], search_terms)}", unsafe_allow_html=True)
+        if info.get("goal"):
+            st.markdown(f"**🎯 Goal:**  {info['goal']}")
+        if info.get("instruction"):
+            st.markdown(f"**📝 Instruction:**  {info['instruction']}")
+
+        st.divider()
+
+        # ---------- mini-tabs inside Course Book ----------
+        t_overview, t_activities, t_resources, t_tools, t_submit = st.tabs(
+            ["Overview", "Activities", "Resources", "Tools", "Submit"]
+        )
+
+        # OVERVIEW
+        with t_overview:
+            with st.expander("📚 Course Book & Study Recommendations", expanded=True):
+                LEVEL_TIME = {"A1": 15, "A2": 25, "B1": 30, "B2": 40, "C1": 45}
+                rec_time = LEVEL_TIME.get(student_level, 20)
+                st.info(f"⏱️ **Recommended:** Invest about {rec_time} minutes to complete this lesson fully.")
+
+                start_str = student_row.get("ContractStart", "")
+                start_date = None
+                for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d/%m/%Y"):
+                    try:
+                        start_date = datetime.strptime(start_str, fmt).date()
+                        break
+                    except Exception:
+                        continue
+
+                if start_date and total:
+                    weeks_three = (total + 2) // 3
+                    weeks_two   = (total + 1) // 2
+                    weeks_one   = total
+                    end_three = start_date + timedelta(weeks=weeks_three)
+                    end_two   = start_date + timedelta(weeks=weeks_two)
+                    end_one   = start_date + timedelta(weeks=weeks_one)
+                    _, content = st.columns([3, 7])
+                    with content:
+                        st.success(f"If you complete **three sessions per week**, you will finish by **{end_three.strftime('%A, %d %B %Y')}**.")
+                        st.info(f"If you complete **two sessions per week**, you will finish by **{end_two.strftime('%A, %d %B %Y')}**.")
+                        st.warning(f"If you complete **one session per week**, you will finish by **{end_one.strftime('%A, %d %B %Y')}**.")
+                else:
+                    _, content = st.columns([3, 7])
+                    with content:
+                        st.warning("❓ Start date missing or invalid. Please update your contract start date.")
+
+        # ACTIVITIES
+        with t_activities:
+            render_section(info, "lesen_hören", "Lesen & Hören", "📚")
+            render_section(info, "schreiben_sprechen", "Schreiben & Sprechen", "📝")
+
+        # RESOURCES
+        with t_resources:
+            if student_level in ["A2", "B1", "B2", "C1"]:
+                for res, label in RESOURCE_LABELS.items():
+                    val = info.get(res)
+                    if val:
+                        if res == "video":
+                            st.video(val); st.markdown(f"[▶️ Watch on YouTube]({val})")
+                        else:
+                            st.markdown(f"- {label}: [{val}]({val})", unsafe_allow_html=True)
+                st.markdown('<em>Further notice:</em> 📘 contains notes; 📒 is your workbook assignment.', unsafe_allow_html=True)
+
+            # quick summary of extra links if present at top level
+            links = []
+            for key in ("grammarbook_link", "workbook_link", "extra_resources"):
+                if info.get(key):
+                    val = info[key]
+                    links.extend(val if isinstance(val, list) else [val])
+            if links:
+                st.markdown("**Quick Links:**")
+                for ln in links:
+                    st.markdown(f"- 🔗 [{ln}]({ln})")
+
+        # TOOLS
+        with t_tools:
+            st.markdown("#### 🌐 Translation Tools")
+            st.markdown(
+                '**Need translation?** '
+                '[🌐 DeepL Translator](https://www.deepl.com/translator) &nbsp; | &nbsp; '
+                '[🌐 Google Translate](https://translate.google.com)',
+                unsafe_allow_html=True
+            )
+            st.caption("Copy any text from the course book and paste it into your preferred translator.")
+            st.divider()
+
+            st.markdown("#### 🎬 Video of the Day for Your Level")
+            playlist_id = YOUTUBE_PLAYLIST_IDS.get(student_level) if "YOUTUBE_PLAYLIST_IDS" in globals() else None
+            if playlist_id and "fetch_youtube_playlist_videos" in globals() and "YOUTUBE_API_KEY" in globals():
+                video_list = fetch_youtube_playlist_videos(playlist_id, YOUTUBE_API_KEY)
+                if video_list:
+                    today_idx = date.today().toordinal()
+                    pick = today_idx % len(video_list)
+                    video = video_list[pick]
+                    st.markdown(f"**{video['title']}**")
+                    st.video(video['url'])
+                else:
+                    st.info("No videos found for your level’s playlist. Check back soon!")
+            else:
+                st.info("No playlist found for your level yet. Stay tuned!")
+
+        # SUBMIT
+        with t_submit:
+            st.markdown("### ✅ Submit Your Assignment")
+            st.markdown(
+                f"""
+                <div style="box-sizing:border-box;padding:14px 16px;border-radius:10px;
+                            background:#f0f9ff;border:1px solid #bae6fd;margin:6px 0 12px 0;">
+                  <div style="font-size:1.05rem;">
+                    📌 <b>You're on:</b> Level <b>{student_level}</b> • Day <b>{info['day']}</b> • Chapter <b>{info['chapter']}</b>
+                  </div>
+                  <div style="color:#0369a1;margin-top:4px;">
+                    Make sure this matches the assignment your tutor set. If not, change the lesson from the dropdown above.
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            code = student_row.get('StudentCode', 'demo001')
+            lesson_key = lesson_key_build(student_level, info['day'], info['chapter'])
+            chapter_name = f"{info['chapter']} – {info.get('topic', '')}"
+            name = st.text_input("Name", value=student_row.get('Name', ''))
+
+            draft_key = f"draft_{lesson_key}"
+            db_locked = is_locked(student_level, code, lesson_key)
+            locked_key = f"{lesson_key}_locked"
+            if db_locked:
+                st.session_state[locked_key] = True
+            locked = db_locked or st.session_state.get(locked_key, False)
+
+            if not st.session_state.get(f"{draft_key}__hydrated", False):
+                existing = load_draft_from_db(code, draft_key)
+                if existing and not st.session_state.get(draft_key):
+                    st.session_state[draft_key] = existing
+                    st.info("💾 Loaded your saved draft.")
+                st.session_state[f"{draft_key}__hydrated"] = True
+
+            st.subheader("✍️ Your Answer (Autosaves)")
+            def autosave_draft():
+                text = st.session_state.get(draft_key, "")
+                save_draft_to_db(code, draft_key, text)
+                st.session_state[f"{draft_key}_saved"] = True
+                st.session_state[f"{draft_key}_saved_at"] = datetime.utcnow()
+
+            st.text_area(
+                "Type all your answers here",
+                value=st.session_state.get(draft_key, ""),
+                height=500,
+                key=draft_key,
+                on_change=autosave_draft,
+                disabled=locked,
+                help="Draft autosaves when you click outside the box or change focus."
+            )
+
+            csave1, csave2 = st.columns([1,2])
+            with csave1:
+                if st.button("💾 Save Draft now", disabled=locked):
+                    autosave_draft(); st.success("Draft saved.")
+            with csave2:
+                ts = st.session_state.get(f"{draft_key}_saved_at")
+                if ts: st.caption("Last saved: " + ts.strftime("%Y-%m-%d %H:%M") + " UTC")
+
+            with st.expander("📌 How to Submit", expanded=False):
+                st.markdown(f"""
+                    1) Check you’re on the correct page: **Level {student_level} • Day {info['day']} • Chapter {info['chapter']}**.  
+                    2) Tick the two confirmations below.  
+                    3) Click **Confirm & Submit**.  
+                    4) Your box will lock (read-only).  
+                    _You’ll get an **email** when it’s marked. See **Results & Resources** for scores & feedback._
+                """)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("#### 🧾 Finalize")
+                confirm_final = st.checkbox(
+                    f"I confirm this is my complete work for Level {student_level} • Day {info['day']} • Chapter {info['chapter']}.",
+                    key=f"confirm_final_{lesson_key}",
+                    disabled=locked
+                )
+                confirm_lock = st.checkbox(
+                    "I understand it will be locked after I submit.",
+                    key=f"confirm_lock_{lesson_key}",
+                    disabled=locked
+                )
+                can_submit = (confirm_final and confirm_lock and (not locked))
+
+                if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
+                    if not acquire_lock(student_level, code, lesson_key):
+                        st.session_state[locked_key] = True
+                        st.warning("You have already submitted this assignment. It is locked.")
+                    else:
+                        posts_ref = db.collection("submissions").document(student_level).collection("posts")
+                        now = datetime.utcnow()
+                        payload = {
+                            "student_code": code,
+                            "student_name": name or "Student",
+                            "level": student_level,
+                            "day": info["day"],
+                            "chapter": chapter_name,
+                            "lesson_key": lesson_key,
+                            "answer": st.session_state.get(draft_key, "").strip(),
+                            "status": "submitted",
+                            "created_at": now,
+                            "updated_at": now,
+                            "version": 1,
+                        }
+                        _, ref = posts_ref.add(payload)
+                        short_ref = f"{ref.id[:8].upper()}-{info['day']}"
+                        st.session_state[locked_key] = True
+                        st.success("Submitted! Your work has been sent to your tutor.")
+                        st.caption("You’ll be **emailed when it’s marked**. Check **Results & Resources** for your score and feedback.")
+
+                        webhook = get_slack_webhook()
+                        if webhook:
+                            notify_slack_submission(
+                                webhook_url=webhook,
+                                student_name=name or "Student",
+                                student_code=code,
+                                level=student_level,
+                                day=info["day"],
+                                chapter=chapter_name,
+                                receipt=short_ref,
+                                preview=st.session_state.get(draft_key, "")
+                            )
+
+            with col2:
+                st.markdown("#### ❓ Ask the Teacher")
+                if st.button("Open Classroom Q&A", key=f"open_qna_{lesson_key}", disabled=locked):
+                    st.session_state["__go_classroom"] = True
+                    st.rerun()
+
+            with col3:
+                st.markdown("#### 📝 Add Notes")
+                if st.button("Open Notes", key=f"open_notes_{lesson_key}", disabled=locked):
+                    st.session_state["__go_notes"] = True
+                    st.rerun()
+
+            st.divider()
+            latest = fetch_latest(student_level, code, lesson_key)
+            if latest:
+                ts = latest.get('updated_at')
+                when = ts.strftime('%Y-%m-%d %H:%M') + " UTC" if ts else ""
+                st.markdown(f"**Status:** `{latest.get('status','submitted')}`  {'·  **Updated:** ' + when if when else ''}")
+                st.caption("You’ll receive an **email** when it’s marked. See **Results & Resources** for scores & feedback.")
+            else:
+                st.info("No submission yet. Complete the two confirmations and click **Confirm & Submit**.")
 
 
 
