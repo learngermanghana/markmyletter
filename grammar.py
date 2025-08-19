@@ -816,6 +816,31 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
+# --- Assignment scores (robust) ---
+@st.cache_data(ttl=600)   # 10 min; safe with the resilient cache wrapper you added
+def get_assignment_scores():
+    SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    try:
+        df = pd.read_csv(url, dtype=str)
+    except Exception as e:
+        st.warning(f"Could not load assignment scores: {e}")
+        # Return the schema we expect so downstream code doesn't crash
+        cols = ["studentcode","name","level","assignment","score","date"]
+        return pd.DataFrame(columns=cols)
+
+    # normalize
+    df.columns = df.columns.str.strip().str.lower()
+    for c in df.columns:
+        df[c] = df[c].astype(str).str.strip()
+
+    # ensure required columns exist
+    req = ["studentcode","name","level","assignment","score","date"]
+    for c in req:
+        if c not in df.columns:
+            df[c] = ""
+
+    return df[req]
 
 def render_reviews():
     # Richer, clearer data: goal, time, features used, outcome
