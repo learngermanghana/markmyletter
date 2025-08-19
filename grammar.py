@@ -38,8 +38,9 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
 # ==== Email (SendGrid) ====
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+SENDGRID_API_KEY = st.secrets["SENDGRID_API_KEY"]
+SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
+
 
 
 
