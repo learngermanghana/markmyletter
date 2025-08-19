@@ -43,7 +43,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 
-# 🔐 Hardcoded credentials (works but less secure)
+# 🔐 Hardcoded credentials (works but less secure; for testing only)
 EMAIL_ADDRESS = "learngermanghana@gmail.com"
 EMAIL_PASSWORD = "mwxlxvvtnrcxqdml"   # Your Gmail App Password
 
@@ -76,6 +76,26 @@ def send_reset_email(to_email: str, reset_link: str):
 
     except Exception as e:
         st.error(f"❌ Failed to send reset email: {e}")
+
+
+# ---- Streamlit page config MUST be first Streamlit call ----
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
+try:
+    if not firebase_admin._apps:   # ✅ guard against re-init
+        cred_dict = dict(st.secrets["firebase"])
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    db = firestore.client()
+except Exception as e:
+    st.error(f"Firebase init failed: {e}")
+    st.stop()
 
 
 
