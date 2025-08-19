@@ -29,15 +29,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth as admin_auth
 from fpdf import FPDF
 from gtts import gTTS
 from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
-
-
 
 
 # ---- Streamlit page config MUST be first Streamlit call ----
@@ -59,7 +57,7 @@ st.markdown("""
 /* First rendered block (often a head-inject) — keep a small gap only */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
   margin-top: 0 !important;
-  margin-bottom: 8px !important;   /* was 24px */
+  margin-bottom: 8px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
@@ -76,12 +74,12 @@ st.markdown("""
 }
 
 /* Keep hero flush and compact */
-  .hero {
-    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 6px !important;
-    display: flow-root;
-  }
+.hero {
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+  padding-top: 6px !important;
+  display: flow-root;
+}
 .hero h1:first-child { margin-top: 0 !important; }
 /* Trim default gap above Streamlit tabs */
 [data-testid="stTabs"] {
@@ -11553,6 +11551,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
