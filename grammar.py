@@ -41,27 +41,18 @@ from streamlit_quill import st_quill
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import ssl
 
-# ──────────────────────────────────────────────────────────────────────────────
-# EMAIL CONFIG (uses st.secrets if present, else your hardcoded app password)
-# Add to .streamlit/secrets.toml if you want:
-# GMAIL_USER = "youraddress@gmail.com"
-# GMAIL_APP_PASSWORD = "your-16-char-app-password"
-# PUBLIC_BASE_URL = "https://falowen.app"
-# ──────────────────────────────────────────────────────────────────────────────
-DEFAULT_EMAIL_ADDRESS = "learngermanghana@gmail.com"
-DEFAULT_EMAIL_PASSWORD = "mwxlxvvtnrcxqdml"   # Gmail App Password
-EMAIL_ADDRESS = st.secrets.get("GMAIL_USER", DEFAULT_EMAIL_ADDRESS)
-EMAIL_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD", DEFAULT_EMAIL_PASSWORD)
-PUBLIC_BASE_URL = st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app")
+# Read from secrets if available; fall back to your current values
+EMAIL_ADDRESS = st.secrets.get("SMTP_FROM", "learngermanghana@gmail.com")
+EMAIL_PASSWORD = st.secrets.get("SMTP_PASSWORD", "mwxlxvvtnrcxqdml")  # Gmail App Password
 
 def send_reset_email(to_email: str, reset_link: str) -> bool:
-    """Send a password reset email. Tries st.secrets first; falls back to defaults."""
+    """Send a password reset email. Returns True on success, False otherwise."""
     try:
-        if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
-            st.error("Email not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in st.secrets.")
-            return False
+        msg = MIMEMultipart("alternative")
+        msg["From"] = EMAIL_ADDRESS
+        msg["To"] = to_email
+        msg["Subject"] = "Falowen Password Reset"
 
         html = f"""
         <p>Hello,</p>
@@ -71,16 +62,12 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
         <br>
         <p>– Falowen Team</p>
         """
-        msg = MIMEMultipart()
-        msg["From"] = EMAIL_ADDRESS
-        msg["To"] = to_email
-        msg["Subject"] = "Falowen Password Reset"
         msg.attach(MIMEText(html, "html"))
 
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        # Gmail over SMTPS
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_ADDRESS, to_email, msg.as_string())
+            server.sendmail(EMAIL_ADDRESS, [to_email], msg.as_string())
         return True
     except Exception as e:
         st.error(f"❌ Failed to send reset email: {e}")
@@ -438,6 +425,93 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
         if not next_page:
             break
     return videos
+
+def render_password_reset_page() -> bool:
+    """
+    If ?token= is present, render the reset page.
+    Returns True if we handled a reset screen (to st.stop()).
+    """
+    qp = qp_get()
+    token = qp.get("token")
+    if isinstance(token, list):
+        token = token[0]
+    if not token:
+        return False  # nothing to do
+
+    st.markdown("<div class='page-wrap'>", unsafe_allow_html=True)
+    st.header("Reset your password")
+
+    snap = db.collection("password_resets").document(token).get()
+    if not snap.exists:
+        st.error("Invalid or already-used reset link.")
+        if st.button("Back to login"):
+            qp_clear_keys("token")
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        return True
+
+    data = snap.to_dict() or {}
+    try:
+        expires_at = datetime.fromisoformat(data.get("expires_at", ""))
+    except Exception:
+        expires_at = datetime.utcnow() - timedelta(seconds=1)
+
+    if datetime.utcnow() > expires_at:
+        st.error("This reset link has expired.")
+        # optional cleanup
+        try:
+            db.collection("password_resets").document(token).delete()
+        except Exception:
+            pass
+        if st.button("Back to login"):
+            qp_clear_keys("token")
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        return True
+
+    email = (data.get("email") or "").strip().lower()
+    st.caption(f"Resetting password for: **{email}**")
+
+    new_pw = st.text_input("New password", type="password")
+    new_pw2 = st.text_input("Confirm new password", type="password")
+    if st.button("Set new password"):
+        if not new_pw or not new_pw2:
+            st.error("Please enter and confirm a new password.")
+        elif len(new_pw) < 8:
+            st.error("Password must be at least 8 characters.")
+        elif new_pw != new_pw2:
+            st.error("Passwords do not match.")
+        else:
+            # find student(s) by email (handle both 'email' and 'Email' field names)
+            matches = db.collection("students").where("email", "==", email).get()
+            if not matches:
+                matches = db.collection("students").where("Email", "==", email).get()
+
+            if not matches:
+                st.error("No student account found for this email.")
+            else:
+                hashed = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                try:
+                    # Update the first match
+                    doc_ref = matches[0].reference
+                    doc_ref.update({"password": hashed})
+                    # Burn the token
+                    db.collection("password_resets").document(token).delete()
+                    st.success("Your password has been updated. You can now log in.")
+                    if st.button("Return to login"):
+                        qp_clear_keys("token")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to update password: {e}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    return True
+
+# 🔗 Handle /reset?token=... before showing login
+if not st.session_state.get("logged_in", False):
+    if render_password_reset_page():
+        st.stop()
+
 
 # ==== STUDENT SHEET LOADING ====
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
@@ -866,7 +940,6 @@ def reset_password_page(token: str):
         st.error(f"Could not update password: {e}")
 
 def render_login_form():
-    # one-time state
     st.session_state.setdefault("show_reset_panel", False)
 
     with st.form("login_form", clear_on_submit=False):
@@ -876,15 +949,13 @@ def render_login_form():
         ).strip().lower()
         login_pass = st.text_input("Password", type="password")
 
-        # row: [Log In] ...... [Forgot password?]
         c1, c2 = st.columns([0.6, 0.4])
         with c1:
             login_btn = st.form_submit_button("Log In", use_container_width=True)
         with c2:
-            # small, linky-looking button; still a submit so it can toggle inside the form
             forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
 
-    # ── login (unchanged) ──────────────────────────────────────────────────────
+    # ---- LOGIN (unchanged) ----
     if login_btn:
         df = load_student_data()
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
@@ -939,13 +1010,11 @@ def render_login_form():
         st.success(f"Welcome, {student_row['Name']}!")
         st.rerun()
 
-    # ── forgot password inline panel ───────────────────────────────────────────
-    # If user clicked "Forgot password?" in the form, open the inline panel
+    # ---- FORGOT PASSWORD (inline) ----
     if forgot_toggle:
         st.session_state["show_reset_panel"] = True
 
     if st.session_state.get("show_reset_panel"):
-        # mild styling so it feels attached to the form
         st.markdown("""
         <style>
           .reset-card{
@@ -954,46 +1023,43 @@ def render_login_form():
           }
           .reset-head{ font-weight:700; color:#25317e; margin:0 0 6px 0; }
           .reset-sub{ color:#475569; margin-top:-2px; margin-bottom:8px; }
-          .reset-actions{ display:flex; gap:8px; align-items:center; }
         </style>
         """, unsafe_allow_html=True)
 
-        with st.container():
-            st.markdown('<div class="reset-card">', unsafe_allow_html=True)
-            st.markdown('<div class="reset-head">Reset your password</div>', unsafe_allow_html=True)
-            st.markdown('<div class="reset-sub">We\'ll email you a secure link (valid for 1 hour).</div>', unsafe_allow_html=True)
+        st.markdown('<div class="reset-card">', unsafe_allow_html=True)
+        st.markdown('<div class="reset-head">Reset your password</div>', unsafe_allow_html=True)
+        st.markdown('<div class="reset-sub">We\'ll email you a secure link (valid for 1 hour).</div>', unsafe_allow_html=True)
 
-            email_for_reset = st.text_input("Registered email", key="reset_email_inline")
+        email_for_reset = st.text_input("Registered email", key="reset_email_inline")
+        c3, c4 = st.columns([0.55, 0.45])
+        with c3:
+            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+        with c4:
+            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
 
-            c3, c4 = st.columns([0.55, 0.45])
-            with c3:
-                send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
-            with c4:
-                back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
+        if back_btn:
+            st.session_state["show_reset_panel"] = False
+            st.rerun()
 
-            if back_btn:
-                st.session_state["show_reset_panel"] = False
-                st.experimental_rerun()
+        if send_btn:
+            if not email_for_reset:
+                st.error("Please enter your email.")
+            else:
+                e = email_for_reset.lower().strip()
 
-            if send_btn:
-                if not email_for_reset:
-                    st.error("Please enter your email.")
+                # Firestore may store 'email' or 'Email'
+                user_query = db.collection("students").where("email", "==", e).get()
+                if not user_query:
+                    user_query = db.collection("students").where("Email", "==", e).get()
+
+                if not user_query:
+                    st.error("No account found with that email.")
                 else:
-                    e = email_for_reset.lower().strip()
-
-                    # Accept both 'email' and 'Email' in Firestore
-                    user_query = db.collection("students").where("email", "==", e).get()
-                    if not user_query:
-                        user_query = db.collection("students").where("Email", "==", e).get()
-                    if not user_query:
-                        st.error("No account found with that email.")
-                        return
-
                     token = uuid4().hex
                     expires_at = datetime.utcnow() + timedelta(hours=1)
 
-                    reset_base = st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app")
-                    reset_link = f"{reset_base}?token={token}"
+                    base_url = st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app")
+                    reset_link = f"{base_url}/reset?token={token}"
 
                     db.collection("password_resets").document(token).set({
                         "email": e,
@@ -1003,13 +1069,10 @@ def render_login_form():
 
                     if send_reset_email(e, reset_link):
                         st.success("Reset link sent! Check your inbox (and spam).")
-                        # keep the panel open but show success
                     else:
                         st.error("We couldn’t send the email. Please try again later.")
 
-            st.markdown('</div>', unsafe_allow_html=True)  # /reset-card
-
-
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_signup_form():
