@@ -37,6 +37,7 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
+
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -49,22 +50,45 @@ st.set_page_config(
 st.markdown("""
 <style>
 /* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0 !important; }
+[data-testid="stAppViewContainer"] > .main .block-container {
+  padding-top: 0 !important;
+}
+
 /* First rendered block (often a head-inject) — keep a small gap only */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important; margin-bottom: 8px !important; padding-top: 0 !important; padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 8px !important;   /* was 24px */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
 }
+
 /* If that first block is an iframe, collapse it completely */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important;
+  display: block;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
 }
+
 /* Keep hero flush and compact */
-.hero { margin-top: 2px !important; margin-bottom: 4px !important; padding-top: 6px !important; display: flow-root; }
+  .hero {
+    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
+    margin-bottom: 4px !important;   /* tighter space before tabs */
+    padding-top: 6px !important;
+    display: flow-root;
+  }
 .hero h1:first-child { margin-top: 0 !important; }
 /* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] { margin-top: 8px !important; }
+[data-testid="stTabs"] {
+  margin-top: 8px !important;
+}
+
 /* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; } footer { visibility: hidden; }
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -316,6 +340,9 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
+def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
+    return get_sprechen_usage(student_code) < limit
+
 # ==== YOUTUBE PLAYLIST HELPERS ====
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
@@ -325,6 +352,7 @@ YOUTUBE_PLAYLIST_IDS = {
     "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
     "B2": ["PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C", "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0", "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY"],
 }
+
 
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
@@ -412,26 +440,43 @@ def is_contract_expired(row):
 
 # ==== Query param helpers (stable) ====
 def qp_get():
+    # returns a dict-like object
     return st.query_params
 
 def qp_clear():
+    # clears all query params from the URL
     st.query_params.clear()
 
 def qp_clear_keys(*keys):
+    # remove only the specified keys
     for k in keys:
         try:
             del st.query_params[k]
         except KeyError:
             pass
 
-# ==== Cookie helpers (encrypted cookie + localStorage only) ====
+# ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
+    base = (
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value, safe=""))} + '
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+    )
+    if domain:
+        base += f'c += "; Domain=" + {domain};\n'
+    base += "document.cookie = c;\n"
+    return base
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")  # Secure only in prod/https
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 180  # 180 days
+    exp_str = _expire_str(expires)
+    # Library cookie (encrypted; host-only)
     try:
         cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -440,19 +485,34 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
             cookie_manager[key] = norm; cookie_manager.save()
         except Exception:
             pass
-    # mirror to localStorage (no duplicate cookie name)
-    components.html(f"""
+    # JS host-only + base-domain (guard invalid hosts)
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
+    script = f"""
     <script>
-      try {{
-        localStorage.setItem('student_code', {json.dumps(norm)});
-      }} catch(e) {{}}
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
     </script>
-    """, height=0)
+    """
+    components.html(script, height=0)
 
 def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     key = "session_token"
     val = (token or "").strip()
-    use_secure = (os.getenv("ENV", "prod") != "dev")  # Secure only in prod/https
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 30  # 30 days
+    exp_str = _expire_str(expires)
     try:
         cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -461,14 +521,26 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
             cookie_manager[key] = val; cookie_manager.save()
         except Exception:
             pass
-    # mirror to localStorage (no duplicate cookie name)
-    components.html(f"""
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
+    script = f"""
     <script>
-      try {{
-        localStorage.setItem('session_token', {json.dumps(val)});
-      }} catch(e) {{}}
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
     </script>
-    """, height=0)
+    """
+    components.html(script, height=0)
 
 def _persist_session_client(token: str, student_code: str = "") -> None:
     components.html(f"""
@@ -494,52 +566,6 @@ cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRE
 if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
-
-# ---- iOS/Safari bridge: recreate cookie from localStorage if needed ----
-def _bootstrap_cookie_from_localstorage():
-    components.html("""
-    <script>
-      (function(){
-        try {
-          var name = 'falowen_session_token';  // EncryptedCookieManager prefix + key
-          var hasCookie = document.cookie.split('; ').some(c => c.startsWith(name + '='));
-          var ls = localStorage.getItem('session_token');
-          if (!hasCookie && ls) {
-            var u = new URL(window.location);
-            if (!u.searchParams.get('stoken')) {
-              u.searchParams.set('stoken', ls);
-              window.location.replace(u.toString());
-            }
-          }
-        } catch(e) {}
-      })();
-    </script>
-    """, height=0)
-
-_bootstrap_cookie_from_localstorage()
-
-# One-time pickup of ?stoken=... and re-set the real cookie
-_stoken = None
-try:
-    _stoken = st.query_params.get("stoken")
-    if isinstance(_stoken, list):
-        _stoken = _stoken[0]
-except Exception:
-    _stoken = None
-
-if _stoken:
-    data = validate_session_token(_stoken, st.session_state.get("__ua_hash",""))
-    if data:
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": None,  # will be filled by restore block below if needed
-            "student_code": data.get("student_code",""),
-            "student_name": data.get("name",""),
-            "session_token": _stoken,
-        })
-        set_session_token_cookie(cookie_manager, _stoken, expires=datetime.utcnow() + timedelta(days=30))
-        qp_clear_keys("stoken")
-        _persist_session_client(_stoken, data.get("student_code",""))
 
 # ---- Restore from existing session token (cookie) ----
 restored = False
@@ -601,6 +627,7 @@ GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khd
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
 
+
 def _handle_google_oauth(code: str, state: str) -> None:
     df = load_student_data()
     df["Email"] = df["Email"].str.lower().str.strip()
@@ -654,10 +681,13 @@ def _handle_google_oauth(code: str, state: str) -> None:
     except Exception as e:
         st.error(f"Google OAuth error: {e}")
 
+
 def render_google_oauth():
     import secrets, urllib.parse
+
     def _qp_first(val):
         return val[0] if isinstance(val, list) else val
+
     qp = qp_get()
     code = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
     state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
@@ -687,6 +717,7 @@ def render_google_oauth():
            </div>""".replace("{url}", auth_url),
         unsafe_allow_html=True,
     )
+
 
 def render_login_form():
     with st.form("login_form", clear_on_submit=False):
@@ -735,6 +766,7 @@ def render_login_form():
     st.success(f"Welcome, {student_row['Name']}!")
     st.rerun()
 
+
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
         new_name = st.text_input("Full Name", key="ca_name")
@@ -765,8 +797,9 @@ def render_signup_form():
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
 
-# ======== Homepage "reviews carousel" (richer) ========
-def render_reviews_homepage():
+
+def render_reviews():
+    # Richer, clearer data: goal, time, features used, outcome
     REVIEWS = [
         {
             "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
@@ -838,27 +871,50 @@ def render_reviews_homepage():
     </div>
 
     <style>
-      .rev-wrap{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; box-shadow:0 4px 16px rgba(0,0,0,.05); }
+      .rev-wrap{
+        background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; 
+        box-shadow:0 4px 16px rgba(0,0,0,.05);
+      }
       .rev-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
       .rev-title{ margin:0; font-size:1.05rem; color:#25317e; }
       .rev-cta{ display:flex; gap:6px; }
-      .rev-btn{ background:#eef3fc; border:1px solid #cbd5e1; border-radius:8px; padding:4px 10px; cursor:pointer; font-weight:700; }
+      .rev-btn{
+        background:#eef3fc; border:1px solid #cbd5e1; border-radius:8px; padding:4px 10px; cursor:pointer; 
+        font-weight:700;
+      }
       .rev-btn:hover{ background:#e2e8f0; }
+
       .rev-card{ position:relative; min-height:190px; }
       .rev-quote{ font-size:1.06rem; line-height:1.45; margin:4px 0 10px 0; color:#0f172a; }
       .rev-meta{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
-      .rev-name{ font-weight:700; color:#1e293b; } .rev-sub{ color:#475569; }
+      .rev-name{ font-weight:700; color:#1e293b; }
+      .rev-sub{ color:#475569; }
+
       .rev-badges{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px; }
-      .badge{ display:inline-block; background:#f1f5f9; border:1px solid #e2e8f0; color:#0f172a; padding:4px 8px; border-radius:999px; font-size:.86rem; font-weight:600; }
+      .badge{
+        display:inline-block; background:#f1f5f9; border:1px solid #e2e8f0; color:#0f172a;
+        padding:4px 8px; border-radius:999px; font-size:.86rem; font-weight:600;
+      }
       .badge-ok{ background:#ecfdf5; border-color:#bbf7d0; color:#065f46; }
+
       .rev-used{ display:flex; gap:6px; flex-wrap:wrap; }
-      .rev-used .chip{ background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:600; }
+      .rev-used .chip{
+        background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; 
+        padding:3px 8px; border-radius:999px; font-size:.82rem; font-weight:600;
+      }
+
       .rev-dots{ display:flex; gap:6px; justify-content:center; margin-top:10px; }
-      .rev-dot{ width:8px; height:8px; border-radius:999px; background:#cbd5e1; }
+      .rev-dot{
+        width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer;
+      }
       .rev-dot[aria-current="true"]{ background:#25317e; }
+
+      /* Motion awareness */
       .fade{ opacity:0; transform:translateY(4px); transition:opacity .28s ease, transform .28s ease; }
       .fade.show{ opacity:1; transform:none; }
-      @media (prefers-reduced-motion: reduce){ .fade{ transition:none; opacity:1; transform:none; } }
+      @media (prefers-reduced-motion: reduce){
+        .fade{ transition:none; opacity:1; transform:none; }
+      }
     </style>
 
     <script>
@@ -889,6 +945,7 @@ def render_reviews_homepage():
           used.appendChild(s);
         });
       }
+
       function setDots(){
         dots.innerHTML = "";
         DATA.forEach((_, idx) => {
@@ -900,6 +957,7 @@ def render_reviews_homepage():
           dots.appendChild(b);
         });
       }
+
       function show(animate){
         const c = DATA[i];
         quote.textContent = '"' + (c.quote || '') + '"';
@@ -908,8 +966,10 @@ def render_reviews_homepage():
         level.textContent = 'Level: ' + (c.level || '—');
         time.textContent  = 'Time: ' + (c.time  || '—');
         outcome.textContent = c.outcome || '';
+
         setUsedChips(c.used);
         setDots();
+
         const card = wrap.querySelector(".rev-card");
         if(animate && !reduced){
           card.classList.remove("show");
@@ -919,29 +979,44 @@ def render_reviews_homepage():
           });
         }
       }
+
       function next(){ i = (i + 1) % DATA.length; show(true); }
       function prev(){ i = (i - 1 + DATA.length) % DATA.length; show(true); }
-      function start(){ if(!reduced) timer = setInterval(() => { if(!hovered) next(); }, 6000); }
+
+      function start(){
+        if(reduced) return;
+        timer = setInterval(() => { if(!hovered) next(); }, 6000);
+      }
       function stop(){ if(timer){ clearInterval(timer); timer = null; } }
       function restart(){ stop(); start(); }
+
+      // Events
       nextBtn.addEventListener("click", () => { next(); restart(); });
       prevBtn.addEventListener("click", () => { prev(); restart(); });
       wrap.addEventListener("mouseenter", () => { hovered = true; });
       wrap.addEventListener("mouseleave", () => { hovered = false; });
+
+      // Keyboard nav
       wrap.addEventListener("keydown", (e) => {
         if(e.key === "ArrowRight"){ next(); restart(); }
         if(e.key === "ArrowLeft"){  prev(); restart(); }
       });
-      show(false); start();
+
+      // Init
+      show(false);
+      start();
     </script>
     """
+    # NOTE: height tuned; no scrollbars; fixed a padding typo from previous HTML
     _json = json.dumps(REVIEWS)
     components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
 
 def login_page():
+
+    # Optional container width helper (safe if you already defined it in global CSS)
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
-    # HERO
+    # HERO FIRST — this is the first visible element on the page
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -964,7 +1039,8 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # Stats strip (compact)
+    
+    # ===== Compact stats strip =====
     st.markdown("""
       <style>
         .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
@@ -998,24 +1074,41 @@ def login_page():
     with st.expander("📌 Which option should I choose?", expanded=True):
         st.markdown("""
         <div class="option-box">
-          <div class="option-item"><div class="option-icon">👋</div><div><b>Returning Student</b>: You already created a password — simply log in.</div></div>
-          <div class="option-item"><div class="option-icon">🧾</div><div><b>Sign Up (Approved)</b>: Your email+code are on our roster — create account.</div></div>
-          <div class="option-item"><div class="option-icon">📝</div><div><b>Request Access</b>: New to Falowen? Fill out our form.</div></div>
+          <div class="option-item">
+            <div class="option-icon">👋</div>
+            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
+          </div>
+          <div class="option-item">
+            <div class="option-icon">🧾</div>
+            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
+          </div>
+          <div class="option-item">
+            <div class="option-icon">📝</div>
+            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
+
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
+#
+
     with tab1:
         render_google_oauth()
         st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
         render_login_form()
+
     with tab2:
         render_signup_form()
+
+    # --- Request Access ---
     with tab3:
         st.markdown(
             """
             <div class="page-wrap" style="text-align:center; margin-top:20px;">
-                <p style="font-size:1.1em; color:#444;">If you don't have an account yet, please request access by filling out this form.</p>
+                <p style="font-size:1.1em; color:#444;">
+                    If you don't have an account yet, please request access by filling out this form.
+                </p>
                 <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
                    target="_blank" rel="noopener">
                     <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
@@ -1027,10 +1120,110 @@ def login_page():
             unsafe_allow_html=True
         )
 
-    # Quick links + images
-    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
-    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
-    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
+    
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="help-contact-box" aria-label="Help and contact options">
+        <b>❓ Need help or access?</b><br>
+        <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+        &nbsp;|&nbsp;
+        <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+    # --- Centered Video (pick a frame style by changing the class) ---
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="video-wrap">
+        <div class="video-shell style-gradient">
+          <video
+            width="360"
+            autoplay
+            muted
+            loop
+            playsinline
+            tabindex="-1"
+            oncontextmenu="return false;"
+            draggable="false"
+            style="pointer-events:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;">
+            <source src="https://raw.githubusercontent.com/learngermanghana/a1spreche/main/falowen.mp4" type="video/mp4">
+            Sorry, your browser doesn't support embedded videos.
+          </video>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* Layout */
+      .video-wrap{
+        display:flex; justify-content:center; align-items:center;
+        margin: 12px 0 24px;
+      }
+      .video-shell{
+        position:relative; border-radius:16px; padding:4px;
+      }
+      .video-shell > video{
+        display:block; width:min(360px, 92vw); border-radius:12px; margin:0;
+        box-shadow: 0 4px 12px rgba(0,0,0,.08);
+      }
+
+      /* 1) Soft gradient frame (default) */
+      .video-shell.style-gradient{
+        background: linear-gradient(135deg,#e8eeff,#f6f9ff);
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+
+      /* 2) Glow pulse */
+      .video-shell.style-glow{
+        background:#0b1220;
+        box-shadow: 0 0 0 2px #1d4ed8, 0 0 18px #1d4ed8;
+        animation: glowPulse 3.8s ease-in-out infinite;
+      }
+      @keyframes glowPulse{
+        0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; }
+        50%{    box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; }
+      }
+
+      /* 3) Glassmorphism */
+      .video-shell.style-glass{
+        background: rgba(255,255,255,.25);
+        border: 1px solid rgba(255,255,255,.35);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 10px 30px rgba(0,0,0,.10);
+      }
+
+      /* 4) Animated dashes */
+      .video-shell.style-dash{
+        padding:6px; border-radius:18px;
+        background:
+          repeating-linear-gradient(90deg,#1d4ed8 0 24px,#93c5fd 24px 48px);
+        background-size: 48px 100%;
+        animation: dashMove 6s linear infinite;
+      }
+      @keyframes dashMove { to { background-position: 48px 0; } }
+
+      /* 5) Shimmer frame */
+      .video-shell.style-shimmer{
+        background: linear-gradient(120deg,#e5e7eb, #f8fafc, #e5e7eb);
+        background-size: 200% 200%;
+        animation: shimmer 6s linear infinite;
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+      }
+      @keyframes shimmer{ 0%{background-position:0% 50%;} 100%{background-position:100% 50%;} }
+
+      /* Mobile nudge */
+      @media (max-width:600px){
+        .video-wrap{ margin: 8px 0 16px; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+    #
+#
+
+    # Quick Links
     st.markdown("""
     <div class="page-wrap">
       <div class="quick-links" aria-label="Useful links">
@@ -1044,24 +1237,196 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # Student stories section (simple)
+    st.markdown("---")
+
+    LOGIN_IMG_URL      = "https://i.imgur.com/pFQ5BIn.png"
+    COURSEBOOK_IMG_URL = "https://i.imgur.com/pqXoqSC.png"
+    RESULTS_IMG_URL    = "https://i.imgur.com/uiIPKUT.png"
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"""
+        <img src="{LOGIN_IMG_URL}" alt="Login screenshot"
+             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
+        <div style="height:8px;"></div>
+        <h3 style="margin:0 0 4px 0;">1️⃣ Sign in</h3>
+        <p style="margin:0;">Use your <b>student code or email</b> and start your level (A1–C1).</p>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <img src="{COURSEBOOK_IMG_URL}" alt="Course Book screenshot"
+             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
+        <div style="height:8px;"></div>
+        <h3 style="margin:0 0 4px 0;">2️⃣ Learn & submit</h3>
+        <p style="margin:0;">Watch lessons, practice vocab, and <b>submit assignments</b> in the Course Book.</p>
+        """, unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""
+        <img src="{RESULTS_IMG_URL}" alt="Results screenshot"
+             style="width:100%; height:220px; object-fit:cover; border-radius:12px; pointer-events:none; user-select:none;">
+        <div style="height:8px;"></div>
+        <h3 style="margin:0 0 4px 0;">3️⃣ Get results</h3>
+        <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
+        """, unsafe_allow_html=True)
+
+        # --- Student Stories Section ---
     st.markdown("""
     <style>
-      .section-title { font-weight:700; font-size:1.15rem; padding-left:12px; border-left:5px solid #2563eb; margin: 12px 0; }
-      @media (prefers-color-scheme: dark){ .section-title { border-left-color:#3b82f6; color:#f1f5f9; } }
+      .section-title {
+        font-weight:700;
+        font-size:1.15rem;
+        padding-left:12px;
+        border-left:5px solid #2563eb;
+        margin: 12px 0 12px 0;
+      }
+      @media (prefers-color-scheme: dark){
+        .section-title { border-left-color:#3b82f6; color:#f1f5f9; }
+      }
     </style>
-    <div class="page-wrap"><div class="section-title">💬 Student Stories</div></div>
+    <div class="page-wrap">
+      <div class="section-title">💬 Student Stories</div>
+    </div>
     """, unsafe_allow_html=True)
 
-    # Use the rich homepage version
-    render_reviews_homepage()
+    def render_reviews():
+        REVIEWS = [
+            {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
+            {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
+            {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
+            {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
+        ]
 
-    # Help footer
+        _reviews_html = """
+        <style>
+          :root{
+            --bg: #0b1220;
+            --card:#ffffffcc;
+            --text:#0f172a;
+            --muted:#475569;
+            --brand:#2563eb;
+            --chip:#e0f2fe;
+            --chip-text:#0369a1;
+            --ring:#93c5fd;
+          }
+          @media (prefers-color-scheme: dark){
+            :root{
+              --card:#0b1220cc;
+              --text:#e2e8f0;
+              --muted:#94a3b8;
+              --chip:#1e293b;
+              --chip-text:#e2e8f0;
+              --ring:#334155;
+            }
+          }
+          .page-wrap{max-width:900px;margin:8px auto;}
+          .rev-shell{
+            position:relative; isolation:isolate;
+            border-radius:16px; padding:18px 16px 20px 16px;
+            background: radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
+                        radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
+            border:1px solid rgba(148,163,184,.25);
+            box-shadow: 0 10px 30px rgba(2,6,23,.08);
+            overflow:hidden;
+          }
+          .rev-card{
+            background: var(--card);
+            backdrop-filter: blur(8px);
+            border:1px solid rgba(148,163,184,.25);
+            border-radius:16px; padding:20px 18px; min-height:170px;
+          }
+          .rev-quote{
+            font-size:1.06rem; line-height:1.55; color:var(--text); margin:0;
+          }
+          .rev-meta{
+            display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);
+          }
+          .rev-chip{
+            font-size:.78rem; font-weight:700;
+            background:var(--chip); color:var(--chip-text);
+            border-radius:999px; padding:6px 10px;
+          }
+          .rev-author{ font-weight:700; color:var(--text); }
+          .rev-dots{
+            display:flex; gap:6px; justify-content:center; margin-top:14px;
+          }
+          .rev-dot{
+            width:8px; height:8px; border-radius:999px;
+            background:#cbd5e1; opacity:.8; transform:scale(.9);
+            transition: all .25s ease;
+          }
+          .rev-dot[aria-current="true"]{
+            background:var(--brand); opacity:1; transform:scale(1.15);
+            box-shadow:0 0 0 4px var(--ring);
+          }
+        </style>
+        <div class="page-wrap">
+          <div id="reviews" class="rev-shell">
+            <div class="rev-card" id="rev_card">
+              <p id="rev_quote" class="rev-quote"></p>
+              <div class="rev-meta">
+                <span id="rev_level" class="rev-chip"></span>
+                <span id="rev_author" class="rev-author"></span>
+              </div>
+              <div class="rev-dots" id="rev_dots"></div>
+            </div>
+          </div>
+        </div>
+        <script>
+          const data = __DATA__;
+          const q = document.getElementById('rev_quote');
+          const a = document.getElementById('rev_author');
+          const l = document.getElementById('rev_level');
+          const dotsWrap = document.getElementById('rev_dots');
+          let i = 0;
+          function setActiveDot(idx){
+            [...dotsWrap.children].forEach((d, j) => d.setAttribute('aria-current', j === idx ? 'true' : 'false'));
+          }
+          function render(idx){
+            const c = data[idx];
+            q.textContent = c.quote;
+            a.textContent = c.author;
+            l.textContent = "Level " + c.level;
+            setActiveDot(idx);
+          }
+          function next(){
+            i = (i + 1) % data.length;
+            render(i);
+          }
+          data.forEach((_, idx) => {
+            const dot = document.createElement('button');
+            dot.className = 'rev-dot';
+            dot.type = 'button';
+            dot.addEventListener('click', () => { i = idx; render(i); });
+            dotsWrap.appendChild(dot);
+          });
+          setInterval(next, 6000);
+          render(i);
+        </script>
+        """
+        _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
+        components.html(_reviews_html.replace("__DATA__", _reviews_json), height=300, scrolling=False)
+
+    # --- Render reviews below Quick Links + Steps ---
+    render_reviews()
+#
+
+
+    st.markdown("---")
+
+    with st.expander("How do I log in?"):
+        st.write("Use your school email **or** Falowen code (e.g., `felixa2`). If you’re new, request access first.")
+    with st.expander("Where do I see my scores?"):
+        st.write("Scores are emailed to you and live in **Results & Resources** inside the app.")
+    with st.expander("How do assignments work?"):
+        st.write("Type your answer, confirm, and **submit**. The box locks. Your tutor is notified automatically.")
+    with st.expander("What if I open the wrong lesson?"):
+        st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
+
     st.markdown("""
     <div class="page-wrap" style="text-align:center; margin:24px 0;">
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+      <a href="https://www.youtube.com/YourChannel" target="_blank" rel="noopener">📺 YouTube</a>
       &nbsp;|&nbsp;
-      <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp</a>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1076,8 +1441,17 @@ def login_page():
     st.stop()
 
 # =========================
-# Logged-in header + Logout
+# Logged-in header + Logout (no callback; rerun works)
 # =========================
+
+
+# --- helper for query params ---
+def qp_clear_keys(*keys):
+    for k in keys:
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
 
 # --- run once right after a logout to clean client storage & URL ---
 if st.session_state.pop("_inject_logout_js", False):
@@ -1114,12 +1488,13 @@ with col1:
     st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
 with col2:
     st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-    _logout_clicked = st.button("Log out", key="logout_btn")
+    _logout_clicked = st.button("Log out", key="logout_btn")  # <-- no on_click
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ===== Logout handling =====
+# ===== Logout handling (works in all versions) =====
 if _logout_clicked:
+    # 1) Revoke server token if available
     try:
         tok = st.session_state.get("session_token", "")
         if tok and "destroy_session_token" in globals():
@@ -1127,6 +1502,7 @@ if _logout_clicked:
     except Exception as e:
         st.warning(f"Logout warning (revoke): {e}")
 
+    # 2) Expire cookies
     try:
         expires_past = datetime.utcnow() - timedelta(seconds=1)
         if "set_student_code_cookie" in globals():
@@ -1143,7 +1519,10 @@ if _logout_clicked:
     except Exception:
         pass
 
+    # 3) Clean server-side URL params
     qp_clear_keys("code", "state", "token")
+
+    # 4) Reset session state
     st.session_state.update({
         "logged_in": False,
         "student_row": None,
@@ -1156,8 +1535,14 @@ if _logout_clicked:
         "_oauth_state": "",
         "_oauth_code_redeemed": "",
     })
+
+    # 5) On next run, clear localStorage & URL on the client
     st.session_state["_inject_logout_js"] = True
+
+    # 6) Now safe to rerun (not in a callback)
     st.rerun()
+
+
 
 # =========================================================
 # ============= Announcements (mobile-friendly) ===========
@@ -1167,37 +1552,107 @@ def render_announcements(ANNOUNCEMENTS: list):
     if not ANNOUNCEMENTS:
         st.info("📣 No announcements to show.")
         return
+
     _html = """
     <style>
+      /* ---------- THEME TOKENS ---------- */
       :root{
-        --brand:#1d4ed8; --ring:#93c5fd;
-        --text:#0b1220; --muted:#475569; --card:#ffffff;
-        --chip-bg:#eaf2ff; --chip-fg:#1e3a8a; --link:#1d4ed8; --shell-border: rgba(2,6,23,.08);
+        /* brand */
+        --brand:#1d4ed8;      /* primary */
+        --ring:#93c5fd;
+
+        /* light defaults */
+        --text:#0b1220;
+        --muted:#475569;
+        --card:#ffffff;       /* <- light card by default */
+        --chip-bg:#eaf2ff;
+        --chip-fg:#1e3a8a;
+        --link:#1d4ed8;
+        --shell-border: rgba(2,6,23,.08);
       }
+
+      /* Dark scheme (desktop/tablet). We will still force light card on phones below. */
       @media (prefers-color-scheme: dark){
-        :root{ --text:#e5e7eb; --muted:#cbd5e1; --card:#111827; --chip-bg:#1f2937; --chip-fg:#e5e7eb; --link:#93c5fd; --shell-border: rgba(148,163,184,.25); }
+        :root{
+          --text:#e5e7eb;
+          --muted:#cbd5e1;
+          --card:#111827;
+          --chip-bg:#1f2937;
+          --chip-fg:#e5e7eb;
+          --link:#93c5fd;
+          --shell-border: rgba(148,163,184,.25);
+        }
       }
+
+      /* ---------- LAYOUT ---------- */
       .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
-      .ann-title{ font-weight:800; font-size:1.05rem; line-height:1.2; padding-left:12px; border-left:5px solid var(--brand); margin: 0 0 6px 0; color: var(--text); }
-      .ann-shell{ border-radius:14px; border:1px solid var(--shell-border); background:var(--card); box-shadow:0 6px 18px rgba(2,6,23,.12); padding:12px 14px; }
-      .ann-heading{ display:flex; align-items:center; gap:10px; margin:0 0 6px 0; font-weight:800; color:var(--text); }
-      .ann-chip{ font-size:.78rem; font-weight:800; text-transform:uppercase; background:var(--chip-bg); color:var(--chip-fg);
-        padding:4px 9px; border-radius:999px; border:1px solid var(--shell-border); }
+      .ann-title{
+        font-weight:800; font-size:1.05rem; line-height:1.2;
+        padding-left:12px; border-left:5px solid var(--brand);
+        margin: 0 0 6px 0; color: var(--text);
+        letter-spacing: .2px;
+      }
+      .ann-shell{
+        border-radius:14px;
+        border:1px solid var(--shell-border);
+        background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.12);
+        padding:12px 14px; isolation:isolate; overflow:hidden;
+      }
+      .ann-heading{
+        display:flex; align-items:center; gap:10px; margin:0 0 6px 0;
+        font-weight:800; color:var(--text); letter-spacing:.2px;
+      }
+      .ann-chip{
+        font-size:.78rem; font-weight:800; text-transform:uppercase;
+        background:var(--chip-bg); color:var(--chip-fg);
+        padding:4px 9px; border-radius:999px; border:1px solid var(--shell-border);
+      }
       .ann-body{ color:var(--muted); margin:0; line-height:1.55; font-size:1rem }
       .ann-actions{ margin-top:8px }
       .ann-actions a{ color:var(--link); text-decoration:none; font-weight:700 }
-      .ann-dots{ display:flex; gap:12px; justify-content:center; margin-top:12px }
-      .ann-dot{ width:11px; height:11px; border-radius:999px; background:#9ca3af; opacity:.9; transform:scale(.95); transition:transform .2s, background .2s, opacity .2s; border:none; cursor:pointer; }
-      .ann-dot[aria-current="true"]{ background:var(--brand); opacity:1; transform:scale(1.22); box-shadow:0 0 0 4px var(--ring) }
+
+      .ann-dots{
+        display:flex; gap:12px; justify-content:center; margin-top:12px
+      }
+      .ann-dot{
+        width:11px; height:11px; border-radius:999px; background:#9ca3af;
+        opacity:.9; transform:scale(.95);
+        transition:transform .2s, background .2s, opacity .2s;
+        border:none; cursor:pointer;
+      }
+      .ann-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.22);
+        box-shadow:0 0 0 4px var(--ring)
+      }
+
       @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
       .ann-anim{animation:fadeInUp .25s ease both}
       @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+
+      /* ---------- MOBILE OVERRIDES ---------- */
       @media (max-width: 640px){
-        :root{ --card:#ffffff !important; --text:#0b1220 !important; --muted:#334155 !important; --link:#1d4ed8 !important; --chip-bg:#eaf2ff !important; --chip-fg:#1e3a8a !important; --shell-border: rgba(2,6,23,.10) !important; }
-        .page-wrap{ padding:0 8px; } .ann-shell{ padding:10px 12px; border-radius:12px; } .ann-title{ font-size:1rem; margin:0 0 4px 0; }
-        .ann-heading{ gap:8px; } .ann-chip{ font-size:.72rem; padding:3px 8px; } .ann-body{ font-size:1.02rem; line-height:1.6; }
-        .ann-dots{ gap:10px; margin-top:10px; } .ann-dot{ width:12px; height:12px; }
+        /* Force a light look on phones, regardless of system dark mode */
+        :root{
+          --card:#ffffff !important;
+          --text:#0b1220 !important;
+          --muted:#334155 !important;
+          --link:#1d4ed8 !important;
+          --chip-bg:#eaf2ff !important;
+          --chip-fg:#1e3a8a !important;
+          --shell-border: rgba(2,6,23,.10) !important;
+        }
+        .page-wrap{ padding:0 8px; }
+        .ann-shell{ padding:10px 12px; border-radius:12px; }
+        .ann-title{ font-size:1rem; margin:0 0 4px 0; }
+        .ann-heading{ gap:8px; }
+        .ann-chip{ font-size:.72rem; padding:3px 8px; }
+        .ann-body{ font-size:1.02rem; line-height:1.6; }
+        .ann-dots{ gap:10px; margin-top:10px; }
+        .ann-dot{ width:12px; height:12px; }
       }
+
+      /* Tight spacer utility for Streamlit blocks around this widget */
       .tight-section{ margin:6px 0 !important; }
     </style>
 
@@ -1226,124 +1681,149 @@ def render_announcements(ANNOUNCEMENTS: list):
       const card    = document.getElementById('ann_card');
       const shell   = document.getElementById('ann_shell');
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let i = 0, timer = null; const INTERVAL = 6500;
 
-      function setActiveDot(idx){ [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false')); }
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
+
+      function setActiveDot(idx){
+        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
+      }
       function render(idx){
         const c = data[idx] || {};
         card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
-        titleEl.textContent = c.title || ''; bodyEl.textContent  = c.body  || '';
-        if (c.tag){ tagEl.textContent = c.tag; tagEl.style.display=''; } else { tagEl.style.display='none'; }
-        if (c.href){ const link = document.createElement('a'); link.href = c.href; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open';
-          actionEl.textContent = ''; actionEl.appendChild(link); actionEl.style.display=''; }
-        else { actionEl.style.display='none'; actionEl.textContent = ''; }
+
+        titleEl.textContent = c.title || '';
+        bodyEl.textContent  = c.body  || '';
+
+        if (c.tag){
+          tagEl.textContent = c.tag;
+          tagEl.style.display='';
+        } else {
+          tagEl.style.display='none';
+        }
+
+        if (c.href){
+          const link = document.createElement('a');
+          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Open';
+          actionEl.textContent = '';
+          actionEl.appendChild(link);
+          actionEl.style.display='';
+        } else {
+          actionEl.style.display='none';
+          actionEl.textContent = '';
+        }
         setActiveDot(idx);
       }
       function next(){ i = (i+1) % data.length; render(i); }
       function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
       function stop(){ if (timer) clearInterval(timer); timer = null; }
       function restart(){ stop(); start(); }
-      data.forEach((_, idx)=>{ const dot = document.createElement('button'); dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
-        dot.setAttribute('aria-label','Show announcement '+(idx+1)); dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); }); dotsWrap.appendChild(dot); });
-      shell.addEventListener('mouseenter', stop); shell.addEventListener('mouseleave', start);
-      shell.addEventListener('focusin', stop); shell.addEventListener('focusout', start);
+
+      data.forEach((_, idx)=>{
+        const dot = document.createElement('button');
+        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
+        dot.setAttribute('aria-label','Show announcement '+(idx+1));
+        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
+        dotsWrap.appendChild(dot);
+      });
+
+      shell.addEventListener('mouseenter', stop);
+      shell.addEventListener('mouseleave', start);
+      shell.addEventListener('focusin', stop);
+      shell.addEventListener('focusout', start);
+
       render(i); start();
     </script>
     """
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
     components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
 
+
+# Optional: extra style injector for status chips & mini-cards if you want to reuse elsewhere
 def inject_notice_css():
     st.markdown("""
     <style>
-      :root{ --chip-border: rgba(148,163,184,.35); }
-      @media (prefers-color-scheme: dark){ :root{ --chip-border: rgba(148,163,184,.28); } }
+      :root{
+        --chip-border: rgba(148,163,184,.35);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --chip-border: rgba(148,163,184,.28);
+        }
+      }
       .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
-      .chip { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem; border:1px solid var(--chip-border); }
-      .chip-red { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
+              border:1px solid var(--chip-border); mix-blend-mode: normal; }
+      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
       .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
-      .chip-blue { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
-      .chip-gray { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+
       .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
-      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px; background: #ffffff; }
+      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
+                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
       .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
       .minicard .sub { color:#475569; font-size:.92rem; }
+
       .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
       .pill-green { background:#e6ffed; color:#0a7f33; }
       .pill-purple { background:#efe9ff; color:#5b21b6; }
       .pill-amber { background:#fff7ed; color:#7c2d12; }
+
+      @media (max-width: 640px){
+        .chip{ padding:7px 10px; font-size:.95rem; }
+        .minicard{ padding:11px; }
+      }
     </style>
     """, unsafe_allow_html=True)
+
 
 # =========================================================
 # ================== App Announcements ====================
 # =========================================================
 announcements = [
-    {"title": "Download Draft (TXT) Backup", "body": "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.", "tag": "New"},
-    {"title": "Submit Flow & Locking", "body": "After you click **Confirm & Submit**, your box locks (read-only). Results later in the app.", "tag": "Action"},
-    {"title": "Quick Jumps: Classroom Q&A + Learning Notes", "body": "Buttons in Submit take you straight to Q&A or your personal Notes.", "tag": "Tip"},
-    {"title": "Lesson Links — One Download", "body": "Grab all lesson resources as a single TXT file under **Your Work & Links**.", "tag": "New"},
-    {"title": "Sprechen: Instant Pronunciation Feedback", "body": "Record and get level-aware tips in Tools → Sprechen.", "tag": "New"},
+    {
+        "title": "Download Draft (TXT) Backup",
+        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
+        "tag":   "New"
+    },
+    {
+        "title": "Submit Flow & Locking",
+        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
+        "tag":   "Action"
+    },
+    {
+        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
+        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
+        "tag":   "Tip"
+    },
+    {
+        "title": "Lesson Links — One Download",
+        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
+        "tag":   "New"
+    },
+    {
+        "title": "Sprechen: Instant Pronunciation Feedback",
+        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
+        "tag":   "New"
+    }
 ]
+
+
 
 # =========================================================
 # ============== Data loaders & helpers ===================
 # =========================================================
-@st.cache_data(ttl=600)
+@st.cache_data
 def load_assignment_scores():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-
-    expected = ["date", "studentcode", "name", "level", "assignment", "score"]
-
-    try:
-        resp = requests.get(url, timeout=12)
-        resp.raise_for_status()
-        txt = resp.text
-        if "<html" in txt[:512].lower():
-            raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
-        raw = pd.read_csv(io.StringIO(txt), dtype=str, keep_default_na=True)
-    except Exception as e:
-        st.warning(f"Assignments sheet unavailable: {e}. Showing empty results.")
-        return pd.DataFrame({k: [] for k in expected})
-
-    raw.columns = raw.columns.str.strip().str.lower()
-    for c in raw.columns:
-        s = raw[c]
-        raw[c] = s.where(s.isna(), s.astype(str).str.strip())
-
-    def pick(*names):
-        for n in names:
-            if n in raw.columns:
-                return n
-        for n in raw.columns:
-            if any(n.startswith(x) for x in names):
-                return n
-        return None
-
-    col_date       = pick("date", "submitted", "timestamp")
-    col_code       = pick("studentcode", "student_code", "code")
-    col_name       = pick("name", "student", "studentname")
-    col_level      = pick("level", "lvl")
-    col_assignment = pick("assignment", "task", "lesson")
-    col_score      = pick("score", "mark", "grade")
-
-    df = pd.DataFrame({
-        "date":       raw.get(col_date,       pd.Series(dtype=str)),
-        "studentcode":raw.get(col_code,       pd.Series(dtype=str)),
-        "name":       raw.get(col_name,       pd.Series(dtype=str)),
-        "level":      raw.get(col_level,      pd.Series(dtype=str)),
-        "assignment": raw.get(col_assignment, pd.Series(dtype=str)),
-        "score":      raw.get(col_score,      pd.Series(dtype=str)),
-    })
-
-    df["date"]        = pd.to_datetime(df["date"], errors="coerce")
-    df["score"]       = pd.to_numeric(df["score"], errors="coerce")
-    df["level"]       = df["level"].astype(str).str.upper().str.strip()
-    df["studentcode"] = df["studentcode"].astype(str).str.lower().str.strip()
-    df["name"]        = df["name"].fillna("").astype(str).str.strip()
-    df["assignment"]  = df["assignment"].fillna("").astype(str).str.strip()
-
+    df = pd.read_csv(url, dtype=str)
+    df.columns = df.columns.str.strip().str.lower()
+    for col in df.columns:
+        df[col] = df[col].astype(str).str.strip()
     return df
 
 @st.cache_data(ttl=43200)
@@ -1399,46 +1879,22 @@ def parse_contract_end(date_str):
         except ValueError: continue
     return None
 
-@st.cache_data(ttl=300)
+
+@st.cache_data
 def load_reviews():
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
-    safe_cols = ["student_name", "review_text", "rating"]
-    try:
-        resp = requests.get(url, timeout=12)
-        resp.raise_for_status()
-        txt = resp.text
-        if "<html" in txt[:512].lower():
-            raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
-        raw = pd.read_csv(io.StringIO(txt), dtype=str)
-    except Exception as e:
-        st.warning(f"Reviews unavailable: {e}.")
-        return pd.DataFrame({k: [] for k in safe_cols})
-
-    raw.columns = raw.columns.str.strip().str.lower()
-
-    def pick(*names):
-        for n in names:
-            if n in raw.columns: return n
-        for n in raw.columns:
-            if any(n.startswith(x) for x in names): return n
-        return None
-
-    c_name   = pick("student_name", "name", "author")
-    c_text   = pick("review_text", "review", "text", "comment", "quote")
-    c_rating = pick("rating", "stars")
-
-    df = pd.DataFrame({
-        "student_name": raw.get(c_name,   pd.Series(dtype=str)).fillna(""),
-        "review_text":  raw.get(c_text,   pd.Series(dtype=str)).fillna(""),
-        "rating":       pd.to_numeric(raw.get(c_rating, pd.Series(dtype=str)), errors="coerce").fillna(5).astype(int).clip(0, 5)
-    })
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()
     return df
 
 def parse_contract_start(date_str: str):
     return parse_contract_end(date_str)
 
 def add_months(dt: datetime, n: int) -> datetime:
+    """
+    Add n calendar months to dt, clamping the day to the last day of the target month.
+    """
     y = dt.year + (dt.month - 1 + n) // 12
     m = (dt.month - 1 + n) % 12 + 1
     last_day = calendar.monthrange(y, m)[1]
@@ -1450,24 +1906,79 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
     if end_dt.day < start_dt.day: months -= 1
     return months
 
+from urllib.parse import unquote_plus
+
+# EXACTLY match your real tab labels/order:
+TABS = ["Dashboard", "My Course", "Vocab Trainer", "Dictionary"]
+
+def render_dropdown_nav():
+    # 1) Read ?tab=... from URL (new API only)
+    raw = st.query_params.get("tab", None)
+    if isinstance(raw, list):              # be robust across versions
+        raw = raw[0] if raw else None
+    deeplink = unquote_plus(raw).strip() if raw else None
+
+    # 2) Choose default (deeplink wins if valid)
+    default = st.session_state.get("main_tab_select", TABS[0])
+    if deeplink in TABS:
+        default = deeplink
+    idx = TABS.index(default) if default in TABS else 0
+
+    # 3) Render control
+    tab = st.selectbox("Navigate", TABS, index=idx, key="main_tab_select")
+
+    # 4) Keep URL in sync (no experimental API)
+    if st.query_params.get("tab") != tab:
+        st.query_params["tab"] = tab
+
+    return tab
+
+
+# =========================================================
+# ===================== NAV & HELPERS =====================
+# =========================================================
+
 
 
 # --- Query-param helpers (single API; no experimental mix) ---
-def _qp_get_first(key: str, default: str = "") -> str:
-    try:
-        val = st.query_params.get(key, default)
-        if isinstance(val, list):
-            return (val[0] if val else default)
-        return str(val)
-    except Exception:
-        return default
+if "_qp_get_first" not in globals():
+    def _qp_get_first(key: str, default: str = "") -> str:
+        """Return first value from st.query_params (new API-safe)."""
+        try:
+            val = st.query_params.get(key, default)
+            if isinstance(val, list):
+                return (val[0] if val else default)
+            return str(val)
+        except Exception:
+            return default
 
-def _qp_set(**kwargs):
-    try:
-        for k, v in kwargs.items():
-            st.query_params[k] = "" if v is None else str(v)
-    except Exception:
-        pass
+if "_qp_set" not in globals():
+    def _qp_set(**kwargs):
+        """Set URL query params using only the production API."""
+        try:
+            for k, v in kwargs.items():
+                st.query_params[k] = "" if v is None else str(v)
+        except Exception:
+            # If browser doesn't allow URL changes, just skip
+            pass
+
+# --- Minimal CSS injector fallback so NameError never happens ---
+if "inject_notice_css" not in globals():
+    def inject_notice_css():
+        st.markdown(
+            """
+            <style>
+              .mini-chip {display:inline-block;background:#eef2ff;color:#3730a3;
+                          padding:4px 10px;border-radius:999px;font-size:0.85rem;margin-right:6px;}
+              .mini-card {border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;margin:8px 0;}
+              .cta-btn {display:block;text-align:center;padding:12px 16px;border-radius:10px;
+                        background:#2563eb;color:#fff;text-decoration:none;font-weight:700;}
+              /* Sticky nav container for mobile */
+              .nav-sticky {position: sticky; top: 0; z-index: 50; background: white; padding-top: 6px;}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # --- Nav dropdown (mobile-friendly, simple text) ---
 def render_dropdown_nav():
@@ -1488,9 +1999,10 @@ def render_dropdown_nav():
         "Schreiben Trainer": "✍️",
     }
 
+    # Sticky banner
     st.markdown(
         """
-        <div class="nav-sticky" style="position: sticky; top: 0; z-index: 50; background: white; padding-top: 6px;">
+        <div class="nav-sticky">
           <div style="padding:12px 14px;background:#ecfeff;border:1px solid #67e8f9;border-radius:12px;
                       margin:4px 0 10px 0;display:flex;align-items:center;gap:10px;justify-content:space-between;">
             <div style="font-weight:800;color:#0f172a;font-size:1.05rem;">🧭 Main Menu</div>
@@ -1501,6 +2013,7 @@ def render_dropdown_nav():
         unsafe_allow_html=True,
     )
 
+    # Default from URL OR session
     default = _qp_get_first("tab", st.session_state.get("main_tab_select", "Dashboard"))
     if default not in tabs:
         default = "Dashboard"
@@ -1517,10 +2030,13 @@ def render_dropdown_nav():
         help="This is the main selector. Tap ▾ to view all sections.",
     )
 
+    # Persist to URL + session (no rerun storm)
     if sel != default:
         _qp_set(tab=sel)
     st.session_state["main_tab_select"] = sel
-    st.session_state["nav_sel"] = sel
+    st.session_state["nav_sel"] = sel  # stable name used later
+
+    # “You’re here” chip
     st.markdown(
         f"""
         <div style="margin-top:6px;">
@@ -1534,7 +2050,7 @@ def render_dropdown_nav():
     )
     return sel
 
-# --- Initialize nav ---
+# --- Initialize nav (MUST be before any "if tab == ..." checks) ---
 inject_notice_css()
 try:
     if "nav_sel" not in st.session_state:
@@ -1545,10 +2061,13 @@ except Exception as e:
     st.warning(f"Navigation init issue: {e}. Falling back to Dashboard.")
     tab = "Dashboard"
 
+
+
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
 if tab == "Dashboard":
+    # ---------- Helpers ----------
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
         except Exception: pass
@@ -1557,6 +2076,7 @@ if tab == "Dashboard":
         try: return row[key]
         except Exception: return default
 
+    # Fallback parsers if globals not present
     def _fallback_parse_date(s):
         fmts = ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y")
         for f in fmts:
@@ -1574,8 +2094,16 @@ if tab == "Dashboard":
     parse_contract_end_fn   = globals().get("parse_contract_end",   _fallback_parse_date)
     add_months_fn           = globals().get("add_months",           _fallback_add_months)
 
-    # Ensure we have a student row
-    df_students = load_student_data()
+    # Global styles for chips & mini-cards
+    inject_notice_css()
+
+    # ---------- Ensure we have a student row ----------
+    load_student_data_fn = globals().get("load_student_data")
+    if load_student_data_fn is None:
+        def load_student_data_fn():
+            return pd.DataFrame(columns=["StudentCode"])
+
+    df_students = load_student_data_fn()
     student_code = (st.session_state.get("student_code", "") or "").strip().lower()
 
     student_row = {}
@@ -1586,6 +2114,7 @@ if tab == "Dashboard":
                 student_row = matches.iloc[0].to_dict()
         except Exception:
             pass
+
     if (not student_row) and isinstance(st.session_state.get("student_row"), dict) and st.session_state["student_row"]:
         student_row = st.session_state["student_row"]
 
@@ -1594,18 +2123,19 @@ if tab == "Dashboard":
     if not student_row:
         st.info("🚩 No student selected.")
         st.stop()
-
+        
     st.divider()
+    # ---------- 1) Announcements (top) ----------
     render_announcements(announcements)
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-    st.divider()
 
-    # Motivation mini-cards (streak / vocab / leaderboard)
+    st.divider()
+    # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
     _df_assign = load_assignment_scores()
     _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
+    _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
 
-    _mask_student = _df_assign["studentcode"].astype(str).str.lower().str.strip() == _student_code
     _dates = sorted(_df_assign[_mask_student]["date"].dropna().unique(), reverse=True)
     _streak = 1 if _dates else 0
     for i in range(1, len(_dates)):
@@ -1642,8 +2172,10 @@ if tab == "Dashboard":
         if _streak > 0 else
         "<span class='pill pill-amber'>Start your streak today</span>"
     )
-    _goal_line = (f"Submitted {_submitted_this_week}/{_weekly_goal} this week" +
-                  (f" — {_goal_left} to go" if _goal_left else " — goal met 🎉"))
+    _goal_line = (
+        f"Submitted {_submitted_this_week}/{_weekly_goal} this week"
+        + (f" — {_goal_left} to go" if _goal_left else " — goal met 🎉")
+    )
 
     if _vocab_item:
         _vocab_chip = f"<span class='pill pill-purple'>{_vocab_item.get('german','')}</span>"
@@ -1683,8 +2215,7 @@ if tab == "Dashboard":
         unsafe_allow_html=True
     )
     st.divider()
-
-    # Student compact header + details
+    # ---------- Student header (compact) + details (expander) ----------
     name = safe_get(student_row, "Name")
     level = safe_get(student_row, "Level", "")
     code  = safe_get(student_row, "StudentCode", "")
@@ -1693,9 +2224,11 @@ if tab == "Dashboard":
     except Exception:
         bal_val = 0.0
 
+    # Always-visible compact header (one line)
     st.markdown(
         f"<div style='display:flex;flex-wrap:wrap;gap:10px;align-items:center;"
-        f"padding:8px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;background:#ffffff;'>"
+        f"padding:8px 10px;border:1px solid rgba(148,163,184,.35);border-radius:10px;"
+        f"background:#ffffff;'>"
         f"<b>👤 {name}</b>"
         f"<span style='background:#eef4ff;color:#2541b2;padding:2px 8px;border-radius:999px;'>Level: {level}</span>"
         f"<span style='background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:999px;'>Code: <code>{code}</code></span>"
@@ -1706,11 +2239,23 @@ if tab == "Dashboard":
         unsafe_allow_html=True
     )
 
+    # Full details inside an expander
     with st.expander("👤 Student details", expanded=False):
         info_html = f"""
-        <div style='background:#f8fbff;border:1.6px solid #cfe3ff;border-radius:12px;padding:12px 14px;margin-top:8px;
-                    box-shadow:0 2px 8px rgba(44,106,221,0.04);font-size:1.04em;color:#17325e;letter-spacing:.01em;'>
-            <div style="font-weight:700;font-size:1.12em;margin-bottom:6px;">👤 {name}</div>
+        <div style='
+            background:#f8fbff;
+            border:1.6px solid #cfe3ff;
+            border-radius:12px;
+            padding:12px 14px;
+            margin-top:8px;
+            box-shadow:0 2px 8px rgba(44,106,221,0.04);
+            font-size:1.04em;
+            color:#17325e;
+            font-family:"Segoe UI","Arial",sans-serif;
+            letter-spacing:.01em;'>
+            <div style="font-weight:700;font-size:1.12em;margin-bottom:6px;">
+                👤 {name}
+            </div>
             <div style="font-size:1em; margin-bottom:4px;">
                 <b>Level:</b> {safe_get(student_row, 'Level', '')} &nbsp;|&nbsp; 
                 <b>Code:</b> <code>{safe_get(student_row, 'StudentCode', '')}</code> &nbsp;|&nbsp;
@@ -1729,18 +2274,22 @@ if tab == "Dashboard":
         """
         st.markdown(info_html, unsafe_allow_html=True)
 
-    # Payments & renewal (expander)
+    # ---------- Payments & Renewal (policy-aligned, all inside one expander) ----------
     from datetime import datetime as _dt
     import calendar as _cal
 
-    def _read_money(x):
-        try:
-            s = str(x).replace(",", "").strip()
-            return float(s) if s not in ("", "nan", "None") else 0.0
-        except Exception:
-            return 0.0
+    # Safe money reader (fallback if not provided elsewhere)
+    _read_money = globals().get("_read_money")
+    if _read_money is None:
+        def _read_money(x):
+            try:
+                s = str(x).replace(",", "").strip()
+                return float(s) if s not in ("", "nan", "None") else 0.0
+            except Exception:
+                return 0.0
 
-    def _fallback_parse_date2(s):
+    # Fallbacks for date parsing / month add
+    def _fallback_parse_date(s):
         for f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
             try:
                 return _dt.strptime(str(s).strip(), f)
@@ -1748,17 +2297,33 @@ if tab == "Dashboard":
                 pass
         return None
 
-    def _fallback_add_months2(dt, n):
+    def _fallback_add_months(dt, n):
         y = dt.year + (dt.month - 1 + n) // 12
         m = (dt.month - 1 + n) % 12 + 1
         d = min(dt.day, _cal.monthrange(y, m)[1])
         return dt.replace(year=y, month=m, day=d)
 
-    _parse_start = (globals().get("parse_contract_start") or _fallback_parse_date2)
-    _parse_end = (globals().get("parse_contract_end") or _fallback_parse_date2)
-    _add_months = (globals().get("add_months") or _fallback_add_months2)
+    # Use app-provided helpers if available, otherwise fallbacks
+    _parse_start = (
+        globals().get("parse_contract_start_fn")
+        or globals().get("parse_contract_start")
+        or _fallback_parse_date
+    )
+    _parse_end = (
+        globals().get("parse_contract_end_fn")
+        or globals().get("parse_contract_end")
+        or _fallback_parse_date
+    )
+    _add_months = (
+        globals().get("add_months_fn")
+        or globals().get("add_months")
+        or _fallback_add_months
+    )
 
+    # Normalize "today" to a date
     _today = _dt.today().date()
+
+    # Contract start -> first payment due (start + 1 month)
     _cs = None
     for _k in ["ContractStart", "StartDate", "ContractBegin", "Start", "Begin"]:
         _s = str(safe_get(student_row, _k, "") or "").strip()
@@ -1767,36 +2332,56 @@ if tab == "Dashboard":
             break
     _first_due_dt = _add_months(_cs, 1) if _cs else None
     _first_due = _first_due_dt.date() if _first_due_dt and hasattr(_first_due_dt, "date") else _first_due_dt
+
+    # Read balance and compute status
     _balance = _read_money(safe_get(student_row, "Balance", 0))
 
+    # Build expander title/body according to policy
     _exp_title = "💳 Payments (info)"
     _severity = "info"
     if _balance > 0 and _first_due:
         if _today > _first_due:
             _days_over = (_today - _first_due).days
-            _exp_title = f"💳 Payments • overdue {_days_over}d"; _severity = "error"
-            _msg = (f"💸 **Overdue by {_days_over} day{'s' if _days_over != 1 else ''}.** "
-                    f"Amount due: **₵{_balance:,.2f}**. First due: {_first_due:%d %b %Y}.")
+            _exp_title = f"💳 Payments • overdue {_days_over}d"
+            _severity = "error"
+            _msg = (
+                f"💸 **Overdue by {_days_over} day{'s' if _days_over != 1 else ''}.** "
+                f"Amount due: **₵{_balance:,.2f}**. First due: {_first_due:%d %b %Y}."
+            )
         elif _today == _first_due:
-            _exp_title = "💳 Payments • due today"; _severity = "warning"
+            _exp_title = "💳 Payments • due today"
+            _severity = "warning"
             _msg = f"⏳ **Payment due today** ({_first_due:%d %b %Y}). Amount due: **₵{_balance:,.2f}**."
         else:
-            _exp_title = "💳 Payments (info)"; _severity = "info"
+            # Balance positive but still before first due → not expected to pay yet
+            _exp_title = "💳 Payments (info)"
+            _severity = "info"
             _days_left = (_first_due - _today).days
-            _msg = (f"No payment expected yet. Your first payment date is **{_first_due:%d %b %Y}** "
-                    f"(in {_days_left} day{'s' if _days_left != 1 else ''}). Current balance: **₵{_balance:,.2f}**.")
+            _msg = (
+                f"No payment expected yet. Your first payment date is **{_first_due:%d %b %Y}** "
+                f"(in {_days_left} day{'s' if _days_left != 1 else ''}). Current balance: **₵{_balance:,.2f}**."
+            )
     elif _balance > 0 and not _first_due:
-        _exp_title = "💳 Payments • schedule unknown"; _severity = "info"
-        _msg = ("ℹ️ You have a positive balance, but I couldn’t read your contract start date "
-                "to compute the first payment date. Please contact the office.")
+        _exp_title = "💳 Payments • schedule unknown"
+        _severity = "info"
+        _msg = (
+            "ℹ️ You have a positive balance, but I couldn’t read your contract start date "
+            "to compute the first payment date. Please contact the office."
+        )
     else:
-        _exp_title = "💳 Payments (info)"; _severity = "info"
+        # balance <= 0 → not expected to pay anything now
+        _exp_title = "💳 Payments (info)"
+        _severity = "info"
         if _first_due:
-            _msg = ("No outstanding balance. You’re not expected to pay anything now. "
-                    f"Your first payment date (if applicable) is **{_first_due:%d %b %Y}**.")
+            _msg = (
+                "No outstanding balance. You’re not expected to pay anything now. "
+                f"Your first payment date (if applicable) is **{_first_due:%d %b %Y}**."
+            )
         else:
-            _msg = ("No outstanding balance. You’re not expected to pay anything now. "
-                    "We’ll compute your first payment date after your contract start is on file.")
+            _msg = (
+                "No outstanding balance. You’re not expected to pay anything now. "
+                "We’ll compute your first payment date after your contract start is on file."
+            )
 
     with st.expander(_exp_title, expanded=False):
         if _severity == "error":
@@ -1806,9 +2391,9 @@ if tab == "Dashboard":
         else:
             st.info(_msg)
 
+        # Always show raw details
         _cs_str = _cs.strftime("%d %b %Y") if _cs else "—"
         _fd_str = _first_due.strftime("%d %b %Y") if _first_due else "—"
-
         st.markdown(
             f"""
             **Details**
@@ -1834,12 +2419,13 @@ if tab == "Dashboard":
                     f"⏰ Your contract ends in **{_days_left} day{'s' if _days_left != 1 else ''}** "
                     f"(**{_ce_date:%d %b %Y}**). Extension costs **₵{EXT_FEE:,}/month**."
                 )
-        # (If contract end is further out, stay silent per policy.)
+        # If contract end is further out, we stay silent per policy.
 
     # ---------- Always-visible Contract Alert (cannot be missed) ----------
     from datetime import datetime as _dt
 
-    def _fallback_parse_date_alert(_s):
+    # Fallback date parser if app helpers aren’t injected
+    def _fallback_parse_date(_s):
         for _f in ("%Y-%m-%d", "%m/%d/%Y", "%d.%m.%y", "%d/%m/%Y", "%d-%m-%Y"):
             try:
                 return _dt.strptime(str(_s).strip(), _f)
@@ -1847,12 +2433,17 @@ if tab == "Dashboard":
                 pass
         return None
 
-    _parse_end_alert = (globals().get("parse_contract_end") or _fallback_parse_date_alert)
+    _parse_end = (
+        globals().get("parse_contract_end_fn")
+        or globals().get("parse_contract_end")
+        or _fallback_parse_date
+    )
 
-    _today_alert = _dt.today().date()
-    _ce_raw = _parse_end_alert(safe_get(student_row, "ContractEnd", ""))
+    _today = _dt.today().date()
+    _ce_raw = _parse_end(safe_get(student_row, "ContractEnd", ""))
     _ce_date = _ce_raw.date() if hasattr(_ce_raw, "date") else _ce_raw
 
+    # Mobile-friendly, readable alert styles
     st.markdown("""
     <style>
       .contract-alert { border-radius:12px; padding:12px 14px; margin:8px 0 10px 0; font-weight:600; }
@@ -1868,9 +2459,9 @@ if tab == "Dashboard":
     """, unsafe_allow_html=True)
 
     if _ce_date:
-        _days_left = (_ce_date - _today_alert).days
-        _student_code_norm = str(safe_get(student_row, "StudentCode", "") or "").strip().lower()
-        _alert_key = f"hide_contract_alert:{_student_code_norm}:{_ce_date.isoformat()}:{_today_alert.isoformat()}"
+        _days_left = (_ce_date - _today).days
+        _student_code = str(safe_get(student_row, "StudentCode", "") or "").strip().lower()
+        _alert_key = f"hide_contract_alert:{_student_code}:{_ce_date.isoformat()}:{_today.isoformat()}"
         _ext_fee = 1000
 
         if not st.session_state.get(_alert_key, False):
@@ -1895,11 +2486,14 @@ if tab == "Dashboard":
                     f"<div class='contract-alert {_cls}'><div class='ca-text'>{_msg}</div></div>",
                     unsafe_allow_html=True
                 )
-                if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code_norm}"):
+                # Dismiss for today (so students can acknowledge but can't claim they never saw it)
+                if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code}"):
                     st.session_state[_alert_key] = True
                     st.rerun()
+#
 
-    # ---------- Class schedules ----------
+
+     # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
         GROUP_SCHEDULES = {
             "A1 Munich Klasse": {
@@ -1961,10 +2555,9 @@ if tab == "Dashboard":
         }
 
         from datetime import datetime as _dt_local, timedelta as _td_local
-        week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
         class_name = str(safe_get(student_row, "ClassName", "")).strip()
         class_schedule = GROUP_SCHEDULES.get(class_name)
+        week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
         if not class_name or not class_schedule:
             st.info("🚩 Your class is not set yet. Please contact your teacher or the office.")
@@ -2086,28 +2679,26 @@ if tab == "Dashboard":
 
     # ---------- Goethe exam & video ----------
     with st.expander("⏳ Goethe Exam Countdown & Video of the Day", expanded=False):
-        from datetime import date as _date_only
-
+        from datetime import date
         GOETHE_EXAM_DATES = {
-            "A1": (_date_only(2025, 10, 13), 2850, None),
-            "A2": (_date_only(2025, 10, 14), 2400, None),
-            "B1": (_date_only(2025, 10, 15), 2750, 880),
-            "B2": (_date_only(2025, 10, 16), 2500, 840),
-            "C1": (_date_only(2025, 10, 17), 2450, 700),
+            "A1": (date(2025, 10, 13), 2850, None),
+            "A2": (date(2025, 10, 14), 2400, None),
+            "B1": (date(2025, 10, 15), 2750, 880),
+            "B2": (date(2025, 10, 16), 2500, 840),
+            "C1": (date(2025, 10, 17), 2450, 700),
         }
-
-        lvl = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
-        exam_info = GOETHE_EXAM_DATES.get(lvl)
+        level = (safe_get(student_row, "Level", "") or "").upper().replace(" ", "")
+        exam_info = GOETHE_EXAM_DATES.get(level)
 
         if exam_info:
             exam_date, fee, module_fee = exam_info
-            days_to_exam = (exam_date - _date_only.today()).days
+            days_to_exam = (exam_date - date.today()).days
             fee_text = f"**Fee:** ₵{fee:,}"
             if module_fee:
                 fee_text += f" &nbsp; | &nbsp; **Per Module:** ₵{module_fee:,}"
             if days_to_exam > 0:
                 st.info(
-                    f"Your {lvl} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
+                    f"Your {level} exam is in {days_to_exam} days ({exam_date:%d %b %Y}).  \n"
                     f"{fee_text}  \n"
                     "[Register online here](https://www.goethe.de/ins/gh/en/spr/prf.html)"
                 )
@@ -2115,24 +2706,22 @@ if tab == "Dashboard":
                 st.success("🚀 Exam is today! Good luck!")
             else:
                 st.error(
-                    f"❌ Your {lvl} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
+                    f"❌ Your {level} exam was on {exam_date:%d %b %Y}, {abs(days_to_exam)} days ago.  \n"
                     f"{fee_text}"
                 )
 
-            # Video of the day (per level)
-            playlist_ids = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(lvl)
+            playlist_id = (globals().get("YOUTUBE_PLAYLIST_IDS") or {}).get(level)
             fetch_videos = globals().get("fetch_youtube_playlist_videos")
             api_key = globals().get("YOUTUBE_API_KEY")
-            if playlist_ids and fetch_videos and api_key:
+            if playlist_id and fetch_videos and api_key:
                 try:
-                    # If multiple playlists, pick the first (or you can rotate)
-                    video_list = fetch_videos(playlist_ids[0], api_key)
+                    video_list = fetch_videos(playlist_id, api_key)
                 except Exception:
                     video_list = []
                 if video_list:
-                    pick = _date_only.today().toordinal() % len(video_list)
+                    pick = date.today().toordinal() % len(video_list)
                     video = video_list[pick]
-                    st.markdown(f"**🎬 Video of the Day for {lvl}: {video.get('title','')}**")
+                    st.markdown(f"**🎬 Video of the Day for {level}: {video.get('title','')}**")
                     st.video(video.get('url',''))
                 else:
                     st.info("No videos found for your level’s playlist. Check back soon!")
@@ -2140,15 +2729,11 @@ if tab == "Dashboard":
                 st.info("No playlist found for your level yet. Stay tuned!")
         else:
             st.warning("No exam date configured for your level.")
-
+    
     # ---------- Reviews ----------
     with st.expander("🗣️ What Our Students Say", expanded=False):
         import datetime as _pydt
-        if "load_reviews" in globals():
-            reviews = load_reviews()
-        else:
-            reviews = pd.DataFrame(columns=["review_text", "student_name", "rating"])
-
+        reviews = load_reviews()
         if reviews.empty:
             st.info("No reviews yet. Be the first to share your experience!")
         else:
@@ -2166,10 +2751,10 @@ if tab == "Dashboard":
                 f"> — **{r.get('student_name','')}**  \n"
                 f"> {stars}"
             )
-
+   
     st.divider()
+  
 #
-
 
 
 
@@ -5047,110 +5632,8 @@ if tab == "My Course":
 
         # ---------- NEW: mini-tabs inside 'Classroom' ----------
         t_join, t_calendar, t_members, t_announcements, t_qna = st.tabs(
-            ["Join", "Calendar", "Members", "Announcements", "Q&A"]
+            ["Calender", "Zoom Link", "Members", "Announcements", "Q&A"]
         )
-
-        # ===================== JOIN =====================
-        with t_join:
-            with st.container():
-                st.markdown(
-                    """
-                    <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
-                         font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
-                      📣 <b>Zoom Classroom (Official)</b><br>
-                      This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                ZOOM = {
-                    "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
-                    "meeting_id": "688 690 0916",
-                    "passcode": "german",
-                }
-                # Allow secrets override
-                try:
-                    zs = st.secrets.get("zoom", {})
-                    if zs.get("link"):       ZOOM["link"]       = zs["link"]
-                    if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
-                    if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
-                except Exception:
-                    pass
-
-                # Build iOS/Android deep-link (opens Zoom app directly)
-                _mid_digits = ZOOM["meeting_id"].replace(" ", "")
-                _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
-                zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
-
-                z1, z2 = st.columns([3, 2])
-                with z1:
-                    # Primary join button (browser)
-                    try:
-                        st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
-                    except Exception:
-                        st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
-
-                    # Secondary: open in Zoom app (mobile deep link)
-                    try:
-                        st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
-                    except Exception:
-                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
-
-                    st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
-                    st.write(f"**Passcode:** `{ZOOM['passcode']}`")
-
-                    # Copy helpers (mobile-friendly, safe escaping)
-                    _link_safe = ZOOM["link"].replace("'", "\\'")
-                    _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
-                    _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
-                    if components:
-                        components.html(
-                            f"""
-                            <div style="display:flex;gap:8px;margin-top:8px;">
-                              <button id="zCopyLink"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Link
-                              </button>
-                              <button id="zCopyId"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy ID
-                              </button>
-                              <button id="zCopyPwd"
-                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
-                                Copy Passcode
-                              </button>
-                            </div>
-                            <script>
-                              (function(){{
-                                try {{
-                                  var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
-                                  function wire(btnId, txt, label) {{
-                                    var b = document.getElementById(btnId);
-                                    if (!b) return;
-                                    b.addEventListener('click', function(){{
-                                      navigator.clipboard.writeText(txt).then(function(){{
-                                        b.innerText = '✓ Copied ' + label;
-                                        setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
-                                      }}).catch(function(){{}});
-                                    }});
-                                  }}
-                                  wire('zCopyLink', link, 'Link');
-                                  wire('zCopyId',   mid,  'ID');
-                                  wire('zCopyPwd',  pwd,  'Passcode');
-                                }} catch(e) {{}}
-                              }})();
-                            </script>
-                            """,
-                            height=72,
-                        )
-
-                with z2:
-                    st.info(
-                        f"You’re viewing: **{class_name}**  \n\n"
-                        "✅ Use the **calendar** tab to receive automatic class reminders.",
-                        icon="📅",
-                    )
 
         # ===================== CALENDAR =====================
         with t_calendar:
@@ -5767,6 +6250,110 @@ if tab == "My Course":
                     """,
                     unsafe_allow_html=True,
                 )
+
+
+        # ===================== JOIN =====================
+        with t_join:
+            with st.container():
+                st.markdown(
+                    """
+                    <div style="padding: 12px; background: #facc15; color: #000; border-radius: 8px;
+                         font-size: 1rem; margin-bottom: 16px; text-align: left; font-weight: 600;">
+                      📣 <b>Zoom Classroom (Official)</b><br>
+                      This is the <u>official Zoom link</u> for your class. <span style="font-weight:500;">Add the calendar below to get notifications before each class.</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                ZOOM = {
+                    "link": "https://us06web.zoom.us/j/6886900916?pwd=bEdtR3RLQ2dGTytvYzNrMUV3eFJwUT09",
+                    "meeting_id": "688 690 0916",
+                    "passcode": "german",
+                }
+                # Allow secrets override
+                try:
+                    zs = st.secrets.get("zoom", {})
+                    if zs.get("link"):       ZOOM["link"]       = zs["link"]
+                    if zs.get("meeting_id"): ZOOM["meeting_id"] = zs["meeting_id"]
+                    if zs.get("passcode"):   ZOOM["passcode"]   = zs["passcode"]
+                except Exception:
+                    pass
+
+                # Build iOS/Android deep-link (opens Zoom app directly)
+                _mid_digits = ZOOM["meeting_id"].replace(" ", "")
+                _pwd_enc = _urllib.quote(ZOOM["passcode"] or "")
+                zoom_deeplink = f"zoommtg://zoom.us/join?action=join&confno={_mid_digits}&pwd={_pwd_enc}"
+
+                z1, z2 = st.columns([3, 2])
+                with z1:
+                    # Primary join button (browser)
+                    try:
+                        st.link_button("➡️ Join Zoom Meeting (Browser)", ZOOM["link"], key=_ukey("zoom_join_btn"))
+                    except Exception:
+                        st.markdown(f"[➡️ Join Zoom Meeting (Browser)]({ZOOM['link']})")
+
+                    # Secondary: open in Zoom app (mobile deep link)
+                    try:
+                        st.link_button("📱 Open in Zoom App", zoom_deeplink, key=_ukey("zoom_app_btn"))
+                    except Exception:
+                        st.markdown(f"[📱 Open in Zoom App]({zoom_deeplink})")
+
+                    st.write(f"**Meeting ID:** `{ZOOM['meeting_id']}`")
+                    st.write(f"**Passcode:** `{ZOOM['passcode']}`")
+
+                    # Copy helpers (mobile-friendly, safe escaping)
+                    _link_safe = ZOOM["link"].replace("'", "\\'")
+                    _id_safe   = ZOOM["meeting_id"].replace("'", "\\'")
+                    _pwd_safe  = ZOOM["passcode"].replace("'", "\\'")
+                    if components:
+                        components.html(
+                            f"""
+                            <div style="display:flex;gap:8px;margin-top:8px;">
+                              <button id="zCopyLink"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy Link
+                              </button>
+                              <button id="zCopyId"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy ID
+                              </button>
+                              <button id="zCopyPwd"
+                                      style="padding:6px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer;">
+                                Copy Passcode
+                              </button>
+                            </div>
+                            <script>
+                              (function(){{
+                                try {{
+                                  var link = '{_link_safe}', mid = '{_id_safe}', pwd = '{_pwd_safe}';
+                                  function wire(btnId, txt, label) {{
+                                    var b = document.getElementById(btnId);
+                                    if (!b) return;
+                                    b.addEventListener('click', function(){{
+                                      navigator.clipboard.writeText(txt).then(function(){{
+                                        b.innerText = '✓ Copied ' + label;
+                                        setTimeout(function(){{ b.innerText = 'Copy ' + label; }}, 1500);
+                                      }}).catch(function(){{}});
+                                    }});
+                                  }}
+                                  wire('zCopyLink', link, 'Link');
+                                  wire('zCopyId',   mid,  'ID');
+                                  wire('zCopyPwd',  pwd,  'Passcode');
+                                }} catch(e) {{}}
+                              }})();
+                            </script>
+                            """,
+                            height=72,
+                        )
+
+                with z2:
+                    st.info(
+                        f"You’re viewing: **{class_name}**  \n\n"
+                        "✅ Use the **calendar** tab to receive automatic class reminders.",
+                        icon="📅",
+                    )
+#
 
         # ===================== MEMBERS =====================
         with t_members:
@@ -7314,7 +7901,6 @@ def save_exam_progress(student_code, progress_items):
                 "date": now
             })
     doc_ref.set({"completed": all_progress}, merge=True)
-    
 
 # Simple back-step that returns to Stage 1 (used in buttons)
 def back_step():
@@ -7333,29 +7919,19 @@ exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
 exam_sheet_name = "exam_topics"
 exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
 
-@st.cache_data(ttl=3600)
+@st.cache_data
 def load_exam_topics():
-    resp = requests.get(exam_csv_url, timeout=12)
-    resp.raise_for_status()
-    txt = resp.text
-    if "<html" in txt[:512].lower():
-        st.warning("Exam topics CSV looks like HTML (check sharing)."); 
-        return pd.DataFrame(columns=["Level","Teil","Topic/Prompt","Keyword/Subtopic"])
-
-    df = pd.read_csv(io.StringIO(txt), dtype=str)
+    df = pd.read_csv(exam_csv_url)
     for col in ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']:
-        if col not in df.columns: df[col] = ""
-
-    # normalize
-    df = df.fillna("")
+        if col not in df.columns:
+            df[col] = ""
+    # strip
     for c in df.columns:
         if df[c].dtype == "O":
             df[c] = df[c].astype(str).str.strip()
-
-    df['Level'] = df['Level'].str.upper()
-    df['Teil']  = df['Teil'].str.replace(r'\s*[-–—].*$', '', regex=True).str.strip()  # keep just "Teil X"
     return df
 
+df_exam = load_exam_topics()
 
 # ================= UI styles: bubbles + highlights (yours, restored) =================
 bubble_user = (
@@ -9319,7 +9895,7 @@ if 'save_sentence_attempt' not in globals():
 
 
 # ================================
-# HELPERS: Load vocab + audio from Sheet (hardened + lazy)
+# HELPERS: Load vocab + audio from Sheet
 # ================================
 @st.cache_data
 def load_vocab_lists():
@@ -9335,17 +9911,17 @@ def load_vocab_lists():
     try:
         df = pd.read_csv(csv_url)
     except Exception as e:
-        st.warning(f"Could not fetch vocab CSV right now. ({e})")
+        st.error(f"Could not fetch vocab CSV: {e}")
         return {}, {}
 
     df.columns = df.columns.str.strip()
     missing = [c for c in ("Level","German","English") if c not in df.columns]
     if missing:
-        st.warning(f"Missing column(s) in your vocab sheet: {missing}")
+        st.error(f"Missing column(s) in your vocab sheet: {missing}")
         return {}, {}
 
     # Normalize
-    df["Level"]  = df["Level"].astype(str).str.strip().str.upper()
+    df["Level"]  = df["Level"].astype(str).str.strip()
     df["German"] = df["German"].astype(str).str.strip()
     df["English"]= df["English"].astype(str).str.strip()
     df = df.dropna(subset=["Level","German"])
@@ -9370,44 +9946,18 @@ def load_vocab_lists():
         }
     return vocab_lists, audio_urls
 
-def _normalize_vocab_result(res):
-    """Always return a (dict, dict). Tolerates bad shapes to avoid crashes."""
-    if isinstance(res, tuple) and len(res) == 2:
-        v, a = res
-        return v or {}, a or {}
-    if isinstance(res, dict):
-        return res, {}
-    return {}, {}
-
-@st.cache_data(ttl=43200, show_spinner=False)
-def _load_vocab_lists_safe():
-    try:
-        return _normalize_vocab_result(load_vocab_lists())
-    except Exception as e:
-        st.warning(f"Vocab lists unavailable at the moment. ({e})")
-        return {}, {}
-
-def get_vocab_lists():
-    """Lazy loader for use inside the Vocab tab."""
-    if "VOCAB_LISTS" not in st.session_state or "AUDIO_URLS" not in st.session_state:
-        v, a = _load_vocab_lists_safe()
-        st.session_state["VOCAB_LISTS"] = v
-        st.session_state["AUDIO_URLS"] = a
-    return st.session_state["VOCAB_LISTS"], st.session_state["AUDIO_URLS"]
+VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
 
 def refresh_vocab_from_sheet():
-    """Manual refresh button can call this."""
-    _load_vocab_lists_safe.clear()
-    st.session_state.pop("VOCAB_LISTS", None)
-    st.session_state.pop("AUDIO_URLS", None)
+    load_vocab_lists.clear()
+    global VOCAB_LISTS, AUDIO_URLS
+    VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
 
 def get_audio_url(level: str, german_word: str) -> str:
     """Prefer slow for A1, otherwise normal; fallback to whichever exists."""
-    _, AUDIO_URLS = get_vocab_lists()
     urls = AUDIO_URLS.get((str(level).upper(), str(german_word).strip()), {})
     lvl = str(level).upper()
     return (urls.get("slow") if (lvl == "A1" and urls.get("slow")) else urls.get("normal")) or urls.get("slow") or ""
-
 
 # ================================
 # TAB: Vocab Trainer (locked by Level)
