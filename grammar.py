@@ -1461,76 +1461,6 @@ def months_between(start_dt: datetime, end_dt: datetime) -> int:
     if end_dt.day < start_dt.day: months -= 1
     return months
 
-# ==== Exam topics (safe loader) ====
-@st.cache_data(ttl=3600)
-def load_exam_topics(source: str | None = None):
-    """
-    Load exam topics from a CSV/Google Sheet. Returns a normalized DataFrame or an empty one.
-    Order of precedence:
-      1) Explicit `source` URL/path if provided
-      2) st.secrets["EXAM_TOPICS_CSV_URL"]
-      3) Google Sheet via st.secrets["EXAM_TOPICS_SHEET_ID"] (+ optional EXAM_TOPICS_GID)
-    """
-    # Resolve URL
-    url = (source or "").strip()
-    if not url:
-        url = (st.secrets.get("EXAM_TOPICS_CSV_URL") or "").strip()
-    if not url:
-        sheet_id = (st.secrets.get("EXAM_TOPICS_SHEET_ID") or "").strip()
-        gid = (st.secrets.get("EXAM_TOPICS_GID") or "0").strip()
-        if sheet_id:
-            url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-
-    # If nothing configured, return empty with expected columns
-    if not url:
-        return pd.DataFrame(columns=["level", "teil", "topic", "subtopic", "link", "notes"])
-
-    # Fetch -> DataFrame
-    try:
-        if url.startswith("http"):
-            resp = requests.get(url, timeout=12)
-            resp.raise_for_status()
-            txt = resp.text
-            # Guard against HTML error pages (e.g., private sheet)
-            if "<html" in txt[:512].lower():
-                raise RuntimeError("Exam topics source returned HTML (check sharing/URL).")
-            df = pd.read_csv(io.StringIO(txt), dtype=str)
-        else:
-            df = pd.read_csv(url, dtype=str)
-    except Exception as e:
-        st.warning(f"⚠️ Could not load exam topics: {e}")
-        return pd.DataFrame(columns=["level", "teil", "topic", "subtopic", "link", "notes"])
-
-    # Normalize columns
-    df.columns = df.columns.str.strip().str.lower()
-
-    def pick(options: list[str]) -> str | None:
-        for o in options:
-            if o in df.columns:
-                return o
-        for c in df.columns:
-            if any(c.startswith(o) for o in options):
-                return c
-        return None
-
-    col_level = pick(["level", "lvl"])
-    col_teil  = pick(["teil", "part", "module"])
-    col_topic = pick(["topic", "title", "theme"])
-    col_sub   = pick(["subtopic", "subtitle", "detail"])
-    col_link  = pick(["link", "url"])
-    col_notes = pick(["notes", "note", "comment"])
-
-    out = pd.DataFrame()
-    out["level"]    = (df[col_level].str.upper().str.strip() if col_level else "") if not df.empty else ""
-    out["teil"]     = (df[col_teil].str.strip() if col_teil else "") if not df.empty else ""
-    out["topic"]    = (df[col_topic].str.strip() if col_topic else "") if not df.empty else ""
-    out["subtopic"] = (df[col_sub].str.strip() if col_sub else "") if not df.empty else ""
-    out["link"]     = (df[col_link].str.strip() if col_link else "") if not df.empty else ""
-    out["notes"]    = (df[col_notes].str.strip() if col_notes else "")
-
-    # Keep only meaningful rows
-    out = out[(out["level"] != "") | (out["topic"] != "")]
-    return out.reset_index(drop=True)
 
 
 # --- Query-param helpers (single API; no experimental mix) ---
@@ -7395,6 +7325,30 @@ def save_exam_progress(student_code, progress_items):
                 "date": now
             })
     doc_ref.set({"completed": all_progress}, merge=True)
+
+@st.cache_data(ttl=3600)
+def load_exam_topics():
+    resp = requests.get(exam_csv_url, timeout=12)
+    resp.raise_for_status()
+    txt = resp.text
+    if "<html" in txt[:512].lower():
+        st.warning("Exam topics CSV looks like HTML (check sharing)."); 
+        return pd.DataFrame(columns=["Level","Teil","Topic/Prompt","Keyword/Subtopic"])
+
+    df = pd.read_csv(io.StringIO(txt), dtype=str)
+    for col in ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']:
+        if col not in df.columns: df[col] = ""
+
+    # normalize
+    df = df.fillna("")
+    for c in df.columns:
+        if df[c].dtype == "O":
+            df[c] = df[c].astype(str).str.strip()
+
+    df['Level'] = df['Level'].str.upper()
+    df['Teil']  = df['Teil'].str.replace(r'\s*[-–—].*$', '', regex=True).str.strip()  # keep just "Teil X"
+    return df
+
 
 # Simple back-step that returns to Stage 1 (used in buttons)
 def back_step():
