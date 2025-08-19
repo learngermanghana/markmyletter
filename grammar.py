@@ -37,6 +37,11 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
+# ==== Email (SendGrid) ====
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+
+
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
