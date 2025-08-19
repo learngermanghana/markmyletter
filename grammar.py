@@ -9332,56 +9332,25 @@ if 'save_sentence_attempt' not in globals():
 # ================================
 # HELPERS: Load vocab + audio from Sheet
 # ================================
-@st.cache_data
-def load_vocab_lists():
-    """
-    Reads the Vocab tab CSV (Level, German, English) and optional audio columns:
-    - Audio (normal) / Audio (slow) / Audio
-    Returns:
-      VOCAB_LISTS: dict[level] -> list[(German, English)]
-      AUDIO_URLS:  dict[(level, German)] -> {"normal": url, "slow": url}
-    """
-    import pandas as pd
-    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
-    try:
-        df = pd.read_csv(csv_url)
-    except Exception as e:
-        st.error(f"Could not fetch vocab CSV: {e}")
-        return {}, {}
+# ---- Vocab bootstrap (defensive) ----
+VOCAB_LISTS, AUDIO_URLS = {}, {}
 
-    df.columns = df.columns.str.strip()
-    missing = [c for c in ("Level","German","English") if c not in df.columns]
-    if missing:
-        st.error(f"Missing column(s) in your vocab sheet: {missing}")
-        return {}, {}
+def _safe_unpack_vocab(res):
+    # Accept (lists, audios), or just {level: [...]}
+    if isinstance(res, tuple) and len(res) == 2:
+        return res[0] or {}, res[1] or {}
+    if isinstance(res, dict):
+        return res, {}
+    return {}, {}
 
-    # Normalize
-    df["Level"]  = df["Level"].astype(str).str.strip()
-    df["German"] = df["German"].astype(str).str.strip()
-    df["English"]= df["English"].astype(str).str.strip()
-    df = df.dropna(subset=["Level","German"])
+try:
+    _res = load_vocab_lists()  # your existing function
+    VOCAB_LISTS, AUDIO_URLS = _safe_unpack_vocab(_res)
+except Exception as e:
+    # Don’t crash the app at import time
+    st.warning(f"Couldn’t load vocab lists yet. Using empty defaults. ({e})")
+    VOCAB_LISTS, AUDIO_URLS = {}, {}
 
-    # Flexible audio detection
-    def pick(*names):
-        for n in names:
-            if n in df.columns:
-                return n
-        return None
-    normal_col = pick("Audio (normal)", "Audio normal", "Audio_Normal", "Audio")
-    slow_col   = pick("Audio (slow)", "Audio slow", "Audio_Slow")
-
-    # Build outputs
-    vocab_lists = {lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")}
-    audio_urls = {}
-    for _, r in df.iterrows():
-        key = (r["Level"], r["German"])
-        audio_urls[key] = {
-            "normal": str(r.get(normal_col, "")).strip() if normal_col else "",
-            "slow":   str(r.get(slow_col, "")).strip()   if slow_col else "",
-        }
-    return vocab_lists, audio_urls
-
-VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
 
 def refresh_vocab_from_sheet():
     load_vocab_lists.clear()
