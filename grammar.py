@@ -42,37 +42,41 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]   # your Gmail
-EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"] # your 16-char app password
+
+# 🔐 Hardcoded credentials (works but less secure)
+EMAIL_ADDRESS = "learngermanghana@gmail.com"
+EMAIL_PASSWORD = "mwxlxvvtnrcxqdml"   # Your Gmail App Password
 
 def send_reset_email(to_email: str, reset_link: str):
-    """Send a password reset email using Gmail SMTP."""
+    """Send a password reset email using Gmail SMTP + App Password."""
     try:
-        # Create the email
+        # Build email
         msg = MIMEMultipart()
         msg["From"] = EMAIL_ADDRESS
         msg["To"] = to_email
         msg["Subject"] = "Falowen Password Reset"
 
-        msg.attach(MIMEText(f"""
-            <p>Hello,</p>
-            <p>You requested to reset your password. Click the link below to continue:</p>
-            <p><a href="{reset_link}">{reset_link}</a></p>
-            <p>If you did not request this, you can safely ignore this email.</p>
-            <br>
-            <p>– Falowen Team</p>
-        """, "html"))
+        html = f"""
+        <p>Hello,</p>
+        <p>You requested to reset your password. Click the link below to continue:</p>
+        <p><a href="{reset_link}">{reset_link}</a></p>
+        <p>If you did not request this, you can safely ignore this email.</p>
+        <br>
+        <p>– Falowen Team</p>
+        """
+
+        msg.attach(MIMEText(html, "html"))
 
         # Connect to Gmail SMTP
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_ADDRESS, to_email, msg.as_string())
-        server.quit()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_ADDRESS, to_email, msg.as_string())
 
         st.success(f"✅ Reset link sent to {to_email}. Check your inbox.")
+
     except Exception as e:
         st.error(f"❌ Failed to send reset email: {e}")
+
 
 
 
