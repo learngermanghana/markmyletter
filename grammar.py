@@ -120,6 +120,12 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
         st.error(f"❌ Failed to send reset email: {e}")
         return False
 
+# Prefer Apps Script reset page for password updates
+GAS_RESET_URL = st.secrets.get(
+    "GAS_RESET_URL",
+    "https://script.google.com/macros/s/AKfycbwdgYJtya39qzBZaXdUqkk1i2_LIHna5CN-lHYveq7O1yG46KghKZWKNKqGYlh_xyZU/exec"
+)
+
 # ------------------------------------------------------------------------------
 # Firebase init (Firestore)
 # ------------------------------------------------------------------------------
@@ -1223,6 +1229,8 @@ def render_login_form():
                 st.error("Please enter your email.")
             else:
                 e = email_for_reset.lower().strip()
+
+                # Firestore may store 'email' or 'Email'
                 user_query = db.collection("students").where("email", "==", e).get()
                 if not user_query:
                     user_query = db.collection("students").where("Email", "==", e).get()
@@ -1232,8 +1240,14 @@ def render_login_form():
                 else:
                     token = uuid4().hex
                     expires_at = datetime.utcnow() + timedelta(hours=1)
-                    base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                    reset_link = f"{base_url}/?token={token}"  # <-- root path
+
+                    # Prefer Apps Script page; fall back to Streamlit root
+                    gas_base = (st.secrets.get("GAS_RESET_URL", GAS_RESET_URL) or "").strip().rstrip("/")
+                    if gas_base:
+                        reset_link = f"{gas_base}?token={token}"
+                    else:
+                        base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                        reset_link = f"{base_url}/?token={token}"
 
                     db.collection("password_resets").document(token).set({
                         "email": e,
@@ -1247,6 +1261,7 @@ def render_login_form():
                         st.error("We couldn’t send the email. Please try again later.")
 
         st.markdown('</div>', unsafe_allow_html=True)
+
 
 def login_page():
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
