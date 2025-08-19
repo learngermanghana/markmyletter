@@ -5631,7 +5631,7 @@ if tab == "My Course":
             return f"{base}_{hashlib.md5(seed.encode()).hexdigest()[:8]}"
 
         # ---------- NEW: mini-tabs inside 'Classroom' ----------
-        t_join, t_calendar, t_members, t_announcements, t_qna = st.tabs(
+        t_calendar, t_join, t_members, t_announcements, t_qna = st.tabs(
             ["Calender", "Join on Zoom", "Members", "Announcements", "Q&A"]
         )
 
