@@ -2176,7 +2176,7 @@ if tab == "Dashboard":
     st.divider()
     # ---------- 3) Motivation mini-cards (streak / vocab / leaderboard) ----------
     _student_code = (st.session_state.get("student_code", "") or "").strip().lower()
-    _df_assign = load_assignment_scores()
+    _df_assign = get_assignment_scores()
     _df_assign["date"] = pd.to_datetime(_df_assign["date"], errors="coerce").dt.date
     _mask_student = _df_assign["studentcode"].str.lower().str.strip() == _student_code
 
