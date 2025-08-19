@@ -385,7 +385,233 @@ def load_student_data():
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "") or "").strip()
     if not expiry_str or expiry_str.lower() == "nan":
-        re
+        return True
+    expiry_date = None
+    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            expiry_date = datetime.strptime(expiry_str, fmt); break
+        except ValueError:
+            continue
+    if expiry_date is None:
+        parsed = pd.to_datetime(expiry_str, errors="coerce")
+        if pd.isnull(parsed):
+            return True
+        expiry_date = parsed.to_pydatetime()
+    return expiry_date.date() < datetime.utcnow().date()
+
+# ==== Query param helpers ====
+def qp_get():
+    return st.query_params
+
+def qp_clear():
+    st.query_params.clear()
+
+def qp_clear_keys(*keys):
+    for k in keys:
+        try:
+            del st.query_params[k]
+        except KeyError:
+            pass
+
+# ==== Cookie helpers ====
+def _expire_str(dt: datetime) -> str:
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
+    base = (
+        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value, safe=""))} + '
+        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
+        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
+    )
+    if domain:
+        base += f'c += "; Domain=" + {domain};\n'
+    base += "document.cookie = c;\n"
+    return base
+
+def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
+    key = "student_code"
+    norm = (value or "").strip().lower()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 180
+    exp_str = _expire_str(expires)
+    try:
+        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = norm; cookie_manager.save()
+        except Exception:
+            pass
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
+
+def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
+    key = "session_token"
+    val = (token or "").strip()
+    use_secure = (os.getenv("ENV", "prod") != "dev")
+    max_age = 60 * 60 * 24 * 30
+    exp_str = _expire_str(expires)
+    try:
+        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
+        cookie_manager.save()
+    except Exception:
+        try:
+            cookie_manager[key] = val; cookie_manager.save()
+        except Exception:
+            pass
+    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
+    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
+    script = f"""
+    <script>
+      (function(){{
+        try {{
+          {host_js}
+          try {{
+            var h = (window.location.hostname||'').split('.').filter(Boolean);
+            if (h.length >= 2) {{
+              var base = '.' + h.slice(-2).join('.');
+              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
+            }}
+          }} catch(e) {{}}
+          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
+        }} catch(e) {{}}
+      }})();
+    </script>
+    """
+    components.html(script, height=0)
+
+def _persist_session_client(token: str, student_code: str = "") -> None:
+    components.html(f"""
+    <script>
+      try {{
+        localStorage.setItem('session_token', {json.dumps(token)});
+        if ({json.dumps(student_code)} !== "") {{
+          localStorage.setItem('student_code', {json.dumps(student_code)});
+        }}
+        const u = new URL(window.location);
+        if ({json.dumps(student_code)} !== "") u.searchParams.set('code', {json.dumps(student_code)});
+        u.searchParams.delete('token'); u.searchParams.delete('state');
+        window.history.replaceState({{}}, '', u);
+      }} catch(e) {{}}
+    </script>
+    """, height=0)
+
+# ==== Cookie manager init & iOS localStorage bridge ====
+COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
+    st.stop()
+
+cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+
+def _bridge_local_storage_to_url_once():
+    components.html("""
+      <script>
+        try {
+          const tok  = localStorage.getItem('session_token');
+          const code = localStorage.getItem('student_code');
+          if (tok) {
+            const u = new URL(window.location);
+            u.searchParams.set('token', tok);
+            if (code) u.searchParams.set('code', code);
+            window.location.replace(u);
+          }
+        } catch(e) {}
+      </script>
+    """, height=0)
+
+if not cookie_manager.ready():
+    time.sleep(0.05)
+if not cookie_manager.ready():
+    _bridge_local_storage_to_url_once()
+    with st.spinner("Starting Falowen…"):
+        st.stop()
+
+# ---- URL-token bootstrap (define AFTER helpers; call AFTER load_student_data is defined) ----
+def _restore_from_url_token_if_present():
+    try:
+        tok = st.query_params.get("token", "")
+        if isinstance(tok, list):
+            tok = tok[0] if tok else ""
+    except Exception:
+        tok = ""
+    if not tok or st.session_state.get("logged_in"):
+        return
+    data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
+    try:
+        del st.query_params["token"]
+    except Exception:
+        pass
+    if not data:
+        return
+    try:
+        df_students = load_student_data()
+        found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+    except Exception:
+        found = pd.DataFrame()
+    if found.empty or is_contract_expired(found.iloc[0]):
+        return
+    row = found.iloc[0]
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": row.to_dict(),
+        "student_code": row["StudentCode"],
+        "student_name": row["Name"],
+        "session_token": tok,
+    })
+    set_session_token_cookie(cookie_manager, tok, expires=datetime.utcnow() + timedelta(days=30))
+    set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+    try:
+        st.query_params["code"] = row["StudentCode"]
+    except Exception:
+        pass
+
+# One-shot URL bootstrap
+_restore_from_url_token_if_present()
+
+# ---- Restore from existing session token (cookie) ----
+restored = False
+if not st.session_state.get("logged_in", False):
+    cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    if cookie_tok:
+        data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
+        if data:
+            try:
+                df_students = load_student_data()
+                found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+            except Exception:
+                found = pd.DataFrame()
+            if not found.empty and not is_contract_expired(found.iloc[0]):
+                row = found.iloc[0]
+                st.session_state.update({
+                    "logged_in": True,
+                    "student_row": row.to_dict(),
+                    "student_code": row["StudentCode"],
+                    "student_name": row["Name"],
+                    "session_token": cookie_tok,
+                })
+                new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
+                st.session_state["session_token"] = new_tok
+                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
+                restored = True
 
 
 
@@ -11309,6 +11535,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
