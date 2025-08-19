@@ -75,22 +75,46 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
 
 
 
-# Silence Streamlit deprecation warnings (optional but handy)
+import streamlit as st
 import warnings
-from streamlit.errors import StreamlitDeprecationWarning
-warnings.filterwarnings("ignore", category=StreamlitDeprecationWarning)
 
-# Compat shim: make old @st.cache behave like the new APIs
+# ---- Silence the specific st.cache deprecation banner (works across versions) ----
+try:
+    # Some versions define this in different places; if not found, fall back to DeprecationWarning
+    try:
+        from streamlit.errors import StreamlitDeprecationWarning as _StDepWarn  # may not exist
+    except Exception:
+        try:
+            from streamlit import StreamlitDeprecationWarning as _StDepWarn  # may not exist
+        except Exception:
+            _StDepWarn = DeprecationWarning
+    # Hide only the st.cache banner
+    warnings.filterwarnings(
+        "ignore",
+        r".*st\.cache is deprecated and will be removed soon.*",
+        category=_StDepWarn,
+    )
+    # Also guard in case it’s emitted as a plain DeprecationWarning on some builds
+    warnings.filterwarnings(
+        "ignore",
+        r".*st\.cache is deprecated and will be removed soon.*",
+        category=DeprecationWarning,
+    )
+except Exception:
+    pass
+
+# ---- Compat shim: make old @st.cache behave like the new APIs for any deps that still use it ----
 def _cache_compat(*dargs, **dkwargs):
-    # Old code sometimes used allow_output_mutation=True to cache mutable singletons
     allow_mut = bool(dkwargs.pop("allow_output_mutation", False))
-    # Map to resource (mutable/singleton) vs data (immutable/return values) caches
     decorator = st.cache_resource if allow_mut else st.cache_data
     return decorator(*dargs, **dkwargs)
 
-# Monkey-patch BEFORE importing any 3rd-party modules that might reference st.cache
-st.cache = _cache_compat
-
+# Only monkey-patch if needed
+try:
+    if getattr(getattr(st, "cache", None), "__name__", "") != "_cache_compat":
+        st.cache = _cache_compat
+except Exception:
+    pass
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
