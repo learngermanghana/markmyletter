@@ -426,91 +426,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-def render_password_reset_page() -> bool:
-    """
-    If ?token= is present, render the reset page.
-    Returns True if we handled a reset screen (to st.stop()).
-    """
-    qp = qp_get()
-    token = qp.get("token")
-    if isinstance(token, list):
-        token = token[0]
-    if not token:
-        return False  # nothing to do
 
-    st.markdown("<div class='page-wrap'>", unsafe_allow_html=True)
-    st.header("Reset your password")
-
-    snap = db.collection("password_resets").document(token).get()
-    if not snap.exists:
-        st.error("Invalid or already-used reset link.")
-        if st.button("Back to login"):
-            qp_clear_keys("token")
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return True
-
-    data = snap.to_dict() or {}
-    try:
-        expires_at = datetime.fromisoformat(data.get("expires_at", ""))
-    except Exception:
-        expires_at = datetime.utcnow() - timedelta(seconds=1)
-
-    if datetime.utcnow() > expires_at:
-        st.error("This reset link has expired.")
-        # optional cleanup
-        try:
-            db.collection("password_resets").document(token).delete()
-        except Exception:
-            pass
-        if st.button("Back to login"):
-            qp_clear_keys("token")
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return True
-
-    email = (data.get("email") or "").strip().lower()
-    st.caption(f"Resetting password for: **{email}**")
-
-    new_pw = st.text_input("New password", type="password")
-    new_pw2 = st.text_input("Confirm new password", type="password")
-    if st.button("Set new password"):
-        if not new_pw or not new_pw2:
-            st.error("Please enter and confirm a new password.")
-        elif len(new_pw) < 8:
-            st.error("Password must be at least 8 characters.")
-        elif new_pw != new_pw2:
-            st.error("Passwords do not match.")
-        else:
-            # find student(s) by email (handle both 'email' and 'Email' field names)
-            matches = db.collection("students").where("email", "==", email).get()
-            if not matches:
-                matches = db.collection("students").where("Email", "==", email).get()
-
-            if not matches:
-                st.error("No student account found for this email.")
-            else:
-                hashed = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                try:
-                    # Update the first match
-                    doc_ref = matches[0].reference
-                    doc_ref.update({"password": hashed})
-                    # Burn the token
-                    db.collection("password_resets").document(token).delete()
-                    st.success("Your password has been updated. You can now log in.")
-                    if st.button("Return to login"):
-                        qp_clear_keys("token")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to update password: {e}")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    return True
-
-# 🔗 Handle /reset?token=... before showing login
-if not st.session_state.get("logged_in", False):
-    if render_password_reset_page():
-        st.stop()
 
 
 # ==== STUDENT SHEET LOADING ====
@@ -734,6 +650,91 @@ if not st.session_state.get("logged_in", False):
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
+def render_password_reset_page() -> bool:
+    """
+    If ?token= is present, render the reset page.
+    Returns True if we handled a reset screen (to st.stop()).
+    """
+    qp = qp_get()
+    token = qp.get("token")
+    if isinstance(token, list):
+        token = token[0]
+    if not token:
+        return False  # nothing to do
+
+    st.markdown("<div class='page-wrap'>", unsafe_allow_html=True)
+    st.header("Reset your password")
+
+    snap = db.collection("password_resets").document(token).get()
+    if not snap.exists:
+        st.error("Invalid or already-used reset link.")
+        if st.button("Back to login"):
+            qp_clear_keys("token")
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        return True
+
+    data = snap.to_dict() or {}
+    try:
+        expires_at = datetime.fromisoformat(data.get("expires_at", ""))
+    except Exception:
+        expires_at = datetime.utcnow() - timedelta(seconds=1)
+
+    if datetime.utcnow() > expires_at:
+        st.error("This reset link has expired.")
+        # optional cleanup
+        try:
+            db.collection("password_resets").document(token).delete()
+        except Exception:
+            pass
+        if st.button("Back to login"):
+            qp_clear_keys("token")
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        return True
+
+    email = (data.get("email") or "").strip().lower()
+    st.caption(f"Resetting password for: **{email}**")
+
+    new_pw = st.text_input("New password", type="password")
+    new_pw2 = st.text_input("Confirm new password", type="password")
+    if st.button("Set new password"):
+        if not new_pw or not new_pw2:
+            st.error("Please enter and confirm a new password.")
+        elif len(new_pw) < 8:
+            st.error("Password must be at least 8 characters.")
+        elif new_pw != new_pw2:
+            st.error("Passwords do not match.")
+        else:
+            # find student(s) by email (handle both 'email' and 'Email' field names)
+            matches = db.collection("students").where("email", "==", email).get()
+            if not matches:
+                matches = db.collection("students").where("Email", "==", email).get()
+
+            if not matches:
+                st.error("No student account found for this email.")
+            else:
+                hashed = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                try:
+                    # Update the first match
+                    doc_ref = matches[0].reference
+                    doc_ref.update({"password": hashed})
+                    # Burn the token
+                    db.collection("password_resets").document(token).delete()
+                    st.success("Your password has been updated. You can now log in.")
+                    if st.button("Return to login"):
+                        qp_clear_keys("token")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to update password: {e}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    return True
+
+# 🔗 Handle /reset?token=... before showing login
+if not st.session_state.get("logged_in", False):
+    if render_password_reset_page():
+        st.stop()
 
 # --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
