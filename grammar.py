@@ -3682,10 +3682,11 @@ def get_b1_schedule():
             "goal": "Stadtleben und Landleben vergleichen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Relativsätze",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
-            "workbook_link": ""
+            "grammarbook_link": "https://drive.google.com/file/d/1qUPAIGiwKNm4O9Z1VsFPprVVoNOZzCbF/view?usp=sharing",
+            "workbook_link": "https://drive.google.com/file/d/1xAUFfq2knYxfoGMTlXO_MA8F_RK5_i8o/view?usp=sharing"
         },
         # TAG 7
         {
