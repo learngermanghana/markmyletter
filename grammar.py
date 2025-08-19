@@ -46,6 +46,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- iOS Boot Guard: prevent pre-cookie rendering flicker ---
+def bootstrap_session():
+    flag = "__boot_stage"
+    if flag not in st.session_state:
+        st.session_state[flag] = "pre"
+        # nudge URL so Safari treats this as a new navigation (helps A2HS):
+        try: st.query_params.update(_=str(int(time.time())))
+        except Exception: pass
+        st.rerun()
+
+    if st.session_state.get(flag) == "pre":
+        st.session_state[flag] = "ready"
+        with st.spinner("Starting Falowen…"):
+            time.sleep(0.08)  # a tiny beat for Safari to settle cookies
+        st.stop()
+
+bootstrap_session()
+
+
 # Top spacing + chrome (tighter)
 st.markdown("""
 <style>
@@ -216,6 +235,57 @@ def destroy_session_token(token: str) -> None:
         db.collection(SESSIONS_COL).document(token).delete()
     except Exception:
         pass
+
+def _restore_from_url_token_if_present():
+    # Use only as a one-shot bootstrap; tokens should NOT persist in URL
+    try:
+        tok = st.query_params.get("token", "")
+        if isinstance(tok, list): tok = tok[0] if tok else ""
+    except Exception:
+        tok = ""
+
+    if not tok or st.session_state.get("logged_in"): 
+        return
+
+    data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
+    if not data: 
+        # Strip any stale token to avoid loops
+        try: del st.query_params["token"]
+        except Exception: pass
+        return
+
+    # Confirm student still active
+    try:
+        df_students = load_student_data()
+        found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+    except Exception:
+        found = pd.DataFrame()
+
+    if found.empty or is_contract_expired(found.iloc[0]):
+        try: del st.query_params["token"]
+        except Exception: pass
+        return
+
+    row = found.iloc[0]
+    st.session_state.update({
+        "logged_in": True,
+        "student_row": row.to_dict(),
+        "student_code": row["StudentCode"],
+        "student_name": row["Name"],
+        "session_token": tok,
+    })
+    # Set cookies so future loads don’t need the URL
+    set_session_token_cookie(cookie_manager, tok, expires=datetime.utcnow() + timedelta(days=30))
+    set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+    # Strip token from URL; keep code for sticky identity
+    try:
+        del st.query_params["token"]
+        st.query_params["code"] = row["StudentCode"]
+    except Exception:
+        pass
+
+_restore_from_url_token_if_present()
+
 
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -550,22 +620,43 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
         if ({json.dumps(student_code)} !== "") {{
           localStorage.setItem('student_code', {json.dumps(student_code)});
         }}
+        // Keep ?code= sticky for iPhone refreshes; NEVER keep token in URL
         const u = new URL(window.location);
-        ['code','state'].forEach(k => u.searchParams.delete(k));
+        if ({json.dumps(student_code)} !== "") u.searchParams.set('code', {json.dumps(student_code)});
+        u.searchParams.delete('token');
+        u.searchParams.delete('state');
         window.history.replaceState({{}}, '', u);
       }} catch(e) {{}}
     </script>
     """, height=0)
 
-# ==== Cookie manager init ====
-COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
-    st.stop()
+
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
+
+def _bridge_local_storage_to_url_once():
+    # If cookies aren’t ready, grab session_token/code from localStorage and reload with them in the URL (one time)
+    components.html("""
+      <script>
+        try {
+          const tok  = localStorage.getItem('session_token');
+          const code = localStorage.getItem('student_code');
+          if (tok) {
+            const u = new URL(window.location);
+            u.searchParams.set('token', tok);
+            if (code) u.searchParams.set('code', code);
+            window.location.replace(u);   // one-shot; next render will validate & strip token
+          }
+        } catch(e) {}
+      </script>
+    """, height=0)
+
+# short warm-up (iOS often needs a beat after the Boot Guard)
 if not cookie_manager.ready():
-    st.warning("Cookies not ready; please refresh.")
-    st.stop()
+    time.sleep(0.05)
+if not cookie_manager.ready():
+    _bridge_local_storage_to_url_once()
+    with st.spinner("Starting Falowen…"):
+        st.stop()
 
 # ---- Restore from existing session token (cookie) ----
 restored = False
@@ -11515,6 +11606,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
