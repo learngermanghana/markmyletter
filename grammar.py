@@ -1977,6 +1977,40 @@ def render_dropdown_nav():
 
     return tab
 
+# --- Reviews loader (robust) ---
+@st.cache_data(ttl=1800)  # 30 min
+def get_reviews_df():
+    SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
+    try:
+        df = pd.read_csv(url, dtype=str)
+    except Exception as e:
+        st.warning(f"Could not load reviews: {e}")
+        return pd.DataFrame(columns=["review_text", "student_name", "rating"])
+
+    # normalize
+    df.columns = df.columns.str.strip().str.lower()
+    for c in df.columns:
+        df[c] = df[c].astype(str).strip()
+
+    # ensure columns
+    if "review_text" not in df.columns:
+        # try some common variants
+        cand = next((c for c in df.columns if c in ("review", "text", "comment", "feedback")), None)
+        df["review_text"] = df[cand] if cand else ""
+    if "student_name" not in df.columns:
+        cand = next((c for c in df.columns if c in ("name", "author", "student")), None)
+        df["student_name"] = df[cand] if cand else ""
+    if "rating" not in df.columns:
+        df["rating"] = "5"
+
+    # clean rating
+    def _to_int(x):
+        try: return int(float(str(x)))
+        except Exception: return 5
+    df["rating"] = df["rating"].apply(_to_int).clip(lower=0, upper=5)
+
+    return df[["review_text", "student_name", "rating"]]
 
 # =========================================================
 # ===================== NAV & HELPERS =====================
@@ -2777,7 +2811,7 @@ if tab == "Dashboard":
     # ---------- Reviews ----------
     with st.expander("🗣️ What Our Students Say", expanded=False):
         import datetime as _pydt
-        reviews = load_reviews()
+        reviews = get_reviews_df()
         if reviews.empty:
             st.info("No reviews yet. Be the first to share your experience!")
         else:
