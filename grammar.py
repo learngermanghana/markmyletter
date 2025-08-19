@@ -156,6 +156,34 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
+# --- Make cache hashing resilient to TokenError ---
+import tokenize as _tok
+import streamlit as st as _st  # if not already imported; otherwise skip this line
+
+_st_cache_data_orig = st.cache_data  # keep original
+
+def _cache_data_resilient(*dargs, **dkwargs):
+    """
+    Wrap Streamlit's cache decorator so if source-inspection/tokenization fails
+    (e.g., during hot-reload or due to a stray triple quote), we gracefully
+    NO-OP the cache for that function instead of crashing the app.
+    """
+    real_deco = _st_cache_data_orig(*dargs, **dkwargs)
+    def wrapper(func):
+        try:
+            return real_deco(func)
+        except _tok.TokenError:
+            st.warning(f"⚠️ Caching disabled for {getattr(func, '__name__', 'a function')} due to TokenError in source parsing.")
+            return func  # fall back to uncached
+        except Exception as e:
+            st.warning(f"⚠️ Caching disabled for {getattr(func, '__name__', 'a function')}: {e}")
+            return func
+    return wrapper
+
+# Monkey-patch BEFORE any @st.cache_data is evaluated below
+st.cache_data = _cache_data_resilient
+
+
 # ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
 try:
     if not firebase_admin._apps:
@@ -11606,6 +11634,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
