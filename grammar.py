@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ==== Standard Library ====
 import atexit
 import base64
@@ -10,11 +11,11 @@ import json
 import math
 import os
 import random
-import tokenize as _tok
 import re
 import sqlite3
 import tempfile
 import time
+import tokenize as _tok
 import urllib.parse as _urllib
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
@@ -38,7 +39,6 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
@@ -52,76 +52,42 @@ def bootstrap_session():
     flag = "__boot_stage"
     if flag not in st.session_state:
         st.session_state[flag] = "pre"
-        # nudge URL so Safari treats this as a new navigation (helps A2HS):
-        try: st.query_params.update(_=str(int(time.time())))
-        except Exception: pass
+        try:
+            st.query_params.update(_=str(int(time.time())))
+        except Exception:
+            pass
         st.rerun()
-
     if st.session_state.get(flag) == "pre":
         st.session_state[flag] = "ready"
         with st.spinner("Starting Falowen…"):
-            time.sleep(0.08)  # a tiny beat for Safari to settle cookies
+            time.sleep(0.08)
         st.stop()
 
 bootstrap_session()
 
-
 # Top spacing + chrome (tighter)
-st.markdown("""
+st.markdown('''
 <style>
-/* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
-
-/* First rendered block (often a head-inject) — keep a small gap only */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;   /* was 24px */
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-
-/* If that first block is an iframe, collapse it completely */
-[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Keep hero flush and compact */
-  .hero {
-    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 6px !important;
-    display: flow-root;
-  }
-.hero h1:first-child { margin-top: 0 !important; }
-/* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] {
-  margin-top: 8px !important;
-}
-
-/* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
+[data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0 !important; }
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child { margin-top: 0 !important; margin-bottom: 8px !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+[data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] { display:block; height:0 !important; min-height:0 !important; margin:0 !important; padding:0 !important; border:0 !important; overflow:hidden !important; }
+.hero { margin-top:2px !important; margin-bottom:4px !important; padding-top:6px !important; display:flow-root; }
+.hero h1:first-child { margin-top:0 !important; }
+[data-testid="stTabs"] { margin-top: 8px !important; }
+#MainMenu { visibility: hidden; } footer { visibility: hidden; }
 </style>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 
 # Compatibility alias
 html = st_html
 
-# ---- PWA head helper (define BEFORE you call it) ----
+# ---- PWA head helper ----
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
-_icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
+_manifest = f"{BASE}/static/manifest.webmanifest" if BASE else "/static/manifest.webmanifest"
+_icon180  = f"{BASE}/static/icons/falowen-180.png" if BASE else "/static/icons/falowen-180.png"
 
 def _inject_meta_tags():
-    components.html(f"""
+    components.html(f'''
       <link rel="manifest" href="{_manifest}">
       <link rel="apple-touch-icon" href="{_icon180}">
       <meta name="apple-mobile-web-app-capable" content="yes">
@@ -129,7 +95,7 @@ def _inject_meta_tags():
       <meta name="apple-mobile-web-app-status-bar-style" content="black">
       <meta name="theme-color" content="#000000">
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    """, height=0)
+    ''', height=0)
 
 # --- State bootstrap ---
 def _bootstrap_state():
@@ -149,42 +115,28 @@ def _bootstrap_state():
         st.session_state.setdefault(k, v)
 _bootstrap_state()
 
-# ==== Hide Streamlit chrome ====
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-</style>
-""", unsafe_allow_html=True)
+# ---- Hide chrome (secondary safety) ----
+st.markdown('''<style>#MainMenu{visibility:hidden;} footer{visibility:hidden;}</style>''', unsafe_allow_html=True)
 
 # --- Make cache hashing resilient to TokenError ---
-
-
 _st_cache_data_orig = st.cache_data  # keep original
 
 def _cache_data_resilient(*dargs, **dkwargs):
-    """
-    Wrap Streamlit's cache decorator so if source-inspection/tokenization fails
-    (e.g., during hot-reload or due to a stray triple quote), we gracefully
-    NO-OP the cache for that function instead of crashing the app.
-    """
     real_deco = _st_cache_data_orig(*dargs, **dkwargs)
     def wrapper(func):
         try:
             return real_deco(func)
         except _tok.TokenError:
             st.warning(f"⚠️ Caching disabled for {getattr(func, '__name__', 'a function')} due to TokenError in source parsing.")
-            return func  # fall back to uncached
+            return func
         except Exception as e:
             st.warning(f"⚠️ Caching disabled for {getattr(func, '__name__', 'a function')}: {e}")
             return func
     return wrapper
 
-# Monkey-patch BEFORE any @st.cache_data is evaluated below
 st.cache_data = _cache_data_resilient
 
-
-# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
+# ==== FIREBASE ADMIN INIT (Firestore only) ====
 try:
     if not firebase_admin._apps:
         cred_dict = dict(st.secrets["firebase"])
@@ -239,9 +191,7 @@ def refresh_or_rotate_session_token(token: str) -> str:
             return token
         data = snap.to_dict() or {}
         now = time.time()
-        # Extend TTL
         ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
-        # Rotate if old
         if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
             new_token = _rand_token()
             db.collection(SESSIONS_COL).document(new_token).set({
@@ -264,57 +214,6 @@ def destroy_session_token(token: str) -> None:
     except Exception:
         pass
 
-def _restore_from_url_token_if_present():
-    # Use only as a one-shot bootstrap; tokens should NOT persist in URL
-    try:
-        tok = st.query_params.get("token", "")
-        if isinstance(tok, list): tok = tok[0] if tok else ""
-    except Exception:
-        tok = ""
-
-    if not tok or st.session_state.get("logged_in"): 
-        return
-
-    data = validate_session_token(tok, st.session_state.get("__ua_hash", ""))
-    if not data: 
-        # Strip any stale token to avoid loops
-        try: del st.query_params["token"]
-        except Exception: pass
-        return
-
-    # Confirm student still active
-    try:
-        df_students = load_student_data()
-        found = df_students[df_students["StudentCode"] == data.get("student_code","")]
-    except Exception:
-        found = pd.DataFrame()
-
-    if found.empty or is_contract_expired(found.iloc[0]):
-        try: del st.query_params["token"]
-        except Exception: pass
-        return
-
-    row = found.iloc[0]
-    st.session_state.update({
-        "logged_in": True,
-        "student_row": row.to_dict(),
-        "student_code": row["StudentCode"],
-        "student_name": row["Name"],
-        "session_token": tok,
-    })
-    # Set cookies so future loads don’t need the URL
-    set_session_token_cookie(cookie_manager, tok, expires=datetime.utcnow() + timedelta(days=30))
-    set_student_code_cookie(cookie_manager, row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-    # Strip token from URL; keep code for sticky identity
-    try:
-        del st.query_params["token"]
-        st.query_params["code"] = row["StudentCode"]
-    except Exception:
-        pass
-
-_restore_from_url_token_if_present()
-
-
 # ==== OPENAI CLIENT SETUP ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
@@ -323,12 +222,10 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# ==== DB CONNECTION & INITIALIZATION ====
+# ==== LOCAL SQLITE (usage & small stores) ====
 def get_connection():
     if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect(
-            "vocab_progress.db", check_same_thread=False
-        )
+        st.session_state["conn"] = sqlite3.connect("vocab_progress.db", check_same_thread=False)
         atexit.register(st.session_state["conn"].close)
     return st.session_state["conn"]
 
@@ -338,66 +235,42 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS vocab_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
+            student_code TEXT, name TEXT, level TEXT, word TEXT,
+            student_answer TEXT, is_correct INTEGER, date TEXT
         )
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS schreiben_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
+            student_code TEXT, name TEXT, level TEXT, essay TEXT,
+            score INTEGER, feedback TEXT, date TEXT
         )
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS sprechen_progress (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
+            student_code TEXT, name TEXT, level TEXT, teil TEXT,
+            message TEXT, score INTEGER, feedback TEXT, date TEXT
         )
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level TEXT,
-            teil TEXT,
-            remaining TEXT,
-            used TEXT,
+            student_code TEXT, level TEXT, teil TEXT,
+            remaining TEXT, used TEXT,
             PRIMARY KEY (student_code, level, teil)
         )
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS my_vocab (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
+            student_code TEXT, level TEXT, word TEXT,
+            translation TEXT, date_added TEXT
         )
     """)
     for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
         c.execute(f"""
             CREATE TABLE IF NOT EXISTS {tbl} (
-                student_code TEXT,
-                date TEXT,
-                count INTEGER,
+                student_code TEXT, date TEXT, count INTEGER,
                 PRIMARY KEY (student_code, date)
             )
         """)
@@ -424,19 +297,13 @@ def inc_sprechen_usage(student_code):
     today = str(date.today())
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        """
+    c.execute("""
         INSERT INTO sprechen_usage (student_code, date, count)
         VALUES (?, ?, 1)
         ON CONFLICT(student_code, date)
         DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
+    """, (student_code, today))
     conn.commit()
-
-def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
-    return get_sprechen_usage(student_code) < limit
 
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
@@ -450,7 +317,6 @@ YOUTUBE_PLAYLIST_IDS = {
     "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
     "B2": ["PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C", "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0", "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY"],
 }
-
 
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
@@ -478,7 +344,6 @@ def load_student_data():
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
-        # guard: ensure CSV not HTML
         txt = resp.text
         if "<html" in txt[:512].lower():
             raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
@@ -487,16 +352,13 @@ def load_student_data():
         st.error(f"❌ Could not load student data. {e}")
         st.stop()
 
-    # Normalize headers and trim cells while preserving NaN
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
         s = df[col]
         df[col] = s.where(s.isna(), s.astype(str).str.strip())
 
-    # Keep only rows with a ContractEnd value
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
-    # Robust parse
     def _parse_contract_end(s: str):
         for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
@@ -508,210 +370,23 @@ def load_student_data():
     df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
     df = df[df["ContractEnd_dt"].notna()]
 
-    # Normalize identifiers
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     if "Email" in df.columns:
         df["Email"] = df["Email"].str.lower().str.strip()
 
-    # Keep most recent per student
-    df = (df.sort_values("ContractEnd_dt", ascending=False)
-            .drop_duplicates(subset=["StudentCode"], keep="first")
-            .drop(columns=["ContractEnd_dt"]))
+    df = (
+        df.sort_values("ContractEnd_dt", ascending=False)
+          .drop_duplicates(subset=["StudentCode"], keep="first")
+          .drop(columns=["ContractEnd_dt"])
+    )
     return df
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "") or "").strip()
     if not expiry_str or expiry_str.lower() == "nan":
-        return True
-    expiry_date = None
-    for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
-        try:
-            expiry_date = datetime.strptime(expiry_str, fmt); break
-        except ValueError:
-            continue
-    if expiry_date is None:
-        parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed): return True
-        expiry_date = parsed.to_pydatetime()
-    return expiry_date.date() < datetime.utcnow().date()
+        re
 
-# ==== Query param helpers (stable) ====
-def qp_get():
-    # returns a dict-like object
-    return st.query_params
-
-def qp_clear():
-    # clears all query params from the URL
-    st.query_params.clear()
-
-def qp_clear_keys(*keys):
-    # remove only the specified keys
-    for k in keys:
-        try:
-            del st.query_params[k]
-        except KeyError:
-            pass
-
-# ==== Cookie helpers (normal cookies) ====
-def _expire_str(dt: datetime) -> str:
-    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
-def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
-    base = (
-        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value, safe=""))} + '
-        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
-        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
-    )
-    if domain:
-        base += f'c += "; Domain=" + {domain};\n'
-    base += "document.cookie = c;\n"
-    return base
-
-def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
-    key = "student_code"
-    norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")
-    max_age = 60 * 60 * 24 * 180  # 180 days
-    exp_str = _expire_str(expires)
-    # Library cookie (encrypted; host-only)
-    try:
-        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
-        cookie_manager.save()
-    except Exception:
-        try:
-            cookie_manager[key] = norm; cookie_manager.save()
-        except Exception:
-            pass
-    # JS host-only + base-domain (guard invalid hosts)
-    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
-    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
-    script = f"""
-    <script>
-      (function(){{
-        try {{
-          {host_js}
-          try {{
-            var h = (window.location.hostname||'').split('.').filter(Boolean);
-            if (h.length >= 2) {{
-              var base = '.' + h.slice(-2).join('.');
-              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
-            }}
-          }} catch(e) {{}}
-          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
-        }} catch(e) {{}}
-      }})();
-    </script>
-    """
-    components.html(script, height=0)
-
-def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
-    key = "session_token"
-    val = (token or "").strip()
-    use_secure = (os.getenv("ENV", "prod") != "dev")
-    max_age = 60 * 60 * 24 * 30  # 30 days
-    exp_str = _expire_str(expires)
-    try:
-        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
-        cookie_manager.save()
-    except Exception:
-        try:
-            cookie_manager[key] = val; cookie_manager.save()
-        except Exception:
-            pass
-    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
-    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
-    script = f"""
-    <script>
-      (function(){{
-        try {{
-          {host_js}
-          try {{
-            var h = (window.location.hostname||'').split('.').filter(Boolean);
-            if (h.length >= 2) {{
-              var base = '.' + h.slice(-2).join('.');
-              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
-            }}
-          }} catch(e) {{}}
-          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
-        }} catch(e) {{}}
-      }})();
-    </script>
-    """
-    components.html(script, height=0)
-
-def _persist_session_client(token: str, student_code: str = "") -> None:
-    components.html(f"""
-    <script>
-      try {{
-        localStorage.setItem('session_token', {json.dumps(token)});
-        if ({json.dumps(student_code)} !== "") {{
-          localStorage.setItem('student_code', {json.dumps(student_code)});
-        }}
-        // Keep ?code= sticky for iPhone refreshes; NEVER keep token in URL
-        const u = new URL(window.location);
-        if ({json.dumps(student_code)} !== "") u.searchParams.set('code', {json.dumps(student_code)});
-        u.searchParams.delete('token');
-        u.searchParams.delete('state');
-        window.history.replaceState({{}}, '', u);
-      }} catch(e) {{}}
-    </script>
-    """, height=0)
-
-
-cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-
-def _bridge_local_storage_to_url_once():
-    # If cookies aren’t ready, grab session_token/code from localStorage and reload with them in the URL (one time)
-    components.html("""
-      <script>
-        try {
-          const tok  = localStorage.getItem('session_token');
-          const code = localStorage.getItem('student_code');
-          if (tok) {
-            const u = new URL(window.location);
-            u.searchParams.set('token', tok);
-            if (code) u.searchParams.set('code', code);
-            window.location.replace(u);   // one-shot; next render will validate & strip token
-          }
-        } catch(e) {}
-      </script>
-    """, height=0)
-
-# short warm-up (iOS often needs a beat after the Boot Guard)
-if not cookie_manager.ready():
-    time.sleep(0.05)
-if not cookie_manager.ready():
-    _bridge_local_storage_to_url_once()
-    with st.spinner("Starting Falowen…"):
-        st.stop()
-
-# ---- Restore from existing session token (cookie) ----
-restored = False
-if not st.session_state.get("logged_in", False):
-    cookie_tok = (cookie_manager.get("session_token") or "").strip()
-    if cookie_tok:
-        data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
-        if data:
-            # Validate the student still exists and contract active
-            try:
-                df_students = load_student_data()
-                found = df_students[df_students["StudentCode"] == data.get("student_code","")]
-            except Exception:
-                found = pd.DataFrame()
-            if not found.empty and not is_contract_expired(found.iloc[0]):
-                row = found.iloc[0]
-                st.session_state.update({
-                    "logged_in": True,
-                    "student_row": row.to_dict(),
-                    "student_code": row["StudentCode"],
-                    "student_name": row["Name"],
-                    "session_token": cookie_tok,
-                })
-                new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
-                st.session_state["session_token"] = new_tok
-                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
-                restored = True
 
 
 # --- 2) Global CSS (tightened spacing) ---
@@ -11634,6 +11309,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
