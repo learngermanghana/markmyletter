@@ -865,17 +865,26 @@ def reset_password_page(token: str):
     except Exception as e:
         st.error(f"Could not update password: {e}")
 
-# ──────────────────────────────────────────────────────────────────────────────
-
 def render_login_form():
+    # one-time state
+    st.session_state.setdefault("show_reset_panel", False)
+
     with st.form("login_form", clear_on_submit=False):
         login_id = st.text_input(
             "Student Code or Email",
             help="Use your school email or Falowen code (e.g., felixa2)."
         ).strip().lower()
         login_pass = st.text_input("Password", type="password")
-        login_btn = st.form_submit_button("Log In")
 
+        # row: [Log In] ...... [Forgot password?]
+        c1, c2 = st.columns([0.6, 0.4])
+        with c1:
+            login_btn = st.form_submit_button("Log In", use_container_width=True)
+        with c2:
+            # small, linky-looking button; still a submit so it can toggle inside the form
+            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
+
+    # ── login (unchanged) ──────────────────────────────────────────────────────
     if login_btn:
         df = load_student_data()
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
@@ -915,7 +924,6 @@ def render_login_form():
             st.error("Incorrect password.")
             return
 
-        # ---- Login success ----
         ua_hash = st.session_state.get("__ua_hash", "")
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         st.session_state.update({
@@ -931,44 +939,78 @@ def render_login_form():
         st.success(f"Welcome, {student_row['Name']}!")
         st.rerun()
 
-    # --- Forgot Password Section ---
-    st.markdown("<hr>", unsafe_allow_html=True)
-    st.subheader("Forgot Password?")
-    email_for_reset = st.text_input("Enter your registered email:", key="reset_email")
+    # ── forgot password inline panel ───────────────────────────────────────────
+    # If user clicked "Forgot password?" in the form, open the inline panel
+    if forgot_toggle:
+        st.session_state["show_reset_panel"] = True
 
-    if st.button("Send Reset Link"):
-        if not email_for_reset:
-            st.error("Please enter your email.")
-        else:
-            e = email_for_reset.lower().strip()
+    if st.session_state.get("show_reset_panel"):
+        # mild styling so it feels attached to the form
+        st.markdown("""
+        <style>
+          .reset-card{
+            margin-top:6px; border:1px solid #e5e7eb; border-radius:10px; padding:12px;
+            background:linear-gradient(180deg,#f8fafc 0%, #ffffff 100%);
+          }
+          .reset-head{ font-weight:700; color:#25317e; margin:0 0 6px 0; }
+          .reset-sub{ color:#475569; margin-top:-2px; margin-bottom:8px; }
+          .reset-actions{ display:flex; gap:8px; align-items:center; }
+        </style>
+        """, unsafe_allow_html=True)
 
-            # Check Firestore: accept both 'email' and 'Email' field casings
-            user_query = db.collection("students").where("email", "==", e).get()
-            if not user_query:
-                user_query = db.collection("students").where("Email", "==", e).get()
-            if not user_query:
-                st.error("No account found with that email.")
-                return
+        with st.container():
+            st.markdown('<div class="reset-card">', unsafe_allow_html=True)
+            st.markdown('<div class="reset-head">Reset your password</div>', unsafe_allow_html=True)
+            st.markdown('<div class="reset-sub">We\'ll email you a secure link (valid for 1 hour).</div>', unsafe_allow_html=True)
 
-            token = uuid4().hex
-            expires_at = datetime.utcnow() + timedelta(hours=1)  # reset link valid 1h
+            email_for_reset = st.text_input("Registered email", key="reset_email_inline")
 
-            # Use base URL from secrets if available; keep it on the same page (?token=..)
-            reset_base = PUBLIC_BASE_URL or "https://falowen.app"
-            reset_link = f"{reset_base}?token={token}"
+            c3, c4 = st.columns([0.55, 0.45])
+            with c3:
+                send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+            with c4:
+                back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
 
-            # Store reset token in Firestore
-            db.collection("password_resets").document(token).set({
-                "email": e,
-                "created": datetime.utcnow().isoformat(),
-                "expires_at": expires_at.isoformat()
-            })
+            if back_btn:
+                st.session_state["show_reset_panel"] = False
+                st.experimental_rerun()
 
-            ok = send_reset_email(e, reset_link)
-            if ok:
-                st.success("We’ve sent you a reset link. Please check your email (valid for 1 hour).")
-            else:
-                st.error("We couldn’t send the email. Please try again or contact support.")
+            if send_btn:
+                if not email_for_reset:
+                    st.error("Please enter your email.")
+                else:
+                    e = email_for_reset.lower().strip()
+
+                    # Accept both 'email' and 'Email' in Firestore
+                    user_query = db.collection("students").where("email", "==", e).get()
+                    if not user_query:
+                        user_query = db.collection("students").where("Email", "==", e).get()
+                    if not user_query:
+                        st.error("No account found with that email.")
+                        return
+
+                    token = uuid4().hex
+                    expires_at = datetime.utcnow() + timedelta(hours=1)
+
+                    reset_base = st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app")
+                    reset_link = f"{reset_base}?token={token}"
+
+                    db.collection("password_resets").document(token).set({
+                        "email": e,
+                        "created": datetime.utcnow().isoformat(),
+                        "expires_at": expires_at.isoformat()
+                    })
+
+                    if send_reset_email(e, reset_link):
+                        st.success("Reset link sent! Check your inbox (and spam).")
+                        # keep the panel open but show success
+                    else:
+                        st.error("We couldn’t send the email. Please try again later.")
+
+            st.markdown('</div>', unsafe_allow_html=True)  # /reset-card
+
+
+
 
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
