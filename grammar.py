@@ -123,7 +123,7 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
 # Prefer Apps Script reset page for password updates
 GAS_RESET_URL = st.secrets.get(
     "GAS_RESET_URL",
-    "https://script.google.com/macros/s/AKfycbwdgYJtya39qzBZaXdUqkk1i2_LIHna5CN-lHYveq7O1yG46KghKZWKNKqGYlh_xyZU/exec?token=THE_RESET_TOKEN"
+    "https://script.google.com/macros/s/AKfycbwdgYJtya39qzBZaXdUqkk1i2_LIHna5CN-lHYveq7O1yG46KghKZWKNKqGYlh_xyZU/exec?token=<THE_TOKEN>"
 )
 
 # ------------------------------------------------------------------------------
@@ -11547,6 +11547,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
