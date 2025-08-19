@@ -721,10 +721,6 @@ def render_google_oauth():
     )
 
 
-import streamlit as st
-import pyrebase
-from google.cloud import firestore
-
 # ---- Firebase Config (from your Firebase Console > Project Settings) ----
 firebaseConfig = {
     "apiKey": st.secrets["FIREBASE_API_KEY"],
