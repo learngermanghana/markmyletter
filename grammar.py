@@ -37,34 +37,43 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# ==== Email (SendGrid) ====
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+# ==== Email (Gmail via SMTP) ====
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-SENDGRID_API_KEY = st.secrets["SENDGRID_API_KEY"]
-SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
+EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]   # your Gmail
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"] # your 16-char app password
 
 def send_reset_email(to_email: str, reset_link: str):
-    """Send a password reset email using SendGrid."""
+    """Send a password reset email using Gmail SMTP."""
     try:
-        message = Mail(
-            from_email=SENDER_EMAIL,   # 👈 now uses secrets.toml
-            to_emails=to_email,
-            subject="Falowen Password Reset",
-            html_content=f"""
-                <p>Hello,</p>
-                <p>You requested to reset your password. Click the link below to continue:</p>
-                <p><a href="{reset_link}">{reset_link}</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-                <br>
-                <p>– Falowen Team</p>
-            """
-        )
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        sg.send(message)
+        # Create the email
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_ADDRESS
+        msg["To"] = to_email
+        msg["Subject"] = "Falowen Password Reset"
+
+        msg.attach(MIMEText(f"""
+            <p>Hello,</p>
+            <p>You requested to reset your password. Click the link below to continue:</p>
+            <p><a href="{reset_link}">{reset_link}</a></p>
+            <p>If you did not request this, you can safely ignore this email.</p>
+            <br>
+            <p>– Falowen Team</p>
+        """, "html"))
+
+        # Connect to Gmail SMTP
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_ADDRESS, to_email, msg.as_string())
+        server.quit()
+
         st.success(f"✅ Reset link sent to {to_email}. Check your inbox.")
     except Exception as e:
         st.error(f"❌ Failed to send reset email: {e}")
+
 
 
 # ---- Streamlit page config MUST be first Streamlit call ----
@@ -11540,6 +11549,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
