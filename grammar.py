@@ -74,6 +74,24 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
         return False
 
 
+
+# Silence Streamlit deprecation warnings (optional but handy)
+import warnings
+from streamlit.errors import StreamlitDeprecationWarning
+warnings.filterwarnings("ignore", category=StreamlitDeprecationWarning)
+
+# Compat shim: make old @st.cache behave like the new APIs
+def _cache_compat(*dargs, **dkwargs):
+    # Old code sometimes used allow_output_mutation=True to cache mutable singletons
+    allow_mut = bool(dkwargs.pop("allow_output_mutation", False))
+    # Map to resource (mutable/singleton) vs data (immutable/return values) caches
+    decorator = st.cache_resource if allow_mut else st.cache_data
+    return decorator(*dargs, **dkwargs)
+
+# Monkey-patch BEFORE importing any 3rd-party modules that might reference st.cache
+st.cache = _cache_compat
+
+
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
     page_title="Falowen – Your German Conversation Partner",
