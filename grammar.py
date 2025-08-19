@@ -24,7 +24,6 @@ import bcrypt
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
-import pyrebase
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
