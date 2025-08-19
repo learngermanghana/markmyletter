@@ -7325,6 +7325,24 @@ def save_exam_progress(student_code, progress_items):
                 "date": now
             })
     doc_ref.set({"completed": all_progress}, merge=True)
+    
+
+# Simple back-step that returns to Stage 1 (used in buttons)
+def back_step():
+    for key in [
+        "falowen_mode", "falowen_level", "falowen_teil",
+        "falowen_exam_topic", "falowen_exam_keyword",
+        "remaining_topics", "used_topics", "falowen_messages"
+    ]:
+        st.session_state.pop(key, None)
+    st.session_state["_falowen_loaded"] = False
+    st.session_state["falowen_stage"] = 1
+    st.rerun()
+
+# --- CONFIG (same doc, no duplicate db init) ---
+exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
+exam_sheet_name = "exam_topics"
+exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
 
 @st.cache_data(ttl=3600)
 def load_exam_topics():
@@ -7349,37 +7367,6 @@ def load_exam_topics():
     df['Teil']  = df['Teil'].str.replace(r'\s*[-–—].*$', '', regex=True).str.strip()  # keep just "Teil X"
     return df
 
-
-# Simple back-step that returns to Stage 1 (used in buttons)
-def back_step():
-    for key in [
-        "falowen_mode", "falowen_level", "falowen_teil",
-        "falowen_exam_topic", "falowen_exam_keyword",
-        "remaining_topics", "used_topics", "falowen_messages"
-    ]:
-        st.session_state.pop(key, None)
-    st.session_state["_falowen_loaded"] = False
-    st.session_state["falowen_stage"] = 1
-    st.rerun()
-
-# --- CONFIG (same doc, no duplicate db init) ---
-exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
-exam_sheet_name = "exam_topics"
-exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
-
-@st.cache_data
-def load_exam_topics():
-    df = pd.read_csv(exam_csv_url)
-    for col in ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']:
-        if col not in df.columns:
-            df[col] = ""
-    # strip
-    for c in df.columns:
-        if df[c].dtype == "O":
-            df[c] = df[c].astype(str).str.strip()
-    return df
-
-df_exam = load_exam_topics()
 
 # ================= UI styles: bubbles + highlights (yours, restored) =================
 bubble_user = (
