@@ -10,6 +10,7 @@ import json
 import math
 import os
 import random
+import tokenize as _tok
 import re
 import sqlite3
 import tempfile
@@ -157,8 +158,7 @@ footer {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # --- Make cache hashing resilient to TokenError ---
-import tokenize as _tok
-import streamlit as st as _st  # if not already imported; otherwise skip this line
+
 
 _st_cache_data_orig = st.cache_data  # keep original
 
@@ -11634,6 +11634,7 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
+
 
 
 
