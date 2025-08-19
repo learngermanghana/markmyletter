@@ -614,7 +614,6 @@ if not st.session_state.get("logged_in", False):
                 restored = True
 
 
-
 # --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
 <style>
@@ -11535,11 +11534,6 @@ if tab == "Schreiben Trainer":
       const s = document.createElement('script'); s.type = "application/ld+json"; s.text = JSON.stringify(ld); document.head.appendChild(s);
     </script>
     """, height=0)
-
-
-
-
-
 
 
 
