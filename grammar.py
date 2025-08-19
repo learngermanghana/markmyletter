@@ -25,6 +25,7 @@ import bcrypt
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
+import pyrebase   # ✅ keep it here once
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
@@ -37,6 +38,7 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 # ---- Streamlit page config MUST be first Streamlit call ----
