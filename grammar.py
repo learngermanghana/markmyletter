@@ -28,7 +28,6 @@ import requests
 import streamlit as st
 import warnings
 import streamlit.components.v1 as components
-from bs4 import BeautifulSoup
 from docx import Document
 from firebase_admin import credentials, firestore
 from fpdf import FPDF
@@ -43,7 +42,55 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Read from secrets if available; fall back to your current values
+# ------------------------------------------------------------------------------
+# Page config MUST be the first Streamlit call
+# ------------------------------------------------------------------------------
+st.set_page_config(
+    page_title="Falowen – Your German Conversation Partner",
+    page_icon="👋",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ------------------------------------------------------------------------------
+# Silence the st.cache deprecation banner & provide a compat shim
+# ------------------------------------------------------------------------------
+try:
+    try:
+        from streamlit.errors import StreamlitDeprecationWarning as _StDepWarn
+    except Exception:
+        try:
+            from streamlit import StreamlitDeprecationWarning as _StDepWarn
+        except Exception:
+            _StDepWarn = DeprecationWarning
+
+    warnings.filterwarnings(
+        "ignore",
+        r".*st\.cache is deprecated and will be removed soon.*",
+        category=_StDepWarn,
+    )
+    warnings.filterwarnings(
+        "ignore",
+        r".*st\.cache is deprecated and will be removed soon.*",
+        category=DeprecationWarning,
+    )
+except Exception:
+    pass
+
+def _cache_compat(*dargs, **dkwargs):
+    allow_mut = bool(dkwargs.pop("allow_output_mutation", False))
+    decorator = st.cache_resource if allow_mut else st.cache_data
+    return decorator(*dargs, **dkwargs)
+
+try:
+    if getattr(getattr(st, "cache", None), "__name__", "") != "_cache_compat":
+        st.cache = _cache_compat  # monkey-patch only if not already our shim
+except Exception:
+    pass
+
+# ------------------------------------------------------------------------------
+# Email creds
+# ------------------------------------------------------------------------------
 EMAIL_ADDRESS = st.secrets.get("SMTP_FROM", "learngermanghana@gmail.com")
 EMAIL_PASSWORD = st.secrets.get("SMTP_PASSWORD", "mwxlxvvtnrcxqdml")  # Gmail App Password
 
@@ -65,7 +112,6 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
         """
         msg.attach(MIMEText(html, "html"))
 
-        # Gmail over SMTPS
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.sendmail(EMAIL_ADDRESS, [to_email], msg.as_string())
@@ -74,56 +120,11 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
         st.error(f"❌ Failed to send reset email: {e}")
         return False
 
-
-# ---- Silence the specific st.cache deprecation banner (works across versions) ----
+# ------------------------------------------------------------------------------
+# Firebase init (Firestore)
+# ------------------------------------------------------------------------------
 try:
-    # Some versions define this in different places; if not found, fall back to DeprecationWarning
-    try:
-        from streamlit.errors import StreamlitDeprecationWarning as _StDepWarn  # may not exist
-    except Exception:
-        try:
-            from streamlit import StreamlitDeprecationWarning as _StDepWarn  # may not exist
-        except Exception:
-            _StDepWarn = DeprecationWarning
-    # Hide only the st.cache banner
-    warnings.filterwarnings(
-        "ignore",
-        r".*st\.cache is deprecated and will be removed soon.*",
-        category=_StDepWarn,
-    )
-    # Also guard in case it’s emitted as a plain DeprecationWarning on some builds
-    warnings.filterwarnings(
-        "ignore",
-        r".*st\.cache is deprecated and will be removed soon.*",
-        category=DeprecationWarning,
-    )
-except Exception:
-    pass
-
-# ---- Compat shim: make old @st.cache behave like the new APIs for any deps that still use it ----
-def _cache_compat(*dargs, **dkwargs):
-    allow_mut = bool(dkwargs.pop("allow_output_mutation", False))
-    decorator = st.cache_resource if allow_mut else st.cache_data
-    return decorator(*dargs, **dkwargs)
-
-# Only monkey-patch if needed
-try:
-    if getattr(getattr(st, "cache", None), "__name__", "") != "_cache_compat":
-        st.cache = _cache_compat
-except Exception:
-    pass
-
-# ---- Streamlit page config MUST be first Streamlit call ----
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
-try:
-    if not firebase_admin._apps:   # ✅ guard against re-init
+    if not firebase_admin._apps:   # guard against re-init
         cred_dict = dict(st.secrets["firebase"])
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
@@ -132,30 +133,22 @@ except Exception as e:
     st.error(f"Firebase init failed: {e}")
     st.stop()
 
-# ---- Streamlit page config MUST be first Streamlit call ----
-st.set_page_config(
-    page_title="Falowen – Your German Conversation Partner",
-    page_icon="👋",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
+# ------------------------------------------------------------------------------
 # Top spacing + chrome (tighter)
+# ------------------------------------------------------------------------------
 st.markdown("""
 <style>
 /* Remove Streamlit's top padding */
 [data-testid="stAppViewContainer"] > .main .block-container {
   padding-top: 0 !important;
 }
-
-/* First rendered block (often a head-inject) — keep a small gap only */
+/* First rendered block — keep a small gap only */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
   margin-top: 0 !important;
-  margin-bottom: 8px !important;   /* was 24px */
+  margin-bottom: 8px !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
-
 /* If that first block is an iframe, collapse it completely */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
   display: block;
@@ -166,20 +159,11 @@ st.markdown("""
   border: 0 !important;
   overflow: hidden !important;
 }
-
 /* Keep hero flush and compact */
-  .hero {
-    margin-top: 2px !important;      /* was 0/12 — pulls hero up */
-    margin-bottom: 4px !important;   /* tighter space before tabs */
-    padding-top: 6px !important;
-    display: flow-root;
-  }
+.hero { margin-top: 2px !important; margin-bottom: 4px !important; padding-top: 6px !important; display: flow-root; }
 .hero h1:first-child { margin-top: 0 !important; }
 /* Trim default gap above Streamlit tabs */
-[data-testid="stTabs"] {
-  margin-top: 8px !important;
-}
-
+[data-testid="stTabs"] { margin-top: 8px !important; }
 /* Hide default Streamlit chrome */
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
@@ -231,18 +215,9 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ==== FIREBASE ADMIN INIT (Firestore only; no Firebase Auth in login) ====
-try:
-    if not firebase_admin._apps:
-        cred_dict = dict(st.secrets["firebase"])
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    db = firestore.client()
-except Exception as e:
-    st.error(f"Firebase init failed: {e}")
-    st.stop()
-
-# ---- Firestore sessions (server-side auth state) ----
+# ------------------------------------------------------------------------------
+# Firestore sessions (server-side auth state)
+# ------------------------------------------------------------------------------
 SESSIONS_COL = "sessions"
 SESSION_TTL_MIN = 60 * 24 * 14         # 14 days
 SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7 # 7 days
@@ -311,7 +286,9 @@ def destroy_session_token(token: str) -> None:
     except Exception:
         pass
 
-# ==== OPENAI CLIENT SETUP ====
+# ------------------------------------------------------------------------------
+# OpenAI (used elsewhere in app)
+# ------------------------------------------------------------------------------
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
@@ -319,7 +296,9 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# ==== DB CONNECTION & INITIALIZATION ====
+# ------------------------------------------------------------------------------
+# DB (SQLite) and initialization
+# ------------------------------------------------------------------------------
 def get_connection():
     if "conn" not in st.session_state:
         st.session_state["conn"] = sqlite3.connect(
@@ -400,7 +379,9 @@ def init_db():
     conn.commit()
 init_db()
 
-# ==== CONSTANTS ====
+# ------------------------------------------------------------------------------
+# Constants & helpers
+# ------------------------------------------------------------------------------
 FALOWEN_DAILY_LIMIT = 20
 VOCAB_DAILY_LIMIT = 20
 SCHREIBEN_DAILY_LIMIT = 5
@@ -434,10 +415,9 @@ def inc_sprechen_usage(student_code):
 def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
     return get_sprechen_usage(student_code) < limit
 
-def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
-    return get_sprechen_usage(student_code) < limit
-
-# ==== YOUTUBE PLAYLIST HELPERS ====
+# ------------------------------------------------------------------------------
+# YouTube helpers
+# ------------------------------------------------------------------------------
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
 
 YOUTUBE_PLAYLIST_IDS = {
@@ -465,10 +445,9 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
             break
     return videos
 
-
-
-
-# ==== STUDENT SHEET LOADING ====
+# ------------------------------------------------------------------------------
+# Student sheet loading
+# ------------------------------------------------------------------------------
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data(ttl=300)
@@ -476,7 +455,6 @@ def load_student_data():
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
-        # guard: ensure CSV not HTML
         txt = resp.text
         if "<html" in txt[:512].lower():
             raise RuntimeError("Expected CSV, got HTML (check sheet privacy).")
@@ -485,16 +463,13 @@ def load_student_data():
         st.error(f"❌ Could not load student data. {e}")
         st.stop()
 
-    # Normalize headers and trim cells while preserving NaN
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
         s = df[col]
         df[col] = s.where(s.isna(), s.astype(str).str.strip())
 
-    # Keep only rows with a ContractEnd value
     df = df[df["ContractEnd"].notna() & (df["ContractEnd"].str.len() > 0)]
 
-    # Robust parse
     def _parse_contract_end(s: str):
         for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
             try:
@@ -506,13 +481,11 @@ def load_student_data():
     df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
     df = df[df["ContractEnd_dt"].notna()]
 
-    # Normalize identifiers
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     if "Email" in df.columns:
         df["Email"] = df["Email"].str.lower().str.strip()
 
-    # Keep most recent per student
     df = (df.sort_values("ContractEnd_dt", ascending=False)
             .drop_duplicates(subset=["StudentCode"], keep="first")
             .drop(columns=["ContractEnd_dt"]))
@@ -534,24 +507,25 @@ def is_contract_expired(row):
         expiry_date = parsed.to_pydatetime()
     return expiry_date.date() < datetime.utcnow().date()
 
-# ==== Query param helpers (stable) ====
+# ------------------------------------------------------------------------------
+# Query param helpers
+# ------------------------------------------------------------------------------
 def qp_get():
-    # returns a dict-like object
     return st.query_params
 
 def qp_clear():
-    # clears all query params from the URL
     st.query_params.clear()
 
 def qp_clear_keys(*keys):
-    # remove only the specified keys
     for k in keys:
         try:
             del st.query_params[k]
         except KeyError:
             pass
 
-# ==== Cookie helpers (normal cookies) ====
+# ------------------------------------------------------------------------------
+# Cookie helpers
+# ------------------------------------------------------------------------------
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
 
@@ -572,7 +546,6 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 180  # 180 days
     exp_str = _expire_str(expires)
-    # Library cookie (encrypted; host-only)
     try:
         cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -581,7 +554,6 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
             cookie_manager[key] = norm; cookie_manager.save()
         except Exception:
             pass
-    # JS host-only + base-domain (guard invalid hosts)
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -653,7 +625,9 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     </script>
     """, height=0)
 
-# ==== Cookie manager init ====
+# ------------------------------------------------------------------------------
+# Cookie manager init
+# ------------------------------------------------------------------------------
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 if not COOKIE_SECRET:
     st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
@@ -663,14 +637,15 @@ if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
 
-# ---- Restore from existing session token (cookie) ----
+# ------------------------------------------------------------------------------
+# Restore from existing session token (cookie)
+# ------------------------------------------------------------------------------
 restored = False
 if not st.session_state.get("logged_in", False):
     cookie_tok = (cookie_manager.get("session_token") or "").strip()
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
-            # Validate the student still exists and contract active
             try:
                 df_students = load_student_data()
                 found = df_students[df_students["StudentCode"] == data.get("student_code","")]
@@ -689,93 +664,108 @@ if not st.session_state.get("logged_in", False):
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
-def render_password_reset_page() -> bool:
-    """
-    If ?token= is present, render the reset page.
-    Returns True if we handled a reset screen (to st.stop()).
-    """
-    qp = qp_get()
-    token = qp.get("token")
-    if isinstance(token, list):
-        token = token[0]
-    if not token:
-        return False  # nothing to do
 
-    st.markdown("<div class='page-wrap'>", unsafe_allow_html=True)
-    st.header("Reset your password")
+# ------------------------------------------------------------------------------
+# RESET PASSWORD PAGE (token -> set new password)
+# ------------------------------------------------------------------------------
+def reset_password_page(token: str):
+    st.markdown("<h3>Reset your password</h3>", unsafe_allow_html=True)
 
-    snap = db.collection("password_resets").document(token).get()
-    if not snap.exists:
-        st.error("Invalid or already-used reset link.")
-        if st.button("Back to login"):
+    # 1) Validate token
+    doc = db.collection("password_resets").document(token).get()
+    if not doc.exists:
+        st.error("Invalid or expired reset link.")
+        if st.button("Back to Login"):
             qp_clear_keys("token")
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return True
+        return
 
-    data = snap.to_dict() or {}
+    info = doc.to_dict() or {}
+    email = (info.get("email") or "").strip().lower()
+    expires_raw = info.get("expires_at", "")
     try:
-        expires_at = datetime.fromisoformat(data.get("expires_at", ""))
+        expires_at = datetime.fromisoformat(expires_raw)
     except Exception:
-        expires_at = datetime.utcnow() - timedelta(seconds=1)
+        expires_at = datetime.utcnow() - timedelta(seconds=1)  # treat as expired
 
     if datetime.utcnow() > expires_at:
-        st.error("This reset link has expired.")
-        # optional cleanup
-        try:
-            db.collection("password_resets").document(token).delete()
-        except Exception:
-            pass
-        if st.button("Back to login"):
+        st.error("This reset link has expired. Please request a new one.")
+        try: db.collection("password_resets").document(token).delete()
+        except Exception: pass
+        if st.button("Back to Login"):
             qp_clear_keys("token")
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return True
+        return
 
-    email = (data.get("email") or "").strip().lower()
-    st.caption(f"Resetting password for: **{email}**")
+    st.info(f"Resetting password for **{email}**")
 
-    new_pw = st.text_input("New password", type="password")
-    new_pw2 = st.text_input("Confirm new password", type="password")
-    if st.button("Set new password"):
-        if not new_pw or not new_pw2:
-            st.error("Please enter and confirm a new password.")
-        elif len(new_pw) < 8:
-            st.error("Password must be at least 8 characters.")
-        elif new_pw != new_pw2:
-            st.error("Passwords do not match.")
+    # 2) Form
+    with st.form("reset_pw_form", clear_on_submit=False):
+        new_pw  = st.text_input("New password", type="password")
+        new_pw2 = st.text_input("Confirm new password", type="password")
+        submit  = st.form_submit_button("Update Password")
+
+    if not submit:
+        return
+
+    # 3) Validate & Update
+    if not new_pw or len(new_pw) < 8:
+        st.error("Password must be at least 8 characters."); return
+    if new_pw != new_pw2:
+        st.error("Passwords do not match."); return
+
+    try:
+        # Try roster for StudentCode first
+        df = load_student_data()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        match = df[df["Email"] == email]
+
+        if not match.empty:
+            code = match.iloc[0]["StudentCode"]
+            student_doc_ref = db.collection("students").document(code)
         else:
-            # find student(s) by email (handle both 'email' and 'Email' field names)
-            matches = db.collection("students").where("email", "==", email).get()
-            if not matches:
-                matches = db.collection("students").where("Email", "==", email).get()
+            # Fallback to Firestore lookup by lowercase OR Titlecase key
+            found = db.collection("students").where("email", "==", email).get()
+            if not found:
+                found = db.collection("students").where("Email", "==", email).get()
+            if not found:
+                st.error("No student account found for that email. Contact support.")
+                return
+            student_doc_ref = found[0].reference
 
-            if not matches:
-                st.error("No student account found for this email.")
-            else:
-                hashed = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                try:
-                    # Update the first match
-                    doc_ref = matches[0].reference
-                    doc_ref.update({"password": hashed})
-                    # Burn the token
-                    db.collection("password_resets").document(token).delete()
-                    st.success("Your password has been updated. You can now log in.")
-                    if st.button("Return to login"):
-                        qp_clear_keys("token")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to update password: {e}")
+        hashed_pw = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        if student_doc_ref.get().exists:
+            student_doc_ref.update({"password": hashed_pw})
+        else:
+            st.error("Account not found. Please contact support.")
+            return
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    return True
+        # Consume the token
+        try: db.collection("password_resets").document(token).delete()
+        except Exception: pass
 
-# 🔗 Handle /reset?token=... before showing login
+        st.success("✅ Password updated! You can now sign in with your new password.")
+        if st.button("Back to Login"):
+            qp_clear_keys("token")
+            st.rerun()
+
+    except Exception as e:
+        st.error(f"Could not update password: {e}")
+
+# ------------------------------------------------------------------------------
+# 🔗 Handle ?token=... early (before showing login/tabs)
+# ------------------------------------------------------------------------------
 if not st.session_state.get("logged_in", False):
-    if render_password_reset_page():
+    tok = st.query_params.get("token")
+    if isinstance(tok, list):
+        tok = tok[0] if tok else None
+    if tok:
+        reset_password_page(tok)
         st.stop()
 
-# --- 2) Global CSS (tightened spacing) ---
+# ------------------------------------------------------------------------------
+# CSS + OAuth UI helpers, etc.
+# ------------------------------------------------------------------------------
 st.markdown("""
 <style>
   .hero {
@@ -892,229 +882,9 @@ def render_google_oauth():
         unsafe_allow_html=True,
     )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# RESET PASSWORD PAGE (token -> set new password)
-# ──────────────────────────────────────────────────────────────────────────────
-def reset_password_page(token: str):
-    st.markdown("<h3>Reset your password</h3>", unsafe_allow_html=True)
-
-    # 1) Validate token
-    doc = db.collection("password_resets").document(token).get()
-    if not doc.exists:
-        st.error("Invalid or expired reset link.")
-        if st.button("Back to Login"):
-            qp_clear_keys("token")
-            st.rerun()
-        return
-
-    info = doc.to_dict() or {}
-    email = (info.get("email") or "").strip().lower()
-    expires_raw = info.get("expires_at", "")
-    try:
-        expires_at = datetime.fromisoformat(expires_raw)
-    except Exception:
-        expires_at = datetime.utcnow() - timedelta(seconds=1)  # treat as expired
-
-    if datetime.utcnow() > expires_at:
-        st.error("This reset link has expired. Please request a new one.")
-        try: db.collection("password_resets").document(token).delete()
-        except Exception: pass
-        if st.button("Back to Login"):
-            qp_clear_keys("token")
-            st.rerun()
-        return
-
-    st.info(f"Resetting password for **{email}**")
-
-    # 2) Form
-    with st.form("reset_pw_form", clear_on_submit=False):
-        new_pw  = st.text_input("New password", type="password")
-        new_pw2 = st.text_input("Confirm new password", type="password")
-        submit  = st.form_submit_button("Update Password")
-
-    if not submit:
-        return
-
-    # 3) Validate & Update
-    if not new_pw or len(new_pw) < 8:
-        st.error("Password must be at least 8 characters."); return
-    if new_pw != new_pw2:
-        st.error("Passwords do not match."); return
-
-    try:
-        # Try roster for StudentCode first
-        df = load_student_data()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        match = df[df["Email"] == email]
-
-        if not match.empty:
-            code = match.iloc[0]["StudentCode"]
-            student_doc_ref = db.collection("students").document(code)
-        else:
-            # Fallback to Firestore lookup by lowercase OR Titlecase key
-            found = db.collection("students").where("email", "==", email).get()
-            if not found:
-                found = db.collection("students").where("Email", "==", email).get()
-            if not found:
-                st.error("No student account found for that email. Contact support.")
-                return
-            student_doc_ref = found[0].reference
-
-        hashed_pw = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        if student_doc_ref.get().exists:
-            student_doc_ref.update({"password": hashed_pw})
-        else:
-            st.error("Account not found. Please contact support.")
-            return
-
-        # Consume the token
-        try: db.collection("password_resets").document(token).delete()
-        except Exception: pass
-
-        st.success("✅ Password updated! You can now sign in with your new password.")
-        if st.button("Back to Login"):
-            qp_clear_keys("token")
-            st.rerun()
-
-    except Exception as e:
-        st.error(f"Could not update password: {e}")
-
-def render_login_form():
-    st.session_state.setdefault("show_reset_panel", False)
-
-    with st.form("login_form", clear_on_submit=False):
-        login_id = st.text_input(
-            "Student Code or Email",
-            help="Use your school email or Falowen code (e.g., felixa2)."
-        ).strip().lower()
-        login_pass = st.text_input("Password", type="password")
-
-        c1, c2 = st.columns([0.6, 0.4])
-        with c1:
-            login_btn = st.form_submit_button("Log In", use_container_width=True)
-        with c2:
-            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
-
-    # ---- LOGIN (unchanged) ----
-    if login_btn:
-        df = load_student_data()
-        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
-        df["Email"] = df["Email"].str.lower().str.strip()
-        lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
-        if lookup.empty:
-            st.error("No matching student code or email found.")
-            return
-
-        student_row = lookup.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office.")
-            return
-
-        doc_ref = db.collection("students").document(student_row["StudentCode"])
-        doc = doc_ref.get()
-        if not doc.exists:
-            st.error("Account not found. Please use 'Sign Up (Approved)' first.")
-            return
-
-        data = doc.to_dict() or {}
-        stored_pw = data.get("password", "")
-        is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
-
-        try:
-            ok = (
-                bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
-                if is_hash else stored_pw == login_pass
-            )
-            if ok and not is_hash:
-                new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                doc_ref.update({"password": new_hash})
-        except Exception:
-            ok = False
-
-        if not ok:
-            st.error("Incorrect password.")
-            return
-
-        ua_hash = st.session_state.get("__ua_hash", "")
-        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": dict(student_row),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"],
-            "session_token": sess_token,
-        })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-        _persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
-        st.success(f"Welcome, {student_row['Name']}!")
-        st.rerun()
-
-    # ---- FORGOT PASSWORD (inline) ----
-    if forgot_toggle:
-        st.session_state["show_reset_panel"] = True
-
-    if st.session_state.get("show_reset_panel"):
-        st.markdown("""
-        <style>
-          .reset-card{
-            margin-top:6px; border:1px solid #e5e7eb; border-radius:10px; padding:12px;
-            background:linear-gradient(180deg,#f8fafc 0%, #ffffff 100%);
-          }
-          .reset-head{ font-weight:700; color:#25317e; margin:0 0 6px 0; }
-          .reset-sub{ color:#475569; margin-top:-2px; margin-bottom:8px; }
-        </style>
-        """, unsafe_allow_html=True)
-
-        st.markdown('<div class="reset-card">', unsafe_allow_html=True)
-        st.markdown('<div class="reset-head">Reset your password</div>', unsafe_allow_html=True)
-        st.markdown('<div class="reset-sub">We\'ll email you a secure link (valid for 1 hour).</div>', unsafe_allow_html=True)
-
-        email_for_reset = st.text_input("Registered email", key="reset_email_inline")
-        c3, c4 = st.columns([0.55, 0.45])
-        with c3:
-            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
-        with c4:
-            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
-
-        if back_btn:
-            st.session_state["show_reset_panel"] = False
-            st.rerun()
-
-        if send_btn:
-            if not email_for_reset:
-                st.error("Please enter your email.")
-            else:
-                e = email_for_reset.lower().strip()
-
-                # Firestore may store 'email' or 'Email'
-                user_query = db.collection("students").where("email", "==", e).get()
-                if not user_query:
-                    user_query = db.collection("students").where("Email", "==", e).get()
-
-                if not user_query:
-                    st.error("No account found with that email.")
-                else:
-                    token = uuid4().hex
-                    expires_at = datetime.utcnow() + timedelta(hours=1)
-
-                    base_url = st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app")
-                    reset_link = f"{base_url}/reset?token={token}"
-
-                    db.collection("password_resets").document(token).set({
-                        "email": e,
-                        "created": datetime.utcnow().isoformat(),
-                        "expires_at": expires_at.isoformat()
-                    })
-
-                    if send_reset_email(e, reset_link):
-                        st.success("Reset link sent! Check your inbox (and spam).")
-                    else:
-                        st.error("We couldn’t send the email. Please try again later.")
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
+# ------------------------------------------------------------------------------
+# RESET LINK BUILDER will now use root "/?token="
+# ------------------------------------------------------------------------------
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
         new_name = st.text_input("Full Name", key="ca_name")
@@ -1146,7 +916,6 @@ def render_signup_form():
     st.success("Account created! Please log in on the Returning tab.")
 
 def render_reviews():
-    # Richer, clearer data: goal, time, features used, outcome
     REVIEWS = [
         {
             "quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.",
@@ -1255,13 +1024,9 @@ def render_reviews():
         width:8px; height:8px; border-radius:999px; background:#cbd5e1; border:none; padding:0; cursor:pointer;
       }
       .rev-dot[aria-current="true"]{ background:#25317e; }
-
-      /* Motion awareness */
       .fade{ opacity:0; transform:translateY(4px); transition:opacity .28s ease, transform .28s ease; }
       .fade.show{ opacity:1; transform:none; }
-      @media (prefers-reduced-motion: reduce){
-        .fade{ transition:none; opacity:1; transform:none; }
-      }
+      @media (prefers-reduced-motion: reduce){ .fade{ transition:none; opacity:1; transform:none; } }
     </style>
 
     <script>
@@ -1330,26 +1095,20 @@ def render_reviews():
       function next(){ i = (i + 1) % DATA.length; show(true); }
       function prev(){ i = (i - 1 + DATA.length) % DATA.length; show(true); }
 
-      function start(){
-        if(reduced) return;
-        timer = setInterval(() => { if(!hovered) next(); }, 6000);
-      }
+      function start(){ if(reduced) return; timer = setInterval(() => { if(!hovered) next(); }, 6000); }
       function stop(){ if(timer){ clearInterval(timer); timer = null; } }
       function restart(){ stop(); start(); }
 
-      // Events
       nextBtn.addEventListener("click", () => { next(); restart(); });
       prevBtn.addEventListener("click", () => { prev(); restart(); });
       wrap.addEventListener("mouseenter", () => { hovered = true; });
       wrap.addEventListener("mouseleave", () => { hovered = false; });
 
-      // Keyboard nav
       wrap.addEventListener("keydown", (e) => {
         if(e.key === "ArrowRight"){ next(); restart(); }
         if(e.key === "ArrowLeft"){  prev(); restart(); }
       });
 
-      // Init
       show(false);
       start();
     </script>
@@ -1357,21 +1116,142 @@ def render_reviews():
     _json = json.dumps(REVIEWS)
     components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
 
+def render_login_form():
+    st.session_state.setdefault("show_reset_panel", False)
+
+    with st.form("login_form", clear_on_submit=False):
+        login_id = st.text_input(
+            "Student Code or Email",
+            help="Use your school email or Falowen code (e.g., felixa2)."
+        ).strip().lower()
+        login_pass = st.text_input("Password", type="password")
+
+        c1, c2 = st.columns([0.6, 0.4])
+        with c1:
+            login_btn = st.form_submit_button("Log In", use_container_width=True)
+        with c2:
+            forgot_toggle = st.form_submit_button("Forgot password?", help="Reset via email")
+
+    # ---- LOGIN ----
+    if login_btn:
+        df = load_student_data()
+        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
+        if lookup.empty:
+            st.error("No matching student code or email found.")
+            return
+
+        student_row = lookup.iloc[0]
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Contact the office.")
+            return
+
+        doc_ref = db.collection("students").document(student_row["StudentCode"])
+        doc = doc_ref.get()
+        if not doc.exists:
+            st.error("Account not found. Please use 'Sign Up (Approved)' first.")
+            return
+
+        data = doc.to_dict() or {}
+        stored_pw = data.get("password", "")
+        is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
+
+        try:
+            ok = (
+                bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
+                if is_hash else stored_pw == login_pass
+            )
+            if ok and not is_hash:
+                new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                doc_ref.update({"password": new_hash})
+        except Exception:
+            ok = False
+
+        if not ok:
+            st.error("Incorrect password.")
+            return
+
+        ua_hash = st.session_state.get("__ua_hash", "")
+        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": dict(student_row),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"],
+            "session_token": sess_token,
+        })
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        _persist_session_client(sess_token, student_row["StudentCode"])
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+        st.success(f"Welcome, {student_row['Name']}!")
+        st.rerun()
+
+    # ---- FORGOT PASSWORD (inline) ----
+    if forgot_toggle:
+        st.session_state["show_reset_panel"] = True
+
+    if st.session_state.get("show_reset_panel"):
+        st.markdown("""
+        <style>
+          .reset-card{
+            margin-top:6px; border:1px solid #e5e7eb; border-radius:10px; padding:12px;
+            background:linear-gradient(180deg,#f8fafc 0%, #ffffff 100%);
+          }
+          .reset-head{ font-weight:700; color:#25317e; margin:0 0 6px 0; }
+          .reset-sub{ color:#475569; margin-top:-2px; margin-bottom:8px; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="reset-card">', unsafe_allow_html=True)
+        st.markdown('<div class="reset-head">Reset your password</div>', unsafe_allow_html=True)
+        st.markdown('<div class="reset-sub">We\'ll email you a secure link (valid for 1 hour).</div>', unsafe_allow_html=True)
+
+        email_for_reset = st.text_input("Registered email", key="reset_email_inline")
+        c3, c4 = st.columns([0.55, 0.45])
+        with c3:
+            send_btn = st.button("Send reset link", key="send_reset_btn", use_container_width=True)
+        with c4:
+            back_btn = st.button("Back to login", key="hide_reset_btn", use_container_width=True)
+
+        if back_btn:
+            st.session_state["show_reset_panel"] = False
+            st.rerun()
+
+        if send_btn:
+            if not email_for_reset:
+                st.error("Please enter your email.")
+            else:
+                e = email_for_reset.lower().strip()
+                user_query = db.collection("students").where("email", "==", e).get()
+                if not user_query:
+                    user_query = db.collection("students").where("Email", "==", e).get()
+
+                if not user_query:
+                    st.error("No account found with that email.")
+                else:
+                    token = uuid4().hex
+                    expires_at = datetime.utcnow() + timedelta(hours=1)
+                    base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                    reset_link = f"{base_url}/?token={token}"  # <-- root path
+
+                    db.collection("password_resets").document(token).set({
+                        "email": e,
+                        "created": datetime.utcnow().isoformat(),
+                        "expires_at": expires_at.isoformat()
+                    })
+
+                    if send_reset_email(e, reset_link):
+                        st.success("Reset link sent! Check your inbox (and spam).")
+                    else:
+                        st.error("We couldn’t send the email. Please try again later.")
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
 def login_page():
-
-    # --- If user arrived via ?token=..., show reset screen and return ---
-    _qp = qp_get()
-    _tok = _qp.get("token")
-    if isinstance(_tok, list):
-        _tok = _tok[0] if _tok else None
-    if _tok:
-        reset_password_page(_tok)
-        return
-
-    # Optional container width helper (safe if you already defined it in global CSS)
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
-    # HERO FIRST — this is the first visible element on the page
+    # HERO FIRST
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -1394,7 +1274,7 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # ===== Compact stats strip =====
+    # Stats strip
     st.markdown("""
       <style>
         .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
@@ -1453,7 +1333,6 @@ def login_page():
     with tab2:
         render_signup_form()
 
-    # --- Request Access ---
     with tab3:
         st.markdown(
             """
@@ -1483,7 +1362,7 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Centered Video ---
+    # Centered Video
     st.markdown("""
     <div class="page-wrap">
       <div class="video-wrap">
@@ -1515,10 +1394,6 @@ def login_page():
         background: linear-gradient(135deg,#e8eeff,#f6f9ff);
         box-shadow: 0 8px 24px rgba(0,0,0,.08);
       }
-      @keyframes glowPulse{ 0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; } 50%{ box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; } }
-      @keyframes dashMove { to { background-position: 48px 0; } }
-      @keyframes shimmer{ 0%{background-position:0% 50%;} 100%{background-position:100% 50%;} }
-      @media (max-width:600px){ .video-wrap{ margin: 8px 0 16px; } }
     </style>
     """, unsafe_allow_html=True)
 
@@ -1568,7 +1443,6 @@ def login_page():
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
-    # --- Student Stories Section ---
     st.markdown("""
     <style>
       .section-title {
@@ -1588,12 +1462,6 @@ def login_page():
     """, unsafe_allow_html=True)
 
     def render_reviews_inner():
-        REVIEWS = [
-            {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
-            {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
-            {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
-            {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
-        ]
         _reviews_html = """<div style="text-align:center;opacity:.8;">(reviews carousel)</div>"""
         components.html(_reviews_html, height=60, scrolling=False)
 
@@ -1628,17 +1496,11 @@ def login_page():
 
     st.stop()
 
+# ------------------------------------------------------------------------------
 # =========================
-# Logged-in header + Logout (no callback; rerun works)
+# Logged-in header + Logout
 # =========================
-
-# --- helper for query params ---
-def qp_clear_keys(*keys):
-    for k in keys:
-        try:
-            del st.query_params[k]
-        except KeyError:
-            pass
+# ------------------------------------------------------------------------------
 
 # --- run once right after a logout to clean client storage & URL ---
 if st.session_state.pop("_inject_logout_js", False):
@@ -1675,13 +1537,12 @@ with col1:
     st.write(f"👋 Welcome, **{st.session_state.get('student_name','Student')}**")
 with col2:
     st.markdown("<div style='display:flex;justify-content:flex-end;align-items:center;'>", unsafe_allow_html=True)
-    _logout_clicked = st.button("Log out", key="logout_btn")  # <-- no on_click
+    _logout_clicked = st.button("Log out", key="logout_btn")
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ===== Logout handling (works in all versions) =====
+# ===== Logout handling =====
 if _logout_clicked:
-    # 1) Revoke server token if available
     try:
         tok = st.session_state.get("session_token", "")
         if tok and "destroy_session_token" in globals():
@@ -1689,7 +1550,6 @@ if _logout_clicked:
     except Exception as e:
         st.warning(f"Logout warning (revoke): {e}")
 
-    # 2) Expire cookies
     try:
         expires_past = datetime.utcnow() - timedelta(seconds=1)
         if "set_student_code_cookie" in globals():
@@ -1706,10 +1566,8 @@ if _logout_clicked:
     except Exception:
         pass
 
-    # 3) Clean server-side URL params
     qp_clear_keys("code", "state", "token")
 
-    # 4) Reset session state
     st.session_state.update({
         "logged_in": False,
         "student_row": None,
@@ -1723,10 +1581,7 @@ if _logout_clicked:
         "_oauth_code_redeemed": "",
     })
 
-    # 5) On next run, clear localStorage & URL on the client
     st.session_state["_inject_logout_js"] = True
-
-    # 6) Now safe to rerun (not in a callback)
     st.rerun()
 
 
