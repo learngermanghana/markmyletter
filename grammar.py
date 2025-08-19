@@ -123,8 +123,27 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
 # Prefer Apps Script reset page for password updates
 GAS_RESET_URL = st.secrets.get(
     "GAS_RESET_URL",
+    # You can keep the placeholder version OR just the bare /exec URL.
     "https://script.google.com/macros/s/AKfycbwdgYJtya39qzBZaXdUqkk1i2_LIHna5CN-lHYveq7O1yG46KghKZWKNKqGYlh_xyZU/exec?token=<THE_TOKEN>"
 )
+
+def build_gas_reset_link(token: str) -> str:
+    """
+    Build a valid Apps Script reset link with ?token=.
+    Supports either a placeholder (<THE_TOKEN>) or a bare /exec URL.
+    """
+    url = GAS_RESET_URL.strip()
+    if "<THE_TOKEN>" in url:
+        # Simple and safe string replacement (keeps any existing query string)
+        return url.replace("<THE_TOKEN>", _urllib.quote(token, safe=""))
+
+    # Otherwise, append/override token in the querystring
+    parts = _urllib.urlparse(url)
+    qs = dict(_urllib.parse_qsl(parts.query, keep_blank_values=True))
+    qs["token"] = token
+    new_query = _urllib.urlencode(qs, doseq=True)
+    return _urllib.urlunparse(parts._replace(query=new_query))
+
 
 # ------------------------------------------------------------------------------
 # Firebase init (Firestore)
@@ -1241,14 +1260,28 @@ def render_login_form():
                     token = uuid4().hex
                     expires_at = datetime.utcnow() + timedelta(hours=1)
 
-                    # Prefer Apps Script page; fall back to Streamlit root
-                    gas_base = (st.secrets.get("GAS_RESET_URL", GAS_RESET_URL) or "").strip().rstrip("/")
-                    if gas_base:
-                        reset_link = f"{gas_base}?token={token}"
-                    else:
+                    # Build reset link (prefer Apps Script page)
+                    gas_url = (st.secrets.get("GAS_RESET_URL", GAS_RESET_URL) or "").strip()
+                    try:
+                        if "build_gas_reset_link" in globals():
+                            reset_link = build_gas_reset_link(token)
+                        else:
+                            if "<THE_TOKEN>" in gas_url:
+                                reset_link = gas_url.replace("<THE_TOKEN>", _urllib.quote(token, safe=""))
+                            elif gas_url:
+                                parts = _urllib.urlparse(gas_url)
+                                qs = dict(_urllib.parse_qsl(parts.query, keep_blank_values=True))
+                                qs["token"] = token
+                                new_qs = _urllib.urlencode(qs, doseq=True)
+                                reset_link = _urllib.urlunparse(parts._replace(query=new_qs))
+                            else:
+                                base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
+                                reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
+                    except Exception:
                         base_url = (st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app") or "").rstrip("/")
-                        reset_link = f"{base_url}/?token={token}"
+                        reset_link = f"{base_url}/?token={_urllib.quote(token, safe='')}"
 
+                    # Store token for GAS/Streamlit reset pages to read
                     db.collection("password_resets").document(token).set({
                         "email": e,
                         "created": datetime.utcnow().isoformat(),
@@ -1261,6 +1294,7 @@ def render_login_form():
                         st.error("We couldn’t send the email. Please try again later.")
 
         st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 def login_page():
@@ -11547,6 +11581,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
