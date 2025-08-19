@@ -9330,38 +9330,95 @@ if 'save_sentence_attempt' not in globals():
 
 
 # ================================
-# HELPERS: Load vocab + audio from Sheet
+# HELPERS: Load vocab + audio from Sheet (hardened + lazy)
 # ================================
-# ---- Vocab bootstrap (defensive) ----
-VOCAB_LISTS, AUDIO_URLS = {}, {}
+@st.cache_data
+def load_vocab_lists():
+    """
+    Reads the Vocab tab CSV (Level, German, English) and optional audio columns:
+    - Audio (normal) / Audio (slow) / Audio
+    Returns:
+      VOCAB_LISTS: dict[level] -> list[(German, English)]
+      AUDIO_URLS:  dict[(level, German)] -> {"normal": url, "slow": url}
+    """
+    import pandas as pd
+    csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
+    try:
+        df = pd.read_csv(csv_url)
+    except Exception as e:
+        st.warning(f"Could not fetch vocab CSV right now. ({e})")
+        return {}, {}
 
-def _safe_unpack_vocab(res):
-    # Accept (lists, audios), or just {level: [...]}
+    df.columns = df.columns.str.strip()
+    missing = [c for c in ("Level","German","English") if c not in df.columns]
+    if missing:
+        st.warning(f"Missing column(s) in your vocab sheet: {missing}")
+        return {}, {}
+
+    # Normalize
+    df["Level"]  = df["Level"].astype(str).str.strip().str.upper()
+    df["German"] = df["German"].astype(str).str.strip()
+    df["English"]= df["English"].astype(str).str.strip()
+    df = df.dropna(subset=["Level","German"])
+
+    # Flexible audio detection
+    def pick(*names):
+        for n in names:
+            if n in df.columns:
+                return n
+        return None
+    normal_col = pick("Audio (normal)", "Audio normal", "Audio_Normal", "Audio")
+    slow_col   = pick("Audio (slow)", "Audio slow", "Audio_Slow")
+
+    # Build outputs
+    vocab_lists = {lvl: list(zip(grp["German"], grp["English"])) for lvl, grp in df.groupby("Level")}
+    audio_urls = {}
+    for _, r in df.iterrows():
+        key = (r["Level"], r["German"])
+        audio_urls[key] = {
+            "normal": str(r.get(normal_col, "")).strip() if normal_col else "",
+            "slow":   str(r.get(slow_col, "")).strip()   if slow_col else "",
+        }
+    return vocab_lists, audio_urls
+
+def _normalize_vocab_result(res):
+    """Always return a (dict, dict). Tolerates bad shapes to avoid crashes."""
     if isinstance(res, tuple) and len(res) == 2:
-        return res[0] or {}, res[1] or {}
+        v, a = res
+        return v or {}, a or {}
     if isinstance(res, dict):
         return res, {}
     return {}, {}
 
-try:
-    _res = load_vocab_lists()  # your existing function
-    VOCAB_LISTS, AUDIO_URLS = _safe_unpack_vocab(_res)
-except Exception as e:
-    # Don’t crash the app at import time
-    st.warning(f"Couldn’t load vocab lists yet. Using empty defaults. ({e})")
-    VOCAB_LISTS, AUDIO_URLS = {}, {}
+@st.cache_data(ttl=43200, show_spinner=False)
+def _load_vocab_lists_safe():
+    try:
+        return _normalize_vocab_result(load_vocab_lists())
+    except Exception as e:
+        st.warning(f"Vocab lists unavailable at the moment. ({e})")
+        return {}, {}
 
+def get_vocab_lists():
+    """Lazy loader for use inside the Vocab tab."""
+    if "VOCAB_LISTS" not in st.session_state or "AUDIO_URLS" not in st.session_state:
+        v, a = _load_vocab_lists_safe()
+        st.session_state["VOCAB_LISTS"] = v
+        st.session_state["AUDIO_URLS"] = a
+    return st.session_state["VOCAB_LISTS"], st.session_state["AUDIO_URLS"]
 
 def refresh_vocab_from_sheet():
-    load_vocab_lists.clear()
-    global VOCAB_LISTS, AUDIO_URLS
-    VOCAB_LISTS, AUDIO_URLS = load_vocab_lists()
+    """Manual refresh button can call this."""
+    _load_vocab_lists_safe.clear()
+    st.session_state.pop("VOCAB_LISTS", None)
+    st.session_state.pop("AUDIO_URLS", None)
 
 def get_audio_url(level: str, german_word: str) -> str:
     """Prefer slow for A1, otherwise normal; fallback to whichever exists."""
+    _, AUDIO_URLS = get_vocab_lists()
     urls = AUDIO_URLS.get((str(level).upper(), str(german_word).strip()), {})
     lvl = str(level).upper()
     return (urls.get("slow") if (lvl == "A1" and urls.get("slow")) else urls.get("normal")) or urls.get("slow") or ""
+
 
 # ================================
 # TAB: Vocab Trainer (locked by Level)
