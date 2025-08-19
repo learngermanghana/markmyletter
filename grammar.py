@@ -653,14 +653,44 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
 # ------------------------------------------------------------------------------
 # Cookie manager init
 # ------------------------------------------------------------------------------
+from datetime import datetime, timedelta
+import streamlit as st
+import streamlit.components.v1 as components
+from streamlit_cookies_manager import EncryptedCookieManager
+
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
-if not COOKIE_SECRET:
-    st.error("Cookie secret missing. Add COOKIE_SECRET to your Streamlit secrets.")
-    st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
-if not cookie_manager.ready():
-    st.warning("Cookies not ready; please refresh.")
-    st.stop()
+
+def _bootstrap_cookies(cm):
+    if cm.ready():
+        return True
+
+    # remember we tried once
+    tries = st.session_state.get("_cookie_boot_tries", 0)
+    st.session_state["_cookie_boot_tries"] = tries + 1
+
+    # Mount a tiny element so the component JS loads, then do a one-time silent reload
+    components.html("""
+      <script>
+        try { document.cookie = "falowen_boot=1; Path=/; SameSite=Lax"; } catch(e) {}
+        // one-time reload to complete cookie handshake
+        if (!sessionStorage.getItem("falowen_cookie_boot")) {
+          sessionStorage.setItem("falowen_cookie_boot", "1");
+          setTimeout(function(){ window.location.reload(); }, 0);
+        }
+      </script>
+    """, height=0)
+
+    if tries == 0:
+        # First pass: keep UI clean, just stop
+        st.stop()
+    else:
+        # Second pass and still not ready → cookies are blocked
+        st.error("Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window.")
+        st.stop()
+
+_bootstrap_cookies(cookie_manager)
+
 
 # ------------------------------------------------------------------------------
 # Restore from existing session token (cookie)
@@ -11581,6 +11611,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
