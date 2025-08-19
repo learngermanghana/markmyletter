@@ -41,41 +41,50 @@ from streamlit_quill import st_quill
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import ssl
 
+# ──────────────────────────────────────────────────────────────────────────────
+# EMAIL CONFIG (uses st.secrets if present, else your hardcoded app password)
+# Add to .streamlit/secrets.toml if you want:
+# GMAIL_USER = "youraddress@gmail.com"
+# GMAIL_APP_PASSWORD = "your-16-char-app-password"
+# PUBLIC_BASE_URL = "https://falowen.app"
+# ──────────────────────────────────────────────────────────────────────────────
+DEFAULT_EMAIL_ADDRESS = "learngermanghana@gmail.com"
+DEFAULT_EMAIL_PASSWORD = "mwxlxvvtnrcxqdml"   # Gmail App Password
+EMAIL_ADDRESS = st.secrets.get("GMAIL_USER", DEFAULT_EMAIL_ADDRESS)
+EMAIL_PASSWORD = st.secrets.get("GMAIL_APP_PASSWORD", DEFAULT_EMAIL_PASSWORD)
+PUBLIC_BASE_URL = st.secrets.get("PUBLIC_BASE_URL", "https://falowen.app")
 
-# 🔐 Hardcoded credentials (works but less secure; for testing only)
-EMAIL_ADDRESS = "learngermanghana@gmail.com"
-EMAIL_PASSWORD = "mwxlxvvtnrcxqdml"   # Your Gmail App Password
-
-def send_reset_email(to_email: str, reset_link: str):
-    """Send a password reset email using Gmail SMTP + App Password."""
+def send_reset_email(to_email: str, reset_link: str) -> bool:
+    """Send a password reset email. Tries st.secrets first; falls back to defaults."""
     try:
-        # Build email
+        if not EMAIL_ADDRESS or not EMAIL_PASSWORD:
+            st.error("Email not configured. Set GMAIL_USER and GMAIL_APP_PASSWORD in st.secrets.")
+            return False
+
+        html = f"""
+        <p>Hello,</p>
+        <p>You requested to reset your password. Click below to continue:</p>
+        <p><a href="{reset_link}">{reset_link}</a></p>
+        <p>This link will expire in 1 hour.</p>
+        <br>
+        <p>– Falowen Team</p>
+        """
         msg = MIMEMultipart()
         msg["From"] = EMAIL_ADDRESS
         msg["To"] = to_email
         msg["Subject"] = "Falowen Password Reset"
-
-        html = f"""
-        <p>Hello,</p>
-        <p>You requested to reset your password. Click the link below to continue:</p>
-        <p><a href="{reset_link}">{reset_link}</a></p>
-        <p>If you did not request this, you can safely ignore this email.</p>
-        <br>
-        <p>– Falowen Team</p>
-        """
-
         msg.attach(MIMEText(html, "html"))
 
-        # Connect to Gmail SMTP
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.sendmail(EMAIL_ADDRESS, to_email, msg.as_string())
-
-        st.success(f"✅ Reset link sent to {to_email}. Check your inbox.")
-
+        return True
     except Exception as e:
         st.error(f"❌ Failed to send reset email: {e}")
+        return False
 
 
 # ---- Streamlit page config MUST be first Streamlit call ----
@@ -96,9 +105,6 @@ try:
 except Exception as e:
     st.error(f"Firebase init failed: {e}")
     st.stop()
-
-
-
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
@@ -415,7 +421,6 @@ YOUTUBE_PLAYLIST_IDS = {
     "B2": ["PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C", "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0", "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY"],
 }
 
-
 @st.cache_data(ttl=43200)
 def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
     base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
@@ -516,8 +521,6 @@ def qp_clear_keys(*keys):
             del st.query_params[k]
         except KeyError:
             pass
-
-
 
 # ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
@@ -658,7 +661,6 @@ if not st.session_state.get("logged_in", False):
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
 
-
 # --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
 <style>
@@ -690,7 +692,6 @@ st.markdown("""
 GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
 REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
-
 
 def _handle_google_oauth(code: str, state: str) -> None:
     df = load_student_data()
@@ -745,19 +746,14 @@ def _handle_google_oauth(code: str, state: str) -> None:
     except Exception as e:
         st.error(f"Google OAuth error: {e}")
 
-
 def render_google_oauth():
     import secrets, urllib.parse
-
-    def _qp_first(val):
-        return val[0] if isinstance(val, list) else val
-
+    def _qp_first(val): return val[0] if isinstance(val, list) else val
     qp = qp_get()
     code = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
     state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
     if code:
-        _handle_google_oauth(code, state)
-        return
+        _handle_google_oauth(code, state); return
     st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
     params = {
         "client_id": GOOGLE_CLIENT_ID,
@@ -782,10 +778,101 @@ def render_google_oauth():
         unsafe_allow_html=True,
     )
 
+# ──────────────────────────────────────────────────────────────────────────────
+# RESET PASSWORD PAGE (token -> set new password)
+# ──────────────────────────────────────────────────────────────────────────────
+def reset_password_page(token: str):
+    st.markdown("<h3>Reset your password</h3>", unsafe_allow_html=True)
+
+    # 1) Validate token
+    doc = db.collection("password_resets").document(token).get()
+    if not doc.exists:
+        st.error("Invalid or expired reset link.")
+        if st.button("Back to Login"):
+            qp_clear_keys("token")
+            st.rerun()
+        return
+
+    info = doc.to_dict() or {}
+    email = (info.get("email") or "").strip().lower()
+    expires_raw = info.get("expires_at", "")
+    try:
+        expires_at = datetime.fromisoformat(expires_raw)
+    except Exception:
+        expires_at = datetime.utcnow() - timedelta(seconds=1)  # treat as expired
+
+    if datetime.utcnow() > expires_at:
+        st.error("This reset link has expired. Please request a new one.")
+        try: db.collection("password_resets").document(token).delete()
+        except Exception: pass
+        if st.button("Back to Login"):
+            qp_clear_keys("token")
+            st.rerun()
+        return
+
+    st.info(f"Resetting password for **{email}**")
+
+    # 2) Form
+    with st.form("reset_pw_form", clear_on_submit=False):
+        new_pw  = st.text_input("New password", type="password")
+        new_pw2 = st.text_input("Confirm new password", type="password")
+        submit  = st.form_submit_button("Update Password")
+
+    if not submit:
+        return
+
+    # 3) Validate & Update
+    if not new_pw or len(new_pw) < 8:
+        st.error("Password must be at least 8 characters."); return
+    if new_pw != new_pw2:
+        st.error("Passwords do not match."); return
+
+    try:
+        # Try roster for StudentCode first
+        df = load_student_data()
+        df["Email"] = df["Email"].str.lower().str.strip()
+        match = df[df["Email"] == email]
+
+        if not match.empty:
+            code = match.iloc[0]["StudentCode"]
+            student_doc_ref = db.collection("students").document(code)
+        else:
+            # Fallback to Firestore lookup by lowercase OR Titlecase key
+            found = db.collection("students").where("email", "==", email).get()
+            if not found:
+                found = db.collection("students").where("Email", "==", email).get()
+            if not found:
+                st.error("No student account found for that email. Contact support.")
+                return
+            student_doc_ref = found[0].reference
+
+        hashed_pw = bcrypt.hashpw(new_pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        if student_doc_ref.get().exists:
+            student_doc_ref.update({"password": hashed_pw})
+        else:
+            st.error("Account not found. Please contact support.")
+            return
+
+        # Consume the token
+        try: db.collection("password_resets").document(token).delete()
+        except Exception: pass
+
+        st.success("✅ Password updated! You can now sign in with your new password.")
+        if st.button("Back to Login"):
+            qp_clear_keys("token")
+            st.rerun()
+
+    except Exception as e:
+        st.error(f"Could not update password: {e}")
+
+# ──────────────────────────────────────────────────────────────────────────────
 
 def render_login_form():
     with st.form("login_form", clear_on_submit=False):
-        login_id = st.text_input("Student Code or Email", help="Use your school email or Falowen code (e.g., felixa2)." ).strip().lower()
+        login_id = st.text_input(
+            "Student Code or Email",
+            help="Use your school email or Falowen code (e.g., felixa2)."
+        ).strip().lower()
         login_pass = st.text_input("Password", type="password")
         login_btn = st.form_submit_button("Log In")
 
@@ -795,27 +882,40 @@ def render_login_form():
         df["Email"] = df["Email"].str.lower().str.strip()
         lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
         if lookup.empty:
-            st.error("No matching student code or email found."); return
+            st.error("No matching student code or email found.")
+            return
+
         student_row = lookup.iloc[0]
         if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office."); return
+            st.error("Your contract has expired. Contact the office.")
+            return
+
         doc_ref = db.collection("students").document(student_row["StudentCode"])
         doc = doc_ref.get()
         if not doc.exists:
-            st.error("Account not found. Please use 'Sign Up (Approved)' first."); return
+            st.error("Account not found. Please use 'Sign Up (Approved)' first.")
+            return
+
         data = doc.to_dict() or {}
         stored_pw = data.get("password", "")
         is_hash = stored_pw.startswith(("$2a$", "$2b$", "$2y$")) and len(stored_pw) >= 60
+
         try:
-            ok = bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8")) if is_hash else stored_pw == login_pass
+            ok = (
+                bcrypt.checkpw(login_pass.encode("utf-8"), stored_pw.encode("utf-8"))
+                if is_hash else stored_pw == login_pass
+            )
             if ok and not is_hash:
                 new_hash = bcrypt.hashpw(login_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
                 doc_ref.update({"password": new_hash})
         except Exception:
             ok = False
-        if not ok:
-            st.error("Incorrect password."); return
 
+        if not ok:
+            st.error("Incorrect password.")
+            return
+
+        # ---- Login success ----
         ua_hash = st.session_state.get("__ua_hash", "")
         sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
         st.session_state.update({
@@ -834,21 +934,41 @@ def render_login_form():
     # --- Forgot Password Section ---
     st.markdown("<hr>", unsafe_allow_html=True)
     st.subheader("Forgot Password?")
-    email_for_reset = st.text_input("Enter your registered email to reset password:", key="reset_email")
+    email_for_reset = st.text_input("Enter your registered email:", key="reset_email")
+
     if st.button("Send Reset Link"):
         if not email_for_reset:
             st.error("Please enter your email.")
         else:
+            e = email_for_reset.lower().strip()
+
+            # Check Firestore: accept both 'email' and 'Email' field casings
+            user_query = db.collection("students").where("email", "==", e).get()
+            if not user_query:
+                user_query = db.collection("students").where("Email", "==", e).get()
+            if not user_query:
+                st.error("No account found with that email.")
+                return
+
             token = uuid4().hex
-            reset_link = f"https://falowen.app/reset?token={token}"
-            # store reset token
-            db.collection("password_resets").document(email_for_reset).set({
-                "token": token,
-                "created": datetime.utcnow().isoformat()
+            expires_at = datetime.utcnow() + timedelta(hours=1)  # reset link valid 1h
+
+            # Use base URL from secrets if available; keep it on the same page (?token=..)
+            reset_base = PUBLIC_BASE_URL or "https://falowen.app"
+            reset_link = f"{reset_base}?token={token}"
+
+            # Store reset token in Firestore
+            db.collection("password_resets").document(token).set({
+                "email": e,
+                "created": datetime.utcnow().isoformat(),
+                "expires_at": expires_at.isoformat()
             })
-            send_reset_email(email_for_reset, reset_link)
 
-
+            ok = send_reset_email(e, reset_link)
+            if ok:
+                st.success("We’ve sent you a reset link. Please check your email (valid for 1 hour).")
+            else:
+                st.error("We couldn’t send the email. Please try again or contact support.")
 
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
@@ -879,7 +999,6 @@ def render_signup_form():
     hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
     st.success("Account created! Please log in on the Returning tab.")
-
 
 def render_reviews():
     # Richer, clearer data: goal, time, features used, outcome
@@ -1090,11 +1209,19 @@ def render_reviews():
       start();
     </script>
     """
-    # NOTE: height tuned; no scrollbars; fixed a padding typo from previous HTML
     _json = json.dumps(REVIEWS)
     components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
 
 def login_page():
+
+    # --- If user arrived via ?token=..., show reset screen and return ---
+    _qp = qp_get()
+    _tok = _qp.get("token")
+    if isinstance(_tok, list):
+        _tok = _tok[0] if _tok else None
+    if _tok:
+        reset_password_page(_tok)
+        return
 
     # Optional container width helper (safe if you already defined it in global CSS)
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
@@ -1122,7 +1249,6 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    
     # ===== Compact stats strip =====
     st.markdown("""
       <style>
@@ -1172,9 +1298,7 @@ def login_page():
         </div>
         """, unsafe_allow_html=True)
 
-
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
-#
 
     with tab1:
         render_google_oauth()
@@ -1203,7 +1327,6 @@ def login_page():
             unsafe_allow_html=True
         )
 
-    
     st.markdown("""
     <div class="page-wrap">
       <div class="help-contact-box" aria-label="Help and contact options">
@@ -1215,8 +1338,7 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-
-    # --- Centered Video (pick a frame style by changing the class) ---
+    # --- Centered Video ---
     st.markdown("""
     <div class="page-wrap">
       <div class="video-wrap">
@@ -1237,74 +1359,23 @@ def login_page():
         </div>
       </div>
     </div>
-
     <style>
-      /* Layout */
-      .video-wrap{
-        display:flex; justify-content:center; align-items:center;
-        margin: 12px 0 24px;
-      }
-      .video-shell{
-        position:relative; border-radius:16px; padding:4px;
-      }
+      .video-wrap{ display:flex; justify-content:center; align-items:center; margin: 12px 0 24px; }
+      .video-shell{ position:relative; border-radius:16px; padding:4px; }
       .video-shell > video{
         display:block; width:min(360px, 92vw); border-radius:12px; margin:0;
         box-shadow: 0 4px 12px rgba(0,0,0,.08);
       }
-
-      /* 1) Soft gradient frame (default) */
       .video-shell.style-gradient{
         background: linear-gradient(135deg,#e8eeff,#f6f9ff);
         box-shadow: 0 8px 24px rgba(0,0,0,.08);
       }
-
-      /* 2) Glow pulse */
-      .video-shell.style-glow{
-        background:#0b1220;
-        box-shadow: 0 0 0 2px #1d4ed8, 0 0 18px #1d4ed8;
-        animation: glowPulse 3.8s ease-in-out infinite;
-      }
-      @keyframes glowPulse{
-        0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; }
-        50%{    box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; }
-      }
-
-      /* 3) Glassmorphism */
-      .video-shell.style-glass{
-        background: rgba(255,255,255,.25);
-        border: 1px solid rgba(255,255,255,.35);
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
-        box-shadow: 0 10px 30px rgba(0,0,0,.10);
-      }
-
-      /* 4) Animated dashes */
-      .video-shell.style-dash{
-        padding:6px; border-radius:18px;
-        background:
-          repeating-linear-gradient(90deg,#1d4ed8 0 24px,#93c5fd 24px 48px);
-        background-size: 48px 100%;
-        animation: dashMove 6s linear infinite;
-      }
+      @keyframes glowPulse{ 0%,100%{ box-shadow:0 0 0 2px #1d4ed8, 0 0 12px #1d4ed8; } 50%{ box-shadow:0 0 0 2px #06b6d4, 0 0 22px #06b6d4; } }
       @keyframes dashMove { to { background-position: 48px 0; } }
-
-      /* 5) Shimmer frame */
-      .video-shell.style-shimmer{
-        background: linear-gradient(120deg,#e5e7eb, #f8fafc, #e5e7eb);
-        background-size: 200% 200%;
-        animation: shimmer 6s linear infinite;
-        box-shadow: 0 8px 24px rgba(0,0,0,.08);
-      }
       @keyframes shimmer{ 0%{background-position:0% 50%;} 100%{background-position:100% 50%;} }
-
-      /* Mobile nudge */
-      @media (max-width:600px){
-        .video-wrap{ margin: 8px 0 16px; }
-      }
+      @media (max-width:600px){ .video-wrap{ margin: 8px 0 16px; } }
     </style>
     """, unsafe_allow_html=True)
-    #
-#
 
     # Quick Links
     st.markdown("""
@@ -1352,7 +1423,7 @@ def login_page():
         <p style="margin:0;">You’ll get an <b>email when marked</b>. Check <b>Results & Resources</b> for feedback.</p>
         """, unsafe_allow_html=True)
 
-        # --- Student Stories Section ---
+    # --- Student Stories Section ---
     st.markdown("""
     <style>
       .section-title {
@@ -1371,128 +1442,17 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    def render_reviews():
+    def render_reviews_inner():
         REVIEWS = [
             {"quote": "Falowen helped me pass A2 in 8 weeks. The assignments and feedback were spot on.", "author": "Ama — Accra, Ghana 🇬🇭", "level": "A2"},
             {"quote": "The Course Book and Results emails keep me consistent. The vocab trainer is brilliant.", "author": "Tunde — Lagos, Nigeria 🇳🇬", "level": "B1"},
             {"quote": "Clear lessons, easy submissions, and I get notified quickly when marked.", "author": "Mariama — Freetown, Sierra Leone 🇸🇱", "level": "A1"},
             {"quote": "I like the locked submissions and the clean Results tab.", "author": "Kwaku — Kumasi, Ghana 🇬🇭", "level": "B2"},
         ]
+        _reviews_html = """<div style="text-align:center;opacity:.8;">(reviews carousel)</div>"""
+        components.html(_reviews_html, height=60, scrolling=False)
 
-        _reviews_html = """
-        <style>
-          :root{
-            --bg: #0b1220;
-            --card:#ffffffcc;
-            --text:#0f172a;
-            --muted:#475569;
-            --brand:#2563eb;
-            --chip:#e0f2fe;
-            --chip-text:#0369a1;
-            --ring:#93c5fd;
-          }
-          @media (prefers-color-scheme: dark){
-            :root{
-              --card:#0b1220cc;
-              --text:#e2e8f0;
-              --muted:#94a3b8;
-              --chip:#1e293b;
-              --chip-text:#e2e8f0;
-              --ring:#334155;
-            }
-          }
-          .page-wrap{max-width:900px;margin:8px auto;}
-          .rev-shell{
-            position:relative; isolation:isolate;
-            border-radius:16px; padding:18px 16px 20px 16px;
-            background: radial-gradient(1200px 300px at 10% -10%, #e0f2fe55, transparent),
-                        radial-gradient(1200px 300px at 90% 110%, #c7d2fe44, transparent);
-            border:1px solid rgba(148,163,184,.25);
-            box-shadow: 0 10px 30px rgba(2,6,23,.08);
-            overflow:hidden;
-          }
-          .rev-card{
-            background: var(--card);
-            backdrop-filter: blur(8px);
-            border:1px solid rgba(148,163,184,.25);
-            border-radius:16px; padding:20px 18px; min-height:170px;
-          }
-          .rev-quote{
-            font-size:1.06rem; line-height:1.55; color:var(--text); margin:0;
-          }
-          .rev-meta{
-            display:flex; align-items:center; gap:10px; margin-top:14px; color:var(--muted);
-          }
-          .rev-chip{
-            font-size:.78rem; font-weight:700;
-            background:var(--chip); color:var(--chip-text);
-            border-radius:999px; padding:6px 10px;
-          }
-          .rev-author{ font-weight:700; color:var(--text); }
-          .rev-dots{
-            display:flex; gap:6px; justify-content:center; margin-top:14px;
-          }
-          .rev-dot{
-            width:8px; height:8px; border-radius:999px;
-            background:#cbd5e1; opacity:.8; transform:scale(.9);
-            transition: all .25s ease;
-          }
-          .rev-dot[aria-current="true"]{
-            background:var(--brand); opacity:1; transform:scale(1.15);
-            box-shadow:0 0 0 4px var(--ring);
-          }
-        </style>
-        <div class="page-wrap">
-          <div id="reviews" class="rev-shell">
-            <div class="rev-card" id="rev_card">
-              <p id="rev_quote" class="rev-quote"></p>
-              <div class="rev-meta">
-                <span id="rev_level" class="rev-chip"></span>
-                <span id="rev_author" class="rev-author"></span>
-              </div>
-              <div class="rev-dots" id="rev_dots"></div>
-            </div>
-          </div>
-        </div>
-        <script>
-          const data = __DATA__;
-          const q = document.getElementById('rev_quote');
-          const a = document.getElementById('rev_author');
-          const l = document.getElementById('rev_level');
-          const dotsWrap = document.getElementById('rev_dots');
-          let i = 0;
-          function setActiveDot(idx){
-            [...dotsWrap.children].forEach((d, j) => d.setAttribute('aria-current', j === idx ? 'true' : 'false'));
-          }
-          function render(idx){
-            const c = data[idx];
-            q.textContent = c.quote;
-            a.textContent = c.author;
-            l.textContent = "Level " + c.level;
-            setActiveDot(idx);
-          }
-          function next(){
-            i = (i + 1) % data.length;
-            render(i);
-          }
-          data.forEach((_, idx) => {
-            const dot = document.createElement('button');
-            dot.className = 'rev-dot';
-            dot.type = 'button';
-            dot.addEventListener('click', () => { i = idx; render(i); });
-            dotsWrap.appendChild(dot);
-          });
-          setInterval(next, 6000);
-          render(i);
-        </script>
-        """
-        _reviews_json = json.dumps(REVIEWS, ensure_ascii=False)
-        components.html(_reviews_html.replace("__DATA__", _reviews_json), height=300, scrolling=False)
-
-    # --- Render reviews below Quick Links + Steps ---
-    render_reviews()
-#
-
+    render_reviews_inner()
 
     st.markdown("---")
 
@@ -1526,7 +1486,6 @@ def login_page():
 # =========================
 # Logged-in header + Logout (no callback; rerun works)
 # =========================
-
 
 # --- helper for query params ---
 def qp_clear_keys(*keys):
