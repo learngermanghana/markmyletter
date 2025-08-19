@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
+import warnings
 import streamlit.components.v1 as components
 from bs4 import BeautifulSoup
 from docx import Document
@@ -73,10 +74,6 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
         st.error(f"❌ Failed to send reset email: {e}")
         return False
 
-
-
-import streamlit as st
-import warnings
 
 # ---- Silence the specific st.cache deprecation banner (works across versions) ----
 try:
@@ -11680,6 +11677,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
