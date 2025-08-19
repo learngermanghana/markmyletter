@@ -36,6 +36,9 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+from sendgrid import SendGridAPIClient          # <--- added
+from sendgrid.helpers.mail import Mail          # <--- added
+
 
 
 # ---- Streamlit page config MUST be first Streamlit call ----
@@ -595,6 +598,23 @@ if not st.session_state.get("logged_in", False):
                 restored = True
 
 
+# --- 1) Email helper (SendGrid) ---
+def send_reset_email(to_email: str, link: str):
+    """Send a password reset email via SendGrid."""
+    sg = SendGridAPIClient(api_key=st.secrets["SENDGRID_API_KEY"])
+    msg = Mail(
+        from_email="learngermanghana@gmail.com",
+        to_emails=to_email,
+        subject="Falowen Password Reset",
+        html_content=f"""
+        <p>Hello,</p>
+        <p>Click below to reset your Falowen password. This link will expire in 1 hour.</p>
+        <p><a href="{link}">{link}</a></p>
+        <p>If you didn’t request this, you can ignore this email.</p>
+        """
+    )
+    sg.send(msg)
+
 # --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
 <style>
@@ -623,102 +643,49 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "180240695202-3v682khdfarmq9io9mp0169skl79hr8c.apps.googleusercontent.com")
-GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "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")
-REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowen.app/")
+# --- 3) Google OAuth settings ---
+GOOGLE_CLIENT_ID     = st.secrets.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET", "")
+REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://falowen.app/")
 
+# --- 4) Login form ---
+def render_login_form():
+    with st.form("login_form", clear_on_submit=False):
+        email = st.text_input("Email", key="login_email").strip().lower()
+        password = st.text_input("Password", type="password", key="login_pass")
+        login_btn = st.form_submit_button("Login")
 
-def _handle_google_oauth(code: str, state: str) -> None:
+    if not login_btn:
+        return
+    if not (email and password):
+        st.error("Please fill in all fields."); return
+
     df = load_student_data()
     df["Email"] = df["Email"].str.lower().str.strip()
-    try:
-        if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
-            st.error("OAuth state mismatch. Please try again."); return
-        if st.session_state.get("_oauth_code_redeemed") == code:
-            return
-        token_url = "https://oauth2.googleapis.com/token"
-        data = {
-            "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": REDIRECT_URI,
-            "grant_type": "authorization_code",
-        }
-        resp = requests.post(token_url, data=data, timeout=10)
-        if not resp.ok:
-            st.error(f"Google login failed: {resp.status_code} {resp.text}"); return
-        access_token = resp.json().get("access_token")
-        if not access_token:
-            st.error("Google login failed: no access token."); return
-        st.session_state["_oauth_code_redeemed"] = code
-        userinfo = requests.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=10,
-        ).json()
-        email = (userinfo.get("email") or "").lower().strip()
-        match = df[df["Email"] == email]
-        if match.empty:
-            st.error("No student account found for that Google email."); return
-        student_row = match.iloc[0]
-        if is_contract_expired(student_row):
-            st.error("Your contract has expired. Contact the office."); return
-        ua_hash = st.session_state.get("__ua_hash", "")
-        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
-        st.session_state.update({
-            "logged_in": True,
-            "student_row": student_row.to_dict(),
-            "student_code": student_row["StudentCode"],
-            "student_name": student_row["Name"],
-            "session_token": sess_token,
-        })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-        _persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
-        qp_clear()
-        st.success(f"Welcome, {student_row['Name']}!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"Google OAuth error: {e}")
+    match = df[df["Email"] == email]
+    if match.empty:
+        st.error("No student found with that email."); return
 
+    student_row = match.iloc[0]
+    doc_ref = db.collection("students").document(student_row["StudentCode"])
+    doc = doc_ref.get()
+    if not doc.exists:
+        st.error("Account not found. Please sign up."); return
 
-def render_google_oauth():
-    import secrets, urllib.parse
+    hashed_pw = doc.to_dict().get("password", "")
+    if not bcrypt.checkpw(password.encode("utf-8"), hashed_pw.encode("utf-8")):
+        st.error("Incorrect password."); return
 
-    def _qp_first(val):
-        return val[0] if isinstance(val, list) else val
+    # success
+    st.session_state["logged_in"] = True
+    st.session_state["student_row"] = student_row.to_dict()
+    st.success(f"Welcome back, {student_row['Name']}!")
+    st.rerun()
 
-    qp = qp_get()
-    code = _qp_first(qp.get("code")) if hasattr(qp, "get") else None
-    state = _qp_first(qp.get("state")) if hasattr(qp, "get") else None
-    if code:
-        _handle_google_oauth(code, state)
-        return
-    st.session_state["_oauth_state"] = secrets.token_urlsafe(24)
-    params = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "redirect_uri": REDIRECT_URI,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "prompt": "select_account",
-        "state": st.session_state["_oauth_state"],
-        "include_granted_scopes": "true",
-        "access_type": "online",
-    }
-    auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(params)
-    st.markdown(
-        """<div class="page-wrap" style='text-align:center;margin:12px 0;'>
-                <a href="{url}">
-                    <button aria-label="Sign in with Google"
-                            style="background:#4285f4;color:white;padding:8px 24px;border:none;border-radius:6px;cursor:pointer;">
-                        Sign in with Google
-                    </button>
-                </a>
-           </div>""".replace("{url}", auth_url),
-        unsafe_allow_html=True,
-    )
+    # Forgot password
+    render_forgot_password()
 
-
+# --- 5) Forgot password ---
 def render_forgot_password():
     with st.expander("🔑 Forgot your password?", expanded=False):
         email = st.text_input("Enter your registered email", key="forgot_email")
@@ -728,33 +695,22 @@ def render_forgot_password():
             if email.lower().strip() not in df["Email"].values:
                 st.error("No student found with that email.")
             else:
-                token = secrets.token_urlsafe(32)  # secure random reset token
+                token = secrets.token_urlsafe(32)
                 expires = datetime.utcnow() + timedelta(hours=1)
-
-                # Store in Firestore
                 db.collection("reset_tokens").document(email).set({
                     "token": token,
                     "expires": expires
                 })
-
                 reset_link = f"https://falowen.app/reset?token={token}&email={email}"
-
-                # TODO: Send email via SendGrid/Gmail API
                 send_reset_email(email, reset_link)
-
                 st.success("✅ A reset link has been sent to your email. It will expire in 1 hour.")
 
-
-
+# --- 6) Signup form ---
 def render_signup_form():
     with st.form("signup_form", clear_on_submit=False):
         new_name = st.text_input("Full Name", key="ca_name")
-        new_email = st.text_input(
-            "Email (must match teacher’s record)",
-            help="Use the school email your tutor added to the roster.",
-            key="ca_email",
-        ).strip().lower()
-        new_code = st.text_input("Student Code (from teacher)", help="Example: felixa2", key="ca_code").strip().lower()
+        new_email = st.text_input("Email (must match teacher’s record)", key="ca_email").strip().lower()
+        new_code = st.text_input("Student Code (from teacher)", key="ca_code").strip().lower()
         new_password = st.text_input("Choose a Password", type="password", key="ca_pass")
         signup_btn = st.form_submit_button("Create Account")
     if not signup_btn:
@@ -771,12 +727,12 @@ def render_signup_form():
         st.error("Your code/email aren’t registered. Use 'Request Access' first."); return
     doc_ref = db.collection("students").document(new_code)
     if doc_ref.get().exists:
-        st.error("An account with this student code already exists. Please log in instead."); return
+        st.error("An account with this student code already exists."); return
     hashed_pw = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     doc_ref.set({"name": new_name, "email": new_email, "password": hashed_pw})
-    st.success("Account created! Please log in on the Returning tab.")
+    st.success("Account created! Please log in.")
 
-
+    
 def render_reviews():
     # Richer, clearer data: goal, time, features used, outcome
     REVIEWS = [
