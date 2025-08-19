@@ -44,6 +44,28 @@ from sendgrid.helpers.mail import Mail
 SENDGRID_API_KEY = st.secrets["SENDGRID_API_KEY"]
 SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
 
+def send_reset_email(to_email: str, reset_link: str):
+    """Send a password reset email using SendGrid."""
+    try:
+        message = Mail(
+            from_email=SENDER_EMAIL,   # 👈 now uses secrets.toml
+            to_emails=to_email,
+            subject="Falowen Password Reset",
+            html_content=f"""
+                <p>Hello,</p>
+                <p>You requested to reset your password. Click the link below to continue:</p>
+                <p><a href="{reset_link}">{reset_link}</a></p>
+                <p>If you did not request this, you can safely ignore this email.</p>
+                <br>
+                <p>– Falowen Team</p>
+            """
+        )
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        sg.send(message)
+        st.success(f"✅ Reset link sent to {to_email}. Check your inbox.")
+    except Exception as e:
+        st.error(f"❌ Failed to send reset email: {e}")
+
 
 # ---- Streamlit page config MUST be first Streamlit call ----
 st.set_page_config(
@@ -462,27 +484,7 @@ def qp_clear_keys(*keys):
         except KeyError:
             pass
 
-def send_reset_email(to_email: str, reset_link: str):
-    """Send a password reset email using SendGrid."""
-    try:
-        message = Mail(
-            from_email="no-reply@falowen.app",   # 👈 change to your verified sender
-            to_emails=to_email,
-            subject="Falowen Password Reset",
-            html_content=f"""
-                <p>Hello,</p>
-                <p>You requested to reset your password. Click the link below to continue:</p>
-                <p><a href="{reset_link}">{reset_link}</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-                <br>
-                <p>– Falowen Team</p>
-            """
-        )
-        sg = SendGridAPIClient(st.secrets["SENDGRID_API_KEY"])
-        sg.send(message)
-        st.success(f"✅ Reset link sent to {to_email}. Check your inbox.")
-    except Exception as e:
-        st.error(f"❌ Failed to send reset email: {e}")
+
 
 # ==== Cookie helpers (normal cookies) ====
 def _expire_str(dt: datetime) -> str:
