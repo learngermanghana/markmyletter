@@ -8,7 +8,6 @@ import html as html_stdlib
 import io
 import json
 import math
-import pyrebase
 import os
 import random
 import re
@@ -25,7 +24,7 @@ import bcrypt
 import firebase_admin
 import matplotlib.pyplot as plt
 import pandas as pd
-import pyrebase   # ✅ keep it here once
+import pyrebase
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
@@ -38,6 +37,7 @@ from openai import OpenAI
 from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
+
 
 
 
