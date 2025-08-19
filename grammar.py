@@ -3654,7 +3654,7 @@ def get_b1_schedule():
             "goal": "Über Wohnungssuche und Wohnformen sprechen.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
-            "grammar_topic": "Wechselpräpositionen – In der Stadt, auf dem Land",
+            "grammar_topic": "Wechselpräpositionen",
             "video": "https://youtu.be/kR8SmSY99c8",
             "youtube_link": "https://youtu.be/kR8SmSY99c8",
             "grammarbook_link": "https://drive.google.com/file/d/1NW5F0R5zj6nn2SqDjhpQlkGcfK-UBUqk/view?usp=drive_link",
@@ -3668,9 +3668,10 @@ def get_b1_schedule():
             "goal": "Einen Besichtigungstermin beschreiben.",
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
+            "grammar_topic": "Modalverben, Konjunktiv II",
             "video": "",
             "youtube_link": "",
-            "grammarbook_link": "",
+            "grammarbook_link": "https://drive.google.com/file/d/13SI6AiqC2BAWLZjPh-AsiyTEfvGyk8DR/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1-HaOiGQtP_JI7ujg4-h-u1GnCumabdx_/view?usp=sharing"
         },
         # TAG 6
