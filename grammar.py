@@ -1,5 +1,3 @@
-
-     
 # ==== Standard Library ====
 import atexit
 import base64
@@ -51,39 +49,22 @@ st.set_page_config(
 st.markdown("""
 <style>
 /* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
-
+[data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0 !important; }
 /* First rendered block (often a head-inject) — keep a small gap only */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  margin-top: 0 !important; margin-bottom: 8px !important; padding-top: 0 !important; padding-bottom: 0 !important;
 }
-
 /* If that first block is an iframe, collapse it completely */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
+  display: block; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important;
 }
-
 /* Keep hero flush and compact */
 .hero { margin-top: 2px !important; margin-bottom: 4px !important; padding-top: 6px !important; display: flow-root; }
 .hero h1:first-child { margin-top: 0 !important; }
-
 /* Trim default gap above Streamlit tabs */
 [data-testid="stTabs"] { margin-top: 8px !important; }
-
 /* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
+#MainMenu { visibility: hidden; } footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -443,27 +424,14 @@ def qp_clear_keys(*keys):
         except KeyError:
             pass
 
-# ==== Cookie helpers (normal cookies) ====
+# ==== Cookie helpers (encrypted cookie + localStorage only) ====
 def _expire_str(dt: datetime) -> str:
     return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
-
-def _js_set_cookie(name: str, value: str, max_age_sec: int, expires_gmt: str, secure: bool, domain: Optional[str] = None):
-    base = (
-        f'var c = {json.dumps(name)} + "=" + {json.dumps(_urllib.quote(value, safe=""))} + '
-        f'"; Path=/; Max-Age={max_age_sec}; Expires={json.dumps(expires_gmt)}; SameSite=Lax";\n'
-        f'if ({str(bool(secure)).lower()}) c += "; Secure";\n'
-    )
-    if domain:
-        base += f'c += "; Domain=" + {domain};\n'
-    base += "document.cookie = c;\n"
-    return base
 
 def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     key = "student_code"
     norm = (value or "").strip().lower()
-    use_secure = (os.getenv("ENV", "prod") != "dev")
-    max_age = 60 * 60 * 24 * 180  # 180 days
-    exp_str = _expire_str(expires)
+    use_secure = (os.getenv("ENV", "prod") != "dev")  # Secure only in prod/https
     try:
         cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -472,33 +440,19 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
             cookie_manager[key] = norm; cookie_manager.save()
         except Exception:
             pass
-    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
-    host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
-    script = f"""
+    # mirror to localStorage (no duplicate cookie name)
+    components.html(f"""
     <script>
-      (function(){{
-        try {{
-          {host_js}
-          try {{
-            var h = (window.location.hostname||'').split('.').filter(Boolean);
-            if (h.length >= 2) {{
-              var base = '.' + h.slice(-2).join('.');
-              {_js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, "base")}
-            }}
-          }} catch(e) {{}}
-          try {{ localStorage.setItem('student_code', {json.dumps(norm)}); }} catch(e) {{}}
-        }} catch(e) {{}}
-      }})();
+      try {{
+        localStorage.setItem('student_code', {json.dumps(norm)});
+      }} catch(e) {{}}
     </script>
-    """
-    components.html(script, height=0)
+    """, height=0)
 
 def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     key = "session_token"
     val = (token or "").strip()
-    use_secure = (os.getenv("ENV", "prod") != "dev")
-    max_age = 60 * 60 * 24 * 30  # 30 days
-    exp_str = _expire_str(expires)
+    use_secure = (os.getenv("ENV", "prod") != "dev")  # Secure only in prod/https
     try:
         cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
         cookie_manager.save()
@@ -507,26 +461,14 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
             cookie_manager[key] = val; cookie_manager.save()
         except Exception:
             pass
-    host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
-    host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
-    script = f"""
+    # mirror to localStorage (no duplicate cookie name)
+    components.html(f"""
     <script>
-      (function(){{
-        try {{
-          {host_js}
-          try {{
-            var h = (window.location.hostname||'').split('.').filter(Boolean);
-            if (h.length >= 2) {{
-              var base = '.' + h.slice(-2).join('.');
-              {_js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, "base")}
-            }}
-          }} catch(e) {{}}
-          try {{ localStorage.setItem('session_token', {json.dumps(val)}); }} catch(e) {{}}
-        }} catch(e) {{}}
-      }})();
+      try {{
+        localStorage.setItem('session_token', {json.dumps(val)});
+      }} catch(e) {{}}
     </script>
-    """
-    components.html(script, height=0)
+    """, height=0)
 
 def _persist_session_client(token: str, student_code: str = "") -> None:
     components.html(f"""
@@ -552,6 +494,52 @@ cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRE
 if not cookie_manager.ready():
     st.warning("Cookies not ready; please refresh.")
     st.stop()
+
+# ---- iOS/Safari bridge: recreate cookie from localStorage if needed ----
+def _bootstrap_cookie_from_localstorage():
+    components.html("""
+    <script>
+      (function(){
+        try {
+          var name = 'falowen_session_token';  // EncryptedCookieManager prefix + key
+          var hasCookie = document.cookie.split('; ').some(c => c.startsWith(name + '='));
+          var ls = localStorage.getItem('session_token');
+          if (!hasCookie && ls) {
+            var u = new URL(window.location);
+            if (!u.searchParams.get('stoken')) {
+              u.searchParams.set('stoken', ls);
+              window.location.replace(u.toString());
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
+    """, height=0)
+
+_bootstrap_cookie_from_localstorage()
+
+# One-time pickup of ?stoken=... and re-set the real cookie
+_stoken = None
+try:
+    _stoken = st.query_params.get("stoken")
+    if isinstance(_stoken, list):
+        _stoken = _stoken[0]
+except Exception:
+    _stoken = None
+
+if _stoken:
+    data = validate_session_token(_stoken, st.session_state.get("__ua_hash",""))
+    if data:
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": None,  # will be filled by restore block below if needed
+            "student_code": data.get("student_code",""),
+            "student_name": data.get("name",""),
+            "session_token": _stoken,
+        })
+        set_session_token_cookie(cookie_manager, _stoken, expires=datetime.utcnow() + timedelta(days=30))
+        qp_clear_keys("stoken")
+        _persist_session_client(_stoken, data.get("student_code",""))
 
 # ---- Restore from existing session token (cookie) ----
 restored = False
@@ -579,6 +567,7 @@ if not st.session_state.get("logged_in", False):
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
+
 
 # --- 2) Global CSS (tightened spacing) ---
 st.markdown("""
