@@ -736,52 +736,97 @@ firebase = pyrebase.initialize_app(firebaseConfig)
 auth = firebase.auth()
 db = firestore.Client()
 
-# ---- Login Function ----
 def render_login_form():
-    st.subheader("🔐 Student Login")
+    with st.form("login_form", clear_on_submit=False):
+        login_id = st.text_input(
+            "Student Code or Email",
+            help="Use your school email or Falowen code (e.g., felixa2)."
+        ).strip().lower()
+        login_pass = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Log In")
 
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
+    if login_btn:
+        # ---- Step 1: Find student in Google Sheet ----
+        df = load_student_data()
+        df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
+        df["Email"] = df["Email"].str.lower().str.strip()
 
-    # Login Button
-    if st.button("Log In"):
-        try:
-            # Step 1: Authenticate with Firebase Auth
-            user = auth.sign_in_with_email_and_password(email, password)
-            st.session_state["user"] = user
-            st.success("Login successful! Checking approval...")
-
-            # Step 2: Check approval in Firestore
-            students_ref = db.collection("students")
-            student_doc = students_ref.where("Email", "==", email.lower()).limit(1).get()
-
-            if not student_doc:
-                st.error("You are not registered in Falowen. Contact admin.")
+        if "@" in login_id:
+            email = login_id
+            lookup = df[df["Email"] == email]
+        else:
+            lookup = df[df["StudentCode"] == login_id]
+            if lookup.empty:
+                st.error("No matching student code found.")
                 return
+            email = lookup.iloc[0]["Email"]
 
-            student_data = student_doc[0].to_dict()
-            
-            # Example approval check (adjust to your schema)
-            if student_data.get("Approved", False) and not student_data.get("ContractExpired", True):
-                st.success(f"Welcome back, {student_data.get('Name', 'Student')} 🎉")
-                st.session_state["approved"] = True
+        if lookup.empty:
+            st.error("No matching student email or code found.")
+            return
+
+        student_row = lookup.iloc[0]
+
+        # ---- Step 2: Firebase Auth check ----
+        try:
+            user = auth.sign_in_with_email_and_password(email, login_pass)
+            st.success("Authentication successful! Checking approval...")
+        except Exception:
+            st.error("Invalid email or password.")
+            return
+
+        # ---- Step 3: Check approval & contract (Google Sheet truth) ----
+        if is_contract_expired(student_row):
+            st.error("Your contract has expired. Contact the office.")
+            return
+
+        if not student_row.get("Approved", True):
+            st.error("Your account has not been approved yet.")
+            return
+
+        # ---- Step 4: Mirror login in Firestore (optional) ----
+        try:
+            doc_ref = db.collection("students").document(student_row["StudentCode"])
+            if not doc_ref.get().exists:
+                doc_ref.set({
+                    "Email": email,
+                    "StudentCode": student_row["StudentCode"],
+                    "lastLogin": datetime.utcnow().isoformat()
+                })
             else:
-                st.error("Your account is not approved or your contract has expired.")
-                st.session_state["approved"] = False
-
+                doc_ref.update({"lastLogin": datetime.utcnow().isoformat()})
         except Exception as e:
-            st.error(f"Login failed: {e}")
+            st.warning(f"Could not update Firestore record: {e}")
 
-    # Forgot Password Button
-    if st.button("Forgot Password?"):
-        if not email:
-            st.warning("Enter your email first.")
+        # ---- Step 5: Set session ----
+        ua_hash = st.session_state.get("__ua_hash", "")
+        sess_token = create_session_token(student_row["StudentCode"], student_row["Name"], ua_hash=ua_hash)
+        st.session_state.update({
+            "logged_in": True,
+            "student_row": dict(student_row),
+            "student_code": student_row["StudentCode"],
+            "student_name": student_row["Name"],
+            "session_token": sess_token,
+        })
+        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+        _persist_session_client(sess_token, student_row["StudentCode"])
+        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+
+        st.success(f"Welcome, {student_row['Name']} 🎉")
+        st.rerun()
+
+    # ---- Forgot Password ----
+    st.markdown("---")
+    st.caption("⚠️ Forgot your password?")
+    if st.button("Reset Password"):
+        if not login_id or "@" not in login_id:
+            st.warning("Enter your email in the login field above to reset your password.")
         else:
             try:
-                auth.send_password_reset_email(email)
-                st.success("A password reset link has been sent to your email.")
+                auth.send_password_reset_email(login_id)
+                st.success(f"A password reset link has been sent to **{login_id}**.")
             except Exception as e:
-                st.error(f"Error sending reset link: {e}")
+                st.error(f"Could not send reset email: {e}")
 
 
 
