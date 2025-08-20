@@ -1338,83 +1338,215 @@ def render_login_form():
 
         st.markdown('</div>', unsafe_allow_html=True)
 
+
 import streamlit as st
+from streamlit.components.v1 import html
 
 def login_page():
-    # --- STYLE (once) ---
+    # ---------- Global styles (once) ----------
     st.markdown("""
     <style>
-      .choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}
+      :root{
+        --txt:#0f172a; --muted:#64748b; --card:rgba(255,255,255,.75);
+        --border:rgba(15,23,42,.08); --shadow:rgba(2,6,23,.15);
+        --indigo:#4f46e5; --green:#10b981; --blue:#3b82f6; --amber:#f59e0b;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{ --txt:#e2e8f0; --muted:#94a3b8; --card:rgba(15,23,42,.6); --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); }
+      }
+      .page-wrap{max-width:1100px;margin:0 auto;padding:0 6px;}
+      /* hero */
+      .hero h1{ text-align:center; color:#25317e; margin-bottom:10px; }
+      .hero p{ text-align:center; font-size:1.05rem; color:#555; margin:0 auto 10px auto; max-width:760px; }
+      .hero .chips{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:10px 0 6px; }
+      .chip{ background:var(--card); border:1px solid var(--border); color:var(--txt);
+             padding:6px 10px; border-radius:9999px; font-size:.9rem; box-shadow:0 4px 10px var(--shadow); }
+      /* hero CTAs */
+      .cta-row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:12px auto 2px; }
+      .cta{ display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:9999px;
+            text-decoration:none; color:white; font-weight:700; border:1px solid transparent;
+            box-shadow:0 8px 18px var(--shadow); transform:translateY(4px); opacity:0;
+            animation:rise .5s ease-out forwards; }
+      .cta span{font-size:1.05rem}
+      .cta.login{ background:var(--green); }
+      .cta.approved{ background:var(--blue); }
+      .cta.request{ background:var(--amber); color:#1f2937; }
+      .cta:hover{ filter:brightness(1.03); transform:translateY(2px); }
+      .cta:active{ transform:translateY(4px); transition-duration:80ms; }
+      .cta.login{animation-delay:.05s}.cta.approved{animation-delay:.18s}.cta.request{animation-delay:.31s}
+
+      /* option cards (chooser) */
+      .choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:14px}
       .choice-card{
-        --accent:#4f46e5;display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;
-        padding:16px;border-radius:16px;border:1px solid rgba(15,23,42,.08);text-decoration:none;color:inherit;
-        background:rgba(255,255,255,.75);position:relative;overflow:hidden;box-shadow:0 6px 14px rgba(2,6,23,.15);
+        --accent:var(--indigo);
+        display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;
+        padding:16px;border-radius:16px;border:1px solid var(--border);text-decoration:none;color:inherit;
+        background:var(--card);position:relative;overflow:hidden;box-shadow:0 6px 14px var(--shadow);
         transform:translateY(6px);opacity:0;animation:fadeIn .55s ease-out forwards;transition:.2s;
       }
-      .choice-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(2,6,23,.15);
-                         border-color:color-mix(in srgb,var(--accent) 40%, rgba(15,23,42,.08))}
+      .choice-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px var(--shadow);
+                         border-color:color-mix(in srgb,var(--accent) 40%, var(--border))}
       .choice-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
                            background:linear-gradient(180deg,var(--accent),transparent 80%);opacity:.3}
       .choice-card::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);
                           transform:translateX(-160%);animation:shimmer 2400ms ease-in-out infinite 1200ms;pointer-events:none}
       .choice-icon{
-        width:44px;height:44px;display:grid;place-items:center;font-size:22px;border-radius:12px;border:1px solid rgba(15,23,42,.08);
+        width:44px;height:44px;display:grid;place-items:center;font-size:22px;border-radius:12px;border:1px solid var(--border);
         background:radial-gradient(60% 60% at 30% 25%,rgba(255,255,255,.35),transparent 60%),
                    linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%, transparent), transparent);
-        box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 6px 12px rgba(2,6,23,.15);animation:bob 3.2s ease-in-out infinite
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 6px 12px var(--shadow);animation:bob 3.2s ease-in-out infinite
       }
-      .card-title{font-weight:700}
-      .card-sub{color:#64748b;line-height:1.35}
-      .c-green{--accent:#10b981}.c-blue{--accent:#3b82f6}.c-amber{--accent:#f59e0b}
+      .card-title{font-weight:800}
+      .card-sub{color:var(--muted);line-height:1.35}
+      .meta{margin-top:6px;font-size:.9rem;color:var(--muted)}
+      .c-green{--accent:var(--green)} .c-blue{--accent:var(--blue)} .c-amber{--accent:var(--amber)}
+
+      /* stats container shell (colors from component) */
+      .stats-wrap{ max-width:820px; margin:12px auto 4px; }
+
+      /* anims */
+      @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
       @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
       @keyframes shimmer{0%{transform:translateX(-160%)}100%{transform:translateX(160%)}}
       @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-      @media (prefers-color-scheme: dark){
-        .choice-card{background:rgba(15,23,42,.6);border-color:rgba(226,232,240,.12);box-shadow:0 6px 14px rgba(0,0,0,.5)}
-        .card-sub{color:#94a3b8}
-      }
+
+      /* mobile spacing */
+      @media (max-width:560px){ .cta span{font-size:1rem} }
+
+      /* motion accessibility */
       @media (prefers-reduced-motion: reduce){
-        .choice-card,.choice-card::after,.choice-icon{animation:none !important;opacity:1;transform:none}
-        .choice-card{transition:none}
+        .cta,.choice-card,.choice-card::after,.choice-icon{animation:none!important;opacity:1;transform:none}
       }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- CLICKABLE CARDS (drop-in replacement for your expander) ---
+    # ---------- HERO ----------
     st.markdown("""
-    <div class="choice-grid">
-      <a class="choice-card c-green" href="?mode=login" aria-label="Returning Student: go to login">
-        <div class="choice-icon">👋</div>
-        <div>
-          <div class="card-title">Returning Student</div>
-          <div class="card-sub">Already set a password? Log in to continue your learning.</div>
+    <div class="page-wrap">
+      <div class="hero" aria-label="Falowen app introduction">
+        <h1>👋 Welcome to <strong>Falowen</strong></h1>
+        <p>
+          Falowen is your all-in-one German learning platform by
+          <b>Learn Language Education Academy</b>, covering <b>A1–C1</b> with live tutor support.
+        </p>
+
+        <div class="chips" aria-label="trust indicators">
+          <div class="chip">👥 300+ learners</div>
+          <div class="chip">⭐ 4.8/5</div>
+          <div class="chip">📚 A1–C1</div>
         </div>
-      </a>
-      <a class="choice-card c-blue" href="?mode=approved" aria-label="Sign Up Approved: create account">
-        <div class="choice-icon">🧾</div>
-        <div>
-          <div class="card-title">Sign Up (Approved)</div>
-          <div class="card-sub">You’ve paid and we have your email + code. Create your account here.</div>
+
+        <div class="cta-row" aria-label="quick actions">
+          <a class="cta login" href="?mode=login"><span>👋 Returning</span></a>
+          <a class="cta approved" href="?mode=approved"><span>🧾 Sign Up (Approved)</span></a>
+          <a class="cta request" href="?mode=request"><span>📝 Request Access</span></a>
         </div>
-      </a>
-      <a class="choice-card c-amber" href="?mode=request" aria-label="Request Access: start application">
-        <div class="choice-icon">📝</div>
-        <div>
-          <div class="card-title">Request Access</div>
-          <div class="card-sub">New to Falowen? Fill the form; we’ll guide you through next steps.</div>
-        </div>
-      </a>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # (Optional) Read the chosen mode from URL and branch your UI
+    # ---------- STATS (count-up animation via components.html) ----------
+    stats_html = """
+    <div class="stats-wrap" role="list" aria-label="Falowen highlights">
+      <style>
+        .stats-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+        .stat{background:#0ea5e9;color:#fff;border-radius:12px;padding:12px 14px;min-width:150px;text-align:center;
+              box-shadow:0 2px 10px rgba(2,132,199,.15);outline:none}
+        .stat .num{font-size:1.25rem;font-weight:800;line-height:1}
+        .stat .label{font-size:.92rem;opacity:.98}
+        @media (max-width:560px){ .stat{min-width:46%} }
+        @media (prefers-color-scheme: dark){
+          .stat{background:#0284c7;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+        }
+      </style>
+      <div class="stats-grid">
+        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners">
+          <div class="num" data-target="300" data-suffix="+">0</div>
+          <div class="label">Active learners</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
+          <div class="num" data-target="1200" data-suffix="+">0</div>
+          <div class="label">Assignments submitted</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Full course coverage">
+          <div class="num" data-static="A1–C1">A1–C1</div>
+          <div class="label">Full course coverage</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
+          <div class="num" data-static="4.8/5">4.8/5</div>
+          <div class="label">Avg. feedback</div>
+        </div>
+      </div>
+      <script>
+        (function(){
+          const ease = t => 1- Math.pow(1-t, 3);
+          const nodes = Array.from(document.querySelectorAll('.num'))
+            .filter(n => n.dataset.target && !n.dataset.static);
+          const dur = 900; // ms
+          nodes.forEach(n=>{
+            const target = parseInt(n.dataset.target||"0");
+            const suffix = n.dataset.suffix || "";
+            let start = null;
+            const step = ts=>{
+              if(!start) start = ts;
+              const p = Math.min(1, (ts - start)/dur);
+              const val = Math.floor(ease(p)*target);
+              n.textContent = val.toLocaleString() + suffix;
+              if(p<1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
+          });
+        })();
+      </script>
+    </div>
+    """
+    html(stats_html, height=150)  # lets the JS run (st.markdown strips <script>)
+
+    # ---------- OPTION BOX (Clickable cards grid with tiny sublines) ----------
+    st.markdown("""
+    <div class="page-wrap" aria-label="Choose your path">
+      <div class="choice-grid">
+        <a class="choice-card c-green" href="?mode=login" aria-label="Returning Student: go to login">
+          <div class="choice-icon">👋</div>
+          <div>
+            <div class="card-title">Returning Student</div>
+            <div class="card-sub">Already set a password? Log in to continue your learning.</div>
+            <div class="meta">⏱ ~10–20s</div>
+          </div>
+        </a>
+        <a class="choice-card c-blue" href="?mode=approved" aria-label="Sign Up (Approved): create account">
+          <div class="choice-icon">🧾</div>
+          <div>
+            <div class="card-title">Sign Up (Approved)</div>
+            <div class="card-sub">Paid and on our roster but no account yet—create one here.</div>
+            <div class="meta">🔑 Needs email + code · ⏱ ~1–2 mins</div>
+          </div>
+        </a>
+        <a class="choice-card c-amber" href="?mode=request" aria-label="Request Access: start application">
+          <div class="choice-icon">📝</div>
+          <div>
+            <div class="card-title">Request Access</div>
+            <div class="card-sub">New to Falowen? Tell us a few details and we’ll guide you.</div>
+            <div class="meta">📬 We’ll contact you · ⏱ ~1 min</div>
+          </div>
+        </a>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ---------- Optional: read the chosen mode and branch your UI ----------
     try:
         mode = st.query_params.get("mode", None)
     except Exception:
-        mode = st.experimental_get_query_params().get("mode", [None])[0]  # fallback for older Streamlit
+        mode = st.experimental_get_query_params().get("mode", [None])[0]  # Streamlit < 1.30 fallback
+
     if mode:
-        st.write(f"Selected mode: **{mode}**")  # replace with your router / form
-        # e.g. if mode == "login": render_login(); elif mode == "approved": render_signup(); ...
+        st.write(f"Selected mode: **{mode}**")
+        # TODO: replace with your router/forms, e.g.:
+        # if mode == "login": render_login_form()
+        # elif mode == "approved": render_signup_form()
+        # elif mode == "request": render_request_form()
+
 
 
 
