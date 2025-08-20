@@ -123,7 +123,6 @@ def send_reset_email(to_email: str, reset_link: str) -> bool:
 # Prefer Apps Script reset page for password updates
 GAS_RESET_URL = st.secrets.get(
     "GAS_RESET_URL",
-    # You can keep the placeholder version OR just the bare /exec URL.
     "https://script.google.com/macros/s/AKfycbwdgYJtya39qzBZaXdUqkk1i2_LIHna5CN-lHYveq7O1yG46KghKZWKNKqGYlh_xyZU/exec?token=<THE_TOKEN>"
 )
 
@@ -134,16 +133,13 @@ def build_gas_reset_link(token: str) -> str:
     """
     url = GAS_RESET_URL.strip()
     if "<THE_TOKEN>" in url:
-        # Simple and safe string replacement (keeps any existing query string)
         return url.replace("<THE_TOKEN>", _urllib.quote(token, safe=""))
 
-    # Otherwise, append/override token in the querystring
     parts = _urllib.urlparse(url)
     qs = dict(_urllib.parse_qsl(parts.query, keep_blank_values=True))
     qs["token"] = token
     new_query = _urllib.urlencode(qs, doseq=True)
     return _urllib.urlunparse(parts._replace(query=new_query))
-
 
 # ------------------------------------------------------------------------------
 # Firebase init (Firestore)
@@ -200,10 +196,13 @@ html = st_html
 
 # ---- PWA head helper (define BEFORE you call it) ----
 BASE = st.secrets.get("PUBLIC_BASE_URL", "")
-_manifest = f'{BASE}/static/manifest.webmanifest' if BASE else "/static/manifest.webmanifest"
+_manifest = f'{BASE}/manifest.webmanifest' if BASE else "/manifest.webmanifest"
 _icon180  = f'{BASE}/static/icons/falowen-180.png' if BASE else "/static/icons/falowen-180.png"
 
 def _inject_meta_tags():
+    """Inject PWA meta + register the service worker once per session."""
+    if st.session_state.get("_pwa_head_done"):
+        return
     components.html(f"""
       <link rel="manifest" href="{_manifest}">
       <link rel="apple-touch-icon" href="{_icon180}">
@@ -212,7 +211,16 @@ def _inject_meta_tags():
       <meta name="apple-mobile-web-app-status-bar-style" content="black">
       <meta name="theme-color" content="#000000">
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+      <script>
+        if ('serviceWorker' in navigator) {{
+          navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
+        }}
+      </script>
     """, height=0)
+    st.session_state["_pwa_head_done"] = True
+
+# Inject early
+_inject_meta_tags()
 
 # --- State bootstrap ---
 def _bootstrap_state():
@@ -279,16 +287,20 @@ def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
         return None
 
 def refresh_or_rotate_session_token(token: str) -> str:
+    """Extend session TTL and rotate token periodically without crashing the app."""
     try:
         ref = db.collection(SESSIONS_COL).document(token)
         snap = ref.get()
         if not snap.exists:
             return token
+
         data = snap.to_dict() or {}
         now = time.time()
+
         # Extend TTL
         ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
-        # Rotate if old
+
+        # Rotate if older than threshold
         if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
             new_token = _rand_token()
             db.collection(SESSIONS_COL).document(new_token).set({
@@ -301,8 +313,9 @@ def refresh_or_rotate_session_token(token: str) -> str:
             except Exception:
                 pass
             return new_token
-    except Exception:
-        pass
+
+    except Exception as e:
+        st.warning(f"Session rotation warning: {e}")
     return token
 
 def destroy_session_token(token: str) -> None:
@@ -11611,7 +11624,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
