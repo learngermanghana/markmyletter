@@ -1340,143 +1340,10 @@ def render_login_form():
 
 
 
-
 def login_page():
-    # --- Global + component styles (light/dark aware) ---
-    st.markdown("""
-    <style>
-    :root {
-      --bg: rgba(255,255,255,0.6);
-      --card: rgba(255,255,255,0.75);
-      --text: #0f172a;
-      --muted: #64748b;
-      --border: rgba(15,23,42,0.08);
-      --shadow: rgba(2,6,23,0.15);
-      --accent: #4f46e5;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: rgba(15,23,42,0.4);
-        --card: rgba(15,23,42,0.6);
-        --text: #e2e8f0;
-        --muted: #94a3b8;
-        --border: rgba(226,232,240,0.12);
-        --shadow: rgba(0,0,0,0.5);
-        --accent: #6366f1;
-      }
-    }
+    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
-    /* layout helpers */
-    .page-wrap{max-width:1100px;margin:0 auto;}
-
-    /* stats strip */
-    .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-    .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-            box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-    .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-    .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-    .stat .label { font-size:.92rem; opacity:.98; }
-    @media (max-width:560px){ .stat { min-width:46%; } }
-
-    /* option box (animated) */
-    .option-box {
-      display: grid;
-      gap: 12px;
-      margin-top: 8px;
-    }
-    .option-item {
-      display: grid;
-      grid-template-columns: 44px 1fr;
-      gap: 12px;
-      align-items: start;
-      padding: 14px 16px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      position: relative;
-      overflow: hidden;
-      color: var(--text);
-      transform: translateY(6px);
-      opacity: 0;
-      animation: slideFadeIn 560ms ease-out forwards;
-      transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
-      box-shadow: 0 6px 14px var(--shadow);
-    }
-    /* staggered entrance */
-    .option-item:nth-child(1) { animation-delay: .04s; }
-    .option-item:nth-child(2) { animation-delay: .18s; }
-    .option-item:nth-child(3) { animation-delay: .32s; }
-    /* hover/active/focus */
-    .option-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px var(--shadow);
-      /* color-mix fallback via border-color change if unsupported is fine */
-      border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-    }
-    .option-item:active { transform: translateY(0); transition-duration: 80ms; }
-    .option-item:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-
-    /* shimmer */
-    .option-item::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
-      transform: translateX(-160%);
-      animation: shimmer 2400ms ease-in-out infinite 1200ms;
-      pointer-events: none;
-    }
-    /* left accent bar */
-    .option-item::before {
-      content: "";
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 4px;
-      background: linear-gradient(180deg, var(--accent), transparent 80%);
-      opacity: .25;
-    }
-    /* emoji icon chip */
-    .option-icon {
-      width: 44px; height: 44px;
-      display: grid;
-      place-items: center;
-      font-size: 22px;
-      border-radius: 12px;
-      background:
-        radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
-        linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
-      border: 1px solid var(--border);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 12px var(--shadow);
-      animation: bob 3.2s ease-in-out infinite;
-    }
-    /* text */
-    .option-item b { color: var(--text); }
-    .option-item div { line-height: 1.35; }
-    .option-item div:last-child { color: var(--muted); }
-
-    /* animations */
-    @keyframes slideFadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes shimmer {
-      0% { transform: translateX(-160%); }
-      100% { transform: translateX(160%); }
-    }
-    @keyframes bob {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-3px); }
-    }
-
-    /* respect reduced motion */
-    @media (prefers-reduced-motion: reduce) {
-      .option-item, .option-item::after, .option-icon { animation: none !important; opacity: 1; transform: none; }
-      .option-item { transition: none; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # --- HERO FIRST ---
+    # HERO FIRST
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -1499,8 +1366,17 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Stats strip ---
+    # Stats strip
     st.markdown("""
+      <style>
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
+        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+        .stat .label { font-size:.92rem; opacity:.98; }
+        @media (max-width:560px){ .stat { min-width:46%; } }
+      </style>
       <div class="stats-strip" role="list" aria-label="Falowen highlights">
         <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
           <div class="num">300+</div>
@@ -1521,19 +1397,103 @@ def login_page():
       </div>
     """, unsafe_allow_html=True)
 
-    # --- Expander with animated options ---
+    # 1) Animated styles (put this once, above the expander)
+st.markdown("""
+<style>
+:root{
+  --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.08); --shadow:rgba(2,6,23,.15);
+  --card:rgba(255,255,255,.75);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.6); }
+}
+
+/* container */
+.option-box{ display:grid; gap:12px; margin-top:8px; }
+
+/* base card */
+.option-item{
+  --accent:#4f46e5; /* per-card overrides below */
+  display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start;
+  padding:14px 16px; background:var(--card); color:var(--text);
+  border:1px solid var(--border); border-radius:16px; position:relative; overflow:hidden;
+  transform:translateY(6px); opacity:0;
+  animation:slideFadeIn 560ms ease-out forwards;
+  transition:transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
+  box-shadow:0 6px 14px var(--shadow);
+}
+
+/* staggered entrance */
+.option-item:nth-child(1){ animation-delay:.04s; }
+.option-item:nth-child(2){ animation-delay:.18s; }
+.option-item:nth-child(3){ animation-delay:.32s; }
+
+/* hover/active */
+.option-item:hover{
+  transform:translateY(-2px);
+  box-shadow:0 12px 28px var(--shadow);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.option-item:active{ transform:translateY(0); transition-duration:80ms; }
+
+/* left accent + shimmer */
+.option-item::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+  background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28;
+}
+.option-item::after{
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.12) 50%, transparent 100%);
+  transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms;
+}
+
+/* icon chip */
+.option-icon{
+  width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px;
+  border:1px solid var(--border);
+  background:
+    radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 12px var(--shadow);
+  animation:bob 3.2s ease-in-out infinite;
+}
+
+/* text polish */
+.option-item b{ color:var(--text); }
+.option-item div{ line-height:1.35; }
+.option-item div:last-child{ color:var(--muted); }
+
+/* per-option branding colors */
+.opt-return { --accent:#10b981; }  /* green */
+.opt-approved{ --accent:#3b82f6; } /* blue */
+.opt-request { --accent:#f59e0b; } /* amber */
+
+/* animations */
+@keyframes slideFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+@keyframes shimmer{ 0%{transform:translateX(-160%);} 100%{transform:translateX(160%);} }
+@keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
+
+/* motion accessibility */
+@media (prefers-reduced-motion: reduce){
+  .option-item, .option-item::after, .option-icon{ animation:none !important; opacity:1; transform:none; }
+  .option-item{ transition:none; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+
     with st.expander("📌 Which option should I choose?", expanded=True):
         st.markdown("""
         <div class="option-box">
-          <div class="option-item" role="group" tabindex="0" aria-label="Returning Student information">
+          <div class="option-item">
             <div class="option-icon">👋</div>
             <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
           </div>
-          <div class="option-item" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
+          <div class="option-item">
             <div class="option-icon">🧾</div>
             <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
           </div>
-          <div class="option-item" role="group" tabindex="0" aria-label="Request Access information">
+          <div class="option-item">
             <div class="option-icon">📝</div>
             <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
           </div>
@@ -11749,7 +11709,6 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
-
 
 
 
