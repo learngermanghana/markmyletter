@@ -1340,6 +1340,8 @@ def render_login_form():
 
 
 import streamlit as st
+from datetime import datetime
+from streamlit import components
 
 def login_page():
     # --- Wide layout (set once safely) ---
@@ -1350,136 +1352,128 @@ def login_page():
             pass
         st.session_state["_page_cfg_set"] = True
 
-    # --- Global CSS (layout + polish) ---
-    st.markdown("""
-    <style>
-    :root{
-      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.10); --shadow:rgba(2,6,23,.10);
-      --card:rgba(255,255,255,.78); --brand:#25317e; --brand2:#3b82f6;
-    }
-    @media (prefers-color-scheme: dark){
-      :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.6); }
-    }
+    # === IMAGE SOURCES (edit these to your brand shots) ===
+    HERO_IMG_1 = "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop"
+    HERO_IMG_2 = "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=1200&auto=format&fit=crop"
+    HERO_IMG_3 = "https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?q=80&w=1200&auto=format&fit=crop"
 
-    .page-wrap{ max-width: 1240px; margin: 0 auto; padding: 0 12px; }
+    # --- Global CSS (layout + polish + carousel) ---
+    st.markdown(f"""
+    <style>
+    :root{{
+      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.10); --shadow:rgba(2,6,23,.10);
+      --card:rgba(255,255,255,.78); --brand:#25317e; --brand2:#3b82f6; --bg:#f7f9fc;
+    }}
+    @media (prefers-color-scheme: dark){{
+      :root{{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.55); --bg:#0b1220; }}
+    }}
+    html, body {{ background:
+        radial-gradient(1200px 600px at 10% -10%, #eef3ff 0%, transparent 40%),
+        var(--bg) !important; }}
+
+    .page-wrap{{ max-width:1240px; margin:0 auto; padding:0 12px; }}
 
     /* --- HERO GRID --- */
-    .hero-wrap{ margin: 8px auto 16px; }
-    .hero-grid{
+    .hero-wrap{{ margin: 8px auto 16px; }}
+    .hero-grid{{
       display:grid; gap:18px; align-items:center;
       grid-template-columns: 1fr;
-      background: #fff; border:1px solid var(--border); border-radius:16px;
-      box-shadow: 0 8px 26px var(--shadow); padding:22px;
-    }
-    @media (min-width: 880px){
-      .hero-grid{ grid-template-columns: 1.1fr .9fr; padding:26px 28px; }
-    }
-    .hero-title{ margin:0 0 6px 0; color: var(--brand); font-size: clamp(1.4rem, 2vw + 1rem, 2rem); }
-    .hero-sub{ color:#475569; line-height:1.45; margin:0; }
-    .hero-list{ margin:14px 0 0; color:#404b5a; }
-    .hero-illu{
-      display:grid; place-items:center;
-      padding:10px;
-    }
-    .hero-illu img{
-      width: min(440px, 92%); border-radius:14px;
-      box-shadow:0 6px 18px rgba(0,0,0,.08);
-      user-select:none; pointer-events:none;
-    }
+      background: var(--card); border:1px solid var(--border); border-radius:16px;
+      box-shadow:0 10px 30px var(--shadow); padding:22px; backdrop-filter: saturate(1.2) blur(2px);
+    }}
+    @media (min-width:880px){{
+      .hero-grid{{ grid-template-columns: 1.1fr .9fr; padding:26px 28px; }}
+    }}
+    .hero-title{{ margin:0 0 6px 0; color: var(--brand); font-size: clamp(1.4rem, 2vw + 1rem, 2rem); }}
+    .hero-sub{{ color:#475569; line-height:1.5; margin:0; }}
+    .hero-list{{ margin:14px 0 0; color:#404b5a; }}
+
+    /* --- HERO CAROUSEL (3-image crossfade) --- */
+    .hero-illu{{ position:relative; min-height:260px; display:grid; place-items:center; padding:10px; }}
+    .carousel{{ position:relative; width:min(440px,92%); height:0; padding-bottom:66%; border-radius:14px;
+                overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.12); }}
+    .slide{{ position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; }}
+    .slide:nth-child(1){{ background-image:url('{HERO_IMG_1}'); animation:fade 18s infinite; }}
+    .slide:nth-child(2){{ background-image:url('{HERO_IMG_2}'); animation:fade 18s infinite 6s; }}
+    .slide:nth-child(3){{ background-image:url('{HERO_IMG_3}'); animation:fade 18s infinite 12s; }}
+
+    @keyframes fade {{
+      0%   {{ opacity:0; transform:scale(1.02); }}
+      6%   {{ opacity:1; transform:scale(1);   }}
+      28%  {{ opacity:1; transform:scale(1);   }}
+      34%  {{ opacity:0; transform:scale(1.01);}}
+      100% {{ opacity:0; }}
+    }}
+    @media (prefers-reduced-motion: reduce){{
+      .slide{{ animation:none; opacity:1; }}
+      .slide:nth-child(n+2){{ display:none; }}
+    }}
 
     /* --- STATS STRIP --- */
-    .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:12px auto 6px auto; max-width:980px; }
-    .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-            box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-    .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-    .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-    .stat .label { font-size:.92rem; opacity:.98; }
-    @media (max-width:560px){ .stat { min-width:46%; } }
+    .stats-strip {{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:12px auto 6px; max-width:980px; }}
+    .stat {{ background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+             box-shadow:0 4px 14px rgba(2,132,199,0.18); }}
+    .stat .num {{ font-size:1.25rem; font-weight:800; line-height:1; letter-spacing:.2px; }}
+    .stat .label {{ font-size:.92rem; opacity:.98; }}
+    @media (max-width:560px){{ .stat {{ min-width:46%; }} }}
 
-    /* --- OPTION CARDS --- */
-    .option-box{
-      display:grid; gap:12px; margin-top:10px;
-      grid-template-columns: 1fr;
-    }
-    @media (min-width: 860px){
-      .option-box{ grid-template-columns: 1fr 1fr 1fr; }
-    }
-
-    .option-item{
+    /* --- OPTION CARDS (3-up on desktop) --- */
+    .option-box{{ display:grid; gap:12px; margin-top:10px; grid-template-columns:1fr; }}
+    @media (min-width:860px){{ .option-box{{ grid-template-columns:1fr 1fr 1fr; }} }}
+    .option-item{{
       --accent:#4f46e5;
       display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start;
       padding:14px 16px; background:var(--card); color:var(--text);
       border:1px solid var(--border); border-radius:16px; position:relative; overflow:hidden;
-      transform:translateY(6px); opacity:0;
-      animation:slideFadeIn 560ms ease-out forwards;
+      transform:translateY(6px); opacity:0; animation:slideFadeIn 560ms ease-out forwards;
       transition:transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
-      box-shadow:0 6px 14px var(--shadow);
-      cursor: default;
-    }
-    .option-item:nth-child(1){ animation-delay:.04s; }
-    .option-item:nth-child(2){ animation-delay:.18s; }
-    .option-item:nth-child(3){ animation-delay:.32s; }
-
-    .option-item:hover{
-      transform:translateY(-2px);
-      box-shadow:0 12px 28px var(--shadow);
-      border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-    }
-    .option-item:active{ transform:translateY(0); transition-duration:80ms; }
-
-    .option-item::before{
-      content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
-      background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28;
-    }
-    .option-item::after{
-      content:""; position:absolute; inset:0;
+      box-shadow:0 8px 22px var(--shadow);
+    }}
+    .option-item:nth-child(1){{ animation-delay:.04s; }}
+    .option-item:nth-child(2){{ animation-delay:.18s; }}
+    .option-item:nth-child(3){{ animation-delay:.32s; }}
+    .option-item:hover{{ transform:translateY(-2px); box-shadow:0 14px 32px var(--shadow);
+      border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }}
+    .option-item::before{{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+      background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28; }}
+    .option-item::after{{ content:""; position:absolute; inset:0;
       background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.12) 50%, transparent 100%);
-      transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms;
-    }
-
-    .option-icon{
-      width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px;
-      border:1px solid var(--border);
-      background:
-        radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
-        linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
+      transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms; }}
+    .option-icon{{
+      width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px; border:1px solid var(--border);
+      background: radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
+                  linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 12px var(--shadow);
       animation:bob 3.2s ease-in-out infinite;
-    }
-
-    .option-item b{ color:var(--text); }
-    .option-item div{ line-height:1.35; }
-    .option-item div:last-child{ color:var(--muted); }
-
-    .opt-return { --accent:#10b981; }
-    .opt-approved{ --accent:#3b82f6; }
-    .opt-request { --accent:#f59e0b; }
+    }}
+    .option-item b{{ color:var(--text); }}
+    .option-item div:last-child{{ color:var(--muted); }}
+    .opt-return  {{ --accent:#10b981; }}
+    .opt-approved{{ --accent:#3b82f6; }}
+    .opt-request {{ --accent:#f59e0b; }}
 
     /* CTA row under cards */
-    .cta-row{ display:grid; gap:10px; margin:10px 0 6px; grid-template-columns:1fr; }
-    @media (min-width:860px){ .cta-row{ grid-template-columns: 1fr 1fr 1fr; } }
-    .cta{
-      display:inline-block; width:100%;
-      background:linear-gradient(90deg, var(--brand), var(--brand2));
+    .cta-row{{ display:grid; gap:10px; margin:10px 0 6px; grid-template-columns:1fr; }}
+    @media (min-width:860px){{ .cta-row{{ grid-template-columns: 1fr 1fr 1fr; }} }}
+    .cta{{
+      display:inline-block; width:100%; background:linear-gradient(90deg, var(--brand), var(--brand2));
       color:#fff; text-align:center; padding:10px 12px; border:none; border-radius:12px; font-weight:700; cursor:pointer;
-      box-shadow:0 8px 20px rgba(37,49,126,.18); transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
-    }
-    .cta:hover{ transform:translateY(-1px); box-shadow:0 12px 28px rgba(37,49,126,.22); }
-    .cta:active{ transform:none; }
-    .cta:focus-visible{ outline:3px solid #f59e0b; outline-offset:2px; }
+      box-shadow:0 10px 28px rgba(37,49,126,.22); transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+    }}
+    .cta:hover{{ transform:translateY(-1px); box-shadow:0 16px 42px rgba(37,49,126,.28); }}
+    .cta:focus-visible{{ outline:3px solid #f59e0b; outline-offset:2px; }}
 
-    /* animations & motion prefs */
-    @keyframes slideFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
-    @keyframes shimmer{ 0%{transform:translateX(-160%);} 100%{transform:translateX(160%);} }
-    @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
-    @media (prefers-reduced-motion: reduce){
-      .option-item, .option-item::after, .option-icon{ animation:none !important; opacity:1; transform:none; }
-      .option-item{ transition:none; }
-    }
+    /* Motion prefs */
+    @keyframes slideFadeIn{{ from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:translateY(0);}} }}
+    @keyframes shimmer{{ 0%{{transform:translateX(-160%);}} 100%{{transform:translateX(160%);}} }}
+    @keyframes bob{{ 0%,100%{{transform:translateY(0);}} 50%{{transform:translateY(-3px);}} }}
+    @media (prefers-reduced-motion: reduce){{
+      .option-item, .option-item::after, .option-icon{{ animation:none !important; opacity:1; transform:none; }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Stats strip (unchanged, centered, slightly wider max) ---
+    # --- Stats strip ---
     st.markdown("""
       <div class="stats-strip" role="list" aria-label="Falowen highlights">
         <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
@@ -1501,7 +1495,7 @@ def login_page():
       </div>
     """, unsafe_allow_html=True)
 
-    # --- HERO (two-column on desktop) ---
+    # --- HERO (two-column with animated illustration) ---
     st.markdown("""
     <div class="page-wrap hero-wrap">
       <div class="hero-grid" aria-label="Falowen app introduction">
@@ -1520,14 +1514,17 @@ def login_page():
           </ul>
         </div>
         <div class="hero-illu" aria-hidden="true">
-          <img src="https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop"
-               alt="Students learning" />
+          <div class="carousel" role="img" aria-label="Students learning – rotating photos">
+            <div class="slide"></div>
+            <div class="slide"></div>
+            <div class="slide"></div>
+          </div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Options (now responsive 3-up) ---
+    # --- Options (responsive 3-up) ---
     with st.expander("📌 Which option should I choose?", expanded=True):
         st.markdown("""
         <div class="page-wrap">
@@ -1555,7 +1552,6 @@ def login_page():
             </div>
           </div>
 
-          <!-- CTA buttons under the cards (wire these in Python below) -->
           <div class="cta-row">
             <button class="cta" id="cta-return">I’m Returning →</button>
             <button class="cta" id="cta-approved">Create Account (Approved) →</button>
@@ -1564,7 +1560,7 @@ def login_page():
         </div>
         """, unsafe_allow_html=True)
 
-        # Bridge CTA buttons to Streamlit using empty placeholders + on_click
+        # Bridge CTA buttons to Streamlit so you can wire actions (kept as-is)
         c1, c2, c3 = st.columns(3)
         with c1:
             st.button("I’m Returning →", key="cta_return_py", use_container_width=True)
@@ -1573,18 +1569,12 @@ def login_page():
         with c3:
             st.button("Request Access →", key="cta_request_py", use_container_width=True)
 
-        # TODO: Wire these to your actual pages/routes
         if st.session_state.get("cta_return_py"):
             st.session_state["prefill_type"] = "returning"
-            # Example: st.switch_page("pages/login_returning.py")
             st.toast("Use your email or student code to log in.", icon="👋")
-
         if st.session_state.get("cta_approved_py"):
-            # Example: st.switch_page("pages/approved_signup.py")
             st.toast("Opening approved signup…", icon="🧾")
-
         if st.session_state.get("cta_request_py"):
-            # Example: st.switch_page("pages/request_access.py")
             st.toast("Opening request access…", icon="📝")
 
 
