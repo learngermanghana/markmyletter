@@ -1352,75 +1352,88 @@ def login_page():
             pass
         st.session_state["_page_cfg_set"] = True
 
-    # === IMAGE SOURCES (edit these to your brand shots) ===
-    HERO_IMG_1 = "https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop"
-    HERO_IMG_2 = "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=1200&auto=format&fit=crop"
-    HERO_IMG_3 = "https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?q=80&w=1200&auto=format&fit=crop"
-
-    # --- Global CSS (layout + polish + carousel) ---
-    st.markdown(f"""
+    # --- Global CSS (layout + polish) ---
+    st.markdown("""
     <style>
-    :root{{
-      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.10); --shadow:rgba(2,6,23,.10);
-      --card:rgba(255,255,255,.78); --brand:#25317e; --brand2:#3b82f6; --bg:#f7f9fc;
-    }}
-    @media (prefers-color-scheme: dark){{
-      :root{{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.55); --bg:#0b1220; }}
-    }}
-    html, body {{ background:
-        radial-gradient(1200px 600px at 10% -10%, #eef3ff 0%, transparent 40%),
-        var(--bg) !important; }}
+    :root{
+      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.10); --shadow:rgba(2,6,23,.12);
+      --card:rgba(255,255,255,.78); --brand:#25317e; --brand2:#3b82f6; --bg:#f7f9fc; --ok:#10b981; --warn:#f59e0b;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.55); --bg:#0b1220; }
+    }
+    html, body { background: radial-gradient(1200px 600px at 10% -10%, #eef3ff 0%, transparent 40%), var(--bg) !important; }
+    .page-wrap{ max-width:1240px; margin:0 auto; padding:0 12px; }
 
-    .page-wrap{{ max-width:1240px; margin:0 auto; padding:0 12px; }}
+    /* ===== Announcement board (one-line) ===== */
+    .announce-wrap{ margin: 10px auto 12px; }
+    .announce{
+      display:flex; align-items:center; gap:12px;
+      background: var(--card);
+      border:1px solid var(--border); border-radius:14px;
+      padding:10px 12px;
+      box-shadow:0 8px 24px var(--shadow);
+      overflow:hidden;
+    }
+    .announce-icon{
+      width:28px; height:28px; border-radius:8px;
+      display:grid; place-items:center;
+      background: linear-gradient(180deg, #e0e7ff, transparent);
+      border:1px solid var(--border);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+      font-size:16px;
+      flex: 0 0 28px;
+    }
+    .announce-track{
+      position:relative; flex:1; min-height:20px;
+    }
+    .announce-msg{
+      position:absolute; inset:0;
+      display:flex; align-items:center; gap:10px;
+      white-space:nowrap;
+      opacity:0; transform:translateY(8px);
+      transition:opacity .36s ease, transform .36s ease;
+      color:var(--text);
+      font-size:0.98rem;
+    }
+    .announce-msg.show{ opacity:1; transform:none; }
+    .chip{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 10px; border-radius:999px; font-weight:700; font-size:.86rem;
+      background:#eef2ff; color:#25317e; border:1px solid #c7d2fe;
+      text-decoration:none;
+    }
+    .chip.green{ background:#ecfdf5; color:#065f46; border-color:#bbf7d0; }
+    .chip.blue { background:#eff6ff; color:#1e40af; border-color:#bfdbfe; }
+    .chip.amber{ background:#fffbeb; color:#92400e; border-color:#fde68a; }
 
-    /* --- HERO GRID --- */
-    .hero-wrap{{ margin: 8px auto 16px; }}
-    .hero-grid{{
-      display:grid; gap:18px; align-items:center;
-      grid-template-columns: 1fr;
-      background: var(--card); border:1px solid var(--border); border-radius:16px;
-      box-shadow:0 10px 30px var(--shadow); padding:22px; backdrop-filter: saturate(1.2) blur(2px);
-    }}
-    @media (min-width:880px){{
-      .hero-grid{{ grid-template-columns: 1.1fr .9fr; padding:26px 28px; }}
-    }}
-    .hero-title{{ margin:0 0 6px 0; color: var(--brand); font-size: clamp(1.4rem, 2vw + 1rem, 2rem); }}
-    .hero-sub{{ color:#475569; line-height:1.5; margin:0; }}
-    .hero-list{{ margin:14px 0 0; color:#404b5a; }}
+    .chip:hover{ filter:brightness(0.98); }
+    .chip:focus-visible{ outline:3px solid #f59e0b; outline-offset:2px; }
 
-    /* --- HERO CAROUSEL (3-image crossfade) --- */
-    .hero-illu{{ position:relative; min-height:260px; display:grid; place-items:center; padding:10px; }}
-    .carousel{{ position:relative; width:min(440px,92%); height:0; padding-bottom:66%; border-radius:14px;
-                overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,.12); }}
-    .slide{{ position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; }}
-    .slide:nth-child(1){{ background-image:url('{HERO_IMG_1}'); animation:fade 18s infinite; }}
-    .slide:nth-child(2){{ background-image:url('{HERO_IMG_2}'); animation:fade 18s infinite 6s; }}
-    .slide:nth-child(3){{ background-image:url('{HERO_IMG_3}'); animation:fade 18s infinite 12s; }}
+    @media (prefers-reduced-motion: reduce){
+      .announce-msg{ transition:none; opacity:1 !important; transform:none !important; }
+    }
 
-    @keyframes fade {{
-      0%   {{ opacity:0; transform:scale(1.02); }}
-      6%   {{ opacity:1; transform:scale(1);   }}
-      28%  {{ opacity:1; transform:scale(1);   }}
-      34%  {{ opacity:0; transform:scale(1.01);}}
-      100% {{ opacity:0; }}
-    }}
-    @media (prefers-reduced-motion: reduce){{
-      .slide{{ animation:none; opacity:1; }}
-      .slide:nth-child(n+2){{ display:none; }}
-    }}
+    /* ===== Stats strip ===== */
+    .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:8px auto 8px; max-width:980px; }
+    .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+            box-shadow:0 4px 14px rgba(2,132,199,0.18); }
+    .stat .num { font-size:1.25rem; font-weight:800; line-height:1; letter-spacing:.2px; }
+    .stat .label { font-size:.92rem; opacity:.98; }
+    @media (max-width:560px){ .stat { min-width:46%; } }
 
-    /* --- STATS STRIP --- */
-    .stats-strip {{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:12px auto 6px; max-width:980px; }}
-    .stat {{ background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-             box-shadow:0 4px 14px rgba(2,132,199,0.18); }}
-    .stat .num {{ font-size:1.25rem; font-weight:800; line-height:1; letter-spacing:.2px; }}
-    .stat .label {{ font-size:.92rem; opacity:.98; }}
-    @media (max-width:560px){{ .stat {{ min-width:46%; }} }}
+    /* ===== Tabs → pill look for the login section right below ===== */
+    .stTabs [role="tablist"] { gap:8px; border-bottom:0; justify-content:center; }
+    .stTabs [role="tab"]{
+      border:1px solid var(--border); border-bottom:0; border-radius:999px; padding:8px 14px !important;
+      background:var(--card); box-shadow:0 4px 12px var(--shadow); color:var(--text);
+    }
+    .stTabs [aria-selected="true"]{ background:linear-gradient(90deg, var(--brand), var(--brand2)); color:#fff; }
 
-    /* --- OPTION CARDS (3-up on desktop) --- */
-    .option-box{{ display:grid; gap:12px; margin-top:10px; grid-template-columns:1fr; }}
-    @media (min-width:860px){{ .option-box{{ grid-template-columns:1fr 1fr 1fr; }} }}
-    .option-item{{
+    /* ===== Option cards (for later sections if you keep them) ===== */
+    .option-box{ display:grid; gap:12px; margin-top:10px; grid-template-columns: 1fr; }
+    @media (min-width:860px){ .option-box{ grid-template-columns:1fr 1fr 1fr; } }
+    .option-item{
       --accent:#4f46e5;
       display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start;
       padding:14px 16px; background:var(--card); color:var(--text);
@@ -1428,52 +1441,38 @@ def login_page():
       transform:translateY(6px); opacity:0; animation:slideFadeIn 560ms ease-out forwards;
       transition:transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
       box-shadow:0 8px 22px var(--shadow);
-    }}
-    .option-item:nth-child(1){{ animation-delay:.04s; }}
-    .option-item:nth-child(2){{ animation-delay:.18s; }}
-    .option-item:nth-child(3){{ animation-delay:.32s; }}
-    .option-item:hover{{ transform:translateY(-2px); box-shadow:0 14px 32px var(--shadow);
-      border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }}
-    .option-item::before{{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
-      background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28; }}
-    .option-item::after{{ content:""; position:absolute; inset:0;
+    }
+    .option-item:nth-child(1){ animation-delay:.04s; }
+    .option-item:nth-child(2){ animation-delay:.18s; }
+    .option-item:nth-child(3){ animation-delay:.32s; }
+    .option-item:hover{ transform:translateY(-2px); box-shadow:0 14px 32px var(--shadow);
+      border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+    .option-item::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+      background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28; }
+    .option-item::after{ content:""; position:absolute; inset:0;
       background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.12) 50%, transparent 100%);
-      transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms; }}
-    .option-icon{{
+      transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms; }
+    .option-icon{
       width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px; border:1px solid var(--border);
       background: radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
                   linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 12px var(--shadow);
       animation:bob 3.2s ease-in-out infinite;
-    }}
-    .option-item b{{ color:var(--text); }}
-    .option-item div:last-child{{ color:var(--muted); }}
-    .opt-return  {{ --accent:#10b981; }}
-    .opt-approved{{ --accent:#3b82f6; }}
-    .opt-request {{ --accent:#f59e0b; }}
+    }
+    .opt-return  { --accent:#10b981; }
+    .opt-approved{ --accent:#3b82f6; }
+    .opt-request { --accent:#f59e0b; }
 
-    /* CTA row under cards */
-    .cta-row{{ display:grid; gap:10px; margin:10px 0 6px; grid-template-columns:1fr; }}
-    @media (min-width:860px){{ .cta-row{{ grid-template-columns: 1fr 1fr 1fr; }} }}
-    .cta{{
-      display:inline-block; width:100%; background:linear-gradient(90deg, var(--brand), var(--brand2));
-      color:#fff; text-align:center; padding:10px 12px; border:none; border-radius:12px; font-weight:700; cursor:pointer;
-      box-shadow:0 10px 28px rgba(37,49,126,.22); transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
-    }}
-    .cta:hover{{ transform:translateY(-1px); box-shadow:0 16px 42px rgba(37,49,126,.28); }}
-    .cta:focus-visible{{ outline:3px solid #f59e0b; outline-offset:2px; }}
-
-    /* Motion prefs */
-    @keyframes slideFadeIn{{ from{{opacity:0; transform:translateY(8px);}} to{{opacity:1; transform:translateY(0);}} }}
-    @keyframes shimmer{{ 0%{{transform:translateX(-160%);}} 100%{{transform:translateX(160%);}} }}
-    @keyframes bob{{ 0%,100%{{transform:translateY(0);}} 50%{{transform:translateY(-3px);}} }}
-    @media (prefers-reduced-motion: reduce){{
-      .option-item, .option-item::after, .option-icon{{ animation:none !important; opacity:1; transform:none; }}
-    }}
+    @keyframes slideFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+    @keyframes shimmer{ 0%{transform:translateX(-160%);} 100%{transform:translateX(160%);} }
+    @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
+    @media (prefers-reduced-motion: reduce){
+      .option-item, .option-item::after, .option-icon{ animation:none !important; opacity:1; transform:none; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Stats strip ---
+    # --- Stats strip (kept lightweight) ---
     st.markdown("""
       <div class="stats-strip" role="list" aria-label="Falowen highlights">
         <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
@@ -1495,71 +1494,109 @@ def login_page():
       </div>
     """, unsafe_allow_html=True)
 
-    # --- HERO (two-column with animated illustration) ---
+    # === ONE-LINE ANNOUNCEMENT BOARD ===
     st.markdown("""
-    <div class="page-wrap hero-wrap">
-      <div class="hero-grid" aria-label="Falowen app introduction">
-        <div>
-          <h1 class="hero-title">👋 Welcome to <strong>Falowen</strong></h1>
-          <p class="hero-sub">
-            Falowen is your all-in-one German learning platform, powered by
-            <b>Learn Language Education Academy</b>, with courses and vocabulary from
-            <b>A1 to C1</b> levels and live tutor support.
-          </p>
-          <ul class="hero-list">
-            <li>📊 <b>Dashboard</b>: Track streaks, assignments, and contracts.</li>
-            <li>📚 <b>Course Book</b>: Lessons, grammar modules, and submissions in one place.</li>
-            <li>🔤 <b>Vocab Trainer</b>: Spaced-repetition for A1–C1.</li>
-            <li>🏆 <b>Results</b>: Grades, feedback, and performance history.</li>
-          </ul>
+    <div class="page-wrap announce-wrap">
+      <div class="announce" role="region" aria-label="Announcements">
+        <div class="announce-icon" aria-hidden="true">📣</div>
+        <div class="announce-track" id="announce_track" aria-live="polite">
+          <div class="announce-msg show">👋 <b>Welcome to Falowen</b> — your A1–C1 learning hub with live tutor support.</div>
+          <div class="announce-msg">✅ <b>Returning Student?</b> Use your email or student code to log in.</div>
+          <div class="announce-msg">🧾 <b>Sign Up (Approved)</b> — Paid & listed already? Create your account on the next tab.</div>
+          <div class="announce-msg">📝 <b>New here?</b> Request access and we’ll guide you through the next steps.</div>
         </div>
-        <div class="hero-illu" aria-hidden="true">
-          <div class="carousel" role="img" aria-label="Students learning – rotating photos">
-            <div class="slide"></div>
-            <div class="slide"></div>
-            <div class="slide"></div>
+      </div>
+    </div>
+
+    <script>
+      const track = document.getElementById('announce_track');
+      if(track){
+        const msgs = Array.from(track.querySelectorAll('.announce-msg'));
+        let i = 0, timer = null, hovered = false;
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function show(n){
+          msgs.forEach((m, idx) => m.classList.toggle('show', idx === n));
+        }
+        function next(){
+          i = (i + 1) % msgs.length;
+          show(i);
+        }
+        function start(){
+          if(reduce) return;
+          timer = setInterval(()=>{ if(!hovered) next(); }, 4500);
+        }
+        function stop(){
+          if(timer){ clearInterval(timer); timer = null; }
+        }
+
+        track.addEventListener('mouseenter', ()=> hovered = true);
+        track.addEventListener('mouseleave', ()=> hovered = false);
+        show(0); start();
+      }
+    </script>
+    """, unsafe_allow_html=True)
+
+    # === LOGIN TABS DIRECTLY BELOW ===
+    tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
+
+    with tab1:
+        # anchor so future inline links could jump here if you add them
+        st.markdown('<div id="login"></div>', unsafe_allow_html=True)
+        render_google_oauth()
+        st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
+        render_login_form()
+
+    with tab2:
+        st.markdown('<div id="approved"></div>', unsafe_allow_html=True)
+        render_signup_form()
+
+    with tab3:
+        st.markdown('<div id="request"></div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="page-wrap" style="text-align:center; margin-top:16px;">
+                <p style="font-size:1.05em; color:#444;">
+                    If you don't have an account yet, please request access by filling out this form.
+                </p>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
+                   target="_blank" rel="noopener">
+                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
+                        📝 Open Request Access Form
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    # ===== Help box (kept) =====
+    st.markdown("""
+    <div class="page-wrap">
+      <div class="option-box" style="grid-template-columns:1fr;">
+        <div class="option-item" aria-label="Help and contact options" style="grid-template-columns: 28px 1fr;">
+          <div class="option-icon" aria-hidden="true">🆘</div>
+          <div>
+            <b>Need help or access?</b><br>
+            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
+            &nbsp;|&nbsp;
+            <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
           </div>
         </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Options (responsive 3-up) ---
-    with st.expander("📌 Which option should I choose?", expanded=True):
-        st.markdown("""
-        <div class="page-wrap">
-          <div class="option-box">
-            <div class="option-item opt-return" role="group" tabindex="0" aria-label="Returning Student information">
-              <div class="option-icon">👋</div>
-              <div>
-                <b>Returning Student</b><br>
-                You already created a password — simply log in to continue your learning.
-              </div>
-            </div>
-            <div class="option-item opt-approved" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
-              <div class="option-icon">🧾</div>
-              <div>
-                <b>Sign Up (Approved)</b><br>
-                You’ve paid and your email + code are already on our roster — create your account here.
-              </div>
-            </div>
-            <div class="option-item opt-request" role="group" tabindex="0" aria-label="Request Access information">
-              <div class="option-icon">📝</div>
-              <div>
-                <b>Request Access</b><br>
-                New to Falowen? Fill out our form and we’ll guide you through the next steps.
-              </div>
-            </div>
-          </div>
-        """, unsafe_allow_html=True)
+    # ===== Footer (kept) =====
+    st.markdown(f"""
+    <div class="page-wrap" style="text-align:center;color:#64748b; margin: 10px 0 16px;">
+      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+    """, unsafe_allow_html=True)
 
-        if st.session_state.get("cta_return_py"):
-            st.session_state["prefill_type"] = "returning"
-            st.toast("Use your email or student code to log in.", icon="👋")
-        if st.session_state.get("cta_approved_py"):
-            st.toast("Opening approved signup…", icon="🧾")
-        if st.session_state.get("cta_request_py"):
-            st.toast("Opening request access…", icon="📝")
+    st.stop()
 
 
 
