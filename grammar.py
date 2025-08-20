@@ -1427,6 +1427,38 @@ def login_page():
     </style>
     """, unsafe_allow_html=True)
 
+        # Stats strip
+    st.markdown("""
+      <style>
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
+        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+        .stat .label { font-size:.92rem; opacity:.98; }
+        @media (max-width:560px){ .stat { min-width:46%; } }
+      </style>
+      <div class="stats-strip" role="list" aria-label="Falowen highlights">
+        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
+          <div class="num">300+</div>
+          <div class="label">Active learners</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
+          <div class="num">1,200+</div>
+          <div class="label">Assignments submitted</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
+          <div class="num">A1–C1</div>
+          <div class="label">Full course coverage</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
+          <div class="num">4.8/5</div>
+          <div class="label">Avg. feedback</div>
+        </div>
+      </div>
+    """, unsafe_allow_html=True)
+#
+
     # --- HERO FIRST ---
     st.markdown("""
     <div class="page-wrap">
