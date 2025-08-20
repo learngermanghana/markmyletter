@@ -1553,15 +1553,6 @@ def login_page():
           </div>
         """, unsafe_allow_html=True)
 
-        # Bridge CTA buttons to Streamlit so you can wire actions (kept as-is)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.button("I’m Returning →", key="cta_return_py", use_container_width=True)
-        with c2:
-            st.button("Create Account (Approved) →", key="cta_approved_py", use_container_width=True)
-        with c3:
-            st.button("Request Access →", key="cta_request_py", use_container_width=True)
-
         if st.session_state.get("cta_return_py"):
             st.session_state["prefill_type"] = "returning"
             st.toast("Use your email or student code to log in.", icon="👋")
