@@ -1587,16 +1587,6 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    # ===== Footer (kept) =====
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin: 10px 0 16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-
 
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
