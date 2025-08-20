@@ -1338,11 +1338,10 @@ def render_login_form():
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-
 import streamlit as st
 
 def login_page():
-    # --- Animation CSS (required) ---
+    # --- Animation + layout CSS (required once) ---
     st.markdown("""
     <style>
     :root{
@@ -1352,6 +1351,8 @@ def login_page():
     @media (prefers-color-scheme: dark){
       :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.6); }
     }
+
+    .page-wrap{ max-width:1100px; margin:0 auto; }
 
     /* container */
     .option-box{ display:grid; gap:12px; margin-top:8px; }
@@ -1426,27 +1427,7 @@ def login_page():
     </style>
     """, unsafe_allow_html=True)
 
-    # 2) Your expander (same content, now animated + color-coded)
-    with st.expander("📌 Which option should I choose?", expanded=True):
-        st.markdown("""
-        <div class="option-box">
-          <div class="option-item opt-return" role="group" tabindex="0" aria-label="Returning Student information">
-            <div class="option-icon">👋</div>
-            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
-          </div>
-          <div class="option-item opt-approved" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
-            <div class="option-icon">🧾</div>
-            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
-          </div>
-          <div class="option-item opt-request" role="group" tabindex="0" aria-label="Request Access information">
-            <div class="option-icon">📝</div>
-            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-    # HERO FIRST
+    # --- HERO FIRST ---
     st.markdown("""
     <div class="page-wrap">
       <div class="hero" aria-label="Falowen app introduction">
@@ -1469,24 +1450,25 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-
+    # --- Single expander with animated options (no duplicates) ---
     with st.expander("📌 Which option should I choose?", expanded=True):
         st.markdown("""
         <div class="option-box">
-          <div class="option-item">
+          <div class="option-item opt-return" role="group" tabindex="0" aria-label="Returning Student information">
             <div class="option-icon">👋</div>
             <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
           </div>
-          <div class="option-item">
+          <div class="option-item opt-approved" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
             <div class="option-icon">🧾</div>
             <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
           </div>
-          <div class="option-item">
+          <div class="option-item opt-request" role="group" tabindex="0" aria-label="Request Access information">
             <div class="option-icon">📝</div>
             <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
           </div>
         </div>
         """, unsafe_allow_html=True)
+
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
