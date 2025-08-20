@@ -1339,9 +1339,6 @@ def render_login_form():
         st.markdown('</div>', unsafe_allow_html=True)
 
 
-import streamlit as st
-from datetime import datetime
-from streamlit import components
 
 def login_page():
     # --- Wide layout (set once safely) ---
@@ -1352,159 +1349,81 @@ def login_page():
             pass
         st.session_state["_page_cfg_set"] = True
 
-    # --- Global CSS (layout + polish) ---
+    # --- Minimal global CSS (only what we need) ---
     st.markdown("""
     <style>
-    :root{
-      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.10); --shadow:rgba(2,6,23,.12);
-      --card:rgba(255,255,255,.78); --brand:#25317e; --brand2:#3b82f6; --bg:#f7f9fc; --ok:#10b981; --warn:#f59e0b;
-    }
-    @media (prefers-color-scheme: dark){
-      :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.55); --bg:#0b1220; }
-    }
-    html, body { background: radial-gradient(1200px 600px at 10% -10%, #eef3ff 0%, transparent 40%), var(--bg) !important; }
-    .page-wrap{ max-width:1240px; margin:0 auto; padding:0 12px; }
+      :root{
+        --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.12); --shadow:rgba(2,6,23,.12);
+        --card:rgba(255,255,255,.82); --brand:#25317e; --brand2:#3b82f6; --bg:#f7f9fc;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.14); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.55); --bg:#0b1220; }
+      }
+      html, body { background:
+        radial-gradient(1200px 600px at 10% -10%, #eef3ff 0%, transparent 40%),
+        var(--bg) !important; }
+      .page-wrap{ max-width:1240px; margin:0 auto; padding:0 12px; }
 
-    /* ===== Announcement board (one-line) ===== */
-    .announce-wrap{ margin: 10px auto 12px; }
-    .announce{
-      display:flex; align-items:center; gap:12px;
-      background: var(--card);
-      border:1px solid var(--border); border-radius:14px;
-      padding:10px 12px;
-      box-shadow:0 8px 24px var(--shadow);
-      overflow:hidden;
-    }
-    .announce-icon{
-      width:28px; height:28px; border-radius:8px;
-      display:grid; place-items:center;
-      background: linear-gradient(180deg, #e0e7ff, transparent);
-      border:1px solid var(--border);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
-      font-size:16px;
-      flex: 0 0 28px;
-    }
-    .announce-track{
-      position:relative; flex:1; min-height:20px;
-    }
-    .announce-msg{
-      position:absolute; inset:0;
-      display:flex; align-items:center; gap:10px;
-      white-space:nowrap;
-      opacity:0; transform:translateY(8px);
-      transition:opacity .36s ease, transform .36s ease;
-      color:var(--text);
-      font-size:0.98rem;
-    }
-    .announce-msg.show{ opacity:1; transform:none; }
-    .chip{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:4px 10px; border-radius:999px; font-weight:700; font-size:.86rem;
-      background:#eef2ff; color:#25317e; border:1px solid #c7d2fe;
-      text-decoration:none;
-    }
-    .chip.green{ background:#ecfdf5; color:#065f46; border-color:#bbf7d0; }
-    .chip.blue { background:#eff6ff; color:#1e40af; border-color:#bfdbfe; }
-    .chip.amber{ background:#fffbeb; color:#92400e; border-color:#fde68a; }
+      /* ===== One-line Announcement Board ===== */
+      .announce-wrap{ margin: 10px auto 10px; }
+      .announce{
+        display:flex; align-items:center; gap:12px; overflow:hidden;
+        background:var(--card); border:1px solid var(--border); border-radius:14px;
+        padding:10px 12px; box-shadow:0 8px 24px var(--shadow);
+      }
+      .announce-icon{
+        width:28px; height:28px; border-radius:8px; display:grid; place-items:center;
+        background: linear-gradient(180deg, #e0e7ff, transparent);
+        border:1px solid var(--border); font-size:16px; flex:0 0 28px;
+      }
+      .announce-track{ position:relative; flex:1; min-height:20px; }
+      .announce-msg{
+        position:absolute; inset:0; display:flex; align-items:center; gap:10px; white-space:nowrap;
+        opacity:0; transform:translateY(8px); transition:opacity .32s ease, transform .32s ease;
+        color:var(--text); font-size:.98rem;
+      }
+      .announce-msg.show{ opacity:1; transform:none; }
+      .pill{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px;
+             font-weight:700; font-size:.86rem; background:#eef2ff; color:#25317e; border:1px solid #c7d2fe; }
 
-    .chip:hover{ filter:brightness(0.98); }
-    .chip:focus-visible{ outline:3px solid #f59e0b; outline-offset:2px; }
+      /* Tabs → pill style (visual only) */
+      .stTabs [role="tablist"] { gap:8px; border-bottom:0; justify-content:center; }
+      .stTabs [role="tab"]{
+        border:1px solid var(--border); border-bottom:0; border-radius:999px; padding:8px 14px !important;
+        background:var(--card); box-shadow:0 4px 12px var(--shadow); color:var(--text);
+      }
+      .stTabs [aria-selected="true"]{ background:linear-gradient(90deg, var(--brand), var(--brand2)); color:#fff; }
 
-    @media (prefers-reduced-motion: reduce){
-      .announce-msg{ transition:none; opacity:1 !important; transform:none !important; }
-    }
-
-    /* ===== Stats strip ===== */
-    .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:8px auto 8px; max-width:980px; }
-    .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-            box-shadow:0 4px 14px rgba(2,132,199,0.18); }
-    .stat .num { font-size:1.25rem; font-weight:800; line-height:1; letter-spacing:.2px; }
-    .stat .label { font-size:.92rem; opacity:.98; }
-    @media (max-width:560px){ .stat { min-width:46%; } }
-
-    /* ===== Tabs → pill look for the login section right below ===== */
-    .stTabs [role="tablist"] { gap:8px; border-bottom:0; justify-content:center; }
-    .stTabs [role="tab"]{
-      border:1px solid var(--border); border-bottom:0; border-radius:999px; padding:8px 14px !important;
-      background:var(--card); box-shadow:0 4px 12px var(--shadow); color:var(--text);
-    }
-    .stTabs [aria-selected="true"]{ background:linear-gradient(90deg, var(--brand), var(--brand2)); color:#fff; }
-
-    /* ===== Option cards (for later sections if you keep them) ===== */
-    .option-box{ display:grid; gap:12px; margin-top:10px; grid-template-columns: 1fr; }
-    @media (min-width:860px){ .option-box{ grid-template-columns:1fr 1fr 1fr; } }
-    .option-item{
-      --accent:#4f46e5;
-      display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start;
-      padding:14px 16px; background:var(--card); color:var(--text);
-      border:1px solid var(--border); border-radius:16px; position:relative; overflow:hidden;
-      transform:translateY(6px); opacity:0; animation:slideFadeIn 560ms ease-out forwards;
-      transition:transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
-      box-shadow:0 8px 22px var(--shadow);
-    }
-    .option-item:nth-child(1){ animation-delay:.04s; }
-    .option-item:nth-child(2){ animation-delay:.18s; }
-    .option-item:nth-child(3){ animation-delay:.32s; }
-    .option-item:hover{ transform:translateY(-2px); box-shadow:0 14px 32px var(--shadow);
-      border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
-    .option-item::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
-      background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28; }
-    .option-item::after{ content:""; position:absolute; inset:0;
-      background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.12) 50%, transparent 100%);
-      transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms; }
-    .option-icon{
-      width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px; border:1px solid var(--border);
-      background: radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
-                  linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 12px var(--shadow);
-      animation:bob 3.2s ease-in-out infinite;
-    }
-    .opt-return  { --accent:#10b981; }
-    .opt-approved{ --accent:#3b82f6; }
-    .opt-request { --accent:#f59e0b; }
-
-    @keyframes slideFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
-    @keyframes shimmer{ 0%{transform:translateX(-160%);} 100%{transform:translateX(160%);} }
-    @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
-    @media (prefers-reduced-motion: reduce){
-      .option-item, .option-item::after, .option-icon{ animation:none !important; opacity:1; transform:none; }
-    }
+      /* Motion pref */
+      @media (prefers-reduced-motion: reduce){
+        .announce-msg{ transition:none; opacity:1 !important; transform:none !important; }
+      }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Stats strip (kept lightweight) ---
-    st.markdown("""
-      <div class="stats-strip" role="list" aria-label="Falowen highlights">
-        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
-          <div class="num">300+</div>
-          <div class="label">Active learners</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
-          <div class="num">1,200+</div>
-          <div class="label">Assignments submitted</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
-          <div class="num">A1–C1</div>
-          <div class="label">Full course coverage</div>
-        </div>
-        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
-          <div class="num">4.8/5</div>
-          <div class="label">Avg. feedback</div>
-        </div>
-      </div>
-    """, unsafe_allow_html=True)
-
-    # === ONE-LINE ANNOUNCEMENT BOARD ===
+    # ===== ONE-LINE ANNOUNCEMENT (welcome + access flow) =====
     st.markdown("""
     <div class="page-wrap announce-wrap">
       <div class="announce" role="region" aria-label="Announcements">
         <div class="announce-icon" aria-hidden="true">📣</div>
         <div class="announce-track" id="announce_track" aria-live="polite">
-          <div class="announce-msg show">👋 <b>Welcome to Falowen</b> — your A1–C1 learning hub with live tutor support.</div>
-          <div class="announce-msg">✅ <b>Returning Student?</b> Use your email or student code to log in.</div>
-          <div class="announce-msg">🧾 <b>Sign Up (Approved)</b> — Paid & listed already? Create your account on the next tab.</div>
-          <div class="announce-msg">📝 <b>New here?</b> Request access and we’ll guide you through the next steps.</div>
+          <div class="announce-msg show">
+            👋 <b>Welcome to Falowen</b> —
+            <span>Dashboard · Course Book · Results · Vocab Trainer</span>
+          </div>
+          <div class="announce-msg">
+            ✅ <b>Returning?</b> Use your <b>email or student code</b> to log in on the next tab.
+          </div>
+          <div class="announce-msg">
+            🧾 <b>Sign Up (Approved)</b> — Paid & on our roster? Create your account on the next tab.
+          </div>
+          <div class="announce-msg">
+            📝 <b>New here?</b> Tap <span class="pill">Request Access</span> to get started.
+          </div>
         </div>
+      </div>
+      <div style="font-size:.9rem; color:#64748b; margin:6px 4px 0;">
+        <span>🔒 Google Sign-In disclosure:</span> We use your Google email to match your student record and keep you signed in. We don’t sell your data.
       </div>
     </div>
 
@@ -1515,76 +1434,16 @@ def login_page():
         let i = 0, timer = null, hovered = false;
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        function show(n){
-          msgs.forEach((m, idx) => m.classList.toggle('show', idx === n));
-        }
-        function next(){
-          i = (i + 1) % msgs.length;
-          show(i);
-        }
-        function start(){
-          if(reduce) return;
-          timer = setInterval(()=>{ if(!hovered) next(); }, 4500);
-        }
-        function stop(){
-          if(timer){ clearInterval(timer); timer = null; }
-        }
+        function show(n){ msgs.forEach((m, idx) => m.classList.toggle('show', idx === n)); }
+        function next(){ i = (i + 1) % msgs.length; show(i); }
+        function start(){ if(reduce) return; timer = setInterval(()=>{ if(!hovered) next(); }, 4200); }
+        function stop(){ if(timer){ clearInterval(timer); timer = null; } }
 
         track.addEventListener('mouseenter', ()=> hovered = true);
         track.addEventListener('mouseleave', ()=> hovered = false);
         show(0); start();
       }
     </script>
-    """, unsafe_allow_html=True)
-
-    # === LOGIN TABS DIRECTLY BELOW ===
-    tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
-
-    with tab1:
-        # anchor so future inline links could jump here if you add them
-        st.markdown('<div id="login"></div>', unsafe_allow_html=True)
-        render_google_oauth()
-        st.markdown("<div class='page-wrap' style='text-align:center; margin:8px 0;'>⎯⎯⎯ or ⎯⎯⎯</div>", unsafe_allow_html=True)
-        render_login_form()
-
-    with tab2:
-        st.markdown('<div id="approved"></div>', unsafe_allow_html=True)
-        render_signup_form()
-
-    with tab3:
-        st.markdown('<div id="request"></div>', unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="page-wrap" style="text-align:center; margin-top:16px;">
-                <p style="font-size:1.05em; color:#444;">
-                    If you don't have an account yet, please request access by filling out this form.
-                </p>
-                <a href="https://docs.google.com/forms/d/e/1FAIpQLSenGQa9RnK9IgHbAn1I9rSbWfxnztEUcSjV0H-VFLT-jkoZHA/viewform?usp=header" 
-                   target="_blank" rel="noopener">
-                    <button style="background:#25317e; color:white; padding:10px 20px; border:none; border-radius:6px; cursor:pointer;">
-                        📝 Open Request Access Form
-                    </button>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    # ===== Help box (kept) =====
-    st.markdown("""
-    <div class="page-wrap">
-      <div class="option-box" style="grid-template-columns:1fr;">
-        <div class="option-item" aria-label="Help and contact options" style="grid-template-columns: 28px 1fr;">
-          <div class="option-icon" aria-hidden="true">🆘</div>
-          <div>
-            <b>Need help or access?</b><br>
-            <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">📱 WhatsApp us</a>
-            &nbsp;|&nbsp;
-            <a href="mailto:learngermanghana@gmail.com" target="_blank" rel="noopener">✉️ Email</a>
-          </div>
-        </div>
-      </div>
-    </div>
     """, unsafe_allow_html=True)
 
 
