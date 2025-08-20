@@ -1338,28 +1338,75 @@ def render_login_form():
 
         st.markdown('</div>', unsafe_allow_html=True)
 
+
 import streamlit as st
 
 def login_page():
-    # --- Animation + layout CSS (required once) ---
+    # --- Wide layout (set once safely) ---
+    if not st.session_state.get("_page_cfg_set"):
+        try:
+            st.set_page_config(layout="wide", page_title="Falowen • Login")
+        except Exception:
+            pass
+        st.session_state["_page_cfg_set"] = True
+
+    # --- Global CSS (layout + polish) ---
     st.markdown("""
     <style>
     :root{
-      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.08); --shadow:rgba(2,6,23,.15);
-      --card:rgba(255,255,255,.75);
+      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.10); --shadow:rgba(2,6,23,.10);
+      --card:rgba(255,255,255,.78); --brand:#25317e; --brand2:#3b82f6;
     }
     @media (prefers-color-scheme: dark){
       :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.6); }
     }
 
-    .page-wrap{ max-width:1100px; margin:0 auto; }
+    .page-wrap{ max-width: 1240px; margin: 0 auto; padding: 0 12px; }
 
-    /* container */
-    .option-box{ display:grid; gap:12px; margin-top:8px; }
+    /* --- HERO GRID --- */
+    .hero-wrap{ margin: 8px auto 16px; }
+    .hero-grid{
+      display:grid; gap:18px; align-items:center;
+      grid-template-columns: 1fr;
+      background: #fff; border:1px solid var(--border); border-radius:16px;
+      box-shadow: 0 8px 26px var(--shadow); padding:22px;
+    }
+    @media (min-width: 880px){
+      .hero-grid{ grid-template-columns: 1.1fr .9fr; padding:26px 28px; }
+    }
+    .hero-title{ margin:0 0 6px 0; color: var(--brand); font-size: clamp(1.4rem, 2vw + 1rem, 2rem); }
+    .hero-sub{ color:#475569; line-height:1.45; margin:0; }
+    .hero-list{ margin:14px 0 0; color:#404b5a; }
+    .hero-illu{
+      display:grid; place-items:center;
+      padding:10px;
+    }
+    .hero-illu img{
+      width: min(440px, 92%); border-radius:14px;
+      box-shadow:0 6px 18px rgba(0,0,0,.08);
+      user-select:none; pointer-events:none;
+    }
 
-    /* base card */
+    /* --- STATS STRIP --- */
+    .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:12px auto 6px auto; max-width:980px; }
+    .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+            box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+    .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+    .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+    .stat .label { font-size:.92rem; opacity:.98; }
+    @media (max-width:560px){ .stat { min-width:46%; } }
+
+    /* --- OPTION CARDS --- */
+    .option-box{
+      display:grid; gap:12px; margin-top:10px;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 860px){
+      .option-box{ grid-template-columns: 1fr 1fr 1fr; }
+    }
+
     .option-item{
-      --accent:#4f46e5; /* per-card overrides below */
+      --accent:#4f46e5;
       display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start;
       padding:14px 16px; background:var(--card); color:var(--text);
       border:1px solid var(--border); border-radius:16px; position:relative; overflow:hidden;
@@ -1367,14 +1414,12 @@ def login_page():
       animation:slideFadeIn 560ms ease-out forwards;
       transition:transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
       box-shadow:0 6px 14px var(--shadow);
+      cursor: default;
     }
-
-    /* staggered entrance */
     .option-item:nth-child(1){ animation-delay:.04s; }
     .option-item:nth-child(2){ animation-delay:.18s; }
     .option-item:nth-child(3){ animation-delay:.32s; }
 
-    /* hover/active */
     .option-item:hover{
       transform:translateY(-2px);
       box-shadow:0 12px 28px var(--shadow);
@@ -1382,7 +1427,6 @@ def login_page():
     }
     .option-item:active{ transform:translateY(0); transition-duration:80ms; }
 
-    /* left accent + shimmer */
     .option-item::before{
       content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
       background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28;
@@ -1393,7 +1437,6 @@ def login_page():
       transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms;
     }
 
-    /* icon chip */
     .option-icon{
       width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px;
       border:1px solid var(--border);
@@ -1404,22 +1447,31 @@ def login_page():
       animation:bob 3.2s ease-in-out infinite;
     }
 
-    /* text polish */
     .option-item b{ color:var(--text); }
     .option-item div{ line-height:1.35; }
     .option-item div:last-child{ color:var(--muted); }
 
-    /* per-option branding colors */
-    .opt-return { --accent:#10b981; }  /* green */
-    .opt-approved{ --accent:#3b82f6; } /* blue */
-    .opt-request { --accent:#f59e0b; } /* amber */
+    .opt-return { --accent:#10b981; }
+    .opt-approved{ --accent:#3b82f6; }
+    .opt-request { --accent:#f59e0b; }
 
-    /* animations */
+    /* CTA row under cards */
+    .cta-row{ display:grid; gap:10px; margin:10px 0 6px; grid-template-columns:1fr; }
+    @media (min-width:860px){ .cta-row{ grid-template-columns: 1fr 1fr 1fr; } }
+    .cta{
+      display:inline-block; width:100%;
+      background:linear-gradient(90deg, var(--brand), var(--brand2));
+      color:#fff; text-align:center; padding:10px 12px; border:none; border-radius:12px; font-weight:700; cursor:pointer;
+      box-shadow:0 8px 20px rgba(37,49,126,.18); transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+    }
+    .cta:hover{ transform:translateY(-1px); box-shadow:0 12px 28px rgba(37,49,126,.22); }
+    .cta:active{ transform:none; }
+    .cta:focus-visible{ outline:3px solid #f59e0b; outline-offset:2px; }
+
+    /* animations & motion prefs */
     @keyframes slideFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
     @keyframes shimmer{ 0%{transform:translateX(-160%);} 100%{transform:translateX(160%);} }
     @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
-
-    /* motion accessibility */
     @media (prefers-reduced-motion: reduce){
       .option-item, .option-item::after, .option-icon{ animation:none !important; opacity:1; transform:none; }
       .option-item{ transition:none; }
@@ -1427,17 +1479,8 @@ def login_page():
     </style>
     """, unsafe_allow_html=True)
 
-        # Stats strip
+    # --- Stats strip (unchanged, centered, slightly wider max) ---
     st.markdown("""
-      <style>
-        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
-        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
-                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
-        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
-        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
-        .stat .label { font-size:.92rem; opacity:.98; }
-        @media (max-width:560px){ .stat { min-width:46%; } }
-      </style>
       <div class="stats-strip" role="list" aria-label="Falowen highlights">
         <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
           <div class="num">300+</div>
@@ -1457,49 +1500,93 @@ def login_page():
         </div>
       </div>
     """, unsafe_allow_html=True)
-#
 
-    # --- HERO FIRST ---
+    # --- HERO (two-column on desktop) ---
     st.markdown("""
-    <div class="page-wrap">
-      <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
-          Falowen is your all-in-one German learning platform, powered by
-          <b>Learn Language Education Academy</b>, with courses and vocabulary from
-          <b>A1 to C1</b> levels and live tutor support.
-        </p>
-        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-        </ul>
+    <div class="page-wrap hero-wrap">
+      <div class="hero-grid" aria-label="Falowen app introduction">
+        <div>
+          <h1 class="hero-title">👋 Welcome to <strong>Falowen</strong></h1>
+          <p class="hero-sub">
+            Falowen is your all-in-one German learning platform, powered by
+            <b>Learn Language Education Academy</b>, with courses and vocabulary from
+            <b>A1 to C1</b> levels and live tutor support.
+          </p>
+          <ul class="hero-list">
+            <li>📊 <b>Dashboard</b>: Track streaks, assignments, and contracts.</li>
+            <li>📚 <b>Course Book</b>: Lessons, grammar modules, and submissions in one place.</li>
+            <li>🔤 <b>Vocab Trainer</b>: Spaced-repetition for A1–C1.</li>
+            <li>🏆 <b>Results</b>: Grades, feedback, and performance history.</li>
+          </ul>
+        </div>
+        <div class="hero-illu" aria-hidden="true">
+          <img src="https://images.unsplash.com/photo-1513258496099-48168024aec0?q=80&w=1200&auto=format&fit=crop"
+               alt="Students learning" />
+        </div>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Single expander with animated options (no duplicates) ---
+    # --- Options (now responsive 3-up) ---
     with st.expander("📌 Which option should I choose?", expanded=True):
         st.markdown("""
-        <div class="option-box">
-          <div class="option-item opt-return" role="group" tabindex="0" aria-label="Returning Student information">
-            <div class="option-icon">👋</div>
-            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
+        <div class="page-wrap">
+          <div class="option-box">
+            <div class="option-item opt-return" role="group" tabindex="0" aria-label="Returning Student information">
+              <div class="option-icon">👋</div>
+              <div>
+                <b>Returning Student</b><br>
+                You already created a password — simply log in to continue your learning.
+              </div>
+            </div>
+            <div class="option-item opt-approved" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
+              <div class="option-icon">🧾</div>
+              <div>
+                <b>Sign Up (Approved)</b><br>
+                You’ve paid and your email + code are already on our roster — create your account here.
+              </div>
+            </div>
+            <div class="option-item opt-request" role="group" tabindex="0" aria-label="Request Access information">
+              <div class="option-icon">📝</div>
+              <div>
+                <b>Request Access</b><br>
+                New to Falowen? Fill out our form and we’ll guide you through the next steps.
+              </div>
+            </div>
           </div>
-          <div class="option-item opt-approved" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
-            <div class="option-icon">🧾</div>
-            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
-          </div>
-          <div class="option-item opt-request" role="group" tabindex="0" aria-label="Request Access information">
-            <div class="option-icon">📝</div>
-            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
+
+          <!-- CTA buttons under the cards (wire these in Python below) -->
+          <div class="cta-row">
+            <button class="cta" id="cta-return">I’m Returning →</button>
+            <button class="cta" id="cta-approved">Create Account (Approved) →</button>
+            <button class="cta" id="cta-request">Request Access →</button>
           </div>
         </div>
         """, unsafe_allow_html=True)
+
+        # Bridge CTA buttons to Streamlit using empty placeholders + on_click
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.button("I’m Returning →", key="cta_return_py", use_container_width=True)
+        with c2:
+            st.button("Create Account (Approved) →", key="cta_approved_py", use_container_width=True)
+        with c3:
+            st.button("Request Access →", key="cta_request_py", use_container_width=True)
+
+        # TODO: Wire these to your actual pages/routes
+        if st.session_state.get("cta_return_py"):
+            st.session_state["prefill_type"] = "returning"
+            # Example: st.switch_page("pages/login_returning.py")
+            st.toast("Use your email or student code to log in.", icon="👋")
+
+        if st.session_state.get("cta_approved_py"):
+            # Example: st.switch_page("pages/approved_signup.py")
+            st.toast("Opening approved signup…", icon="🧾")
+
+        if st.session_state.get("cta_request_py"):
+            # Example: st.switch_page("pages/request_access.py")
+            st.toast("Opening request access…", icon="📝")
+
 
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
