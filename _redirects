@@ -1,7 +1,0 @@
-/manifest.webmanifest    /manifest.webmanifest    200
-/sw.js                   /sw.js                   200
-/offline.html            /offline.html            200
-/.well-known/*           /.well-known/:splat      200
-/static/*                /static/:splat           200
-
-/*  https://falowen.onrender.com/:splat  200
