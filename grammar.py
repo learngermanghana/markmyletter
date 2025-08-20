@@ -1551,13 +1551,6 @@ def login_page():
               </div>
             </div>
           </div>
-
-          <div class="cta-row">
-            <button class="cta" id="cta-return">I’m Returning →</button>
-            <button class="cta" id="cta-approved">Create Account (Approved) →</button>
-            <button class="cta" id="cta-request">Request Access →</button>
-          </div>
-        </div>
         """, unsafe_allow_html=True)
 
         # Bridge CTA buttons to Streamlit so you can wire actions (kept as-is)
