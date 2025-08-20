@@ -1341,133 +1341,81 @@ def render_login_form():
 import streamlit as st
 
 def login_page():
-    # --- Animation + layout CSS (required once) ---
+    # --- STYLE (once) ---
     st.markdown("""
     <style>
-    :root{
-      --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.08); --shadow:rgba(2,6,23,.15);
-      --card:rgba(255,255,255,.75);
-    }
-    @media (prefers-color-scheme: dark){
-      :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.12); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.6); }
-    }
-
-    .page-wrap{ max-width:1100px; margin:0 auto; }
-
-    /* container */
-    .option-box{ display:grid; gap:12px; margin-top:8px; }
-
-    /* base card */
-    .option-item{
-      --accent:#4f46e5; /* per-card overrides below */
-      display:grid; grid-template-columns:44px 1fr; gap:12px; align-items:start;
-      padding:14px 16px; background:var(--card); color:var(--text);
-      border:1px solid var(--border); border-radius:16px; position:relative; overflow:hidden;
-      transform:translateY(6px); opacity:0;
-      animation:slideFadeIn 560ms ease-out forwards;
-      transition:transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, background 220ms ease;
-      box-shadow:0 6px 14px var(--shadow);
-    }
-
-    /* staggered entrance */
-    .option-item:nth-child(1){ animation-delay:.04s; }
-    .option-item:nth-child(2){ animation-delay:.18s; }
-    .option-item:nth-child(3){ animation-delay:.32s; }
-
-    /* hover/active */
-    .option-item:hover{
-      transform:translateY(-2px);
-      box-shadow:0 12px 28px var(--shadow);
-      border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-    }
-    .option-item:active{ transform:translateY(0); transition-duration:80ms; }
-
-    /* left accent + shimmer */
-    .option-item::before{
-      content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
-      background:linear-gradient(180deg, var(--accent), transparent 80%); opacity:.28;
-    }
-    .option-item::after{
-      content:""; position:absolute; inset:0;
-      background:linear-gradient(90deg, transparent 0%, rgba(255,255,255,.12) 50%, transparent 100%);
-      transform:translateX(-160%); pointer-events:none; animation:shimmer 2400ms ease-in-out infinite 1200ms;
-    }
-
-    /* icon chip */
-    .option-icon{
-      width:44px; height:44px; display:grid; place-items:center; font-size:22px; border-radius:12px;
-      border:1px solid var(--border);
-      background:
-        radial-gradient(60% 60% at 30% 25%, rgba(255,255,255,.35), transparent 60%),
-        linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 6px 12px var(--shadow);
-      animation:bob 3.2s ease-in-out infinite;
-    }
-
-    /* text polish */
-    .option-item b{ color:var(--text); }
-    .option-item div{ line-height:1.35; }
-    .option-item div:last-child{ color:var(--muted); }
-
-    /* per-option branding colors */
-    .opt-return { --accent:#10b981; }  /* green */
-    .opt-approved{ --accent:#3b82f6; } /* blue */
-    .opt-request { --accent:#f59e0b; } /* amber */
-
-    /* animations */
-    @keyframes slideFadeIn{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
-    @keyframes shimmer{ 0%{transform:translateX(-160%);} 100%{transform:translateX(160%);} }
-    @keyframes bob{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-3px);} }
-
-    /* motion accessibility */
-    @media (prefers-reduced-motion: reduce){
-      .option-item, .option-item::after, .option-icon{ animation:none !important; opacity:1; transform:none; }
-      .option-item{ transition:none; }
-    }
+      .choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}
+      .choice-card{
+        --accent:#4f46e5;display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start;
+        padding:16px;border-radius:16px;border:1px solid rgba(15,23,42,.08);text-decoration:none;color:inherit;
+        background:rgba(255,255,255,.75);position:relative;overflow:hidden;box-shadow:0 6px 14px rgba(2,6,23,.15);
+        transform:translateY(6px);opacity:0;animation:fadeIn .55s ease-out forwards;transition:.2s;
+      }
+      .choice-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(2,6,23,.15);
+                         border-color:color-mix(in srgb,var(--accent) 40%, rgba(15,23,42,.08))}
+      .choice-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+                           background:linear-gradient(180deg,var(--accent),transparent 80%);opacity:.3}
+      .choice-card::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);
+                          transform:translateX(-160%);animation:shimmer 2400ms ease-in-out infinite 1200ms;pointer-events:none}
+      .choice-icon{
+        width:44px;height:44px;display:grid;place-items:center;font-size:22px;border-radius:12px;border:1px solid rgba(15,23,42,.08);
+        background:radial-gradient(60% 60% at 30% 25%,rgba(255,255,255,.35),transparent 60%),
+                   linear-gradient(180deg,color-mix(in srgb,var(--accent) 22%, transparent), transparent);
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 6px 12px rgba(2,6,23,.15);animation:bob 3.2s ease-in-out infinite
+      }
+      .card-title{font-weight:700}
+      .card-sub{color:#64748b;line-height:1.35}
+      .c-green{--accent:#10b981}.c-blue{--accent:#3b82f6}.c-amber{--accent:#f59e0b}
+      @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes shimmer{0%{transform:translateX(-160%)}100%{transform:translateX(160%)}}
+      @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+      @media (prefers-color-scheme: dark){
+        .choice-card{background:rgba(15,23,42,.6);border-color:rgba(226,232,240,.12);box-shadow:0 6px 14px rgba(0,0,0,.5)}
+        .card-sub{color:#94a3b8}
+      }
+      @media (prefers-reduced-motion: reduce){
+        .choice-card,.choice-card::after,.choice-icon{animation:none !important;opacity:1;transform:none}
+        .choice-card{transition:none}
+      }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- HERO FIRST ---
+    # --- CLICKABLE CARDS (drop-in replacement for your expander) ---
     st.markdown("""
-    <div class="page-wrap">
-      <div class="hero" aria-label="Falowen app introduction">
-        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
-        <p style="text-align:center; font-size:1.1em; color:#555;">
-          Falowen is your all-in-one German learning platform, powered by
-          <b>Learn Language Education Academy</b>, with courses and vocabulary from
-          <b>A1 to C1</b> levels and live tutor support.
-        </p>
-        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
-          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
-          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
-          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
-          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
-          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
-          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
-          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
-        </ul>
-      </div>
+    <div class="choice-grid">
+      <a class="choice-card c-green" href="?mode=login" aria-label="Returning Student: go to login">
+        <div class="choice-icon">👋</div>
+        <div>
+          <div class="card-title">Returning Student</div>
+          <div class="card-sub">Already set a password? Log in to continue your learning.</div>
+        </div>
+      </a>
+      <a class="choice-card c-blue" href="?mode=approved" aria-label="Sign Up Approved: create account">
+        <div class="choice-icon">🧾</div>
+        <div>
+          <div class="card-title">Sign Up (Approved)</div>
+          <div class="card-sub">You’ve paid and we have your email + code. Create your account here.</div>
+        </div>
+      </a>
+      <a class="choice-card c-amber" href="?mode=request" aria-label="Request Access: start application">
+        <div class="choice-icon">📝</div>
+        <div>
+          <div class="card-title">Request Access</div>
+          <div class="card-sub">New to Falowen? Fill the form; we’ll guide you through next steps.</div>
+        </div>
+      </a>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Single expander with animated options (no duplicates) ---
-    with st.expander("📌 Which option should I choose?", expanded=True):
-        st.markdown("""
-        <div class="option-box">
-          <div class="option-item opt-return" role="group" tabindex="0" aria-label="Returning Student information">
-            <div class="option-icon">👋</div>
-            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
-          </div>
-          <div class="option-item opt-approved" role="group" tabindex="0" aria-label="Sign Up (Approved) information">
-            <div class="option-icon">🧾</div>
-            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
-          </div>
-          <div class="option-item opt-request" role="group" tabindex="0" aria-label="Request Access information">
-            <div class="option-icon">📝</div>
-            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # (Optional) Read the chosen mode from URL and branch your UI
+    try:
+        mode = st.query_params.get("mode", None)
+    except Exception:
+        mode = st.experimental_get_query_params().get("mode", [None])[0]  # fallback for older Streamlit
+    if mode:
+        st.write(f"Selected mode: **{mode}**")  # replace with your router / form
+        # e.g. if mode == "login": render_login(); elif mode == "approved": render_signup(); ...
+
 
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
