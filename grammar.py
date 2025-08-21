@@ -1,3 +1,8 @@
+# app.py
+# =============================================================================
+# Falowen – Streamlit app (stabilized: no 5-sec refresh / tab switching)
+# =============================================================================
+
 # ==== Standard Library ====
 import atexit
 import base64
@@ -160,25 +165,15 @@ except Exception as e:
 st.markdown("""
 <style>
 /* Remove Streamlit's top padding */
-[data-testid="stAppViewContainer"] > .main .block-container {
-  padding-top: 0 !important;
-}
+[data-testid="stAppViewContainer"] > .main .block-container { padding-top: 0 !important; }
 /* First rendered block — keep a small gap only */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child {
-  margin-top: 0 !important;
-  margin-bottom: 8px !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  margin-top: 0 !important; margin-bottom: 8px !important; padding-top: 0 !important; padding-bottom: 0 !important;
 }
 /* If that first block is an iframe, collapse it completely */
 [data-testid="stAppViewContainer"] .main .block-container > div:first-child [data-testid="stIFrame"] {
-  display: block;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
+  display: block; height: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important;
+  border: 0 !important; overflow: hidden !important;
 }
 /* Keep hero flush and compact */
 .hero { margin-top: 2px !important; margin-bottom: 4px !important; padding-top: 6px !important; display: flow-root; }
@@ -186,8 +181,7 @@ st.markdown("""
 /* Trim default gap above Streamlit tabs */
 [data-testid="stTabs"] { margin-top: 8px !important; }
 /* Hide default Streamlit chrome */
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
+#MainMenu { visibility: hidden; } footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,9 +206,13 @@ def _inject_meta_tags():
       <meta name="theme-color" content="#000000">
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
       <script>
-        if ('serviceWorker' in navigator) {{
-          navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{{}});
-        }}
+        // >>> FIX: register SW only once per top-level page load
+        try {{
+          if ('serviceWorker' in navigator && !window.__falowen_sw) {{
+            window.__falowen_sw = true;
+            navigator.serviceWorker.register('/sw.js', {{ scope: '/' }}).catch(()=>{});
+          }}
+        }} catch(e) {{}}
       </script>
     """, height=0)
     st.session_state["_pwa_head_done"] = True
@@ -230,14 +228,19 @@ def _bootstrap_state():
         "student_code": "",
         "student_name": "",
         "session_token": "",
-        "cookie_synced": False,
+        "cookie_synced": False,              # legacy flag
+        # >>> FIX: granular cookie sync flags to avoid repeated components.html
+        "_cookie_synced_session": False,
+        "_cookie_synced_student": False,
         "__last_refresh": 0.0,
         "__ua_hash": "",
         "_oauth_state": "",
         "_oauth_code_redeemed": "",
+        "_reviews_mounted": False,
     }
     for k, v in defaults.items():
         st.session_state.setdefault(k, v)
+
 _bootstrap_state()
 
 # ==== Hide Streamlit chrome ====
@@ -648,6 +651,24 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     """
     components.html(script, height=0)
 
+def clear_auth_storage():
+    """Best-effort client-side cleanup for cookies/localStorage."""
+    components.html("""
+      <script>
+        (function(){
+          try {
+            const del = (n) => {
+              document.cookie = n + "=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+              document.cookie = "falowen_" + n + "=; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+            };
+            del("student_code"); del("session_token");
+            try { localStorage.removeItem('student_code'); } catch(e){}
+            try { localStorage.removeItem('session_token'); } catch(e){}
+          } catch(e){}
+        })();
+      </script>
+    """, height=0)
+
 def _persist_session_client(token: str, student_code: str = "") -> None:
     components.html(f"""
     <script>
@@ -664,10 +685,8 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
     """, height=0)
 
 # ------------------------------------------------------------------------------
-# Cookie manager init
+# Cookie manager init  (NO auto-reload loop)
 # ------------------------------------------------------------------------------
-
-
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 
@@ -679,15 +698,11 @@ def _bootstrap_cookies(cm):
     tries = st.session_state.get("_cookie_boot_tries", 0)
     st.session_state["_cookie_boot_tries"] = tries + 1
 
-    # Mount a tiny element so the component JS loads, then do a one-time silent reload
+    # >>> FIX: Handshake WITHOUT forcing a reload loop
     components.html("""
       <script>
         try { document.cookie = "falowen_boot=1; Path=/; SameSite=Lax"; } catch(e) {}
-        // one-time reload to complete cookie handshake
-        if (!sessionStorage.getItem("falowen_cookie_boot")) {
-          sessionStorage.setItem("falowen_cookie_boot", "1");
-          setTimeout(function(){ window.location.reload(); }, 0);
-        }
+        // No reload here; Streamlit rerun cycle will handle it.
       </script>
     """, height=0)
 
@@ -701,15 +716,15 @@ def _bootstrap_cookies(cm):
 
 _bootstrap_cookies(cookie_manager)
 
-
-# ---- Restore from existing session token (cookie) ----
+# ------------------------------------------------------------------------------
+# Restore from existing session token (cookie)
+# ------------------------------------------------------------------------------
 restored = False
 if not st.session_state.get("logged_in", False):
     cookie_tok = (cookie_manager.get("session_token") or "").strip()
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
-            # Validate the student still exists and contract active
             try:
                 df_students = load_student_data()
                 found = df_students[df_students["StudentCode"] == data.get("student_code","")]
@@ -726,9 +741,13 @@ if not st.session_state.get("logged_in", False):
                 })
                 new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
                 st.session_state["session_token"] = new_tok
-                set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
-                restored = True
 
+                # >>> FIX: only set cookie if changed or not yet synced
+                if (new_tok != cookie_tok) or (not st.session_state.get("_cookie_synced_session")):
+                    set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
+                    st.session_state["_cookie_synced_session"] = True
+
+                restored = True
 
 # ------------------------------------------------------------------------------
 # RESET PASSWORD PAGE (token -> set new password)
@@ -906,9 +925,17 @@ def _handle_google_oauth(code: str, state: str) -> None:
             "student_name": student_row["Name"],
             "session_token": sess_token,
         })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-        _persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+
+        # >>> FIX: only set cookies once per new values
+        if not st.session_state.get("_cookie_synced_student"):
+            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+            st.session_state["_cookie_synced_student"] = True
+
+        if not st.session_state.get("_cookie_synced_session"):
+            _persist_session_client(sess_token, student_row["StudentCode"])
+            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+            st.session_state["_cookie_synced_session"] = True
+
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
         st.rerun()
@@ -1095,91 +1122,94 @@ def render_reviews():
     </style>
 
     <script>
-      const DATA = __DATA__;
-      const q  = (id) => document.getElementById(id);
-      const qs = (sel) => document.querySelector(sel);
-      const wrap = qs("#reviews");
-      const quote = q("rev_quote");
-      const author = q("rev_author");
-      const locationEl = q("rev_location");
-      const level = q("rev_level");
-      const time  = q("rev_time");
-      const outcome = q("rev_outcome");
-      const used = q("rev_used");
-      const dots = q("rev_dots");
-      const prevBtn = q("rev_prev");
-      const nextBtn = q("rev_next");
+      if (!window.__falowen_reviews_init) {{ // >>> FIX: avoid multiple intervals across remounts
+        window.__falowen_reviews_init = true;
+        const DATA = __DATA__;
+        const q  = (id) => document.getElementById(id);
+        const qs = (sel) => document.querySelector(sel);
+        const wrap = qs("#reviews");
+        const quote = q("rev_quote");
+        const author = q("rev_author");
+        const locationEl = q("rev_location");
+        const level = q("rev_level");
+        const time  = q("rev_time");
+        const outcome = q("rev_outcome");
+        const used = q("rev_used");
+        const dots = q("rev_dots");
+        const prevBtn = q("rev_prev");
+        const nextBtn = q("rev_next");
 
-      let i = 0, timer = null, hovered = false;
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let i = 0, timer = null, hovered = false;
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      function setUsedChips(items){
-        used.innerHTML = "";
-        (items || []).forEach(t => {
-          const s = document.createElement("span");
-          s.className = "chip";
-          s.textContent = t;
-          used.appendChild(s);
-        });
-      }
+        function setUsedChips(items){{
+          used.innerHTML = "";
+          (items || []).forEach(t => {{
+            const s = document.createElement("span");
+            s.className = "chip";
+            s.textContent = t;
+            used.appendChild(s);
+          }});
+        }}
 
-      function setDots(){
-        dots.innerHTML = "";
-        DATA.forEach((_, idx) => {
-          const b = document.createElement("button");
-          b.className = "rev-dot";
-          b.setAttribute("aria-label", "Go to review " + (idx+1));
-          if(idx === i) b.setAttribute("aria-current","true");
-          b.addEventListener("click", () => { i = idx; show(true); restart(); });
-          dots.appendChild(b);
-        });
-      }
+        function setDots(){{
+          dots.innerHTML = "";
+          DATA.forEach((_, idx) => {{
+            const b = document.createElement("button");
+            b.className = "rev-dot";
+            b.setAttribute("aria-label", "Go to review " + (idx+1));
+            if(idx === i) b.setAttribute("aria-current","true");
+            b.addEventListener("click", () => {{ i = idx; show(true); restart(); }});
+            dots.appendChild(b);
+          }});
+        }}
 
-      function show(animate){
-        const c = DATA[i];
-        quote.textContent = '"' + (c.quote || '') + '"';
-        author.textContent = c.author ? c.author + ' — ' : '';
-        locationEl.textContent = c.location || '';
-        level.textContent = 'Level: ' + (c.level || '—');
-        time.textContent  = 'Time: ' + (c.time  || '—');
-        outcome.textContent = c.outcome || '';
+        function show(animate){{
+          const c = DATA[i];
+          quote.textContent = '"' + (c.quote || '') + '"';
+          author.textContent = c.author ? c.author + ' — ' : '';
+          locationEl.textContent = c.location || '';
+          level.textContent = 'Level: ' + (c.level || '—');
+          time.textContent  = 'Time: ' + (c.time  || '—');
+          outcome.textContent = c.outcome || '';
 
-        setUsedChips(c.used);
-        setDots();
+          setUsedChips(c.used);
+          setDots();
 
-        const card = wrap.querySelector(".rev-card");
-        if(animate && !reduced){
-          card.classList.remove("show");
-          card.classList.add("fade");
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => card.classList.add("show"));
-          });
-        }
-      }
+          const card = wrap.querySelector(".rev-card");
+          if(animate && !reduced){{
+            card.classList.remove("show");
+            card.classList.add("fade");
+            requestAnimationFrame(() => {{
+              requestAnimationFrame(() => card.classList.add("show"));
+            }});
+          }}
+        }}
 
-      function next(){ i = (i + 1) % DATA.length; show(true); }
-      function prev(){ i = (i - 1 + DATA.length) % DATA.length; show(true); }
+        function next(){{ i = (i + 1) % DATA.length; show(true); }}
+        function prev(){{ i = (i - 1 + DATA.length) % DATA.length; show(true); }}
 
-      function start(){ if(reduced) return; timer = setInterval(() => { if(!hovered) next(); }, 6000); }
-      function stop(){ if(timer){ clearInterval(timer); timer = null; } }
-      function restart(){ stop(); start(); }
+        function start(){{ if(reduced) return; timer = setInterval(() => {{ if(!hovered) next(); }}, 6000); }}
+        function stop(){{ if(timer){{ clearInterval(timer); timer = null; }} }}
+        function restart(){{ stop(); start(); }}
 
-      nextBtn.addEventListener("click", () => { next(); restart(); });
-      prevBtn.addEventListener("click", () => { prev(); restart(); });
-      wrap.addEventListener("mouseenter", () => { hovered = true; });
-      wrap.addEventListener("mouseleave", () => { hovered = false; });
+        nextBtn.addEventListener("click", () => {{ next(); restart(); }});
+        prevBtn.addEventListener("click", () => {{ prev(); restart(); }});
+        wrap.addEventListener("mouseenter", () => {{ hovered = true; }});
+        wrap.addEventListener("mouseleave", () => {{ hovered = false; }});
 
-      wrap.addEventListener("keydown", (e) => {
-        if(e.key === "ArrowRight"){ next(); restart(); }
-        if(e.key === "ArrowLeft"){  prev(); restart(); }
-      });
+        wrap.addEventListener("keydown", (e) => {{
+          if(e.key === "ArrowRight"){{ next(); restart(); }}
+          if(e.key === "ArrowLeft"){{  prev(); restart(); }}
+        }});
 
-      show(false);
-      start();
+        show(false);
+        start();
+      }}
     </script>
     """
     _json = json.dumps(REVIEWS)
-    components.html(_html.replace("__DATA__", _json), height=300, scrolling=False)
+    components.html(_html.replace("__DATA__", _json), height=300, scrolling=False, key="reviews_component")
 
 def render_login_form():
     st.session_state.setdefault("show_reset_panel", False)
@@ -1246,9 +1276,16 @@ def render_login_form():
             "student_name": student_row["Name"],
             "session_token": sess_token,
         })
-        set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
-        _persist_session_client(sess_token, student_row["StudentCode"])
-        set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+
+        # >>> FIX: Gate cookie writes to once per value
+        if not st.session_state.get("_cookie_synced_student"):
+            set_student_code_cookie(cookie_manager, student_row["StudentCode"], expires=datetime.utcnow() + timedelta(days=180))
+            st.session_state["_cookie_synced_student"] = True
+        if not st.session_state.get("_cookie_synced_session"):
+            _persist_session_client(sess_token, student_row["StudentCode"])
+            set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
+            st.session_state["_cookie_synced_session"] = True
+
         st.success(f"Welcome, {student_row['Name']}!")
         st.rerun()
 
@@ -1334,8 +1371,6 @@ def render_login_form():
                         st.error("We couldn’t send the email. Please try again later.")
 
         st.markdown('</div>', unsafe_allow_html=True)
-
-
 
 def login_page():
     st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
@@ -1550,11 +1585,13 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
+    # Keep the lightweight placeholder or swap to full render_reviews()
     def render_reviews_inner():
         _reviews_html = """<div style="text-align:center;opacity:.8;">(reviews carousel)</div>"""
         components.html(_reviews_html, height=60, scrolling=False)
 
     render_reviews_inner()
+    # If you prefer the real carousel here, just call: render_reviews()
 
     st.markdown("---")
 
@@ -1668,6 +1705,8 @@ if _logout_clicked:
         "__ua_hash": "",
         "_oauth_state": "",
         "_oauth_code_redeemed": "",
+        "_cookie_synced_session": False,  # >>> FIX: reset sync flags
+        "_cookie_synced_student": False,  # >>> FIX: reset sync flags
     })
 
     st.session_state["_inject_logout_js"] = True
