@@ -717,7 +717,9 @@ def _bootstrap_cookies(cm):
 # ------------------------------------------------------------------------------
 restored = False
 if not st.session_state.get("logged_in", False):
-    cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    cookie_tok = ""
+    if cookie_manager.ready():
+        cookie_tok = (cookie_manager.get("session_token") or "").strip()
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
@@ -11631,6 +11633,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
