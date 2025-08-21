@@ -1714,6 +1714,274 @@ if _logout_clicked:
 
 
 
+# =========================================================
+# ============= Announcements (mobile-friendly) ===========
+# =========================================================
+def render_announcements(ANNOUNCEMENTS: list):
+    """Responsive rotating announcement board with mobile-first, light card on phones."""
+    if not ANNOUNCEMENTS:
+        st.info("📣 No announcements to show.")
+        return
+
+    _html = """
+    <style>
+      /* ---------- THEME TOKENS ---------- */
+      :root{
+        /* brand */
+        --brand:#1d4ed8;      /* primary */
+        --ring:#93c5fd;
+
+        /* light defaults */
+        --text:#0b1220;
+        --muted:#475569;
+        --card:#ffffff;       /* <- light card by default */
+        --chip-bg:#eaf2ff;
+        --chip-fg:#1e3a8a;
+        --link:#1d4ed8;
+        --shell-border: rgba(2,6,23,.08);
+      }
+
+      /* Dark scheme (desktop/tablet). We will still force light card on phones below. */
+      @media (prefers-color-scheme: dark){
+        :root{
+          --text:#e5e7eb;
+          --muted:#cbd5e1;
+          --card:#111827;
+          --chip-bg:#1f2937;
+          --chip-fg:#e5e7eb;
+          --link:#93c5fd;
+          --shell-border: rgba(148,163,184,.25);
+        }
+      }
+
+      /* ---------- LAYOUT ---------- */
+      .page-wrap{max-width:1100px;margin:0 auto;padding:0 10px;}
+      .ann-title{
+        font-weight:800; font-size:1.05rem; line-height:1.2;
+        padding-left:12px; border-left:5px solid var(--brand);
+        margin: 0 0 6px 0; color: var(--text);
+        letter-spacing: .2px;
+      }
+      .ann-shell{
+        border-radius:14px;
+        border:1px solid var(--shell-border);
+        background:var(--card);
+        box-shadow:0 6px 18px rgba(2,6,23,.12);
+        padding:12px 14px; isolation:isolate; overflow:hidden;
+      }
+      .ann-heading{
+        display:flex; align-items:center; gap:10px; margin:0 0 6px 0;
+        font-weight:800; color:var(--text); letter-spacing:.2px;
+      }
+      .ann-chip{
+        font-size:.78rem; font-weight:800; text-transform:uppercase;
+        background:var(--chip-bg); color:var(--chip-fg);
+        padding:4px 9px; border-radius:999px; border:1px solid var(--shell-border);
+      }
+      .ann-body{ color:var(--muted); margin:0; line-height:1.55; font-size:1rem }
+      .ann-actions{ margin-top:8px }
+      .ann-actions a{ color:var(--link); text-decoration:none; font-weight:700 }
+
+      .ann-dots{
+        display:flex; gap:12px; justify-content:center; margin-top:12px
+      }
+      .ann-dot{
+        width:11px; height:11px; border-radius:999px; background:#9ca3af;
+        opacity:.9; transform:scale(.95);
+        transition:transform .2s, background .2s, opacity .2s;
+        border:none; cursor:pointer;
+      }
+      .ann-dot[aria-current="true"]{
+        background:var(--brand); opacity:1; transform:scale(1.22);
+        box-shadow:0 0 0 4px var(--ring)
+      }
+
+      @keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+      .ann-anim{animation:fadeInUp .25s ease both}
+      @media (prefers-reduced-motion: reduce){ .ann-anim{animation:none} .ann-dot{transition:none} }
+
+      /* ---------- MOBILE OVERRIDES ---------- */
+      @media (max-width: 640px){
+        /* Force a light look on phones, regardless of system dark mode */
+        :root{
+          --card:#ffffff !important;
+          --text:#0b1220 !important;
+          --muted:#334155 !important;
+          --link:#1d4ed8 !important;
+          --chip-bg:#eaf2ff !important;
+          --chip-fg:#1e3a8a !important;
+          --shell-border: rgba(2,6,23,.10) !important;
+        }
+        .page-wrap{ padding:0 8px; }
+        .ann-shell{ padding:10px 12px; border-radius:12px; }
+        .ann-title{ font-size:1rem; margin:0 0 4px 0; }
+        .ann-heading{ gap:8px; }
+        .ann-chip{ font-size:.72rem; padding:3px 8px; }
+        .ann-body{ font-size:1.02rem; line-height:1.6; }
+        .ann-dots{ gap:10px; margin-top:10px; }
+        .ann-dot{ width:12px; height:12px; }
+      }
+
+      /* Tight spacer utility for Streamlit blocks around this widget */
+      .tight-section{ margin:6px 0 !important; }
+    </style>
+
+    <div class="page-wrap tight-section">
+      <div class="ann-title">📣 Announcements</div>
+      <div class="ann-shell" id="ann_shell" aria-live="polite">
+        <div class="ann-anim" id="ann_card">
+          <div class="ann-heading">
+            <span class="ann-chip" id="ann_tag" style="display:none;"></span>
+            <span id="ann_title"></span>
+          </div>
+          <p class="ann-body" id="ann_body">loading…</p>
+          <div class="ann-actions" id="ann_action" style="display:none;"></div>
+        </div>
+        <div class="ann-dots" id="ann_dots" role="tablist" aria-label="Announcement selector"></div>
+      </div>
+    </div>
+
+    <script>
+      const data = __DATA__;
+      const titleEl = document.getElementById('ann_title');
+      const bodyEl  = document.getElementById('ann_body');
+      const tagEl   = document.getElementById('ann_tag');
+      const actionEl= document.getElementById('ann_action');
+      const dotsWrap= document.getElementById('ann_dots');
+      const card    = document.getElementById('ann_card');
+      const shell   = document.getElementById('ann_shell');
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let i = 0, timer = null;
+      const INTERVAL = 6500;
+
+      function setActiveDot(idx){
+        [...dotsWrap.children].forEach((d, j)=> d.setAttribute('aria-current', j===idx ? 'true' : 'false'));
+      }
+      function render(idx){
+        const c = data[idx] || {};
+        card.classList.remove('ann-anim'); void card.offsetWidth; card.classList.add('ann-anim');
+
+        titleEl.textContent = c.title || '';
+        bodyEl.textContent  = c.body  || '';
+
+        if (c.tag){
+          tagEl.textContent = c.tag;
+          tagEl.style.display='';
+        } else {
+          tagEl.style.display='none';
+        }
+
+        if (c.href){
+          const link = document.createElement('a');
+          link.href = c.href; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = 'Open';
+          actionEl.textContent = '';
+          actionEl.appendChild(link);
+          actionEl.style.display='';
+        } else {
+          actionEl.style.display='none';
+          actionEl.textContent = '';
+        }
+        setActiveDot(idx);
+      }
+      function next(){ i = (i+1) % data.length; render(i); }
+      function start(){ if (!reduced && data.length > 1) timer = setInterval(next, INTERVAL); }
+      function stop(){ if (timer) clearInterval(timer); timer = null; }
+      function restart(){ stop(); start(); }
+
+      data.forEach((_, idx)=>{
+        const dot = document.createElement('button');
+        dot.className='ann-dot'; dot.type='button'; dot.setAttribute('role','tab');
+        dot.setAttribute('aria-label','Show announcement '+(idx+1));
+        dot.addEventListener('click', ()=>{ i=idx; render(i); restart(); });
+        dotsWrap.appendChild(dot);
+      });
+
+      shell.addEventListener('mouseenter', stop);
+      shell.addEventListener('mouseleave', start);
+      shell.addEventListener('focusin', stop);
+      shell.addEventListener('focusout', start);
+
+      render(i); start();
+    </script>
+    """
+    data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
+    components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
+
+
+# Optional: extra style injector for status chips & mini-cards if you want to reuse elsewhere
+def inject_notice_css():
+    st.markdown("""
+    <style>
+      :root{
+        --chip-border: rgba(148,163,184,.35);
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --chip-border: rgba(148,163,184,.28);
+        }
+      }
+      .statusbar { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 6px 0; }
+      .chip { display:inline-flex; align-items:center; gap:8px;
+              padding:8px 12px; border-radius:999px; font-weight:700; font-size:.98rem;
+              border:1px solid var(--chip-border); mix-blend-mode: normal; }
+      .chip-red   { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+      .chip-amber { background:#fff7ed; color:#7c2d12; border-color:#fed7aa; }
+      .chip-blue  { background:#eef4ff; color:#2541b2; border-color:#c7d2fe; }
+      .chip-gray  { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+
+      .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
+      .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
+                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
+      .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
+      .minicard .sub { color:#475569; font-size:.92rem; }
+
+      .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-weight:700; font-size:.92rem; }
+      .pill-green { background:#e6ffed; color:#0a7f33; }
+      .pill-purple { background:#efe9ff; color:#5b21b6; }
+      .pill-amber { background:#fff7ed; color:#7c2d12; }
+
+      @media (max-width: 640px){
+        .chip{ padding:7px 10px; font-size:.95rem; }
+        .minicard{ padding:11px; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# =========================================================
+# ================== App Announcements ====================
+# =========================================================
+announcements = [
+    {
+        "title": "Download Draft (TXT) Backup",
+        "body":  "In Submit, use “⬇️ Download draft (TXT)” to save a clean backup with level, day, chapter, and timestamp.",
+        "tag":   "New"
+    },
+    {
+        "title": "Submit Flow & Locking",
+        "body":  "After you click **Confirm & Submit**, your box locks (read-only). You can still view status and feedback later in Results & Resources.",
+        "tag":   "Action"
+    },
+    {
+        "title": "Quick Jumps: Classroom Q&A + Learning Notes",
+        "body":  "Buttons in the Submit area take you straight to Q&A or your personal Notes—no hunting around.",
+        "tag":   "Tip"
+    },
+    {
+        "title": "Lesson Links — One Download",
+        "body":  "Grab all lesson resources as a single TXT file under **Your Work & Links**. Videos are embedded once; no duplicates.",
+        "tag":   "New"
+    },
+    {
+        "title": "Sprechen: Instant Pronunciation Feedback",
+        "body":  "Record your speaking and get immediate AI feedback (highlights, suggestions, level-aware tips) and shadowing playback. Find it in Falowen → Tools → Sprechen.",
+        "tag":   "New"
+    }
+]
+
+
 
 # =========================================================
 # ============== Data loaders & helpers ===================
