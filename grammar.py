@@ -690,25 +690,36 @@ COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 
 def _bootstrap_cookies(cm):
-    st.session_state.setdefault("_cookie_boot_attempted", False)
+    st.session_state.setdefault("_cookie_boot_done", False)
 
     if cm.ready():
         return True
 
-    if not st.session_state["_cookie_boot_attempted"]:
-        st.session_state["_cookie_boot_attempted"] = True
-        components.html("""
+    if not st.session_state["_cookie_boot_done"]:
+        st.session_state["_cookie_boot_done"] = True
+        components.html(
+            """
       <script>
         try { document.cookie = "falowen_boot=1; Path=/; SameSite=Lax"; } catch(e) {}
-        if (!sessionStorage.getItem("falowen_cookie_boot")) {
-          sessionStorage.setItem("falowen_cookie_boot", "1");
+        if (!localStorage.getItem("falowen_cookie_boot")) {
+          localStorage.setItem("falowen_cookie_boot", "1");
+          try {
+            const tok = localStorage.getItem('session_token');
+            if (tok) {
+              document.cookie = "session_token=" + tok + "; Path=/; SameSite=Lax";
+            }
+          } catch(e) {}
           setTimeout(function(){ window.location.reload(); }, 0);
         }
       </script>
-    """, height=0)
+    """,
+            height=0,
+        )
         st.stop()
 
-    st.error("Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window.")
+    st.error(
+        "Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window."
+    )
     st.stop()
 
 
@@ -1619,6 +1630,19 @@ if st.session_state.pop("_inject_logout_js", False):
 
 # ===== AUTH GUARD =====
 if not st.session_state.get("logged_in", False):
+    components.html(
+        """
+      <script>
+        try {
+          const tok = localStorage.getItem('session_token');
+          if (tok && document.cookie.indexOf('session_token=') === -1) {
+            document.cookie = "session_token=" + tok + "; Path=/; SameSite=Lax";
+          }
+        } catch(e) {}
+      </script>
+    """,
+        height=0,
+    )
     login_page()
     st.stop()
 
@@ -3812,8 +3836,8 @@ def get_b1_schedule():
             "assignment": True,
             "instruction": "Schau das Video, wiederhole die Grammatik und mache die Aufgabe.",
             "grammar_topic": "Modalverben, Konjunktiv II",
-            "video": "",
-            "youtube_link": "",
+            "video": "https://youtu.be/2lUPAnzx4e4",
+            "youtube_link": "https://youtu.be/2lUPAnzx4e4",
             "grammarbook_link": "https://drive.google.com/file/d/13SI6AiqC2BAWLZjPh-AsiyTEfvGyk8DR/view?usp=sharing",
             "workbook_link": "https://drive.google.com/file/d/1-HaOiGQtP_JI7ujg4-h-u1GnCumabdx_/view?usp=sharing"
         },
@@ -11633,6 +11657,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
