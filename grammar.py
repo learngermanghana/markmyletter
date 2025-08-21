@@ -666,10 +666,7 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
 # ------------------------------------------------------------------------------
 # Cookie manager init
 # ------------------------------------------------------------------------------
-from datetime import datetime, timedelta
-import streamlit as st
-import streamlit.components.v1 as components
-from streamlit_cookies_manager import EncryptedCookieManager
+
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
@@ -705,15 +702,14 @@ def _bootstrap_cookies(cm):
 _bootstrap_cookies(cookie_manager)
 
 
-# ------------------------------------------------------------------------------
-# Restore from existing session token (cookie)
-# ------------------------------------------------------------------------------
+# ---- Restore from existing session token (cookie) ----
 restored = False
 if not st.session_state.get("logged_in", False):
     cookie_tok = (cookie_manager.get("session_token") or "").strip()
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
+            # Validate the student still exists and contract active
             try:
                 df_students = load_student_data()
                 found = df_students[df_students["StudentCode"] == data.get("student_code","")]
@@ -732,6 +728,7 @@ if not st.session_state.get("logged_in", False):
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
                 restored = True
+
 
 # ------------------------------------------------------------------------------
 # RESET PASSWORD PAGE (token -> set new password)
@@ -1341,112 +1338,79 @@ def render_login_form():
 
 
 def login_page():
-    # --- Wide layout (set once safely) ---
-    if not st.session_state.get("_page_cfg_set"):
-        try:
-            st.set_page_config(layout="wide", page_title="Falowen • Login")
-        except Exception:
-            pass
-        st.session_state["_page_cfg_set"] = True
+    st.markdown('<style>.page-wrap{max-width:1100px;margin:0 auto;}</style>', unsafe_allow_html=True)
 
-    # --- Minimal global CSS (only what we need) ---
+    # HERO FIRST
     st.markdown("""
-    <style>
-      :root{
-        --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.12); --shadow:rgba(2,6,23,.12);
-        --card:rgba(255,255,255,.82); --brand:#25317e; --brand2:#3b82f6; --bg:#f7f9fc;
-      }
-      @media (prefers-color-scheme: dark){
-        :root{ --text:#e2e8f0; --muted:#94a3b8; --border:rgba(226,232,240,.14); --shadow:rgba(0,0,0,.5); --card:rgba(15,23,42,.55); --bg:#0b1220; }
-      }
-      html, body { background:
-        radial-gradient(1200px 600px at 10% -10%, #eef3ff 0%, transparent 40%),
-        var(--bg) !important; }
-      .page-wrap{ max-width:1240px; margin:0 auto; padding:0 12px; }
-
-      /* ===== One-line Announcement Board ===== */
-      .announce-wrap{ margin: 10px auto 10px; }
-      .announce{
-        display:flex; align-items:center; gap:12px; overflow:hidden;
-        background:var(--card); border:1px solid var(--border); border-radius:14px;
-        padding:10px 12px; box-shadow:0 8px 24px var(--shadow);
-      }
-      .announce-icon{
-        width:28px; height:28px; border-radius:8px; display:grid; place-items:center;
-        background: linear-gradient(180deg, #e0e7ff, transparent);
-        border:1px solid var(--border); font-size:16px; flex:0 0 28px;
-      }
-      .announce-track{ position:relative; flex:1; min-height:20px; }
-      .announce-msg{
-        position:absolute; inset:0; display:flex; align-items:center; gap:10px; white-space:nowrap;
-        opacity:0; transform:translateY(8px); transition:opacity .32s ease, transform .32s ease;
-        color:var(--text); font-size:.98rem;
-      }
-      .announce-msg.show{ opacity:1; transform:none; }
-      .pill{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px;
-             font-weight:700; font-size:.86rem; background:#eef2ff; color:#25317e; border:1px solid #c7d2fe; }
-
-      /* Tabs → pill style (visual only) */
-      .stTabs [role="tablist"] { gap:8px; border-bottom:0; justify-content:center; }
-      .stTabs [role="tab"]{
-        border:1px solid var(--border); border-bottom:0; border-radius:999px; padding:8px 14px !important;
-        background:var(--card); box-shadow:0 4px 12px var(--shadow); color:var(--text);
-      }
-      .stTabs [aria-selected="true"]{ background:linear-gradient(90deg, var(--brand), var(--brand2)); color:#fff; }
-
-      /* Motion pref */
-      @media (prefers-reduced-motion: reduce){
-        .announce-msg{ transition:none; opacity:1 !important; transform:none !important; }
-      }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ===== ONE-LINE ANNOUNCEMENT (welcome + access flow) =====
-    st.markdown("""
-    <div class="page-wrap announce-wrap">
-      <div class="announce" role="region" aria-label="Announcements">
-        <div class="announce-icon" aria-hidden="true">📣</div>
-        <div class="announce-track" id="announce_track" aria-live="polite">
-          <div class="announce-msg show">
-            👋 <b>Welcome to Falowen</b> —
-            <span>Dashboard · Course Book · Results · Vocab Trainer</span>
-          </div>
-          <div class="announce-msg">
-            ✅ <b>Returning?</b> Use your <b>email or student code</b> to log in on the next tab.
-          </div>
-          <div class="announce-msg">
-            🧾 <b>Sign Up (Approved)</b> — Paid & on our roster? Create your account on the next tab.
-          </div>
-          <div class="announce-msg">
-            📝 <b>New here?</b> Tap <span class="pill">Request Access</span> to get started.
-          </div>
-        </div>
-      </div>
-      <div style="font-size:.9rem; color:#64748b; margin:6px 4px 0;">
-        <span>🔒 Google Sign-In disclosure:</span> We use your Google email to match your student record and keep you signed in. We don’t sell your data.
+    <div class="page-wrap">
+      <div class="hero" aria-label="Falowen app introduction">
+        <h1 style="text-align:center; color:#25317e;">👋 Welcome to <strong>Falowen</strong></h1>
+        <p style="text-align:center; font-size:1.1em; color:#555;">
+          Falowen is your all-in-one German learning platform, powered by
+          <b>Learn Language Education Academy</b>, with courses and vocabulary from
+          <b>A1 to C1</b> levels and live tutor support.
+        </p>
+        <ul style="max-width:700px; margin:16px auto; color:#444; font-size:1em; line-height:1.5;">
+          <li>📊 <b>Dashboard</b>: Track your learning streaks, assignment progress, active contracts, and more.</li>
+          <li>📚 <b>Course Book</b>: Access lecture videos, grammar modules, and submit assignments for levels A1–C1 in one place.</li>
+          <li>📝 <b>Exams & Quizzes</b>: Take practice tests and official exam prep right in the app.</li>
+          <li>💬 <b>Custom Chat</b>: Sprechen & expression trainer for live feedback on your speaking.</li>
+          <li>🏆 <b>Results Tab</b>: View your grades, feedback, and historical performance at a glance.</li>
+          <li>🔤 <b>Vocab Trainer</b>: Practice and master A1–C1 vocabulary with spaced-repetition quizzes.</li>
+          <li>✍️ <b>Schreiben Trainer</b>: Improve your writing with guided exercises and instant corrections.</li>
+        </ul>
       </div>
     </div>
-
-    <script>
-      const track = document.getElementById('announce_track');
-      if(track){
-        const msgs = Array.from(track.querySelectorAll('.announce-msg'));
-        let i = 0, timer = null, hovered = false;
-        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-        function show(n){ msgs.forEach((m, idx) => m.classList.toggle('show', idx === n)); }
-        function next(){ i = (i + 1) % msgs.length; show(i); }
-        function start(){ if(reduce) return; timer = setInterval(()=>{ if(!hovered) next(); }, 4200); }
-        function stop(){ if(timer){ clearInterval(timer); timer = null; } }
-
-        track.addEventListener('mouseenter', ()=> hovered = true);
-        track.addEventListener('mouseleave', ()=> hovered = false);
-        show(0); start();
-      }
-    </script>
     """, unsafe_allow_html=True)
 
+    # Stats strip
+    st.markdown("""
+      <style>
+        .stats-strip { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:10px auto 4px auto; max-width:820px; }
+        .stat { background:#0ea5e9; color:#ffffff; border-radius:12px; padding:12px 14px; min-width:150px; text-align:center;
+                box-shadow:0 2px 10px rgba(2,132,199,0.15); outline: none; }
+        .stat:focus-visible { outline:3px solid #1f2937; outline-offset:2px; }
+        .stat .num { font-size:1.25rem; font-weight:800; line-height:1; }
+        .stat .label { font-size:.92rem; opacity:.98; }
+        @media (max-width:560px){ .stat { min-width:46%; } }
+      </style>
+      <div class="stats-strip" role="list" aria-label="Falowen highlights">
+        <div class="stat" role="listitem" tabindex="0" aria-label="Active learners: over 300">
+          <div class="num">300+</div>
+          <div class="label">Active learners</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Assignments submitted">
+          <div class="num">1,200+</div>
+          <div class="label">Assignments submitted</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Levels covered: A1 to C1">
+          <div class="num">A1–C1</div>
+          <div class="label">Full course coverage</div>
+        </div>
+        <div class="stat" role="listitem" tabindex="0" aria-label="Average student feedback">
+          <div class="num">4.8/5</div>
+          <div class="label">Avg. feedback</div>
+        </div>
+      </div>
+    """, unsafe_allow_html=True)
 
+    with st.expander("📌 Which option should I choose?", expanded=True):
+        st.markdown("""
+        <div class="option-box">
+          <div class="option-item">
+            <div class="option-icon">👋</div>
+            <div><b>Returning Student</b>: You already created a password — simply log in to continue your learning.</div>
+          </div>
+          <div class="option-item">
+            <div class="option-icon">🧾</div>
+            <div><b>Sign Up (Approved)</b>: You’ve paid and your email + code are already on our roster, but you don’t have an account yet — create one here.</div>
+          </div>
+          <div class="option-item">
+            <div class="option-icon">📝</div>
+            <div><b>Request Access</b>: New to Falowen? Fill out our form and we’ll get in touch to guide you through the next steps.</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     tab1, tab2, tab3 = st.tabs(["👋 Returning", "🧾 Sign Up (Approved)", "📝 Request Access"])
 
@@ -3274,8 +3238,8 @@ def get_a1_schedule():
             "instruction": "Review the workbook and do the practicals in it. Answers are attached",
             "grammar_topic": "Erlaubt and Verboten",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/MqAp84GthAo",
-                "youtube_link": "https://youtu.be/MqAp84GthAo",
+                "video": "https://youtu.be/n9Y0kt_XRZY",
+                "youtube_link": "https://youtu.be/n9Y0kt_XRZY",
                 "assignment": False,
                 "workbook_link": "https://drive.google.com/file/d/1CkoYa_qeqsGju0kTS6ElurCAlEW6pVFL/view?usp=sharing"
             }
@@ -3290,8 +3254,8 @@ def get_a1_schedule():
             "instruction": "Write all the two letters in this document and send to your tutor for corrections",
             "grammar_topic": "Formal and Informal Letter",
             "schreiben_sprechen": {
-                "video": "https://youtu.be/sHRHE1soH6I",
-                "youtube_link": "https://youtu.be/sHRHE1soH6I",
+                "video": "https://youtu.be/n9Y0kt_XRZY",
+                "youtube_link": "https://youtu.be/n9Y0kt_XRZY",
                 "workbook_link": "https://drive.google.com/file/d/1SjaDH1bYR7O-BnIbM2N82XOEjeLCfPFb/view?usp=sharing"
             }
         },
