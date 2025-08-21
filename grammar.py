@@ -584,14 +584,23 @@ def set_student_code_cookie(cookie_manager, value: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 180  # 180 days
     exp_str = _expire_str(expires)
-    try:
-        cookie_manager.set(key, norm, expires=expires, secure=use_secure, samesite="Lax", path="/")
-        cookie_manager.save()
-    except Exception:
+    if cookie_manager.ready():
         try:
-            cookie_manager[key] = norm; cookie_manager.save()
+            cookie_manager.set(
+                key,
+                norm,
+                expires=expires,
+                secure=use_secure,
+                samesite="Lax",
+                path="/",
+            )
+            cookie_manager.save()
         except Exception:
-            pass
+            try:
+                cookie_manager[key] = norm
+                cookie_manager.save()
+            except Exception:
+                pass
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, norm, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -619,14 +628,23 @@ def set_session_token_cookie(cookie_manager, token: str, expires: datetime):
     use_secure = (os.getenv("ENV", "prod") != "dev")
     max_age = 60 * 60 * 24 * 30  # 30 days
     exp_str = _expire_str(expires)
-    try:
-        cookie_manager.set(key, val, expires=expires, secure=use_secure, samesite="Lax", path="/")
-        cookie_manager.save()
-    except Exception:
+    if cookie_manager.ready():
         try:
-            cookie_manager[key] = val; cookie_manager.save()
+            cookie_manager.set(
+                key,
+                val,
+                expires=expires,
+                secure=use_secure,
+                samesite="Lax",
+                path="/",
+            )
+            cookie_manager.save()
         except Exception:
-            pass
+            try:
+                cookie_manager[key] = val
+                cookie_manager.save()
+            except Exception:
+                pass
     host_cookie_name = (getattr(cookie_manager, 'prefix', '') or '') + key
     host_js = _js_set_cookie(host_cookie_name, val, max_age, exp_str, use_secure, domain=None)
     script = f"""
@@ -11613,6 +11631,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
