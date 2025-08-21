@@ -1909,10 +1909,13 @@ def render_announcements(ANNOUNCEMENTS: list):
     data_json = json.dumps(ANNOUNCEMENTS, ensure_ascii=False)
     components.html(_html.replace("__DATA__", data_json), height=220, scrolling=False)
 
-
-# Optional: extra style injector for status chips & mini-cards if you want to reuse elsewhere
 def inject_notice_css():
-    st.markdown("""
+    """Inject status-chip & minicard CSS once per session (robust quoting)."""
+    if st.session_state.get("_notice_css_done"):
+        return
+    from textwrap import dedent
+
+    css = dedent(r'''
     <style>
       :root{
         --chip-border: rgba(148,163,184,.35);
@@ -1933,7 +1936,7 @@ def inject_notice_css():
 
       .minirow { display:flex; flex-wrap:wrap; gap:10px; margin:6px 0 2px 0; }
       .minicard { flex:1 1 280px; border:1px solid var(--chip-border); border-radius:12px; padding:12px;
-                  background: #ffffff; isolation:isolate; mix-blend-mode: normal; }
+                  background:#ffffff; isolation:isolate; mix-blend-mode: normal; }
       .minicard h4 { margin:0 0 6px 0; font-size:1.02rem; color:#0f172a; }
       .minicard .sub { color:#475569; font-size:.92rem; }
 
@@ -1947,7 +1950,11 @@ def inject_notice_css():
         .minicard{ padding:11px; }
       }
     </style>
-    """, unsafe_allow_html=True)
+    ''').strip()
+
+    st.markdown(css, unsafe_allow_html=True)
+    st.session_state["_notice_css_done"] = True
+
 
 
 # =========================================================
