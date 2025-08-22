@@ -6565,7 +6565,7 @@ if tab == "My Course":
                 try:
                     df_students = load_student_data()
                 except Exception:
-                    df_students = pd.DataFrame()\
+                    df_students = pd.DataFrame()
                 if df_students is None:
                     df_students = pd.DataFrame()
 
@@ -11762,6 +11762,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
