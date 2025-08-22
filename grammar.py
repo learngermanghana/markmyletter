@@ -1707,7 +1707,7 @@ if st.session_state.pop("_inject_logout_js", False):
 if not st.session_state.get("logged_in", False):
     page_result = login_page()
     if page_result is None:
-    st.stop()
+        st.stop()
 
 # ===== Header + plain button (no on_click) =====
 st.markdown("""
@@ -11759,6 +11759,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
