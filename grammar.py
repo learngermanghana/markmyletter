@@ -5177,7 +5177,7 @@ if tab == "My Course":
         schedule = schedules.get(level_key, schedules.get("A1", []))
         if not schedule:
             st.warning(f"No lessons found for level **{level_key}**.")
-            st.stop()
+            return
 
         # ---- Search ----
         query = st.text_input("🔍 Search for topic, chapter, grammar, day, or anything…")
@@ -5187,7 +5187,7 @@ if tab == "My Course":
             matches = [(i, d) for i, d in enumerate(schedule) if filter_matches(d, search_terms)]
             if not matches:
                 st.warning("No matching lessons. Try simpler terms or check spelling.")
-                st.stop()
+                return
 
             labels = []
             for _, d in matches:
@@ -7400,7 +7400,7 @@ if tab == "My Course":
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
                 if not new_title.strip():
                     st.warning("Please enter a title.")
-                    st.stop()
+                    return
                 note = {
                     "title": new_title.strip().title(),
                     "tag": new_tag.strip().title(),
@@ -11759,6 +11759,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
