@@ -8164,8 +8164,8 @@ exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
 exam_sheet_name = "exam_topics"
 exam_csv_url = f"https://docs.google.com/spreadsheets/d/{exam_sheet_id}/gviz/tq?tqx=out:csv&sheet={exam_sheet_name}"
 
-@st.cache_data
-def load_exam_topics():
+@st.cache_data(ttl=3600)
+def _load_exam_topics_cached():
     df = pd.read_csv(exam_csv_url)
     for col in ['Level', 'Teil', 'Topic/Prompt', 'Keyword/Subtopic']:
         if col not in df.columns:
@@ -8176,7 +8176,10 @@ def load_exam_topics():
             df[c] = df[c].astype(str).str.strip()
     return df
 
-df_exam = load_exam_topics()
+def load_exam_topics():
+    if "exam_topics_df" not in st.session_state:
+        st.session_state["exam_topics_df"] = _load_exam_topics_cached()
+    return st.session_state["exam_topics_df"]
 
 # ================= UI styles: bubbles + highlights (yours, restored) =================
 bubble_user = (
@@ -8633,7 +8636,8 @@ if tab == "Exams Mode & Custom Chat":
         else:
             # Topic picker (your format: "Topic/Prompt" + "Keyword/Subtopic")
             teil_number = teil.split()[1]  # e.g., "1"
-            exam_topics = df_exam[(df_exam["Level"] == level) & (df_exam["Teil"] == f"Teil {teil_number}")].copy()
+            exam_df = load_exam_topics()
+            exam_topics = exam_df[(exam_df["Level"] == level) & (exam_df["Teil"] == f"Teil {teil_number}")].copy()
 
             topics_list = []
             if not exam_topics.empty:
@@ -11729,6 +11733,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
