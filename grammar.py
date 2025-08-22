@@ -534,7 +534,7 @@ def _load_student_data_cached():
                 continue
         return pd.to_datetime(s, errors="coerce")
 
-    df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
+   df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
    df = df[df["ContractEnd_dt"].notna()]
 
     if "StudentCode" in df.columns:
@@ -11735,3 +11735,4 @@ def main():
                     )
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     
+
