@@ -1679,15 +1679,15 @@ def login_page():
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">
-      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>
-      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> • 
-      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.stop()
+  st.markdown(f"""␊
+    <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">␊
+      © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>␊
+      Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
+      <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>␊
+    </div>␊
+    """, unsafe_allow_html=True)␊
+␊
+    return
 
 # ------------------------------------------------------------------------------
 # =========================
@@ -1711,7 +1711,8 @@ if st.session_state.pop("_inject_logout_js", False):
 
 # ===== AUTH GUARD =====
 if not st.session_state.get("logged_in", False):
-    login_page()
+    page_result = login_page()
+    if page_result is None:
     st.stop()
 
 # ===== Header + plain button (no on_click) =====
@@ -11764,6 +11765,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
