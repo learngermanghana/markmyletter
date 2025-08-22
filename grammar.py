@@ -152,7 +152,7 @@ try:
     db = firestore.client()
 except Exception as e:
     st.error(f"Firebase init failed: {e}")
-    st.stop()
+    raise RuntimeError("Firebase initialization failed") from e
 
 # ------------------------------------------------------------------------------
 # Top spacing + chrome (tighter)
@@ -348,7 +348,7 @@ def api_post(url, headers=None, params=None, **kwargs):
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     st.error("Missing OpenAI API key. Please add OPENAI_API_KEY in Streamlit secrets.")
-    st.stop()
+    raise RuntimeError("Missing OpenAI API key")
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -517,7 +517,7 @@ def _load_student_data_cached():
         df = pd.read_csv(io.StringIO(txt), dtype=str, keep_default_na=True, na_values=["", " ", "nan", "NaN", "None"])
     except Exception as e:
         st.error(f"❌ Could not load student data. {e}")
-        st.stop()
+        return None
 
     df.columns = df.columns.str.strip().str.replace(" ", "")
     for col in df.columns:
@@ -549,6 +549,10 @@ def _load_student_data_cached():
           .drop(columns=["ContractEnd_dt"])
     )
     return df
+
+def load_student_data():
+    """Load student roster, or return None if unavailable."""
+    return _load_student_data_cached()
 
 def is_contract_expired(row):
     expiry_str = str(row.get("ContractEnd", "") or "").strip()
@@ -795,7 +799,10 @@ if not st.session_state.get("logged_in", False):
         if data:
             try:
                 df_students = load_student_data()
-                found = df_students[df_students["StudentCode"] == data.get("student_code","")]
+                if df_students is None:
+                    found = pd.DataFrame()
+                else:
+                    found = df_students[df_students["StudentCode"] == data.get("student_code","")]
             except Exception:
                 found = pd.DataFrame()
             if not found.empty and not is_contract_expired(found.iloc[0]):
@@ -865,6 +872,9 @@ def reset_password_page(token: str):
     try:
         # Try roster for StudentCode first
         df = load_student_data()
+        if df is None:
+             st.error("Student roster unavailable. Please try again later.")
+             return
         df["Email"] = df["Email"].str.lower().str.strip()
         match = df[df["Email"] == email]
 
@@ -947,6 +957,9 @@ REDIRECT_URI         = st.secrets.get("GOOGLE_REDIRECT_URI", "https://www.falowe
 
 def _handle_google_oauth(code: str, state: str) -> None:
     df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return
     df["Email"] = df["Email"].str.lower().str.strip()
     try:
         if st.session_state.get("_oauth_state") and state != st.session_state["_oauth_state"]:
@@ -1051,6 +1064,9 @@ def render_signup_form():
     if len(new_password) < 8:
         st.error("Password must be at least 8 characters."); return
     df = load_student_data()
+    if df is None:
+        st.error("Student roster unavailable. Please try again later.")
+        return
     df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     df["Email"] = df["Email"].str.lower().str.strip()
     valid = df[(df["StudentCode"] == new_code) & (df["Email"] == new_email)]
@@ -1283,6 +1299,9 @@ def render_login_form():
     # ---- LOGIN ----
     if login_btn:
         df = load_student_data()
+        if df is None:
+            st.error("Student roster unavailable. Please try again later.")
+            return
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
         df["Email"] = df["Email"].str.lower().str.strip()
         lookup = df[(df["StudentCode"] == login_id) | (df["Email"] == login_id)]
@@ -11739,6 +11758,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
