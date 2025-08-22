@@ -785,7 +785,6 @@ def _bootstrap_cookies(cm):
 _boot = _bootstrap_cookies(cookie_manager)
 if _bootstrap_cookies(cookie_manager) is None:
     # JS has scheduled a client-side reload; don't also rerun the server.
-        st.rerun()
         st.stop()
 
 
@@ -11776,6 +11775,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
