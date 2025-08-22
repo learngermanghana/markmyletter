@@ -733,6 +733,21 @@ if not st.session_state.get("logged_in", False):
     cookie_tok = ""
     if cookie_manager.ready():
         cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    if not cookie_tok:
+        components.html(
+            """
+        <script>
+          try {
+            const tok = localStorage.getItem('session_token');
+            if (tok && document.cookie.indexOf('falowen_session_token=') === -1) {
+              document.cookie = "falowen_session_token=" + tok + "; Path=/; SameSite=Lax";
+            }
+          } catch(e) {}
+        </script>
+        """,
+            height=0,
+        )
+        st.stop()
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
@@ -1632,24 +1647,8 @@ if st.session_state.pop("_inject_logout_js", False):
 
 # ===== AUTH GUARD =====
 if not st.session_state.get("logged_in", False):
-    components.html(
-        """
-      <script>
-        try {
-          const tok = localStorage.getItem('session_token');
-          if (tok && document.cookie.indexOf('session_token=') === -1) {
-            const secure = (location.protocol === 'https:' ? '; Secure' : '');
-            document.cookie = "session_token=" + tok + "; Path=/; SameSite=Lax";
-            setTimeout(function(){ window.location.reload(); }, 0);
-          }
-        } catch(e) {}
-      </script>
-    """,
-        height=0,
-    )
     login_page()
     st.stop()
-    st.rerun()
 
 # ===== Header + plain button (no on_click) =====
 st.markdown("""
@@ -11662,6 +11661,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
