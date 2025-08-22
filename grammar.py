@@ -11795,7 +11795,7 @@ if tab == "Schreiben Trainer":
                     "",
                     [],
                 )
-
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
 
