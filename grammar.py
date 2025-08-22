@@ -7400,7 +7400,7 @@ if tab == "My Course":
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
                 if not new_title.strip():
                     st.warning("Please enter a title.")
-                    return
+                    st.stop()
                 note = {
                     "title": new_title.strip().title(),
                     "tag": new_tag.strip().title(),
@@ -11759,6 +11759,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
