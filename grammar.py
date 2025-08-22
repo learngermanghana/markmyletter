@@ -534,17 +534,20 @@ def _load_student_data_cached():
                 continue
         return pd.to_datetime(s, errors="coerce")
 
-   df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
-   df = df[df["ContractEnd_dt"].notna()]
+    # create parsed date column and keep only valid dates
+    df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
+    df = df[df["ContractEnd_dt"].notna()]
 
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
     if "Email" in df.columns:
         df["Email"] = df["Email"].str.lower().str.strip()
 
-    df = (df.sort_values("ContractEnd_dt", ascending=False)
-            .drop_duplicates(subset=["StudentCode"], keep="first")
-            .drop(columns=["ContractEnd_dt"]))
+    df = (
+        df.sort_values("ContractEnd_dt", ascending=False)
+          .drop_duplicates(subset=["StudentCode"], keep="first")
+          .drop(columns=["ContractEnd_dt"])
+    )
     return df
 
 def is_contract_expired(row):
@@ -554,12 +557,14 @@ def is_contract_expired(row):
     expiry_date = None
     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d"):
         try:
-            expiry_date = datetime.strptime(expiry_str, fmt); break
+            expiry_date = datetime.strptime(expiry_str, fmt)
+            break
         except ValueError:
             continue
     if expiry_date is None:
         parsed = pd.to_datetime(expiry_str, errors="coerce")
-        if pd.isnull(parsed): return True
+        if pd.isnull(parsed):
+            return True
         expiry_date = parsed.to_pydatetime()
     return expiry_date.date() < datetime.utcnow().date()
 
@@ -11735,4 +11740,5 @@ def main():
                     )
                     st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     
+
 
