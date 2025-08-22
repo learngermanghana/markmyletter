@@ -706,6 +706,7 @@ def _bootstrap_cookies(cm):
           try {
             const tok = localStorage.getItem('session_token');
             if (tok) {
+              const secure = (location.protocol === 'https:' ? '; Secure' : '');
               document.cookie = "session_token=" + tok + "; Path=/; SameSite=Lax";
             }
           } catch(e) {}
@@ -716,6 +717,7 @@ def _bootstrap_cookies(cm):
             height=0,
         )
         st.stop()
+        st.rerun()
 
     st.error(
         "Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window."
@@ -1636,7 +1638,9 @@ if not st.session_state.get("logged_in", False):
         try {
           const tok = localStorage.getItem('session_token');
           if (tok && document.cookie.indexOf('session_token=') === -1) {
+            const secure = (location.protocol === 'https:' ? '; Secure' : '');
             document.cookie = "session_token=" + tok + "; Path=/; SameSite=Lax";
+            setTimeout(function(){ window.location.reload(); }, 0);
           }
         } catch(e) {}
       </script>
@@ -1645,6 +1649,7 @@ if not st.session_state.get("logged_in", False):
     )
     login_page()
     st.stop()
+    st.rerun()
 
 # ===== Header + plain button (no on_click) =====
 st.markdown("""
@@ -11657,6 +11662,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
