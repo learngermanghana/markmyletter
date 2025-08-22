@@ -1677,11 +1677,11 @@ def login_page():
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>␊
     </div>␊
-    """, unsafe_allow_html=True)␊
+    """, unsafe_allow_html=True)
 
     return
 
-# ------------------------------------------------------------------------------␊
+
 
 # ------------------------------------------------------------------------------
 # =========================
@@ -11759,6 +11759,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
