@@ -507,7 +507,7 @@ def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
 @st.cache_data(ttl=300)
-def load_student_data():
+def _load_student_data_cached():
     try:
         resp = requests.get(GOOGLE_SHEET_CSV, timeout=12)
         resp.raise_for_status()
@@ -535,7 +535,7 @@ def load_student_data():
         return pd.to_datetime(s, errors="coerce")
 
     df["ContractEnd_dt"] = df["ContractEnd"].apply(_parse_contract_end)
-    df = df[df["ContractEnd_dt"].notna()]
+   df = df[df["ContractEnd_dt"].notna()]
 
     if "StudentCode" in df.columns:
         df["StudentCode"] = df["StudentCode"].str.lower().str.strip()
@@ -2024,8 +2024,8 @@ announcements = [
 # =========================================================
 # ============== Data loaders & helpers ===================
 # =========================================================
-@st.cache_data
-def load_assignment_scores():
+@st.cache_data(ttl=600)
+def _load_assignment_scores_cached():
     SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     df = pd.read_csv(url, dtype=str)
@@ -2034,8 +2034,15 @@ def load_assignment_scores():
         df[col] = df[col].astype(str).str.strip()
     return df
 
+def load_assignment_scores():
+    """Return assignment scores DataFrame cached and stored in session state."""
+    if "assignment_scores_df" not in st.session_state:
+        st.session_state["assignment_scores_df"] = _load_assignment_scores_cached()
+    return st.session_state["assignment_scores_df"]
+
+
 @st.cache_data(ttl=43200)
-def load_full_vocab_sheet():
+def _load_full_vocab_sheet_cached():
     SHEET_ID = "1I1yAnqzSh3DPjwWRh9cdRSfzNSPsi7o4r5Taj9Y36NU"
     csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
     try:
@@ -2070,6 +2077,12 @@ def load_full_vocab_sheet():
     df["level"] = df["level"].str.upper()
     return df[["level","german","english","example"]]
 
+def load_full_vocab_sheet():
+    """Return full vocab sheet DataFrame from session state or cache."""
+    if "full_vocab_df" not in st.session_state:
+        st.session_state["full_vocab_df"] = _load_full_vocab_sheet_cached()
+    return st.session_state["full_vocab_df"]
+
 def get_vocab_of_the_day(df: pd.DataFrame, level: str):
     if df is None or df.empty: return None
     if not {"level","german","english","example"}.issubset(df.columns): return None
@@ -2088,13 +2101,32 @@ def parse_contract_end(date_str):
     return None
 
 
-@st.cache_data
-def load_reviews():
+@st.cache_data(ttl=3600)
+def _load_reviews_cached():
     SHEET_ID = "137HANmV9jmMWJEdcA1klqGiP8nYihkDugcIbA-2V1Wc"
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1"
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
+
+def load_reviews():
+    """Return reviews DataFrame cached and stored in session state."""
+    if "reviews_df" not in st.session_state:
+        st.session_state["reviews_df"] = _load_reviews_cached()
+    return st.session_state["reviews_df"]
+
+@st.cache_data(ttl=300)
+def _fetch_announcements_csv_cached():
+    csv_url = "https://docs.google.com/spreadsheets/d/16gjj0krncWsDwMfMbhlxODPSJsI50fuHAzkF7Prrs1k/export?format=csv&gid=0"
+    try:
+        return pd.read_csv(csv_url)
+    except Exception:
+        return pd.DataFrame()
+
+def fetch_announcements_csv():
+    if "announcements_df" not in st.session_state:
+        st.session_state["announcements_df"] = _fetch_announcements_csv_cached()
+    return st.session_state["announcements_df"]
 
 def parse_contract_start(date_str: str):
     return parse_contract_end(date_str)
@@ -4551,7 +4583,7 @@ student_level = student_row.get("Level", "A1").upper()
 
 # --- Cache level schedules with TTL for periodic refresh ---
 @st.cache_data(ttl=86400)
-def load_level_schedules():
+def _load_level_schedules_cached():
     return {
         "A1": get_a1_schedule(),
         "A2": get_a2_schedule(),
@@ -4559,6 +4591,11 @@ def load_level_schedules():
         "B2": get_b2_schedule(),
         "C1": get_c1_schedule(),
     }
+
+def load_level_schedules():
+    if "level_schedules" not in st.session_state:
+        st.session_state["level_schedules"] = _load_level_schedules_cached()
+    return st.session_state["level_schedules"]
 
 # -------------------------
 # UI helpers
@@ -11692,6 +11729,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
