@@ -11486,7 +11486,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             if prompt:
                 st.markdown("---")
@@ -11545,7 +11545,7 @@ if tab == "Schreiben Trainer":
                     st.session_state[ns("prompt")],
                     st.session_state[ns("chat")],
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             # ----- LIVE AUTO-UPDATING LETTER DRAFT, Download + Copy -----
             import streamlit.components.v1 as components
@@ -11691,7 +11691,8 @@ if tab == "Schreiben Trainer":
                     "",
                     [],
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
