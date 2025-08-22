@@ -7793,7 +7793,7 @@ if tab == "My Results and Resources":
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
         st.write("Columns found:", df_scores.columns.tolist())
-        st.stop()
+        return
 
     # Current student
     student_code, student_name, _ = _get_current_student()
@@ -7803,7 +7803,7 @@ if tab == "My Results and Resources":
     df_user = df_scores[df_scores.student_code.astype(str).str.lower().str.strip() == code_key]
     if df_user.empty:
         st.info("No results yet. Complete an assignment to see your scores!")
-        st.stop()
+        return
 
     # Level selector
     df_user = df_user.copy()
@@ -11759,6 +11759,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
