@@ -819,7 +819,7 @@ def reset_password_page(token: str):
         st.error("Invalid or expired reset link.")
         if st.button("Back to Login"):
             qp_clear_keys("token")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         return
 
     info = doc.to_dict() or {}
@@ -836,7 +836,7 @@ def reset_password_page(token: str):
         except Exception: pass
         if st.button("Back to Login"):
             qp_clear_keys("token")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         return
 
     st.info(f"Resetting password for **{email}**")
@@ -889,7 +889,7 @@ def reset_password_page(token: str):
         st.success("✅ Password updated! You can now sign in with your new password.")
         if st.button("Back to Login"):
             qp_clear_keys("token")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     except Exception as e:
         st.error(f"Could not update password: {e}")
@@ -988,7 +988,7 @@ def _handle_google_oauth(code: str, state: str) -> None:
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
         qp_clear()
         st.success(f"Welcome, {student_row['Name']}!")
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     except Exception as e:
         st.error(f"Google OAuth error: {e}")
 
@@ -1327,7 +1327,7 @@ def render_login_form():
         _persist_session_client(sess_token, student_row["StudentCode"])
         set_session_token_cookie(cookie_manager, sess_token, expires=datetime.utcnow() + timedelta(days=30))
         st.success(f"Welcome, {student_row['Name']}!")
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ---- FORGOT PASSWORD (inline) ----
     if forgot_toggle:
@@ -1358,7 +1358,7 @@ def render_login_form():
 
         if back_btn:
             st.session_state["show_reset_panel"] = False
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if send_btn:
             if not email_for_reset:
@@ -1748,7 +1748,7 @@ if _logout_clicked:
     })
 
     st.session_state["_inject_logout_js"] = True
-    st.rerun()
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
 
@@ -2697,9 +2697,7 @@ if tab == "Dashboard":
                 # Dismiss for today (so students can acknowledge but can't claim they never saw it)
                 if st.button("Got it — hide this notice for today", key=f"btn_contract_alert_{_student_code}"):
                     st.session_state[_alert_key] = True
-                    st.rerun()
-#
-
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
      # ---------- Class schedules ----------
     with st.expander("🗓️ Class Schedule & Upcoming Sessions", expanded=False):
@@ -4753,7 +4751,7 @@ def notify_slack(text: str) -> tuple[bool, str]:
     Post a plain text message to the Slack webhook.
     Returns (ok, info). If SLACK_DEBUG=1, more verbose info is printed in logs.
     """
-    url = _slack_url()␊
+    url = _slack_url()
     if not url:
         return False, "missing_webhook"
     try:
@@ -5045,18 +5043,18 @@ if tab == "My Course":
     if st.session_state.get("__go_classroom"):
         st.session_state["coursebook_subtab"] = "🧑‍🏫 Classroom"
         del st.session_state["__go_classroom"]
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     if st.session_state.get("__go_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["__go_notes"]
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # Backward-compat: older code may still set this
     if st.session_state.get("switch_to_notes"):
         st.session_state["coursebook_subtab"] = "📒 Learning Notes"
         del st.session_state["switch_to_notes"]
-        st.rerun()
+        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # First run default
     if "coursebook_subtab" not in st.session_state:
@@ -5650,7 +5648,7 @@ if tab == "My Course":
                         if has_existing_submission(student_level, code, lesson_key):
                             st.session_state[locked_key] = True
                             st.warning("You have already submitted this assignment. It is locked.")
-                            st.rerun()
+                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                         else:
                             st.info("Found an old lock without a submission — recovering and submitting now…")
 
@@ -5717,7 +5715,7 @@ if tab == "My Course":
                             )
 
                         # Rerun so hydration path immediately shows locked view
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     else:
                         # 4) Failure: remove the lock doc so student can retry cleanly
                         try:
@@ -11698,6 +11696,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
