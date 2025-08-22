@@ -8833,6 +8833,9 @@ if tab == "Exams Mode & Custom Chat":
         st.caption("You can keep chatting here or record your answer now.")
 
         # ========= Handle new input FIRST =========
+        # Always define user_input before checking it
+        user_input = st.chat_input("Type your answer or message here...", key=_wkey("chat_input"))
+
         if user_input:
             # 1) append user message
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
@@ -8858,7 +8861,7 @@ if tab == "Exams Mode & Custom Chat":
                     except Exception as e:
                         ai_reply = f"Sorry, an error occurred: {e}"
 
-            typing_ph.empty()  # remove the spinner once reply is ready
+            typing_ph.empty()  # remove spinner
 
             # 3) append assistant message
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
@@ -8872,7 +8875,7 @@ if tab == "Exams Mode & Custom Chat":
                 doc.set({"chats": chats}, merge=True)
             except Exception:
                 pass
-#
+
 
         # ========= Render the whole conversation =========
         for msg in st.session_state["falowen_messages"]:
@@ -11777,6 +11780,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
