@@ -2369,6 +2369,8 @@ if tab == "Dashboard":
             return pd.DataFrame(columns=["StudentCode"])
 
     df_students = load_student_data_fn()
+    if df_students is None:
+        df_students = pd.DataFrame(columns=["StudentCode"])
     student_code = (st.session_state.get("student_code", "") or "").strip().lower()
 
     student_row = {}
@@ -6563,6 +6565,8 @@ if tab == "My Course":
                 try:
                     df_students = load_student_data()
                 except Exception:
+                    df_students = pd.DataFrame()\
+                if df_students is None:
                     df_students = pd.DataFrame()
 
                 for col in ("ClassName", "Name", "Email", "Location"):
@@ -11758,6 +11762,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
