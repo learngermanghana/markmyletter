@@ -2328,7 +2328,7 @@ except Exception as e:
 # =========================================================
 # ===================== Dashboard =========================
 # =========================================================
-if tab == "Dashboard":
+def render_dashboard_tab(announcements):
     # ---------- Helpers ----------
     def safe_get(row, key, default=""):
         try: return row.get(key, default)
@@ -2366,8 +2366,6 @@ if tab == "Dashboard":
             return pd.DataFrame(columns=["StudentCode"])
 
     df_students = load_student_data_fn()
-    if df_students is None:
-        df_students = pd.DataFrame(columns=["StudentCode"])
     student_code = (st.session_state.get("student_code", "") or "").strip().lower()
 
     student_row = {}
@@ -2386,7 +2384,7 @@ if tab == "Dashboard":
 
     if not student_row:
         st.info("🚩 No student selected.")
-        st.stop()
+        return
         
     st.divider()
     # ---------- 1) Announcements (top) ----------
@@ -3016,9 +3014,6 @@ if tab == "Dashboard":
    
     st.divider()
   
-#
-
-
 
 def get_a1_schedule():
     return [
@@ -11759,6 +11754,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
