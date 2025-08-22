@@ -5594,7 +5594,6 @@ if tab == "My Course":
 
             st.subheader("✍️ Your Answer")
 
-
             # ---------- Editor (save on blur + debounce) ----------
             st.text_area(
                 "Type all your answers here",
@@ -5611,6 +5610,9 @@ if tab == "My Course":
             last_val = st.session_state.get(last_val_key, "")
             if not locked and (current_text.strip() or not last_val.strip()):
                 autosave_maybe(code, draft_key, current_text, min_secs=2.0, min_delta=12, locked=locked)
+
+            # NEW: require non-empty answer before enabling submit
+            non_empty = bool(current_text.strip())
 
             # ---------- Manual save + last saved time + safe reload ----------
             csave1, csave2, csave3 = st.columns([1, 1, 1])
@@ -5698,9 +5700,19 @@ if tab == "My Course":
                     key=f"confirm_lock_{lesson_key}",
                     disabled=locked
                 )
-                can_submit = (confirm_final and confirm_lock and (not locked))
+
+                # Require non-empty text to enable submit
+                can_submit = (confirm_final and confirm_lock and (not locked) and non_empty)
+
+                if (not non_empty) and (not locked):
+                    st.info("✋ Please type your answer before submitting.")
 
                 if st.button("✅ Confirm & Submit", type="primary", disabled=not can_submit):
+                    # Double-guard: prevent empty submission if text changed between render and click
+                    if not (st.session_state.get(draft_key, "") or "").strip():
+                        st.warning("Your answer box is empty. Please type something before submitting.")
+                        st.stop()
+
                     # 1) Try to acquire the lock first
                     got_lock = acquire_lock(student_level, code, lesson_key)
 
@@ -5784,6 +5796,8 @@ if tab == "My Course":
                         except Exception:
                             pass
                         st.warning("Submission not saved. Please fix the issue and try again.")
+#
+
 
 
 
@@ -11759,6 +11773,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
