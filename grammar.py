@@ -7793,7 +7793,7 @@ if tab == "My Results and Resources":
     if not required_cols.issubset(df_scores.columns):
         st.error("Data format error. Please contact support.")
         st.write("Columns found:", df_scores.columns.tolist())
-        return
+        st.stop()
 
     # Current student
     student_code, student_name, _ = _get_current_student()
@@ -11759,6 +11759,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
