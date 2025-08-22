@@ -776,13 +776,15 @@ def _bootstrap_cookies(cm):
     """,
             height=0,
         )
-        st.stop()
+        return
 
     st.session_state["_cookie_disabled"] = True
     _ensure_session_token_from_client()
     return False
 
-_bootstrap_cookies(cookie_manager)
+if _bootstrap_cookies(cookie_manager) is None:
+        st.rerun()
+
 
 # ------------------------------------------------------------------------------
 # Restore from existing session token (cookie)
@@ -11762,6 +11764,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
