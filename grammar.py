@@ -1671,14 +1671,14 @@ def login_page():
     with st.expander("What if I open the wrong lesson?"):
         st.write("Check the blue banner at the top (Level • Day • Chapter). Use the dropdown to switch to the correct page.")
 
-  st.markdown(f"""␊
+  st.markdown(f"""
     <div class="page-wrap" style="text-align:center;color:#64748b; margin-bottom:16px;">␊
       © {datetime.utcnow().year} Learn Language Education Academy • Accra, Ghana<br>␊
       Need help? <a href="mailto:learngermanghana@gmail.com">Email</a> •
       <a href="https://api.whatsapp.com/send?phone=233205706589" target="_blank" rel="noopener">WhatsApp</a>␊
     </div>␊
     """, unsafe_allow_html=True)␊
-␊
+
     return
 
 # ------------------------------------------------------------------------------
@@ -11757,6 +11757,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
