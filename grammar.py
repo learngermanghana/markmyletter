@@ -6911,7 +6911,7 @@ if tab == "My Course":
                                     if st.button("✏️ Edit", key=f"ann_edit_reply_{ann_id}_{r['__id']}"):
                                         st.session_state[f"edit_mode_{ann_id}_{r['__id']}"] = True
                                         st.session_state[f"edit_text_{ann_id}_{r['__id']}"] = r.get("text", "")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                                 with c_del:
                                     if st.button("🗑️ Delete", key=f"ann_del_reply_{ann_id}_{r['__id']}"):
                                         _delete_reply(ann_id, r["__id"])
@@ -6921,7 +6921,7 @@ if tab == "My Course":
                                             f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Reply deleted.")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                                 if st.session_state.get(f"edit_mode_{ann_id}_{r['__id']}", False):
                                     new_txt = st.text_area(
@@ -6944,12 +6944,12 @@ if tab == "My Course":
                                                 st.success("Reply updated.")
                                             st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
                                             st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                            st.rerun()
+                                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                                     with ec2:
                                         if st.button("❌ Cancel", key=f"ann_cancel_reply_{ann_id}_{r['__id']}"):
                                             st.session_state.pop(f"edit_mode_{ann_id}_{r['__id']}", None)
                                             st.session_state.pop(f"edit_text_{ann_id}_{r['__id']}", None)
-                                            st.rerun()
+                                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                 for _, row in pinned_df.iterrows():
                     render_announcement(row, is_pinned=True)
@@ -7074,7 +7074,7 @@ if tab == "My Course":
                     )
                     st.session_state["__clear_q_form"] = True
                     st.success("Question posted!")
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             colsa, colsb, colsc = st.columns([2, 1, 1])
             with colsa:
@@ -7083,7 +7083,7 @@ if tab == "My Course":
                 show_latest = st.toggle("Newest first", value=True, key="q_show_latest")
             with colsc:
                 if st.button("↻ Refresh", key="qna_refresh"):
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             try:
                 try:
@@ -7148,7 +7148,7 @@ if tab == "My Course":
                                     f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                 )
                                 st.success("Question deleted.")
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                         if st.session_state.get(f"q_editing_{q_id}", False):
                             with st.form(f"q_edit_form_{q_id}"):
@@ -7179,10 +7179,10 @@ if tab == "My Course":
                                 )
                                 st.session_state[f"q_editing_{q_id}"] = False
                                 st.success("Question updated.")
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                             if cancel_edit:
                                 st.session_state[f"q_editing_{q_id}"] = False
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                     r_ref = q_base.document(q_id).collection("replies")
                     try:
@@ -7219,7 +7219,7 @@ if tab == "My Course":
                                             f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
                                         )
                                         st.success("Reply deleted.")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                                 if st.session_state.get(f"r_editing_{q_id}_{rid}", False):
                                     with st.form(f"r_edit_form_{q_id}_{rid}"):
@@ -7244,10 +7244,10 @@ if tab == "My Course":
                                         )
                                         st.session_state[f"r_editing_{q_id}_{rid}"] = False
                                         st.success("Reply updated.")
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                                     if rcancel:
                                         st.session_state[f"r_editing_{q_id}_{rid}"] = False
-                                        st.rerun()
+                                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
                     input_key = f"q_reply_box_{q_id}"
                     clear_key = f"__clear_{input_key}"
@@ -7277,7 +7277,7 @@ if tab == "My Course":
                         )
                         st.session_state[clear_key] = True
                         st.success("Reply sent!")
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
     # === LEARNING NOTES SUBTAB ===
@@ -7357,13 +7357,13 @@ if tab == "My Course":
                 st.session_state[key_notes] = notes
                 save_notes_to_db(student_code, notes)
                 st.session_state["switch_to_library"] = True
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
             if cancel_btn:
                 for k in ["edit_note_idx", "edit_note_title", "edit_note_text", "edit_note_tag"]:
                     if k in st.session_state: del st.session_state[k]
                 st.session_state["switch_to_library"] = True
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         elif notes_subtab == "📚 My Notes Library":
             st.markdown("#### 📚 All My Notes")
@@ -7562,27 +7562,27 @@ if tab == "My Course":
                             st.session_state["edit_note_text"] = note["text"]
                             st.session_state["edit_note_tag"] = note.get("tag", "")
                             st.session_state["switch_to_edit_note"] = True
-                            st.rerun()
+                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     with cols[1]:
                         if st.button("🗑️ Delete", key=f"del_{i}"):
                             notes.remove(note)
                             st.session_state[key_notes] = notes
                             save_notes_to_db(student_code, notes)
                             st.success("Note deleted.")
-                            st.rerun()
+                            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     with cols[2]:
                         if note.get("pinned"):
                             if st.button("📌 Unpin", key=f"unpin_{i}"):
                                 note["pinned"] = False
                                 st.session_state[key_notes] = notes
                                 save_notes_to_db(student_code, notes)
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                         else:
                             if st.button("📍 Pin", key=f"pin_{i}"):
                                 note["pinned"] = True
                                 st.session_state[key_notes] = notes
                                 save_notes_to_db(student_code, notes)
-                                st.rerun()
+                                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
                     with cols[3]:
                         st.caption("")
 
@@ -7722,7 +7722,7 @@ if tab == "My Results and Resources":
         if st.button("🔄 Refresh"):
             st.cache_data.clear()
             st.success("Cache cleared! Reloading…")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # Load data
     df_scores = fetch_scores(GOOGLE_SHEET_CSV)
@@ -8120,7 +8120,7 @@ def back_step():
         st.session_state.pop(key, None)
     st.session_state["_falowen_loaded"] = False
     st.session_state["falowen_stage"] = 1
-    st.rerun()
+    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 # --- CONFIG (same doc, no duplicate db init) ---
 exam_sheet_id = "1zaAT5NjRGKiITV7EpuSHvYMBHHENMs9Piw3pNcyQtho"
@@ -8507,7 +8507,7 @@ if tab == "Exams Mode & Custom Chat":
             st.session_state["falowen_teil"] = None
             st.session_state["falowen_messages"] = []
             st.session_state["custom_topic_intro_done"] = False
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ——— Step 2: Level ———
     if st.session_state["falowen_stage"] == 2:
@@ -8520,7 +8520,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_stage"] = 1
                 st.session_state["falowen_messages"] = []
                 st.session_state["_falowen_loaded"] = False
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("Next ➡️", key="falowen_next_level"):
                 st.session_state["falowen_level"] = level
@@ -8528,7 +8528,7 @@ if tab == "Exams Mode & Custom Chat":
                 st.session_state["falowen_teil"] = None
                 st.session_state["falowen_messages"] = []
                 st.session_state["custom_topic_intro_done"] = False
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         st.stop()
 
     # ——— Step 3: Exam Part or Lesen/Hören links ———
@@ -8591,7 +8591,7 @@ if tab == "Exams Mode & Custom Chat":
             if st.button("⬅️ Back", key="lesen_hoeren_back"):
                 st.session_state["falowen_stage"] = 2
                 st.session_state["falowen_messages"] = []
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         else:
             # Topic picker (your format: "Topic/Prompt" + "Keyword/Subtopic")
@@ -8641,7 +8641,7 @@ if tab == "Exams Mode & Custom Chat":
                 if st.button("⬅️ Back", key="falowen_back_part"):
                     st.session_state["falowen_stage"]    = 2
                     st.session_state["falowen_messages"] = []
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
             with col2:
                 if st.button("Start Practice", key="falowen_start_practice"):
                     st.session_state["falowen_teil"]            = teil
@@ -8651,7 +8651,7 @@ if tab == "Exams Mode & Custom Chat":
                     st.session_state["remaining_topics"]        = filtered.copy()
                     random.shuffle(st.session_state["remaining_topics"])
                     st.session_state["used_topics"]             = []
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 
     # ——— Step 4: Chat (Exam or Custom) ———
@@ -11696,6 +11696,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
