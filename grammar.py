@@ -8833,7 +8833,6 @@ if tab == "Exams Mode & Custom Chat":
         st.caption("You can keep chatting here or record your answer now.")
 
         # ========= Handle new input FIRST =========
-        user_input = st.chat_input("Type your answer or message here...", key=_wkey("chat_input"))
         if user_input:
             # 1) append user message
             st.session_state["falowen_messages"].append({"role": "user", "content": user_input})
@@ -8843,19 +8842,23 @@ if tab == "Exams Mode & Custom Chat":
             except Exception:
                 pass
 
-            # 2) get assistant reply
-            with st.spinner("🧑‍🏫 Herr Felix is typing..."):
-                messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
-                try:
-                    resp = client.chat.completions.create(
-                        model="gpt-4o",
-                        messages=messages,
-                        temperature=0.15,
-                        max_tokens=600
-                    )
-                    ai_reply = (resp.choices[0].message.content or "").strip()
-                except Exception as e:
-                    ai_reply = f"Sorry, an error occurred: {e}"
+            # 2) get assistant reply (spinner guaranteed to show via placeholder)
+            typing_ph = st.empty()
+            with typing_ph:
+                with st.spinner("🧑‍🏫 Herr Felix is typing..."):
+                    messages = [{"role": "system", "content": system_prompt}] + st.session_state["falowen_messages"]
+                    try:
+                        resp = client.chat.completions.create(
+                            model="gpt-4o",
+                            messages=messages,
+                            temperature=0.15,
+                            max_tokens=600
+                        )
+                        ai_reply = (resp.choices[0].message.content or "").strip()
+                    except Exception as e:
+                        ai_reply = f"Sorry, an error occurred: {e}"
+
+            typing_ph.empty()  # remove the spinner once reply is ready
 
             # 3) append assistant message
             st.session_state["falowen_messages"].append({"role": "assistant", "content": ai_reply})
@@ -8869,6 +8872,7 @@ if tab == "Exams Mode & Custom Chat":
                 doc.set({"chats": chats}, merge=True)
             except Exception:
                 pass
+#
 
         # ========= Render the whole conversation =========
         for msg in st.session_state["falowen_messages"]:
@@ -11773,6 +11777,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
