@@ -324,6 +324,24 @@ def destroy_session_token(token: str) -> None:
     except Exception:
         pass
 
+def api_get(url, headers=None, params=None, **kwargs):
+    headers = headers or {}
+    params = params or {}
+    tok = st.session_state.get("session_token", "")
+    if tok:
+        headers.setdefault("X-Session-Token", tok)
+        params.setdefault("session_token", tok)
+    return requests.get(url, headers=headers, params=params, **kwargs)
+
+def api_post(url, headers=None, params=None, **kwargs):
+    headers = headers or {}
+    params = params or {}
+    tok = st.session_state.get("session_token", "")
+    if tok:
+        headers.setdefault("X-Session-Token", tok)
+        params.setdefault("session_token", tok)
+    return requests.post(url, headers=headers, params=params, **kwargs)
+
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
 # ------------------------------------------------------------------------------
@@ -11661,6 +11679,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
