@@ -4753,11 +4753,11 @@ def notify_slack(text: str) -> tuple[bool, str]:
     Post a plain text message to the Slack webhook.
     Returns (ok, info). If SLACK_DEBUG=1, more verbose info is printed in logs.
     """
-    url = _slack_url()
+    url = _slack_url()␊
     if not url:
         return False, "missing_webhook"
     try:
-        resp = requests.post(url, json={"text": text}, timeout=6)
+        resp = api_post(url, json={"text": text}, timeout=6)
         ok = 200 <= resp.status_code < 300
         return ok, f"status={resp.status_code}"
     except Exception as e:
@@ -4785,7 +4785,7 @@ def notify_slack_submission(
         f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
     )
     try:
-        requests.post(webhook_url, json={"text": text}, timeout=6)
+        api_post(webhook_url, json={"text": text}, timeout=6)
     except Exception:
         pass  # never block the student
 
@@ -11698,6 +11698,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
