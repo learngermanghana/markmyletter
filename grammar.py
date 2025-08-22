@@ -324,6 +324,24 @@ def destroy_session_token(token: str) -> None:
     except Exception:
         pass
 
+def api_get(url, headers=None, params=None, **kwargs):
+    headers = headers or {}
+    params = params or {}
+    tok = st.session_state.get("session_token", "")
+    if tok:
+        headers.setdefault("X-Session-Token", tok)
+        params.setdefault("session_token", tok)
+    return requests.get(url, headers=headers, params=params, **kwargs)
+
+def api_post(url, headers=None, params=None, **kwargs):
+    headers = headers or {}
+    params = params or {}
+    tok = st.session_state.get("session_token", "")
+    if tok:
+        headers.setdefault("X-Session-Token", tok)
+        params.setdefault("session_token", tok)
+    return requests.post(url, headers=headers, params=params, **kwargs)
+
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
 # ------------------------------------------------------------------------------
@@ -689,10 +707,43 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 
+def _ensure_session_token_from_client():
+    if st.session_state.get("session_token"):
+        return
+    tok = st.query_params.get("session_token")
+    if tok:
+        st.session_state["session_token"] = tok
+        return
+    components.html(
+        """
+    <script>
+      try {
+        const tok = localStorage.getItem('session_token');
+        if (tok) {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('session_token') !== tok) {
+            params.set('session_token', tok);
+            window.location.replace(window.location.pathname + '?' + params.toString());
+          }
+        }
+      } catch(e) {}
+    </script>
+    """,
+        height=0,
+    )
+
 def _bootstrap_cookies(cm):
     st.session_state.setdefault("_cookie_boot_done", False)
+    st.session_state.setdefault("_cookie_disabled", False)
 
     if cm.ready():
+        if st.session_state.get("_cookie_disabled") and st.session_state.get("session_token"):
+            set_session_token_cookie(
+                cm,
+                st.session_state["session_token"],
+                expires=datetime.utcnow() + timedelta(days=30),
+            )
+        st.session_state["_cookie_disabled"] = False
         return True
 
     if not st.session_state["_cookie_boot_done"]:
@@ -717,10 +768,11 @@ def _bootstrap_cookies(cm):
         )
         st.stop()
 
-    st.error(
-        "Your browser is blocking cookies for this site. Please enable cookies (SameSite=Lax) or open the app in a new tab/window."
-    )
-    st.stop()
+    st.session_state["_cookie_disabled"] = True
+    _ensure_session_token_from_client()
+    return False
+
+_bootstrap_cookies(cookie_manager)
 
 
 # ------------------------------------------------------------------------------
@@ -731,6 +783,8 @@ if not st.session_state.get("logged_in", False):
     cookie_tok = ""
     if cookie_manager.ready():
         cookie_tok = (cookie_manager.get("session_token") or "").strip()
+    if not cookie_tok:
+        cookie_tok = st.session_state.get("session_token", "")
     if cookie_tok:
         data = validate_session_token(cookie_tok, st.session_state.get("__ua_hash", ""))
         if data:
@@ -751,6 +805,7 @@ if not st.session_state.get("logged_in", False):
                 new_tok = refresh_or_rotate_session_token(cookie_tok) or cookie_tok
                 st.session_state["session_token"] = new_tok
                 set_session_token_cookie(cookie_manager, new_tok, expires=datetime.utcnow() + timedelta(days=30))
+                qp_clear_keys("session_token")
                 restored = True
 
 # ------------------------------------------------------------------------------
@@ -4716,7 +4771,7 @@ def notify_slack(text: str) -> tuple[bool, str]:
     if not url:
         return False, "missing_webhook"
     try:
-        resp = requests.post(url, json={"text": text}, timeout=6)
+        resp = api_post(url, json={"text": text}, timeout=6)
         ok = 200 <= resp.status_code < 300
         return ok, f"status={resp.status_code}"
     except Exception as e:
@@ -4744,7 +4799,7 @@ def notify_slack_submission(
         f"*Preview:* {preview[:180]}{'…' if len(preview) > 180 else ''}"
     )
     try:
-        requests.post(webhook_url, json={"text": text}, timeout=6)
+        api_post(webhook_url, json={"text": text}, timeout=6)
     except Exception:
         pass  # never block the student
 
