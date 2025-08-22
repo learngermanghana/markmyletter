@@ -8859,7 +8859,7 @@ if tab == "Exams Mode & Custom Chat":
                         st.session_state.pop(k, None)
                     st.session_state["falowen_stage"] = 1
                     st.success("All chat history deleted.")
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with col2:
             if st.button("⬅️ Back", key=_wkey("btn_back_stage4")):
                 back_step()
@@ -8867,7 +8867,7 @@ if tab == "Exams Mode & Custom Chat":
         st.divider()
         if st.button("✅ End Session & Show Summary", key=_wkey("btn_end_session")):
             st.session_state["falowen_stage"] = 5
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 #
 
 
@@ -8911,7 +8911,7 @@ if tab == "Exams Mode & Custom Chat":
                 _entered = _norm_code(_entered)
                 if _entered:
                     st.session_state["student_code"] = _entered
-                    st.rerun()
+                    st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
             st.stop()
 
         try:
@@ -8954,11 +8954,7 @@ if tab == "Exams Mode & Custom Chat":
 
         if st.button("⬅️ Back to Start"):
             st.session_state["falowen_stage"] = 1
-            st.rerun()
-
-#
-
-
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
 # =========================================
 # End
@@ -10199,7 +10195,7 @@ if tab == "Vocab Trainer":
         if st.button("🔄 Refresh vocab from sheet", use_container_width=True):
             refresh_vocab_from_sheet()
             st.success("Refreshed vocab + audio from sheet.")
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
     with tcol2:
         st.caption("Uses 'Audio (slow)' for A1 by default; 'Audio (normal)' for others.")
 
@@ -10328,7 +10324,7 @@ if tab == "Vocab Trainer":
                 with col:
                     if st.button(btn_label, key=f"sb_word_{st.session_state.sb_round}_{i}", disabled=selected):
                         st.session_state.sb_selected_idx.append(i)
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         # Preview
         chosen_tokens = [st.session_state.sb_shuffled[i] for i in st.session_state.sb_selected_idx]
@@ -10342,7 +10338,7 @@ if tab == "Vocab Trainer":
                 st.session_state.sb_selected_idx = []
                 st.session_state.sb_feedback = ""
                 st.session_state.sb_correct = None
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with b:
             if st.button("✅ Check"):
                 target_sentence = st.session_state.sb_current.get("target_de", "").strip()
@@ -10364,14 +10360,14 @@ if tab == "Vocab Trainer":
                     correct=correct,
                     tip=st.session_state.sb_current.get("hint_en", ""),
                 )
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
         with c:
             next_disabled = (st.session_state.sb_correct is None)
             if st.button("➡️ Next", disabled=next_disabled):
                 if st.session_state.sb_total >= st.session_state.sb_target:
                     st.success(f"Session complete! Score: {st.session_state.sb_score}/{st.session_state.sb_total}")
                 new_sentence()
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         # Feedback
         if st.session_state.sb_feedback:
@@ -10416,7 +10412,7 @@ if tab == "Vocab Trainer":
         if st.button("🔁 Start New Practice", key="vt_reset"):
             for k in defaults:
                 st.session_state[k] = defaults[k]
-            st.rerun()
+            st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         mode = st.radio("Select words:", ["Only new words", "All words"], horizontal=True, key="vt_mode")
         session_vocab = (not_done if mode == "Only new words" else items).copy()
@@ -10438,7 +10434,7 @@ if tab == "Vocab Trainer":
                 st.session_state.vt_history = [("assistant", f"Hallo! Ich bin Herr Felix. Let's do {count} words!")]
                 st.session_state.vt_saved = False
                 st.session_state.vt_session_id = str(uuid4())
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if st.session_state.vt_history:
             st.markdown("### 🗨️ Practice Chat")
@@ -10487,7 +10483,7 @@ if tab == "Vocab Trainer":
                     fb = f"❌ Nope. '{word}' = '{answer}'"
                 st.session_state.vt_history.append(("assistant", fb))
                 st.session_state.vt_index += 1
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         if isinstance(tot, int) and idx >= tot:
             score = st.session_state.vt_score
@@ -10507,11 +10503,11 @@ if tab == "Vocab Trainer":
                         session_id=st.session_state.vt_session_id
                     )
                 st.session_state.vt_saved = True
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
             if st.button("Practice Again", key="vt_again"):
                 for k in defaults:
                     st.session_state[k] = defaults[k]
-                st.rerun()
+                st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
     # ===========================
     # SUBTAB: Dictionary  (download-only audio)
@@ -10642,7 +10638,7 @@ if tab == "Vocab Trainer":
                 with bcols[i]:
                     if st.button(s, key=f"sugg_{i}"):
                         st.session_state["dict_q"] = s
-                        st.rerun()
+                        st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
 
         with st.expander(f"Browse all words at level {student_level_locked}", expanded=False):
             df_show = df_view[["German","English"]].copy()
@@ -11696,6 +11692,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.rerun()
+
 
 
 
