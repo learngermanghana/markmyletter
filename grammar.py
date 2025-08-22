@@ -782,10 +782,31 @@ def _bootstrap_cookies(cm):
     _ensure_session_token_from_client()
     return False
 
+# ---- Cookie/bootstrap guard (right here) ----
+q = st.query_params
+booted = q.get("booted", "0")
+
 _boot = _bootstrap_cookies(cookie_manager)
-if _bootstrap_cookies(cookie_manager) is None:
-    # JS has scheduled a client-side reload; don't also rerun the server.
-        st.stop()
+if _boot is None:
+    # Client will reload once; add a safety param so it can't loop.
+    if booted == "0":
+        components.html("""
+        <script>
+        (function () {
+          try {
+            // Only add once
+            const u = new URL(window.location.href);
+            if (!u.searchParams.get('booted')) {
+              u.searchParams.set('booted','1');
+              // Replace so back button isn't noisy
+              window.location.replace(u.toString());
+            }
+          } catch(e) {}
+        })();
+        </script>
+        """, height=0)
+    st.stop()
+
 
 
 # ------------------------------------------------------------------------------
@@ -11775,6 +11796,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
