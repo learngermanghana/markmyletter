@@ -9979,7 +9979,7 @@ def _get_db():
 def load_student_levels():
     """
     Load the roster with a 'Level' column.
-    Expected columns (case-insensitive): student_code, level
+    # Expected columns (case-insensitive): student_code, level
     We normalize headers and try common alternatives for student code and level.
     """
     sheet_id = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
@@ -11776,6 +11776,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
