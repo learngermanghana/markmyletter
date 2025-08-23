@@ -19,6 +19,8 @@ from datetime import date, datetime, timedelta, timezone as _timezone, UTC
 from datetime import datetime as _dt
 from uuid import uuid4
 
+from typing import Optional
+
 # ==== Third-Party Packages ====
 import bcrypt
 import firebase_admin
