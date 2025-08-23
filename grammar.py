@@ -7044,6 +7044,7 @@ if tab == "My Course":
                     _qdocs = list(q_base.order_by("created_at", direction=direction_desc).limit(250).stream())
                 except Exception:
                     _qdocs = list(q_base.order_by("created_at", direction="DESCENDING").limit(250).stream())
+
                 def _to_datetime_any(v):
                     if v is None:
                         return None
@@ -7053,14 +7054,13 @@ if tab == "My Course":
                     except Exception:
                         dt_val = None
                     if dt_val is None:
-
                         try:
                             if hasattr(v, "seconds"):
-                                 dt_val = _dt.fromtimestamp(int(v.seconds), _timezone.utc)
+                                dt_val = _dt.fromtimestamp(int(v.seconds), _timezone.utc)
                         except Exception:
                             dt_val = None
                     if dt_val is None:
-                         try:
+                        try:
                             if _dateparse:
                                 dt_val = _dateparse.parse(str(v))
                         except Exception:
@@ -7073,9 +7073,9 @@ if tab == "My Course":
                             except Exception:
                                 continue
                     if dt_val and dt_val.tzinfo is None:
-                         dt_val = dt_val.replace(tzinfo=_timezone.utc)
-                     return dt_val
-                    
+                        dt_val = dt_val.replace(tzinfo=_timezone.utc)
+                    return dt_val
+                   
 
                 for _doc in _qdocs:
                     _d = (_doc.to_dict() or {})
