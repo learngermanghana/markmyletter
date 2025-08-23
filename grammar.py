@@ -25,7 +25,6 @@ from typing import Optional
 # ==== Third-Party Packages ====
 import bcrypt
 import firebase_admin
-import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 import streamlit as st
