@@ -257,7 +257,7 @@ os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Initialize local SQLite database
-init_db(
+init_db()
 
 
 # ------------------------------------------------------------------------------
@@ -11548,6 +11548,7 @@ if tab == "Schreiben Trainer":
                     [],
                 )
                 st.session_state["__refresh"] = st.session_state.get("__refresh", 0) + 1
+
 
 
 
