@@ -5208,7 +5208,7 @@ if tab == "My Course":
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
             idx = st.selectbox(
                 "Lesson selection",
-                range(len(schedule)),
+                list(range(len(schedule))),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
                 label_visibility="collapsed",
             )
