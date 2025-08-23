@@ -7348,7 +7348,7 @@ if tab == "My Course":
                             "reply_text": reply_text.strip(),
                             "replied_by_name": student_name,
                             "replied_by_code": student_code,
-                            "timestamp": _dt.utcnow(),
+                            "timestamp": _dt.now(_timezone.utc),
                         }
                         r_ref = q_base.document(q_id).collection("replies")
                         r_ref.document(str(uuid4())[:8]).set(reply_payload)
@@ -7356,7 +7356,7 @@ if tab == "My Course":
                         _notify_slack(
                             f"💬 *New Q&A reply* — {class_name}\n"
                             f"*By:* {student_name} ({student_code})  •  *QID:* {q_id}\n"
-                            f"*When:* {_dt.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
+                            f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                             f"*Reply:* {prev}"
                         )
                         st.session_state[clear_key] = True
