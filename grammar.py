@@ -714,6 +714,15 @@ def _persist_session_client(token: str, student_code: str = "") -> None:
 
 
 COOKIE_SECRET = os.getenv("COOKIE_SECRET") or st.secrets.get("COOKIE_SECRET")
+if not COOKIE_SECRET:
+    if os.getenv("ALLOW_DEV_COOKIE_SECRET"):
+        COOKIE_SECRET = "development-cookie-secret"
+        st.warning(
+            "Using development cookie secret. Do not use in production."
+        )
+    else:
+        st.error("COOKIE_SECRET environment variable is required.")
+        st.stop()
 cookie_manager = EncryptedCookieManager(prefix="falowen_", password=COOKIE_SECRET)
 
 def _ensure_session_token_from_client():
