@@ -10834,8 +10834,8 @@ def update_schreiben_stats(student_code: str):
     """
     Recalculates stats for a student after every submission.
     """
-    submissions = db.collection("schreiben_submissions").where(filter=FieldFilter("student_code", "==", student_code)).stream()
-        "student_code", "==", student_code
+    submissions = db.collection("schreiben_submissions").where(
+        filter=FieldFilter("student_code", "==", student_code)
     ).stream()
 
     total = 0
