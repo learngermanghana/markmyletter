@@ -5550,7 +5550,7 @@ if tab == "My Course":
                 st.session_state[last_val_key]   = st.session_state[draft_key]
                 st.session_state[last_ts_key]    = time.time()
                 st.session_state[saved_flag_key] = True
-                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(timezone.utc))
+                st.session_state[saved_at_key]   = (cloud_ts or datetime.now(_timezone.utc))
                 st.session_state[hydrated_key]   = True
 
                 try:
@@ -5660,7 +5660,7 @@ if tab == "My Course":
                 _, _, _, saved_at_key = _draft_state_keys(draft_key)
                 ts = st.session_state.get(saved_at_key)
                 when = (
-                    ts.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                    ts.astimezone(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                     if ts else datetime.now(_timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                 )
 
