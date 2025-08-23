@@ -7252,7 +7252,6 @@ if tab == "My Course":
                                 q_base.document(q_id).update({
                                     "question": new_text.strip(),
                                     "topic": (new_topic or "").strip(),
-                                    f"*When:* {_dt.now(_timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC\n"
                                 })
                                 _notify_slack(
                                     f"✏️ *Q&A question edited* — {class_name}\n"
