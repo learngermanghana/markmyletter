@@ -5207,12 +5207,11 @@ if tab == "My Course":
         else:
             st.markdown("<span style='font-weight:700; font-size:1rem;'>Choose your lesson/day:</span>", unsafe_allow_html=True)
             idx = st.selectbox(
-                "",
                 "Lesson selection",
                 range(len(schedule)),
                 format_func=lambda i: f"Day {schedule[i]['day']} - {schedule[i]['topic']}",
                 label_visibility="collapsed",
-             )
+            )
 
         st.divider()
 
