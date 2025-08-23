@@ -1,5 +1,4 @@
 # ==== Standard Library ====
-import atexit
 import base64
 import calendar
 import difflib
@@ -11,7 +10,6 @@ import math
 import os
 import random
 import re
-import sqlite3
 import tempfile
 import time
 import urllib.parse as _urllib
@@ -24,14 +22,12 @@ from typing import Optional
 
 # ==== Third-Party Packages ====
 import bcrypt
-import firebase_admin
 import pandas as pd
 import requests
 import streamlit as st
 st.cache = st.cache_data 
 import streamlit.components.v1 as components
 from docx import Document
-from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1 import FieldFilter
 from fpdf import FPDF
 from gtts import gTTS
@@ -40,31 +36,57 @@ from streamlit.components.v1 import html as st_html
 from streamlit_cookies_manager import EncryptedCookieManager
 from streamlit_quill import st_quill
 
-# ==== Email (Gmail via SMTP) ====
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+
+# --- Falowen modules ---
+from falowen.email_utils import send_reset_email, build_gas_reset_link
+from falowen.youtube import fetch_youtube_playlist_videos, YOUTUBE_PLAYLIST_IDS
+from falowen.sessions import (
+    db,
+    create_session_token,
+    validate_session_token,
+    refresh_or_rotate_session_token,
+    destroy_session_token,
+    api_get,
+    api_post,
+)
+from falowen.db import (
+    FALOWEN_DAILY_LIMIT,
+    VOCAB_DAILY_LIMIT,
+    SCHREIBEN_DAILY_LIMIT,
+    get_connection,
+    init_db,
+    get_sprechen_usage,
+    inc_sprechen_usage,
+    has_sprechen_quota,
+)
 
 if os.environ.get("RENDER"):
     import fastapi
     from fastapi import FastAPI
-    from uvicorn import Config, Server
 
-    # Lightweight endpoint so Render gets 200 OK
-    api = FastAPI()
+    try:
+        from uvicorn import Config, Server
+    except ImportError:
+        print(
+            "WARNING: uvicorn is not installed; health check endpoint will be skipped."
+        )
+    else:
+         # Lightweight endpoint so Render gets 200 OK
+         api = FastAPI()
 
-    @api.get("/healthz")
-    async def healthz():
-        return {"status": "ok"}
 
-    # Start the API on a background thread
-    import threading
+         @api.get("/healthz")
+         async def healthz():
+             return {"status": "ok"}
 
-    def _start_health():
-        cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
-        Server(cfg).run()
+             # Start the API on a background thread
+             import threading
 
-    threading.Thread(target=_start_health, daemon=True).start()
+             def _start_health():
+                  cfg = Config(api, host="0.0.0.0", port=8000, log_level="warning")
+                  Server(cfg).run()
+
+             threading.Thread(target=_start_health, daemon=True).start()
 
 # ------------------------------------------------------------------------------
 # Page config MUST be the first Streamlit call
@@ -170,71 +192,6 @@ div[data-testid="stButton"][data-baseweb="button"] button#logout_btn:focus{
 
 st.markdown(LOGOUT_CSS, unsafe_allow_html=True)
 
-# ------------------------------------------------------------------------------
-# Email creds
-# ------------------------------------------------------------------------------
-EMAIL_ADDRESS = st.secrets.get("SMTP_FROM", "learngermanghana@gmail.com")
-EMAIL_PASSWORD = st.secrets.get("SMTP_PASSWORD", "mwxlxvvtnrcxqdml")  # Gmail App Password
-
-def send_reset_email(to_email: str, reset_link: str) -> bool:
-    """Send a password reset email. Returns True on success, False otherwise."""
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = EMAIL_ADDRESS
-        msg["To"] = to_email
-        msg["Subject"] = "Falowen Password Reset"
-
-        html = f"""
-        <p>Hello,</p>
-        <p>You requested to reset your password. Click below to continue:</p>
-        <p><a href="{reset_link}">{reset_link}</a></p>
-        <p>This link will expire in 1 hour.</p>
-        <br>
-        <p>– Falowen Team</p>
-        """
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.sendmail(EMAIL_ADDRESS, [to_email], msg.as_string())
-        return True
-    except Exception as e:
-        st.error(f"❌ Failed to send reset email: {e}")
-        return False
-
-# Prefer Apps Script reset page for password updates
-GAS_RESET_URL = st.secrets.get(
-    "GAS_RESET_URL",
-    "https://script.google.com/macros/s/AKfycbwdgYJtya39qzBZaXdUqkk1i2_LIHna5CN-lHYveq7O1yG46KghKZWKNKqGYlh_xyZU/exec?token=<THE_TOKEN>"
-)
-
-def build_gas_reset_link(token: str) -> str:
-    """
-    Build a valid Apps Script reset link with ?token=.
-    Supports either a placeholder (<THE_TOKEN>) or a bare /exec URL.
-    """
-    url = GAS_RESET_URL.strip()
-    if "<THE_TOKEN>" in url:
-        return url.replace("<THE_TOKEN>", _urllib.quote(token, safe=""))
-
-    parts = _urllib.urlparse(url)
-    qs = dict(_urllib.parse_qsl(parts.query, keep_blank_values=True))
-    qs["token"] = token
-    new_query = _urllib.urlencode(qs, doseq=True)
-    return _urllib.urlunparse(parts._replace(query=new_query))
-
-# ------------------------------------------------------------------------------
-# Firebase init (Firestore)
-# ------------------------------------------------------------------------------
-try:
-    if not firebase_admin._apps:   # guard against re-init
-        cred_dict = dict(st.secrets["firebase"])
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    db = firestore.client()
-except Exception as e:
-    st.error(f"Firebase init failed: {e}")
-    raise RuntimeError("Firebase initialization failed") from e
 
 # ------------------------------------------------------------------------------
 # PWA + head helper (define BEFORE you call it)
@@ -288,100 +245,6 @@ _bootstrap_state()
 # Compatibility alias
 html = st_html
 
-# ------------------------------------------------------------------------------
-# Firestore sessions (server-side auth state)
-# ------------------------------------------------------------------------------
-SESSIONS_COL = "sessions"
-SESSION_TTL_MIN = 60 * 24 * 14         # 14 days
-SESSION_ROTATE_AFTER_MIN = 60 * 24 * 7 # 7 days
-
-def _rand_token(nbytes: int = 48) -> str:
-    return base64.urlsafe_b64encode(os.urandom(nbytes)).rstrip(b"=").decode("ascii")
-
-def create_session_token(student_code: str, name: str, ua_hash: str = "") -> str:
-    now = time.time()
-    token = _rand_token()
-    db.collection(SESSIONS_COL).document(token).set({
-        "student_code": (student_code or "").strip().lower(),
-        "name": name or "",
-        "issued_at": now,
-        "expires_at": now + (SESSION_TTL_MIN * 60),
-        "ua_hash": ua_hash or "",
-    })
-    return token
-
-def validate_session_token(token: str, ua_hash: str = "") -> dict | None:
-    if not token:
-        return None
-    try:
-        snap = db.collection(SESSIONS_COL).document(token).get()
-        if not snap.exists:
-            return None
-        data = snap.to_dict() or {}
-        if float(data.get("expires_at", 0)) < time.time():
-            return None
-        if data.get("ua_hash") and ua_hash and data["ua_hash"] != ua_hash:
-            return None
-        return data
-    except Exception:
-        return None
-
-def refresh_or_rotate_session_token(token: str) -> str:
-    """Extend session TTL and rotate token periodically without crashing the app."""
-    try:
-        ref = db.collection(SESSIONS_COL).document(token)
-        snap = ref.get()
-        if not snap.exists:
-            return token
-
-        data = snap.to_dict() or {}
-        now = time.time()
-
-        # Extend TTL
-        ref.update({"expires_at": now + (SESSION_TTL_MIN * 60)})
-
-        # Rotate if older than threshold
-        if now - float(data.get("issued_at", now)) > (SESSION_ROTATE_AFTER_MIN * 60):
-            new_token = _rand_token()
-            db.collection(SESSIONS_COL).document(new_token).set({
-                **data,
-                "issued_at": now,
-                "expires_at": now + (SESSION_TTL_MIN * 60),
-            })
-            try:
-                ref.delete()
-            except Exception:
-                pass
-            return new_token
-
-    except Exception as e:
-        st.warning(f"Session rotation warning: {e}")
-    return token
-
-def destroy_session_token(token: str) -> None:
-    try:
-        db.collection(SESSIONS_COL).document(token).delete()
-    except Exception:
-        pass
-
-def api_get(url, headers=None, params=None, **kwargs):
-    headers = headers or {}
-    params = params or {}
-    tok = st.session_state.get("session_token", "")
-    if tok:
-        headers.setdefault("X-Session-Token", tok)
-        params.setdefault("session_token", tok)
-    return requests.get(url, headers=headers, params=params, **kwargs)
-
-def api_post(url, headers=None, params=None, **kwargs):
-    headers = headers or {}
-    params = params or {}
-    tok = st.session_state.get("session_token", "")
-    if tok:
-        headers.setdefault("X-Session-Token", tok)
-        params.setdefault("session_token", tok)
-    return requests.post(url, headers=headers, params=params, **kwargs)
-
 
 # ------------------------------------------------------------------------------
 # OpenAI (used elsewhere in app)
@@ -393,154 +256,9 @@ if not OPENAI_API_KEY:
 os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# ------------------------------------------------------------------------------
-# DB (SQLite) and initialization
-# ------------------------------------------------------------------------------
-def get_connection():
-    if "conn" not in st.session_state:
-        st.session_state["conn"] = sqlite3.connect(
-            "vocab_progress.db", check_same_thread=False
-        )
-        atexit.register(st.session_state["conn"].close)
-    return st.session_state["conn"]
+# Initialize local SQLite database
+init_db(
 
-def init_db():
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS vocab_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            word TEXT,
-            student_answer TEXT,
-            is_correct INTEGER,
-            date TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS schreiben_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            essay TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sprechen_progress (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            name TEXT,
-            level TEXT,
-            teil TEXT,
-            message TEXT,
-            score INTEGER,
-            feedback TEXT,
-            date TEXT
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS exam_progress (
-            student_code TEXT,
-            level TEXT,
-            teil TEXT,
-            remaining TEXT,
-            used TEXT,
-            PRIMARY KEY (student_code, level, teil)
-        )
-    """)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS my_vocab (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_code TEXT,
-            level TEXT,
-            word TEXT,
-            translation TEXT,
-            date_added TEXT
-        )
-    """)
-    for tbl in ["sprechen_usage", "letter_coach_usage", "schreiben_usage"]:
-        c.execute(f"""
-            CREATE TABLE IF NOT EXISTS {tbl} (
-                student_code TEXT,
-                date TEXT,
-                count INTEGER,
-                PRIMARY KEY (student_code, date)
-            )
-        """)
-    conn.commit()
-init_db()
-
-# ------------------------------------------------------------------------------
-# Constants & helpers
-# ------------------------------------------------------------------------------
-FALOWEN_DAILY_LIMIT = 20
-VOCAB_DAILY_LIMIT = 20
-SCHREIBEN_DAILY_LIMIT = 5
-
-def get_sprechen_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        "SELECT count FROM sprechen_usage WHERE student_code=? AND date=?",
-        (student_code, today)
-    )
-    row = c.fetchone()
-    return row[0] if row else 0
-
-def inc_sprechen_usage(student_code):
-    today = str(date.today())
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute(
-        """
-        INSERT INTO sprechen_usage (student_code, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(student_code, date)
-        DO UPDATE SET count = count + 1
-        """,
-        (student_code, today)
-    )
-    conn.commit()
-
-def has_sprechen_quota(student_code, limit=FALOWEN_DAILY_LIMIT):
-    return get_sprechen_usage(student_code) < limit
-
-# ------------------------------------------------------------------------------
-# YouTube helpers
-# ------------------------------------------------------------------------------
-YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "AIzaSyBA3nJi6dh6-rmOLkA4Bb0d7h0tLAp7xE4")
-
-YOUTUBE_PLAYLIST_IDS = {
-    "A1": ["PL5vnwpT4NVTdwFarD9kwm1HONsqQ11l-b"],
-    "A2": ["PLs7zUO7VPyJ7YxTq_g2Rcl3Jthd5bpTdY", "PLquImyRfMt6dVHL4MxFXMILrFh86H_HAc", "PLs7zUO7VPyJ5Eg0NOtF9g-RhqA25v385c"],
-    "B1": ["PLs7zUO7VPyJ5razSfhOUVbTv9q6SAuPx-", "PLB92CD6B288E5DB61"],
-    "B2": ["PLs7zUO7VPyJ5XMfT7pLvweRx6kHVgP_9C", "PLs7zUO7VPyJ6jZP-s6dlkINuEjFPvKMG0", "PLs7zUO7VPyJ4SMosRdB-35Q07brhnVToY"],
-}
-
-@st.cache_data(ttl=43200)
-def fetch_youtube_playlist_videos(playlist_id, api_key=YOUTUBE_API_KEY):
-    base_url = "https://www.googleapis.com/youtube/v3/playlistItems"
-    params = {"part": "snippet", "playlistId": playlist_id, "maxResults": 50, "key": api_key}
-    videos, next_page = [], ""
-    while True:
-        if next_page:
-            params["pageToken"] = next_page
-        response = requests.get(base_url, params=params, timeout=12)
-        data = response.json()
-        for item in data.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            videos.append({"title": item["snippet"]["title"], "url": f"https://www.youtube.com/watch?v={vid}"})
-        next_page = data.get("nextPageToken")
-        if not next_page:
-            break
-    return videos
 
 # ------------------------------------------------------------------------------
 # Student sheet loading
