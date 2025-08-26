@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 import pandas as pd
+import requests  # for webhook to Google Sheets
 
 # Firebase Admin
 import firebase_admin
@@ -17,10 +18,10 @@ st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
 STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
 REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
-
+# === Apps Script Webhook (Option 2) ===
+# ⚠️ Consider moving these to st.secrets in production.
 G_SHEETS_WEBHOOK_URL   = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
 G_SHEETS_WEBHOOK_TOKEN = "Xenomexpress7727/"
-
 
 # =============================================================================
 # FIREBASE GLOBALS + INIT
@@ -141,7 +142,6 @@ def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.
 
     doc_ref = _DB.collection("drafts_v2").document(str(student_code))
     try:
-        # Safe to call even if it doesn't exist; we'll still try reading subcollection
         _ = doc_ref.get()
     except Exception:
         pass
@@ -198,6 +198,23 @@ def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.
         df = df.sort_values("submitted_at", ascending=False, na_position="last")
     return df
 
+# --- Webhook helper (Option 2) ------------------------------------------------
+def _post_rows_to_sheet(rows: list[dict]) -> dict:
+    """POST a batch of rows to the Apps Script webhook."""
+    url = G_SHEETS_WEBHOOK_URL
+    token = G_SHEETS_WEBHOOK_TOKEN
+    if not url or not token:
+        raise RuntimeError("Webhook URL/token missing.")
+    payload = {"token": token, "rows": rows}
+    r = requests.post(url, json=payload, timeout=20)
+    try:
+        data = r.json()
+    except Exception:
+        data = {"ok": False, "error": f"Non-JSON response: {r.text[:200]}"}
+    if r.status_code != 200 or not data.get("ok"):
+        raise RuntimeError(f"Webhook error {r.status_code}: {data}")
+    return data
+
 # =============================================================================
 # UI: MARKING TAB
 # =============================================================================
@@ -229,7 +246,7 @@ def render_marking_tab():
         st.error("Required columns 'name' or 'studentcode' not found in students sheet.")
         return
 
-    # --- Student search/select ---
+    # --- Student search/select (persistent) ---
     st.subheader("1) Search & Select Student")
     with st.form("marking_student_form"):
         search_student = st.text_input("Type student name or code...", key="tab7_search_student")
@@ -248,21 +265,26 @@ def render_marking_tab():
         st.info("No students match your search. Try a different query.")
         return
 
-    display_name = students_filtered[name_col].fillna("").astype(str)
-    display_code = students_filtered[code_col].fillna("").astype(str)
-    student_list = (display_name + " (" + display_code + ")").tolist()
+    # Build options as IDs (codes) and format labels via format_func => persists across reruns
+    codes = students_filtered[code_col].astype(str).tolist()
+    code_to_name = dict(zip(students_filtered[code_col].astype(str), students_filtered[name_col].astype(str)))
 
-    chosen = st.selectbox("Select Student", student_list, key="tab7_single_student")
-    if not chosen or "(" not in chosen:
+    def _fmt_student(code: str):
+        return f"{code_to_name.get(code, 'Unknown')} ({code})"
+
+    # The widget now stores the *code* (ID), not the label string
+    selected_student_code = st.selectbox("Select Student", codes, format_func=_fmt_student, key="tab7_selected_code")
+    if not selected_student_code:
         st.warning("Select a student to continue.")
         return
 
-    student_code = chosen.split("(")[-1].replace(")", "").strip()
-    sel_rows = students_filtered[students_filtered[code_col] == student_code]
+    # Retrieve the selected student row
+    sel_rows = students_filtered[students_filtered[code_col] == selected_student_code]
     if sel_rows.empty:
         st.warning("Selected student not found.")
         return
     student_row = sel_rows.iloc[0]
+    student_code = selected_student_code
 
     st.markdown(f"**Selected:** {student_row.get(name_col, '')} ({student_code})")
     st.subheader("Student Code")
@@ -284,12 +306,11 @@ def render_marking_tab():
         st.cache_data.clear()
 
     df_lessons = load_student_lessons_from_drafts(student_code, limit=int(max_items))
-
     if df_lessons.empty:
         st.info("No drafts found for this student.")
         return
 
-    # Apply client-side filter
+    # Client-side filter
     if search_lessons:
         q = search_lessons.strip().lower()
         def _row_match(r):
@@ -306,9 +327,8 @@ def render_marking_tab():
         st.info("No drafts matched your filter.")
         return
 
-    # Nice preview table
+    # Preview table
     df_preview = df_view.copy()
-    # Shorten long text for preview
     df_preview["answer_preview"] = df_preview["answer_text"].fillna("").astype(str).str.slice(0, 160)
     try:
         st.data_editor(
@@ -322,17 +342,17 @@ def render_marking_tab():
         st.dataframe(df_preview[["title","lesson_id","submitted_at","score","comment","file","answer_preview"]],
                      use_container_width=True, height=300)
 
-    # Build a selection list
-    options = [
-        f"{row['title']} — {row['lesson_id']} — {(row['submitted_at'] or '')}"
-        for _, row in df_view.iterrows()
-    ]
-    chosen_submission = st.selectbox("Choose a submission to mark", options, key="tab7_choose_submission")
-    if not chosen_submission:
-        st.warning("Pick a submission to continue.")
-        return
-    sel_idx = options.index(chosen_submission)
-    chosen_row = df_view.iloc[sel_idx]
+    # === Persistent submission select:
+    # Use lesson_id as the *value* (ID) and display a pretty label via format_func.
+    ids = df_view["lesson_id"].astype(str).tolist()
+    id_to_row = df_view.set_index("lesson_id").to_dict(orient="index")
+
+    def _fmt_submission(lesson_id: str):
+        r = id_to_row.get(lesson_id, {})
+        return f"{r.get('title','')} — {lesson_id} — {r.get('submitted_at','')}"
+
+    selected_lesson_id = st.selectbox("Choose a submission to mark", ids, format_func=_fmt_submission, key="tab7_selected_submission")
+    chosen_row = df_view[df_view["lesson_id"] == selected_lesson_id].iloc[0]
 
     st.markdown("**Selected submission details:**")
     st.json({
@@ -408,10 +428,111 @@ def render_marking_tab():
     st.download_button("📋 Reference + Student (txt)", data=combined_text,
                        file_name="ref_and_student.txt", mime="text/plain")
 
+    # =======================
+    # 6) Build Sheet Row (for Google Sheets)
+    # =======================
+    st.subheader("6) Build Sheet Row (for Google Sheets)")
+
+    def _fmt_date(dt):
+        if isinstance(dt, datetime):
+            return dt.strftime("%Y-%m-%d")
+        return str(dt) if dt else ""
+
+    assign_source = st.selectbox(
+        "Assignment value to use",
+        ["Use submission title", "Use reference title (if any)", "Custom..."],
+        index=0
+    )
+
+    if assign_source == "Use submission title":
+        assignment_value = (chosen_row.get("title") or chosen_row.get("lesson_id") or "").strip()
+    elif assign_source == "Use reference title (if any)":
+        assignment_value = (assignment or "").strip()
+    else:
+        assignment_value = st.text_input("Custom assignment text", value=(chosen_row.get("title") or ""))
+
+    student_name  = str(student_row.get(name_col, "")).strip()
+    student_level = str(student_row.get("level", "")).strip()
+    date_value    = _fmt_date(chosen_row.get("submitted_at"))
+    link_value    = chosen_row.get("file") or ""
+
+    one_row = {
+        "studentcode": student_code,
+        "name":        student_name,
+        "assignment":  assignment_value,
+        "score":       "",        # you fill in
+        "comments":    "",        # you fill in
+        "date":        date_value,
+        "level":       student_level,
+        "link":        link_value,
+    }
+
+    st.write("Preview row:")
+    st.dataframe(pd.DataFrame([one_row]), use_container_width=True)
+
+    # One-row actions
+    c1, c2 = st.columns(2)
+    with c1:
+        row_csv = pd.DataFrame([one_row]).to_csv(index=False)
+        st.download_button("⬇️ Download this row (CSV)", data=row_csv, file_name="grade_row.csv", mime="text/csv")
+    with c2:
+        if st.button("📤 Send this row to Google Sheet (Webhook)"):
+            try:
+                result = _post_rows_to_sheet([one_row])
+                st.success(f"Appended {result.get('appended', 1)} row ✅")
+            except Exception as e:
+                st.error(f"Failed to send: {e}")
+
+    st.divider()
+
+    # =======================
+    # 7) Export Cart (multi-row → Google Sheet)
+    # =======================
+    st.subheader("7) Export Cart (build multiple rows, then export/send)")
+
+    if "export_cart" not in st.session_state:
+        st.session_state["export_cart"] = []
+
+    col1, col2, col3, col4 = st.columns([1,1,1,1])
+    with col1:
+        if st.button("➕ Add current row to cart"):
+            st.session_state["export_cart"].append(one_row)
+    with col2:
+        if st.button("🧹 Clear cart"):
+            st.session_state["export_cart"] = []
+    with col3:
+        st.caption(f"{len(st.session_state['export_cart'])} row(s) in cart")
+    with col4:
+        if st.session_state["export_cart"]:
+            if st.button("📤 Send cart to Google Sheet (Webhook)"):
+                try:
+                    rows_to_send = st.session_state.get("edited_cart_rows") or st.session_state["export_cart"]
+                    result = _post_rows_to_sheet(rows_to_send)
+                    st.success(f"Appended {result.get('appended', len(rows_to_send))} rows ✅")
+                except Exception as e:
+                    st.error(f"Failed to send: {e}")
+
+    if st.session_state["export_cart"]:
+        cart_df = pd.DataFrame(st.session_state["export_cart"], columns=[
+            "studentcode","name","assignment","score","comments","date","level","link"
+        ])
+        st.write("Edit score/comments here if you like, then download or send:")
+        edited_cart = st.data_editor(cart_df, use_container_width=True, num_rows="dynamic")
+        # Remember edits for the send button above
+        st.session_state["edited_cart_rows"] = edited_cart.to_dict(orient="records")
+
+        # Download options
+        cart_csv = edited_cart.to_csv(index=False)
+        cart_tsv = edited_cart.to_csv(index=False, sep="\t")
+        st.download_button("⬇️ Download cart as CSV", data=cart_csv, file_name="grades_export.csv", mime="text/csv")
+        with st.expander("Copy-friendly TSV (paste straight into Google Sheet)"):
+            st.code(cart_tsv.strip(), language="text")
+    else:
+        st.info("Cart is empty — add the row above to start building a batch.")
+
 
 # Run standalone OR import into your tabs and call with:
 # with tabs[7]:
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
-
