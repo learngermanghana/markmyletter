@@ -1,59 +1,69 @@
+import os
+import json
+from datetime import datetime, timedelta
+
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-import urllib.parse
 
-# --- Firebase Admin ---
+# Firebase Admin
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
-
-# Optional: Email via SendGrid
-import requests
 
 
 st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
 
-# ---- Firebase globals + init ----
-import os, json
-import firebase_admin
-from firebase_admin import credentials, firestore, storage
+# =============================================================================
+# CONFIG: GOOGLE SHEETS SOURCES (edit to your sheet URLs)
+# =============================================================================
+STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
+REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
+# =============================================================================
+# FIREBASE GLOBALS + INIT
+# =============================================================================
 _DB = None
 _BUCKET = None
 
-def _init_firebase_from_secrets():
-    """Initialize firebase_admin from Streamlit secrets or env; accept [FIREBASE_SERVICE_ACCOUNT] or [firebase]."""
-    if firebase_admin._apps:
-        return
 
-    cred_dict = None
-    # Prefer Streamlit secrets tables
+def _get_firebase_cred_dict():
+    """Return a dict of service account credentials from secrets/env/dev file."""
+    # 1) Preferred: Streamlit secrets (supports either table name)
     try:
-        import streamlit as st  # already imported elsewhere
         if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
-            cred_dict = dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
-        elif "firebase" in st.secrets:  # your screenshot shows [firebase]
-            cred_dict = dict(st.secrets["firebase"])
+            return dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+        if "firebase" in st.secrets:
+            return dict(st.secrets["firebase"])
     except Exception:
         pass
 
-    # Optional fallbacks for local dev
-    if cred_dict is None:
-        raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-        if raw:
-            try:
-                cred_dict = json.loads(raw)
-            except Exception:
-                pass
-    if cred_dict is None and os.path.exists("serviceAccountKey.json"):
-        with open("serviceAccountKey.json", "r", encoding="utf-8") as f:
-            cred_dict = json.load(f)
+    # 2) Optional: Environment variable with full JSON
+    raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+    if raw:
+        try:
+            return json.loads(raw)
+        except Exception:
+            pass
 
-    if cred_dict is None:
-        # Don’t crash; the UI can show a warning later.
+    # 3) Optional: local dev file (do NOT commit)
+    if os.path.exists("serviceAccountKey.json"):
+        with open("serviceAccountKey.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    return None
+
+
+def _ensure_firebase_clients():
+    """Create _DB and _BUCKET once, safely."""
+    global _DB, _BUCKET
+    if _DB is not None:
+        return  # already initialized
+
+    cred_dict = _get_firebase_cred_dict()
+    if not cred_dict:
+        _DB, _BUCKET = None, None
         return
 
-    # Optional bucket from secrets or env
+    # Bucket name from secrets or env (optional)
     bucket_name = None
     try:
         bucket_name = st.secrets.get("FIREBASE_STORAGE_BUCKET")
@@ -62,107 +72,42 @@ def _init_firebase_from_secrets():
     if not bucket_name:
         bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
 
-    cfg = {"storageBucket": bucket_name} if bucket_name else {}
-    firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
-
-def _ensure_firebase_clients():
-    """Create _DB and _BUCKET once, safely."""
-    global _DB, __BUCKET
-    if _DB is not None and _BUCKET is not None:
-        return
-    _init_firebase_from_secrets()
-    if firebase_admin._apps:
-        _DB = firestore.client()
-        try:
-            _BUCKET = storage.bucket()
-        except Exception:
-            _BUCKET = None
-    else:
-        _DB, _BUCKET = None, None
-
-
-# ==============================
-#  CONFIG: GOOGLE SHEETS SOURCES
-# ==============================
-STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
-REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
-
-# ==============================
-#  FIREBASE INIT (via secrets)
-# ==============================
-def _init_firebase():
-    if firebase_admin._apps:
-        return
-
-    cred_dict = None
-
-    # Accept either table name
-    try:
-        if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
-            cred_dict = dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
-        elif "firebase" in st.secrets:
-            cred_dict = dict(st.secrets["firebase"])
-    except Exception:
-        pass
-
-    # Optional fallbacks (env var / local file for dev)
-    if cred_dict is None:
-        import os, json
-        raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-        if raw:
-            try:
-                cred_dict = json.loads(raw)
-            except Exception:
-                pass
-    if cred_dict is None and os.path.exists("serviceAccountKey.json"):
-        import json
-        with open("serviceAccountKey.json", "r", encoding="utf-8") as f:
-            cred_dict = json.load(f)
-
-    if cred_dict is None:
-        st.warning('Firebase not configured. Add [FIREBASE_SERVICE_ACCOUNT] (or [firebase]) to secrets.toml.')
-        return
-
-    try:
-        cred = credentials.Certificate(cred_dict)
-        # bucket name from secrets or env
-        bucket_name = None
-        try:
-            bucket_name = st.secrets.get("FIREBASE_STORAGE_BUCKET")
-        except Exception:
-            pass
-        if not bucket_name:
-            import os
-            bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
-
+    # Initialize app once
+    if not firebase_admin._apps:
         cfg = {"storageBucket": bucket_name} if bucket_name else {}
-        firebase_admin.initialize_app(cred, cfg)
-    except Exception as e:
-        st.error(f"Failed to initialize Firebase: {e}")
+        firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
+
+    _DB = firestore.client()
+    try:
+        _BUCKET = storage.bucket()
+    except Exception:
+        _BUCKET = None
 
 
-
-# ==============================
-#  HELPERS
-# ==============================
+# =============================================================================
+# HELPERS
+# =============================================================================
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
     return df
+
 
 @st.cache_data(show_spinner=False)
 def load_marking_students(url: str) -> pd.DataFrame:
     df = pd.read_csv(url, dtype=str)
     df = _normalize_columns(df)
-    # sometimes it's student_code; normalize to studentcode
+    # sometimes the sheet uses 'student_code' — normalize to 'studentcode'
     if "student_code" in df.columns:
         df = df.rename(columns={"student_code": "studentcode"})
     return df
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_marking_ref_answers(url: str) -> pd.DataFrame:
     df = pd.read_csv(url, dtype=str)
     df = _normalize_columns(df)
     return df
+
 
 def col_lookup(df: pd.DataFrame, name: str):
     key = name.lower().replace(" ", "").replace("_", "")
@@ -171,13 +116,16 @@ def col_lookup(df: pd.DataFrame, name: str):
             return c
     return None
 
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_student_submissions_from_firebase(student_code: str, assignment_title: str, limit: int = 5) -> pd.DataFrame:
     """Fetch latest submissions for a given student_code + assignment_title from Firestore.
+
     Expected collection: assignments
-    Expected fields: student_code, assignment_title, submitted_at, score, comment/feedback,
-                     file_path or storage_path, answer_text/answer/text/content
+    Expected fields on docs: student_code, assignment_title, submitted_at, score, comment/feedback,
+                             file_path or storage_path (optional), answer_text/answer/text/content
     """
+    _ensure_firebase_clients()
     if _DB is None:
         return pd.DataFrame()
 
@@ -206,7 +154,7 @@ def load_student_submissions_from_firebase(student_code: str, assignment_title: 
         except Exception:
             pass
 
-        # Signed file URL if storage path exists
+        # Optional signed file URL if storage path exists
         file_path = data.get("file_path") or data.get("storage_path")
         signed_url = None
         if file_path and _BUCKET is not None:
@@ -233,37 +181,13 @@ def load_student_submissions_from_firebase(student_code: str, assignment_title: 
 
     return pd.DataFrame(rows)
 
-def send_email_report(pdf_bytes_or_none, to_email: str, subject: str, html_body: str):
-    """Send an email via SendGrid. Configure in secrets:
-        SENDGRID_API_KEY = "..."
-        EMAIL_SENDER = "no-reply@yourdomain.com"
-    """
-    api_key = st.secrets.get("SENDGRID_API_KEY")
-    sender  = st.secrets.get("EMAIL_SENDER")
-    if not api_key or not sender:
-        raise RuntimeError("Missing SENDGRID_API_KEY or EMAIL_SENDER in secrets.")
 
-    payload = {
-        "personalizations": [{"to": [{"email": to_email}]}],
-        "from": {"email": sender},
-        "subject": subject,
-        "content": [{"type": "text/html", "value": html_body}],
-    }
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    resp = requests.post("https://api.sendgrid.com/v3/mail/send",
-                         headers=headers, json=payload, timeout=20)
-    if resp.status_code not in (200, 202):
-        raise RuntimeError(f"SendGrid error {resp.status_code}: {resp.text}")
-
-
-# ==============================
-#  UI: MARKING TAB
-# ==============================
+# =============================================================================
+# UI: MARKING TAB
+# =============================================================================
 def render_marking_tab():
+    _ensure_firebase_clients()
+
     st.title("📝 Reference & Student Work Share")
 
     # --- Load Data (Sheets) ---
@@ -313,7 +237,6 @@ def render_marking_tab():
     student_list = (display_name + " (" + display_code + ")").tolist()
 
     chosen = st.selectbox("Select Student", student_list, key="tab7_single_student")
-
     if not chosen or "(" not in chosen:
         st.warning("Select a student to continue.")
         return
@@ -326,7 +249,6 @@ def render_marking_tab():
     student_row = sel_rows.iloc[0]
 
     st.markdown(f"**Selected:** {student_row.get(name_col, '')} ({student_code})")
-    student_level = student_row.get('level', "")
 
     # --- Student Code display ---
     st.subheader("Student Code")
@@ -365,9 +287,11 @@ def render_marking_tab():
         if not assignment_row.empty:
             all_cols = assignment_row.columns.tolist()
             answer_cols = [c for c in all_cols if str(c).startswith("answer")]
-            answer_cols = [c for c in answer_cols
-                           if pd.notnull(assignment_row.iloc[0][c])
-                           and str(assignment_row.iloc[0][c]).strip() != ""]
+            answer_cols = [
+                c for c in answer_cols
+                if pd.notnull(assignment_row.iloc[0][c])
+                and str(assignment_row.iloc[0][c]).strip() != ""
+            ]
             ref_answers = [str(assignment_row.iloc[0][c]) for c in answer_cols]
 
     if ref_answers:
@@ -397,6 +321,7 @@ def render_marking_tab():
         if df_fire.empty:
             st.info("No live submission found in Firebase for this student/assignment yet.")
         else:
+            # Prefer LinkColumn (Streamlit >= 1.32); otherwise fallback to dataframe
             try:
                 st.data_editor(
                     df_fire,
@@ -413,7 +338,7 @@ def render_marking_tab():
             latest_text = df_fire.iloc[0].get("answer_text") or ""
 
     # --- Student Work ---
-    st.subheader("4. Paste Student Work (for your manual cross-check or ChatGPT use)")
+    st.subheader("4. Paste Student Work (for your manual cross-check or AI use)")
     student_work = st.text_area(
         "Paste the student's answer here:",
         height=160,
@@ -422,7 +347,7 @@ def render_marking_tab():
     )
 
     # --- Combined copy box ---
-    st.subheader("5. Copy Zone (Reference + Student Work for AI/manual grading)")
+    st.subheader("5. Copy Zone (Reference + Student Work)")
     combined_text = (
         "Reference answer:\n"
         + answers_combined_str
@@ -430,106 +355,24 @@ def render_marking_tab():
         + (student_work or "")
     )
     st.code(combined_text, language="markdown")
-    st.info("Copy this block and paste into ChatGPT or your AI tool for checking.")
+    st.info("Copy this block and paste into your AI tool for checking.")
 
-    # --- Copy buttons ---
-    st.write("**Quick Copy:**")
+    # --- Quick downloads ---
+    st.write("**Quick Download:**")
     st.download_button(
-        "📋 Copy Only Reference Answer (txt)",
+        "📋 Reference Answer (txt)",
         data=answers_combined_str,
         file_name="reference_answer.txt",
         mime="text/plain",
         key="tab7_copy_reference",
     )
     st.download_button(
-        "📋 Copy Both (Reference + Student)",
+        "📋 Reference + Student (txt)",
         data=combined_text,
         file_name="ref_and_student.txt",
         mime="text/plain",
         key="tab7_copy_both",
     )
-
-    st.divider()
-
-    # --- EMAIL SECTION ---
-    st.subheader("6. Send Reference Answer to Student by Email")
-    default_email = student_row.get('email', '') if 'email' in student_row else ""
-    to_email = st.text_input("Recipient Email", value=default_email, key="tab7_email")
-    subject  = st.text_input("Subject", value=f"{student_row.get(name_col, '')} - {assignment} Reference Answer", key="tab7_subject")
-
-    ref_ans_email = f"<b>Reference Answers:</b><br>{answers_combined_html}<br>"
-
-    body = st.text_area(
-        "Message (HTML allowed)",
-        value=(
-            f"Hello {student_row.get(name_col, '')},<br><br>"
-            f"Here is the reference answer for your assignment <b>{assignment}</b>.<br><br>"
-            f"{ref_ans_email}"
-            "Thank you<br>Learn Language Education Academy"
-        ),
-        key="tab7_body",
-        height=200
-    )
-    if st.button("📧 Email Reference", key="tab7_send_email"):
-        if not to_email or "@" not in to_email:
-            st.error("Please enter a valid recipient email address.")
-        else:
-            try:
-                send_email_report(None, to_email, subject, body)
-                st.success(f"Reference sent to {to_email}!")
-            except Exception as e:
-                st.error(f"Failed to send email: {e}")
-
-    # --- WhatsApp Share Section ---
-    st.subheader("7. Share Reference via WhatsApp")
-    # Try to get student's phone automatically
-    wa_phone = ""
-    wa_cols = [c for c in student_row.index if "phone" in c]
-    for c in wa_cols:
-        v = str(student_row[c])
-        if v.startswith("233") or v.startswith("0") or v.isdigit():
-            wa_phone = v
-            break
-    wa_phone = st.text_input(
-        "WhatsApp Number (International format, e.g., 233245022743)",
-        value=wa_phone,
-        key="tab7_wa_number"
-    )
-
-    ref_ans_wa = "*Reference Answers:*\n" + answers_combined_str + "\n"
-    default_wa_msg = (
-        f"Hello {student_row.get(name_col, '')},\n\n"
-        f"Here is the reference answer for your assignment: *{assignment}*\n"
-        f"{ref_ans_wa}\n"
-        "Open my results and resources on the Falowen app for scores and full comment.\n"
-        "Don't forget to click refresh for latest results for your new scores to show.\n"
-        "Thank you!\n"
-        "Happy learning!"
-    )
-    wa_message = st.text_area(
-        "WhatsApp Message (edit before sending):",
-        value=default_wa_msg, height=180, key="tab7_wa_message_edit"
-    )
-
-    wa_num_formatted = (wa_phone or "").strip().replace(" ", "").replace("-", "")
-    if wa_num_formatted.startswith("0"):
-        wa_num_formatted = "233" + wa_num_formatted[1:]
-    elif wa_num_formatted.startswith("+"):
-        wa_num_formatted = wa_num_formatted[1:]
-    elif not wa_num_formatted.startswith("233") and wa_num_formatted.isdigit() and len(wa_num_formatted) >= 9:
-        wa_num_formatted = "233" + wa_num_formatted[-9:]
-
-    if wa_num_formatted.isdigit() and len(wa_num_formatted) >= 11:
-        wa_link = f"https://wa.me/{wa_num_formatted}?text={urllib.parse.quote(wa_message)}"
-        st.markdown(
-            f'<a href="{wa_link}" target="_blank">'
-            f'<button style="background-color:#25d366;color:white;border:none;padding:10px 20px;border-radius:5px;font-size:16px;cursor:pointer;">'
-            '📲 Share Reference on WhatsApp'
-            '</button></a>',
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("Enter a valid WhatsApp number (233XXXXXXXXX or 0XXXXXXXXX).")
 
 
 # Run standalone OR import into your tabs and call with:
@@ -537,5 +380,3 @@ def render_marking_tab():
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
-
-
