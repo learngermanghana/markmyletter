@@ -8,6 +8,8 @@ import pandas as pd
 # Firebase Admin
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
+from google.api_core.exceptions import FailedPrecondition, InvalidArgument
+
 
 
 st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
@@ -119,67 +121,66 @@ def col_lookup(df: pd.DataFrame, name: str):
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_student_submissions_from_firebase(student_code: str, assignment_title: str, limit: int = 5) -> pd.DataFrame:
-    """Fetch latest submissions for a given student_code + assignment_title from Firestore.
-
-    Expected collection: assignments
-    Expected fields on docs: student_code, assignment_title, submitted_at, score, comment/feedback,
-                             file_path or storage_path (optional), answer_text/answer/text/content
-    """
+    """Fetch latest submissions for a given student_code + assignment_title from Firestore."""
     _ensure_firebase_clients()
     if _DB is None:
         return pd.DataFrame()
 
-    q = _DB.collection("assignments").where("student_code", "==", str(student_code))
+    base_q = _DB.collection("assignments").where("student_code", "==", str(student_code))
     if assignment_title:
-        q = q.where("assignment_title", "==", str(assignment_title))
+        base_q = base_q.where("assignment_title", "==", str(assignment_title))
 
-    # Order by submitted_at if present
-    try:
-        q = q.order_by("submitted_at", direction=firestore.Query.DESCENDING)
-    except Exception:
-        pass
-
-    docs = list(q.limit(int(limit)).stream())
-
-    rows = []
-    for d in docs:
-        data = d.to_dict() or {}
-        ts = data.get("submitted_at")
-        # Normalize timestamp
-        try:
-            if hasattr(ts, "to_datetime"):
-                ts = ts.to_datetime()
-            elif isinstance(ts, (int, float)):
-                ts = datetime.fromtimestamp(ts)
-        except Exception:
-            pass
-
-        # Optional signed file URL if storage path exists
-        file_path = data.get("file_path") or data.get("storage_path")
-        signed_url = None
-        if file_path and _BUCKET is not None:
+    def _docs_to_df(docs):
+        rows = []
+        for d in docs:
+            data = d.to_dict() or {}
+            ts = data.get("submitted_at")
             try:
-                blob = _BUCKET.blob(file_path)
-                signed_url = blob.generate_signed_url(expiration=timedelta(hours=6), method="GET")
+                if hasattr(ts, "to_datetime"):
+                    ts = ts.to_datetime()
+                elif isinstance(ts, (int, float)):
+                    ts = datetime.fromtimestamp(ts)
             except Exception:
-                signed_url = None
+                pass
+            file_path = data.get("file_path") or data.get("storage_path")
+            signed_url = None
+            if file_path and _BUCKET is not None:
+                try:
+                    blob = _BUCKET.blob(file_path)
+                    signed_url = blob.generate_signed_url(expiration=timedelta(hours=6), method="GET")
+                except Exception:
+                    signed_url = None
+            rows.append({
+                "doc_id": d.id,
+                "submitted_at": ts,
+                "score": data.get("score"),
+                "comment": data.get("comment") or data.get("feedback"),
+                "file": signed_url,
+                "answer_text": (
+                    data.get("answer_text")
+                    or data.get("answer")
+                    or data.get("text")
+                    or data.get("content")
+                    or ""
+                ),
+            })
+        df = pd.DataFrame(rows)
+        return df
 
-        rows.append({
-            "doc_id": d.id,
-            "submitted_at": ts,
-            "score": data.get("score"),
-            "comment": data.get("comment") or data.get("feedback"),
-            "file": signed_url,
-            "answer_text": (
-                data.get("answer_text")
-                or data.get("answer")
-                or data.get("text")
-                or data.get("content")
-                or ""
-            ),
-        })
+    # Try indexed query: order by submitted_at desc
+    try:
+        q = base_q.order_by("submitted_at", direction=firestore.Query.DESCENDING).limit(int(limit))
+        docs = list(q.stream())
+        return _docs_to_df(docs)
+    except (FailedPrecondition, InvalidArgument):
+        # Missing composite index (or invalid order). Fallback: no order_by, then sort client-side.
+        q = base_q.limit(int(limit))
+        docs = list(q.stream())
+        df = _docs_to_df(docs)
+        if "submitted_at" in df.columns:
+            df = df.sort_values("submitted_at", ascending=False, na_position="last")
+        return df
 
-    return pd.DataFrame(rows)
 
 
 # =============================================================================
@@ -380,3 +381,4 @@ def render_marking_tab():
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
+
