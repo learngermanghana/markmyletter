@@ -17,6 +17,11 @@ st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
 STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
 REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
+
+G_SHEETS_WEBHOOK_URL   = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
+G_SHEETS_WEBHOOK_TOKEN = "Xenomexpress7727/"
+
+
 # =============================================================================
 # FIREBASE GLOBALS + INIT
 # =============================================================================
@@ -409,3 +414,4 @@ def render_marking_tab():
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
+
