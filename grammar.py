@@ -661,7 +661,7 @@ def render_marking_tab():
             except Exception as e:
                 st.error(f"Failed to send: {e}")
 
-    st.divider()
+
 
 
 
