@@ -103,9 +103,8 @@ def col_lookup(df: pd.DataFrame, name: str):
 
 def _pick_first_nonempty(d: dict, keys: list[str], default=""):
     for k in keys:
-        v = d.get(k)
-        if v is not None:
-            s = str(v).strip()
+        if k in d and d[k] is not None:
+            s = str(d[k]).strip()
             if s != "":
                 return s
     return default
@@ -117,7 +116,6 @@ def _normalize_timestamp(ts):
         if isinstance(ts, (int, float)):
             return datetime.fromtimestamp(ts)
         if isinstance(ts, str):
-            # try iso parse
             try:
                 return datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except Exception:
@@ -127,67 +125,47 @@ def _normalize_timestamp(ts):
     return None
 
 @st.cache_data(ttl=60, show_spinner=False)
-def load_student_lessons_from_drafts(student_code: str, assignment_title: str | None, limit: int = 10) -> pd.DataFrame:
+def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.DataFrame:
     """
-    Reads from drafts_v2/{student_code}/lessons.
-    Tries to match assignment by common fields: 'assignment', 'assignment_title', 'title', 'topic', 'lesson', 'name'.
+    Reads all lessons for a student from drafts_v2/{student_code}/lessons (no assignment filtering).
     Returns newest first by submitted/updated/timestamp if present.
     """
     _ensure_firebase_clients()
     if _DB is None or not student_code:
         return pd.DataFrame()
 
-    # Get the student's doc
     doc_ref = _DB.collection("drafts_v2").document(str(student_code))
-    # If the document doesn't exist, just return empty
     try:
-        if not doc_ref.get().exists:
-            return pd.DataFrame()
+        # Safe to call even if it doesn't exist; we'll still try reading subcollection
+        _ = doc_ref.get()
     except Exception:
-        # If security rules block get(), still try reading subcollection
         pass
 
     lessons_ref = doc_ref.collection("lessons")
-    # Pull a reasonable number and filter client-side (flexible field names)
     try:
-        docs = list(lessons_ref.limit(100).stream())
+        docs = list(lessons_ref.limit(limit).stream())
     except Exception:
         return pd.DataFrame()
 
     rows = []
-    at_lower = (assignment_title or "").lower()
     for d in docs:
         data = d.to_dict() or {}
 
-        # Identify a title/name for the lesson
+        # Identify a title/name for the lesson (fallback to doc id)
         title = _pick_first_nonempty(
-            data,
-            ["assignment_title", "assignment", "title", "topic", "lesson", "name"],
-            default=d.id
+            data, ["assignment_title", "assignment", "title", "topic", "lesson", "name"], default=d.id
         )
-
-        # Try to decide if this lesson matches the selected assignment
-        matches = True
-        if assignment_title:
-            matches = (at_lower in title.lower())
-
-        if not matches:
-            continue
 
         # Text content fields (try several)
         answer_text = _pick_first_nonempty(
-            data,
-            ["answer_text", "text", "content", "draft", "body", "message", "answer"],
-            default=""
+            data, ["answer_text", "text", "content", "draft", "body", "message", "answer"], default=""
         )
 
-        # Try to extract timestamp-like fields
-        ts = _pick_first_nonempty(
-            data,
-            ["submitted_at", "updated_at", "timestamp", "ts", "created_at"],
-            default=""
+        # Timestamp-like fields
+        ts_raw = _pick_first_nonempty(
+            data, ["submitted_at", "updated_at", "timestamp", "ts", "created_at"], default=""
         )
-        ts = _normalize_timestamp(ts)
+        ts = _normalize_timestamp(ts_raw)
 
         # Optional file link (via Storage signed URL)
         file_path = _pick_first_nonempty(data, ["file_path", "storage_path", "file"], default="")
@@ -210,50 +188,6 @@ def load_student_lessons_from_drafts(student_code: str, assignment_title: str | 
             "answer_text": answer_text,
         })
 
-    df = pd.DataFrame(rows)
-    if not df.empty and "submitted_at" in df.columns:
-        df = df.sort_values("submitted_at", ascending=False, na_position="last")
-    if limit and not df.empty:
-        df = df.head(int(limit))
-    return df
-
-# (Optional) keep the old loader as a fallback if you also have an 'assignments' collection
-@st.cache_data(ttl=60, show_spinner=False)
-def load_student_submissions_from_assignments(student_code: str, assignment_title: str | None, limit: int = 5) -> pd.DataFrame:
-    _ensure_firebase_clients()
-    if _DB is None:
-        return pd.DataFrame()
-    q = _DB.collection("assignments").where("student_code", "==", str(student_code))
-    if assignment_title:
-        q = q.where("assignment_title", "==", str(assignment_title))
-    try:
-        docs = list(q.limit(int(limit)).stream())
-    except Exception:
-        docs = []
-    rows = []
-    for d in docs:
-        data = d.to_dict() or {}
-        ts = _normalize_timestamp(
-            _pick_first_nonempty(data, ["submitted_at", "updated_at", "timestamp", "ts", "created_at"], default="")
-        )
-        file_path = _pick_first_nonempty(data, ["file_path", "storage_path", "file"], default="")
-        signed_url = None
-        if file_path and _BUCKET is not None:
-            try:
-                blob = _BUCKET.blob(file_path)
-                signed_url = blob.generate_signed_url(expiration=timedelta(hours=6), method="GET")
-            except Exception:
-                signed_url = None
-        rows.append({
-            "doc_path": f"assignments/{d.id}",
-            "lesson_id": d.id,
-            "title": _pick_first_nonempty(data, ["assignment_title", "assignment", "title"], default=d.id),
-            "submitted_at": ts,
-            "score": data.get("score"),
-            "comment": _pick_first_nonempty(data, ["comment", "feedback", "remarks"], default=""),
-            "file": signed_url,
-            "answer_text": _pick_first_nonempty(data, ["answer_text", "answer", "text", "content"], default=""),
-        })
     df = pd.DataFrame(rows)
     if not df.empty and "submitted_at" in df.columns:
         df = df.sort_values("submitted_at", ascending=False, na_position="last")
@@ -291,7 +225,7 @@ def render_marking_tab():
         return
 
     # --- Student search/select ---
-    st.subheader("1. Search & Select Student")
+    st.subheader("1) Search & Select Student")
     with st.form("marking_student_form"):
         search_student = st.text_input("Type student name or code...", key="tab7_search_student")
         submitted_student = st.form_submit_button("Apply")
@@ -326,48 +260,111 @@ def render_marking_tab():
     student_row = sel_rows.iloc[0]
 
     st.markdown(f"**Selected:** {student_row.get(name_col, '')} ({student_code})")
-
-    # --- Student Code display ---
     st.subheader("Student Code")
     st.code(student_code)
 
-    # --- Assignment search/select ---
-    st.subheader("2. Select Assignment")
-    available_assignments = (
-        ref_df['assignment'].dropna().astype(str).unique().tolist()
-        if 'assignment' in ref_df.columns else []
-    )
+    # --- Student submissions (no assignment filter) ---
+    st.subheader("2) Pick a Submission to Mark (from drafts_v2 → lessons)")
 
-    with st.form("marking_assignment_form"):
-        search_assign = st.text_input("Type assignment title...", key="tab7_search_assign")
-        submitted_assign = st.form_submit_button("Filter assignments")
+    # Small control bar
+    colA, colB, colC = st.columns([1, 1, 1])
+    with colA:
+        refresh = st.button("🔄 Refresh list", use_container_width=True)
+    with colB:
+        max_items = st.number_input("Max lessons to load", min_value=10, max_value=500, value=200, step=10)
+    with colC:
+        search_lessons = st.text_input("Filter by title / doc id / text snippet", value="")
 
-    if submitted_assign and search_assign:
-        filtered = [a for a in available_assignments if search_assign.lower() in a.lower()]
+    if refresh:
+        st.cache_data.clear()
+
+    df_lessons = load_student_lessons_from_drafts(student_code, limit=int(max_items))
+
+    if df_lessons.empty:
+        st.info("No drafts found for this student.")
+        return
+
+    # Apply client-side filter
+    if search_lessons:
+        q = search_lessons.strip().lower()
+        def _row_match(r):
+            return (
+                (str(r.get("title","")).lower().find(q) >= 0) or
+                (str(r.get("lesson_id","")).lower().find(q) >= 0) or
+                (str(r.get("answer_text","")).lower().find(q) >= 0)
+            )
+        df_view = df_lessons[df_lessons.apply(_row_match, axis=1)].copy()
     else:
-        filtered = available_assignments
+        df_view = df_lessons.copy()
 
-    if not filtered:
-        st.info("No assignments match your search.")
+    if df_view.empty:
+        st.info("No drafts matched your filter.")
         return
 
-    assignment = st.selectbox("Select Assignment", filtered, key="tab7_assign_select")
-    if not assignment:
-        st.info("Select an assignment to continue.")
-        return
+    # Nice preview table
+    df_preview = df_view.copy()
+    # Shorten long text for preview
+    df_preview["answer_preview"] = df_preview["answer_text"].fillna("").astype(str).str.slice(0, 160)
+    try:
+        st.data_editor(
+            df_preview[["title","lesson_id","submitted_at","score","comment","file","answer_preview"]],
+            use_container_width=True,
+            column_config={"file": st.column_config.LinkColumn("File")},
+            disabled=True,
+            height=300,
+        )
+    except Exception:
+        st.dataframe(df_preview[["title","lesson_id","submitted_at","score","comment","file","answer_preview"]],
+                     use_container_width=True, height=300)
 
-    # --- Reference Answer ---
-    st.subheader("3. Reference Answer (from Google Sheet)")
+    # Build a selection list
+    options = [
+        f"{row['title']} — {row['lesson_id']} — {(row['submitted_at'] or '')}"
+        for _, row in df_view.iterrows()
+    ]
+    chosen_submission = st.selectbox("Choose a submission to mark", options, key="tab7_choose_submission")
+    if not chosen_submission:
+        st.warning("Pick a submission to continue.")
+        return
+    sel_idx = options.index(chosen_submission)
+    chosen_row = df_view.iloc[sel_idx]
+
+    st.markdown("**Selected submission details:**")
+    st.json({
+        "doc_path": chosen_row.get("doc_path"),
+        "title": chosen_row.get("title"),
+        "lesson_id": chosen_row.get("lesson_id"),
+        "submitted_at": str(chosen_row.get("submitted_at")),
+        "score": chosen_row.get("score"),
+        "comment": chosen_row.get("comment"),
+        "file": chosen_row.get("file"),
+    })
+
+    # --- Reference selection (independent of lesson title) ---
+    st.subheader("3) Select Reference Answer (from Google Sheet)")
+    available_assignments = ref_df['assignment'].dropna().astype(str).unique().tolist()
+    with st.form("marking_assignment_form"):
+        search_assign = st.text_input("Search reference titles...", key="tab7_search_assign")
+        submitted_assign = st.form_submit_button("Filter references")
+    if submitted_assign and search_assign:
+        ref_filtered = [a for a in available_assignments if search_assign.lower() in a.lower()]
+    else:
+        ref_filtered = available_assignments
+    if not ref_filtered:
+        st.info("No references match your search.")
+        return
+    assignment = st.selectbox("Reference to use", ref_filtered, key="tab7_assign_select")
     ref_answers = []
-    assignment_row = ref_df[ref_df['assignment'].astype(str) == assignment]
-    if not assignment_row.empty:
-        all_cols = assignment_row.columns.tolist()
-        answer_cols = [c for c in all_cols if str(c).startswith("answer")]
-        answer_cols = [
-            c for c in answer_cols
-            if pd.notnull(assignment_row.iloc[0][c]) and str(assignment_row.iloc[0][c]).strip() != ""
-        ]
-        ref_answers = [str(assignment_row.iloc[0][c]) for c in answer_cols]
+    if assignment:
+        assignment_row = ref_df[ref_df['assignment'].astype(str) == assignment]
+        if not assignment_row.empty:
+            all_cols = assignment_row.columns.tolist()
+            answer_cols = [c for c in all_cols if str(c).startswith("answer")]
+            answer_cols = [
+                c for c in answer_cols
+                if pd.notnull(assignment_row.iloc[0][c]) and str(assignment_row.iloc[0][c]).strip() != ""
+            ]
+            ref_answers = [str(assignment_row.iloc[0][c]) for c in answer_cols]
 
     if ref_answers:
         if len(ref_answers) == 1:
@@ -378,58 +375,22 @@ def render_marking_tab():
             for i, ans in enumerate(ref_answers):
                 with ans_tabs[i]:
                     st.write(ans)
-        answers_combined_str  = "\n".join([f"{i+1}. {ans}" for i, ans in enumerate(ref_answers)])
+        answers_combined_str = "\n".join([f"{i+1}. {ans}" for i, ans in enumerate(ref_answers)])
     else:
-        answers_combined_str  = "No answer available."
-        st.info("No reference answer available for this assignment.")
+        answers_combined_str = "No answer available."
+        st.info("No reference answer available for this selection.")
 
-    # --- Latest student drafts from drafts_v2 ---
-    st.subheader("3b. Latest Student Drafts (drafts_v2 ➜ lessons)")
-    latest_text = ""
-    if _DB is None:
-        st.info("Firebase is not configured. Add FIREBASE_SERVICE_ACCOUNT (and FIREBASE_STORAGE_BUCKET) to secrets to enable live submissions.")
-    else:
-        df_lessons = load_student_lessons_from_drafts(student_code, assignment_title=assignment, limit=10)
-        if df_lessons.empty:
-            # (Optional) Also try the old 'assignments' collection as a fallback
-            df_assign = load_student_submissions_from_assignments(student_code, assignment_title=assignment, limit=5)
-            if df_assign.empty:
-                st.info("No drafts/submissions found for this student and assignment.")
-            else:
-                st.caption("Showing fallback results from 'assignments' collection.")
-                try:
-                    st.data_editor(
-                        df_assign,
-                        use_container_width=True,
-                        column_config={"file": st.column_config.LinkColumn("File")},
-                        disabled=True
-                    )
-                except Exception:
-                    st.dataframe(df_assign, use_container_width=True)
-                latest_text = df_assign.iloc[0].get("answer_text") or ""
-        else:
-            try:
-                st.data_editor(
-                    df_lessons,
-                    use_container_width=True,
-                    column_config={"file": st.column_config.LinkColumn("File")},
-                    disabled=True
-                )
-            except Exception:
-                st.dataframe(df_lessons, use_container_width=True)
-            latest_text = df_lessons.iloc[0].get("answer_text") or ""
-
-    # --- Student Work ---
-    st.subheader("4. Paste Student Work (for your manual cross-check or AI use)")
+    # --- Student Work (prefilled from the chosen submission) ---
+    st.subheader("4) Student Work")
     student_work = st.text_area(
-        "Paste the student's answer here:",
-        height=160,
+        "Edit before marking if needed:",
+        height=180,
         key="tab7_student_work",
-        value=latest_text or ""
+        value=chosen_row.get("answer_text") or ""
     )
 
-    # --- Combined copy box & downloads ---
-    st.subheader("5. Copy Zone (Reference + Student Work)")
+    # --- Combined copy & downloads ---
+    st.subheader("5) Copy Zone (Reference + Student Work)")
     combined_text = (
         "Reference answer:\n"
         + answers_combined_str
