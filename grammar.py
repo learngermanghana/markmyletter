@@ -2,6 +2,7 @@
 # Streamlit app: Reference & Student Work Share + Grading export to Google Sheets
 
 import os
+import re
 import json
 from datetime import datetime, timedelta
 
@@ -25,12 +26,12 @@ REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmE
 # Prefer storing in st.secrets:
 #   G_SHEETS_WEBHOOK_URL, G_SHEETS_WEBHOOK_TOKEN
 # You can hardcode as fallback (replace placeholders).
-G_SHEETS_WEBHOOK_URL   = st.secrets.get("G_SHEETS_WEBHOOK_URL",   "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec")
-G_SHEETS_WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
+G_SHEETS_WEBHOOK_URL   = st.secrets.get("G_SHEETS_WEBHOOK_URL",   "PUT_YOUR_WEB_APP_URL_HERE")
+G_SHEETS_WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "PUT_YOUR_TOKEN_HERE")
 
-# Optional: set a default target tab (pick one)
+# Optional default target tab
 DEFAULT_TARGET_SHEET_GID  = 2121051612      # your grades tab gid
-DEFAULT_TARGET_SHEET_NAME = None            # or set "scores_backup"
+DEFAULT_TARGET_SHEET_NAME = None            # or e.g. "scores_backup"
 
 # =============================================================================
 # FIREBASE GLOBALS + INIT
@@ -137,6 +138,72 @@ def _normalize_timestamp(ts):
 def _norm_key(s: str) -> str:
     return "".join(ch for ch in str(s).lower() if ch.isalnum())
 
+# ---- Auto-pick reference link helpers ---------------------------------------
+_URL_RE = re.compile(r"https?://[^\s\]>)}\"'`]+", re.IGNORECASE)
+
+def _extract_urls_from_text(text: str) -> list[str]:
+    if not isinstance(text, str) or not text:
+        return []
+    # find urls and strip trailing punctuation that often sticks to cells
+    raw = _URL_RE.findall(text)
+    cleaned = []
+    for u in raw:
+        u = u.strip().rstrip(".,;:)]}>\"'")
+        cleaned.append(u)
+    # de-dup preserve order
+    seen = set()
+    out = []
+    for u in cleaned:
+        if u not in seen:
+            seen.add(u)
+            out.append(u)
+    return out
+
+def _is_keyish(url: str) -> bool:
+    """Prefer URLs that obviously carry a key."""
+    u = url.strip()
+    # key=... in query string, or ends with /key or ...key
+    if re.search(r"[?&]key(=|$)", u, re.IGNORECASE):
+        return True
+    path = re.sub(r"[?#].*$", "", u)  # strip query/hash
+    if path.lower().endswith("/key") or path.lower().endswith("key"):
+        return True
+    return False
+
+def _autopick_ref_link_from_row(row: pd.Series) -> str:
+    """Search common link columns first, then scan all answers/fields."""
+    rd = row.to_dict()
+    urls: list[str] = []
+
+    # 1) Likely link columns first
+    for field in ["answer_link", "answerlink", "reference_link", "ref_link", "link", "url"]:
+        v = rd.get(field)
+        urls.extend(_extract_urls_from_text(v))
+
+    # 2) Search any 'answer*' columns for embedded links
+    for col, val in rd.items():
+        if isinstance(col, str) and col.lower().startswith("answer"):
+            urls.extend(_extract_urls_from_text(val))
+
+    # 3) As a last resort, scan every string field
+    if not urls:
+        for val in rd.values():
+            if isinstance(val, str):
+                urls.extend(_extract_urls_from_text(val))
+
+    # uniq preserve order
+    seen = set()
+    urls = [u for u in urls if not (u in seen or seen.add(u))]
+    if not urls:
+        return ""
+
+    # prefer "keyish" urls; if multiple, take the LAST one
+    keyish = [u for u in urls if _is_keyish(u)]
+    if keyish:
+        return keyish[-1]
+    # else take the last url found
+    return urls[-1]
+
 @st.cache_data(ttl=120, show_spinner=False)
 def list_drafts_student_doc_ids(limit: int = 500) -> list:
     """List up to N top-level doc IDs under drafts_v2 (student docs)."""
@@ -156,55 +223,6 @@ def list_drafts_student_doc_ids(limit: int = 500) -> list:
         except Exception:
             return []
     return out
-
-def _find_candidate_doc_ids_from_firestore(student_code: str, student_name: str) -> dict:
-    """Return {'exact': <doc_id or None>, 'suggestions': [doc_ids...] }."""
-    _ensure_firebase_clients()
-    res = {"exact": None, "suggestions": []}
-    if _DB is None:
-        return res
-
-    # Try obvious variants of the sheet's student code
-    variants = []
-    raw = str(student_code or "").strip()
-    if raw:
-        variants.extend([raw, raw.lower(), raw.upper(), raw.replace(" ", ""), "".join(ch for ch in raw if ch.isalnum())])
-    seen = set()
-    variants = [v for v in variants if not (v in seen or seen.add(v))]
-
-    for vid in variants:
-        try:
-            if _DB.collection("drafts_v2").document(vid).get().exists:
-                res["exact"] = vid
-                return res
-        except Exception:
-            pass
-
-    # Field-based matches
-    try_fields = []
-    if student_code:
-        try_fields += [("studentcode", student_code), ("student_code", student_code), ("code", student_code)]
-    if student_name:
-        try_fields += [("name", student_name)]
-    for field, value in try_fields:
-        try:
-            q = _DB.collection("drafts_v2").where(field, "==", value).limit(5)
-            for m in q.stream():
-                res["suggestions"].append(m.id)
-        except Exception:
-            pass
-
-    # Fuzzy suggestions by id substring
-    if not res["suggestions"]:
-        all_ids = list_drafts_student_doc_ids(limit=200)
-        code_n = _norm_key(student_code)
-        name_n = _norm_key(student_name)
-        for did in all_ids:
-            if (code_n and code_n in _norm_key(did)) or (name_n and name_n in _norm_key(did)):
-                res["suggestions"].append(did)
-                if len(res["suggestions"]) >= 10:
-                    break
-    return res
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) -> pd.DataFrame:
@@ -467,7 +485,7 @@ def render_marking_tab():
         "file": chosen_row.get("file"),
     })
 
-    # --- Reference selection (and answer link auto-detect) ---
+    # --- Reference selection (auto-pick link) ---
     st.subheader("3) Select Reference Answer (from Google Sheet)")
     available_assignments = ref_df['assignment'].dropna().astype(str).unique().tolist()
     with st.form("marking_assignment_form"):
@@ -487,14 +505,14 @@ def render_marking_tab():
     if assignment:
         assignment_row = ref_df[ref_df['assignment'].astype(str) == assignment]
         if not assignment_row.empty:
-            rowdict = assignment_row.iloc[0].to_dict()
+            row = assignment_row.iloc[0]
             # Answers
             all_cols = assignment_row.columns.tolist()
             answer_cols = [c for c in all_cols if str(c).startswith("answer")]
-            answer_cols = [c for c in answer_cols if pd.notnull(assignment_row.iloc[0][c]) and str(assignment_row.iloc[0][c]).strip() != ""]
-            ref_answers = [str(assignment_row.iloc[0][c]) for c in answer_cols]
-            # Detect a link column
-            ref_link_value = _pick_first_nonempty(rowdict, ["answer_link","answerlink","reference_link","ref_link","link","url"], default="")
+            answer_cols = [c for c in answer_cols if pd.notnull(row[c]) and str(row[c]).strip() != ""]
+            ref_answers = [str(row[c]) for c in answer_cols]
+            # Auto-pick link (prefers key= / endswith key)
+            ref_link_value = _autopick_ref_link_from_row(row)
 
     if ref_answers:
         if len(ref_answers) == 1:
@@ -511,7 +529,9 @@ def render_marking_tab():
         st.info("No reference answer available for this selection.")
 
     if ref_link_value:
-        st.markdown(f"**Reference link detected:** [{ref_link_value}]({ref_link_value})")
+        st.markdown(f"**Auto-picked reference link:** [{ref_link_value}]({ref_link_value})")
+    with st.expander("Edit picked link (optional)"):
+        ref_link_value = st.text_input("Reference answer link", value=ref_link_value, placeholder="https://...")
 
     # --- Student Work ---
     st.subheader("4) Student Work")
@@ -532,7 +552,7 @@ def render_marking_tab():
 
     # --- Link Source Selection (ref link vs submission file vs both vs custom) ---
     st.subheader("4c) Link to attach in the sheet")
-    default_idx = 0 if ref_link_value else 1
+    default_idx = 0  # we now always default to the reference answer link
     link_source = st.selectbox(
         "Pick which link goes into the 'link' column",
         ["Reference answer link", "Submission file link", "Both (reference first)", "Custom..."],
@@ -606,7 +626,7 @@ def render_marking_tab():
     st.write("Preview row:")
     st.dataframe(pd.DataFrame([one_row]), use_container_width=True)
 
-    # Optional controls: choose destination tab for this send
+    # Destination tab (optional)
     st.markdown("**Destination tab (optional):**")
     dest_mode = st.radio(
         "Where to send?",
@@ -631,8 +651,11 @@ def render_marking_tab():
     with c2:
         if st.button("📤 Send this row to Google Sheet (Webhook)"):
             try:
-                result = _post_rows_to_sheet([one_row], sheet_name=dest_name if dest_name else None,
-                                             sheet_gid=int(dest_gid) if dest_gid else (DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else None))
+                result = _post_rows_to_sheet(
+                    [one_row],
+                    sheet_name=dest_name if dest_name else None,
+                    sheet_gid=int(dest_gid) if dest_gid else (DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else None)
+                )
                 st.success(f"Appended {result.get('appended', 1)} row ✅  → {result.get('sheetName')} (gid {result.get('sheetId')})")
             except Exception as e:
                 st.error(f"Failed to send: {e}")
