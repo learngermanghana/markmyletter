@@ -13,6 +13,74 @@ import requests
 
 st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
 
+# ---- Firebase globals + init ----
+import os, json
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
+
+_DB = None
+_BUCKET = None
+
+def _init_firebase_from_secrets():
+    """Initialize firebase_admin from Streamlit secrets or env; accept [FIREBASE_SERVICE_ACCOUNT] or [firebase]."""
+    if firebase_admin._apps:
+        return
+
+    cred_dict = None
+    # Prefer Streamlit secrets tables
+    try:
+        import streamlit as st  # already imported elsewhere
+        if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
+            cred_dict = dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+        elif "firebase" in st.secrets:  # your screenshot shows [firebase]
+            cred_dict = dict(st.secrets["firebase"])
+    except Exception:
+        pass
+
+    # Optional fallbacks for local dev
+    if cred_dict is None:
+        raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if raw:
+            try:
+                cred_dict = json.loads(raw)
+            except Exception:
+                pass
+    if cred_dict is None and os.path.exists("serviceAccountKey.json"):
+        with open("serviceAccountKey.json", "r", encoding="utf-8") as f:
+            cred_dict = json.load(f)
+
+    if cred_dict is None:
+        # Don’t crash; the UI can show a warning later.
+        return
+
+    # Optional bucket from secrets or env
+    bucket_name = None
+    try:
+        bucket_name = st.secrets.get("FIREBASE_STORAGE_BUCKET")
+    except Exception:
+        pass
+    if not bucket_name:
+        bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
+
+    cfg = {"storageBucket": bucket_name} if bucket_name else {}
+    firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
+
+def _ensure_firebase_clients():
+    """Create _DB and _BUCKET once, safely."""
+    global _DB, __BUCKET
+    if _DB is not None and _BUCKET is not None:
+        return
+    _init_firebase_from_secrets()
+    if firebase_admin._apps:
+        _DB = firestore.client()
+        try:
+            _BUCKET = storage.bucket()
+        except Exception:
+            _BUCKET = None
+    else:
+        _DB, _BUCKET = None, None
+
+
 # ==============================
 #  CONFIG: GOOGLE SHEETS SOURCES
 # ==============================
@@ -469,4 +537,5 @@ def render_marking_tab():
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
+
 
