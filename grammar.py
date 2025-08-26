@@ -26,8 +26,8 @@ REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmE
 # Prefer storing in st.secrets:
 #   G_SHEETS_WEBHOOK_URL, G_SHEETS_WEBHOOK_TOKEN
 # You can hardcode as fallback (replace placeholders).
-G_SHEETS_WEBHOOK_URL   = st.secrets.get("G_SHEETS_WEBHOOK_URL",   "PUT_YOUR_WEB_APP_URL_HERE")
-G_SHEETS_WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "PUT_YOUR_TOKEN_HERE")
+G_SHEETS_WEBHOOK_URL   = st.secrets.get("G_SHEETS_WEBHOOK_URL",   "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec")
+G_SHEETS_WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
 
 # Optional default target tab
 DEFAULT_TARGET_SHEET_GID  = 2121051612      # your grades tab gid
@@ -715,3 +715,4 @@ def render_marking_tab():
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
+
