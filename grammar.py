@@ -1,10 +1,13 @@
+# falowen_marking_tab.py
+# Streamlit app: Reference & Student Work Share + Grading export to Google Sheets
+
 import os
 import json
 from datetime import datetime, timedelta
 
 import streamlit as st
 import pandas as pd
-import requests  # for webhook to Google Sheets
+import requests  # webhook to Google Sheets
 
 # Firebase Admin
 import firebase_admin
@@ -13,15 +16,21 @@ from firebase_admin import credentials, firestore, storage
 st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
 
 # =============================================================================
-# CONFIG: GOOGLE SHEETS SOURCES (edit to your sheet URLs)
+# CONFIG: Google Sheets sources (edit to your sheet URLs)
 # =============================================================================
 STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
 REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
-# === Apps Script Webhook (Option 2) ===
-# ⚠️ Move these to st.secrets in production.
-G_SHEETS_WEBHOOK_URL   = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
-G_SHEETS_WEBHOOK_TOKEN = "Xenomexpress7727/"
+# === Apps Script Webhook ===
+# Prefer storing in st.secrets:
+#   G_SHEETS_WEBHOOK_URL, G_SHEETS_WEBHOOK_TOKEN
+# You can hardcode as fallback (replace placeholders).
+G_SHEETS_WEBHOOK_URL   = st.secrets.get("G_SHEETS_WEBHOOK_URL",   "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec")
+G_SHEETS_WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
+
+# Optional: set a default target tab (pick one)
+DEFAULT_TARGET_SHEET_GID  = 2121051612      # your grades tab gid
+DEFAULT_TARGET_SHEET_NAME = None            # or set "scores_backup"
 
 # =============================================================================
 # FIREBASE GLOBALS + INIT
@@ -30,6 +39,7 @@ _DB = None
 _BUCKET = None
 
 def _get_firebase_cred_dict():
+    """Return service account credentials from secrets/env/dev file."""
     try:
         if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
             return dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
@@ -49,6 +59,7 @@ def _get_firebase_cred_dict():
     return None
 
 def _ensure_firebase_clients():
+    """Initialize Firestore and Storage once."""
     global _DB, _BUCKET
     if _DB is not None:
         return
@@ -128,6 +139,7 @@ def _norm_key(s: str) -> str:
 
 @st.cache_data(ttl=120, show_spinner=False)
 def list_drafts_student_doc_ids(limit: int = 500) -> list:
+    """List up to N top-level doc IDs under drafts_v2 (student docs)."""
     _ensure_firebase_clients()
     if _DB is None:
         return []
@@ -146,11 +158,13 @@ def list_drafts_student_doc_ids(limit: int = 500) -> list:
     return out
 
 def _find_candidate_doc_ids_from_firestore(student_code: str, student_name: str) -> dict:
+    """Return {'exact': <doc_id or None>, 'suggestions': [doc_ids...] }."""
     _ensure_firebase_clients()
     res = {"exact": None, "suggestions": []}
     if _DB is None:
         return res
 
+    # Try obvious variants of the sheet's student code
     variants = []
     raw = str(student_code or "").strip()
     if raw:
@@ -166,6 +180,7 @@ def _find_candidate_doc_ids_from_firestore(student_code: str, student_name: str)
         except Exception:
             pass
 
+    # Field-based matches
     try_fields = []
     if student_code:
         try_fields += [("studentcode", student_code), ("student_code", student_code), ("code", student_code)]
@@ -179,6 +194,7 @@ def _find_candidate_doc_ids_from_firestore(student_code: str, student_name: str)
         except Exception:
             pass
 
+    # Fuzzy suggestions by id substring
     if not res["suggestions"]:
         all_ids = list_drafts_student_doc_ids(limit=200)
         code_n = _norm_key(student_code)
@@ -192,6 +208,7 @@ def _find_candidate_doc_ids_from_firestore(student_code: str, student_name: str)
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) -> pd.DataFrame:
+    """Read lessons from drafts_v2/{student_doc_id}/lessons."""
     _ensure_firebase_clients()
     if _DB is None or not student_doc_id:
         return pd.DataFrame()
@@ -239,18 +256,20 @@ def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) 
         df = df.sort_values("submitted_at", ascending=False, na_position="last")
     return df
 
-# --- Webhook helper (Option 2) ------------------------------------------------
-def _post_rows_to_sheet(rows) -> dict:
-    url = G_SHEETS_WEBHOOK_URL
-    token = G_SHEETS_WEBHOOK_TOKEN
-    if not url or not token:
-        raise RuntimeError("Webhook URL/token missing.")
+# --- Webhook helper -----------------------------------------------------------
+def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | None = None) -> dict:
+    """POST rows to the Apps Script webhook. Supports optional tab selection."""
+    url = st.secrets.get("G_SHEETS_WEBHOOK_URL", G_SHEETS_WEBHOOK_URL)
+    token = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", G_SHEETS_WEBHOOK_TOKEN)
+    if not url or not token or "PUT_YOUR" in url or "PUT_YOUR" in token:
+        raise RuntimeError("Webhook URL/token missing. Add to st.secrets or set constants.")
     payload = {"token": token, "rows": rows}
+    if sheet_name:
+        payload["sheet_name"] = sheet_name
+    if sheet_gid is not None:
+        payload["sheet_gid"] = int(sheet_gid)
     r = requests.post(url, json=payload, timeout=20)
-    try:
-        data = r.json()
-    except Exception:
-        data = {"ok": False, "error": f"Non-JSON response: {r.text[:200]}"}
+    data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"ok": False, "error": r.text[:200]}
     if r.status_code != 200 or not data.get("ok"):
         raise RuntimeError(f"Webhook error {r.status_code}: {data}")
     return data
@@ -305,6 +324,7 @@ def render_marking_tab():
         st.info("No students match your search. Try a different query.")
         return
 
+    # Build options as IDs (codes) with format_func labels
     codes = students_filtered[code_col].astype(str).tolist()
     code_to_name = dict(zip(students_filtered[code_col].astype(str), students_filtered[name_col].astype(str)))
 
@@ -334,12 +354,15 @@ def render_marking_tab():
         st.session_state["tab7_effective_student_doc"] = None
 
     needs_resolve = st.session_state.get("tab7_resolved_for") != student_code
-    colr1, colr2 = st.columns([1,1])
+    colr1, colr2 = st.columns([1, 1])
     with colr1:
         if st.button("🔍 Re-resolve Firestore doc", use_container_width=True):
             needs_resolve = True
     with colr2:
-        manual_override = st.text_input("Manual override (exact drafts_v2 doc id)", value=st.session_state.get("tab7_effective_student_doc") or "")
+        manual_override = st.text_input(
+            "Manual override (exact drafts_v2 doc id)",
+            value=st.session_state.get("tab7_effective_student_doc") or ""
+        )
 
     if manual_override.strip():
         st.session_state["tab7_effective_student_doc"] = manual_override.strip()
@@ -422,6 +445,7 @@ def render_marking_tab():
         st.dataframe(df_preview[["title","lesson_id","submitted_at","score","comment","file","answer_preview"]],
                      use_container_width=True, height=300)
 
+    # Persistent submission select (value = lesson_id)
     ids = df_view["lesson_id"].astype(str).tolist()
     id_to_row = df_view.set_index("lesson_id").to_dict(orient="index")
 
@@ -469,7 +493,7 @@ def render_marking_tab():
             answer_cols = [c for c in all_cols if str(c).startswith("answer")]
             answer_cols = [c for c in answer_cols if pd.notnull(assignment_row.iloc[0][c]) and str(assignment_row.iloc[0][c]).strip() != ""]
             ref_answers = [str(assignment_row.iloc[0][c]) for c in answer_cols]
-            # Try to pick an answer link
+            # Detect a link column
             ref_link_value = _pick_first_nonempty(rowdict, ["answer_link","answerlink","reference_link","ref_link","link","url"], default="")
 
     if ref_answers:
@@ -500,14 +524,14 @@ def render_marking_tab():
 
     # --- Grader Inputs: Score + Feedback ---
     st.subheader("4b) Your Marking")
-    col_score, col_dummy = st.columns([1,1])
+    col_score, col_dummy = st.columns([1, 1])
     with col_score:
-        score_input = st.number_input("Score", min_value=0.0, max_value=10000.0, value=0.0, step=1.0, help="Enter the score you want to record")
+        score_input = st.number_input("Score", min_value=0.0, max_value=10000.0, value=0.0, step=1.0,
+                                      help="Enter the score you want to record")
     comments_input = st.text_area("Feedback / Comments", value="", height=120)
 
     # --- Link Source Selection (ref link vs submission file vs both vs custom) ---
     st.subheader("4c) Link to attach in the sheet")
-    # decide default option based on availability
     default_idx = 0 if ref_link_value else 1
     link_source = st.selectbox(
         "Pick which link goes into the 'link' column",
@@ -517,7 +541,6 @@ def render_marking_tab():
     custom_link = ""
     if link_source == "Custom...":
         custom_link = st.text_input("Custom link", value="")
-    # Compute final link
     submission_link = chosen_row.get("file") or ""
     if link_source == "Reference answer link":
         link_value = ref_link_value or submission_link
@@ -569,7 +592,6 @@ def render_marking_tab():
     student_level = str(student_row.get("level", "")).strip()
     date_value    = _fmt_date(chosen_row.get("submitted_at"))
 
-    # Now use your inputs for score & comments; attach auto-picked link
     one_row = {
         "studentcode": student_code,
         "name":        student_name,
@@ -584,6 +606,23 @@ def render_marking_tab():
     st.write("Preview row:")
     st.dataframe(pd.DataFrame([one_row]), use_container_width=True)
 
+    # Optional controls: choose destination tab for this send
+    st.markdown("**Destination tab (optional):**")
+    dest_mode = st.radio(
+        "Where to send?",
+        ["Use defaults", "Specify by gid", "Specify by name"],
+        horizontal=True,
+        index=0
+    )
+    dest_gid = None
+    dest_name = None
+    if dest_mode == "Specify by gid":
+        dest_gid = st.number_input("sheet_gid", value=DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else 0, step=1)
+        if int(dest_gid) <= 0:
+            dest_gid = None
+    elif dest_mode == "Specify by name":
+        dest_name = st.text_input("sheet_name", value=DEFAULT_TARGET_SHEET_NAME or "")
+
     # One-row actions
     c1, c2 = st.columns(2)
     with c1:
@@ -592,8 +631,9 @@ def render_marking_tab():
     with c2:
         if st.button("📤 Send this row to Google Sheet (Webhook)"):
             try:
-                result = _post_rows_to_sheet([one_row])
-                st.success(f"Appended {result.get('appended', 1)} row ✅")
+                result = _post_rows_to_sheet([one_row], sheet_name=dest_name if dest_name else None,
+                                             sheet_gid=int(dest_gid) if dest_gid else (DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else None))
+                st.success(f"Appended {result.get('appended', 1)} row ✅  → {result.get('sheetName')} (gid {result.get('sheetId')})")
             except Exception as e:
                 st.error(f"Failed to send: {e}")
 
@@ -621,8 +661,12 @@ def render_marking_tab():
             if st.button("📤 Send cart to Google Sheet (Webhook)"):
                 try:
                     rows_to_send = st.session_state.get("edited_cart_rows") or st.session_state["export_cart"]
-                    result = _post_rows_to_sheet(rows_to_send)
-                    st.success(f"Appended {result.get('appended', len(rows_to_send))} rows ✅")
+                    result = _post_rows_to_sheet(
+                        rows_to_send,
+                        sheet_name=dest_name if dest_name else None,
+                        sheet_gid=int(dest_gid) if dest_gid else (DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else None)
+                    )
+                    st.success(f"Appended {result.get('appended', len(rows_to_send))} rows ✅  → {result.get('sheetName')} (gid {result.get('sheetId')})")
                 except Exception as e:
                     st.error(f"Failed to send: {e}")
 
