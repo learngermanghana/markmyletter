@@ -38,6 +38,11 @@ STUDENTS_MASTER_CSV_URL = f"https://docs.google.com/spreadsheets/d/12NXf5FeVHr7J
 STUDENTS_WEBHOOK_URL   = st.secrets.get("STUDENTS_WEBHOOK_URL", "")
 STUDENTS_WEBHOOK_TOKEN = st.secrets.get("STUDENTS_WEBHOOK_TOKEN", "")
 
+G_SHEETS_WEBHOOK_URL   = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
+G_SHEETS_WEBHOOK_TOKEN = "Xenomexpress7727/"
+
+
+
 # Form responses CSV (published to web link to the Responses tab)
 DEFAULT_FORM_RESPONSES_CSV_URL = st.secrets.get("FORM_RESPONSES_CSV_URL", "")
 
@@ -874,3 +879,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
