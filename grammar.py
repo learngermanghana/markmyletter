@@ -23,29 +23,55 @@ REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmE
 #  FIREBASE INIT (via secrets)
 # ==============================
 def _init_firebase():
-    """Initialize Firebase Admin using Streamlit secrets.
-    Required secrets:
-      [FIREBASE_SERVICE_ACCOUNT]  # service account JSON
-      FIREBASE_STORAGE_BUCKET     # e.g., "language-academy-3e1de.appspot.com" (optional but needed for Storage signed links)
-    """
     if firebase_admin._apps:
         return
+
+    cred_dict = None
+
+    # Accept either table name
     try:
-        cred = credentials.Certificate(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
-        cfg = {}
-        bucket_name = st.secrets.get("FIREBASE_STORAGE_BUCKET")
-        if bucket_name:
-            cfg["storageBucket"] = bucket_name
+        if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
+            cred_dict = dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+        elif "firebase" in st.secrets:
+            cred_dict = dict(st.secrets["firebase"])
+    except Exception:
+        pass
+
+    # Optional fallbacks (env var / local file for dev)
+    if cred_dict is None:
+        import os, json
+        raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if raw:
+            try:
+                cred_dict = json.loads(raw)
+            except Exception:
+                pass
+    if cred_dict is None and os.path.exists("serviceAccountKey.json"):
+        import json
+        with open("serviceAccountKey.json", "r", encoding="utf-8") as f:
+            cred_dict = json.load(f)
+
+    if cred_dict is None:
+        st.warning('Firebase not configured. Add [FIREBASE_SERVICE_ACCOUNT] (or [firebase]) to secrets.toml.')
+        return
+
+    try:
+        cred = credentials.Certificate(cred_dict)
+        # bucket name from secrets or env
+        bucket_name = None
+        try:
+            bucket_name = st.secrets.get("FIREBASE_STORAGE_BUCKET")
+        except Exception:
+            pass
+        if not bucket_name:
+            import os
+            bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
+
+        cfg = {"storageBucket": bucket_name} if bucket_name else {}
         firebase_admin.initialize_app(cred, cfg)
     except Exception as e:
-        st.warning(f"Firebase not configured (live submissions disabled): {e}")
+        st.error(f"Failed to initialize Firebase: {e}")
 
-_init_firebase()
-_DB = firestore.client() if firebase_admin._apps else None
-try:
-    _BUCKET = storage.bucket() if firebase_admin._apps else None
-except Exception:
-    _BUCKET = None
 
 
 # ==============================
@@ -443,3 +469,4 @@ def render_marking_tab():
 #     render_marking_tab()
 if __name__ == "__main__":
     render_marking_tab()
+
