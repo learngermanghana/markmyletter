@@ -19,7 +19,7 @@ STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh
 REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
 # === Apps Script Webhook (Option 2) ===
-# ⚠️ Consider moving these to st.secrets in production.
+# ⚠️ Move these to st.secrets in production.
 G_SHEETS_WEBHOOK_URL   = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
 G_SHEETS_WEBHOOK_TOKEN = "Xenomexpress7727/"
 
@@ -30,8 +30,6 @@ _DB = None
 _BUCKET = None
 
 def _get_firebase_cred_dict():
-    """Return a dict of service account credentials from secrets/env/dev file."""
-    # 1) Streamlit secrets (supports either table name)
     try:
         if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
             return dict(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
@@ -39,21 +37,18 @@ def _get_firebase_cred_dict():
             return dict(st.secrets["firebase"])
     except Exception:
         pass
-    # 2) Env var with full JSON
     raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
     if raw:
         try:
             return json.loads(raw)
         except Exception:
             pass
-    # 3) Local dev file (never commit)
     if os.path.exists("serviceAccountKey.json"):
         with open("serviceAccountKey.json", "r", encoding="utf-8") as f:
             return json.load(f)
     return None
 
 def _ensure_firebase_clients():
-    """Create _DB and _BUCKET once, safely."""
     global _DB, _BUCKET
     if _DB is not None:
         return
@@ -61,7 +56,6 @@ def _ensure_firebase_clients():
     if not cred_dict:
         _DB, _BUCKET = None, None
         return
-    # Optional storage bucket
     bucket_name = None
     try:
         bucket_name = st.secrets.get("FIREBASE_STORAGE_BUCKET")
@@ -69,7 +63,6 @@ def _ensure_firebase_clients():
         pass
     if not bucket_name:
         bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
-    # Init app
     if not firebase_admin._apps:
         cfg = {"storageBucket": bucket_name} if bucket_name else {}
         firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
@@ -107,7 +100,7 @@ def col_lookup(df: pd.DataFrame, name: str):
             return c
     return None
 
-def _pick_first_nonempty(d: dict, keys: list[str], default=""):
+def _pick_first_nonempty(d: dict, keys, default=""):
     for k in keys:
         if k in d and d[k] is not None:
             s = str(d[k]).strip()
@@ -130,17 +123,80 @@ def _normalize_timestamp(ts):
         return None
     return None
 
-@st.cache_data(ttl=60, show_spinner=False)
-def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.DataFrame:
-    """
-    Reads all lessons for a student from drafts_v2/{student_code}/lessons (no assignment filtering).
-    Returns newest first by submitted/updated/timestamp if present.
-    """
+def _norm_key(s: str) -> str:
+    return "".join(ch for ch in str(s).lower() if ch.isalnum())
+
+@st.cache_data(ttl=120, show_spinner=False)
+def list_drafts_student_doc_ids(limit: int = 500) -> list:
     _ensure_firebase_clients()
-    if _DB is None or not student_code:
+    if _DB is None:
+        return []
+    out = []
+    try:
+        for c in _DB.collection("drafts_v2").list_documents(page_size=limit):
+            out.append(c.id)
+            if len(out) >= limit:
+                break
+    except Exception:
+        try:
+            for d in _DB.collection("drafts_v2").limit(limit).stream():
+                out.append(d.id)
+        except Exception:
+            return []
+    return out
+
+def _find_candidate_doc_ids_from_firestore(student_code: str, student_name: str) -> dict:
+    _ensure_firebase_clients()
+    res = {"exact": None, "suggestions": []}
+    if _DB is None:
+        return res
+
+    variants = []
+    raw = str(student_code or "").strip()
+    if raw:
+        variants.extend([raw, raw.lower(), raw.upper(), raw.replace(" ", ""), "".join(ch for ch in raw if ch.isalnum())])
+    seen = set()
+    variants = [v for v in variants if not (v in seen or seen.add(v))]
+
+    for vid in variants:
+        try:
+            if _DB.collection("drafts_v2").document(vid).get().exists:
+                res["exact"] = vid
+                return res
+        except Exception:
+            pass
+
+    try_fields = []
+    if student_code:
+        try_fields += [("studentcode", student_code), ("student_code", student_code), ("code", student_code)]
+    if student_name:
+        try_fields += [("name", student_name)]
+    for field, value in try_fields:
+        try:
+            q = _DB.collection("drafts_v2").where(field, "==", value).limit(5)
+            for m in q.stream():
+                res["suggestions"].append(m.id)
+        except Exception:
+            pass
+
+    if not res["suggestions"]:
+        all_ids = list_drafts_student_doc_ids(limit=200)
+        code_n = _norm_key(student_code)
+        name_n = _norm_key(student_name)
+        for did in all_ids:
+            if (code_n and code_n in _norm_key(did)) or (name_n and name_n in _norm_key(did)):
+                res["suggestions"].append(did)
+                if len(res["suggestions"]) >= 10:
+                    break
+    return res
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) -> pd.DataFrame:
+    _ensure_firebase_clients()
+    if _DB is None or not student_doc_id:
         return pd.DataFrame()
 
-    doc_ref = _DB.collection("drafts_v2").document(str(student_code))
+    doc_ref = _DB.collection("drafts_v2").document(str(student_doc_id))
     try:
         _ = doc_ref.get()
     except Exception:
@@ -155,24 +211,10 @@ def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.
     rows = []
     for d in docs:
         data = d.to_dict() or {}
-
-        # Identify a title/name for the lesson (fallback to doc id)
-        title = _pick_first_nonempty(
-            data, ["assignment_title", "assignment", "title", "topic", "lesson", "name"], default=d.id
-        )
-
-        # Text content fields (try several)
-        answer_text = _pick_first_nonempty(
-            data, ["answer_text", "text", "content", "draft", "body", "message", "answer"], default=""
-        )
-
-        # Timestamp-like fields
-        ts_raw = _pick_first_nonempty(
-            data, ["submitted_at", "updated_at", "timestamp", "ts", "created_at"], default=""
-        )
+        title = _pick_first_nonempty(data, ["assignment_title", "assignment", "title", "topic", "lesson", "name"], default=d.id)
+        answer_text = _pick_first_nonempty(data, ["answer_text", "text", "content", "draft", "body", "message", "answer"], default="")
+        ts_raw = _pick_first_nonempty(data, ["submitted_at", "updated_at", "timestamp", "ts", "created_at"], default="")
         ts = _normalize_timestamp(ts_raw)
-
-        # Optional file link (via Storage signed URL)
         file_path = _pick_first_nonempty(data, ["file_path", "storage_path", "file"], default="")
         signed_url = None
         if file_path and _BUCKET is not None:
@@ -181,9 +223,8 @@ def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.
                 signed_url = blob.generate_signed_url(expiration=timedelta(hours=6), method="GET")
             except Exception:
                 signed_url = None
-
         rows.append({
-            "doc_path": f"drafts_v2/{student_code}/lessons/{d.id}",
+            "doc_path": f"drafts_v2/{student_doc_id}/lessons/{d.id}",
             "lesson_id": d.id,
             "title": title,
             "submitted_at": ts,
@@ -199,8 +240,7 @@ def load_student_lessons_from_drafts(student_code: str, limit: int = 200) -> pd.
     return df
 
 # --- Webhook helper (Option 2) ------------------------------------------------
-def _post_rows_to_sheet(rows: list[dict]) -> dict:
-    """POST a batch of rows to the Apps Script webhook."""
+def _post_rows_to_sheet(rows) -> dict:
     url = G_SHEETS_WEBHOOK_URL
     token = G_SHEETS_WEBHOOK_TOKEN
     if not url or not token:
@@ -265,35 +305,78 @@ def render_marking_tab():
         st.info("No students match your search. Try a different query.")
         return
 
-    # Build options as IDs (codes) and format labels via format_func => persists across reruns
     codes = students_filtered[code_col].astype(str).tolist()
     code_to_name = dict(zip(students_filtered[code_col].astype(str), students_filtered[name_col].astype(str)))
 
     def _fmt_student(code: str):
         return f"{code_to_name.get(code, 'Unknown')} ({code})"
 
-    # The widget now stores the *code* (ID), not the label string
     selected_student_code = st.selectbox("Select Student", codes, format_func=_fmt_student, key="tab7_selected_code")
     if not selected_student_code:
         st.warning("Select a student to continue.")
         return
 
-    # Retrieve the selected student row
     sel_rows = students_filtered[students_filtered[code_col] == selected_student_code]
     if sel_rows.empty:
         st.warning("Selected student not found.")
         return
     student_row = sel_rows.iloc[0]
     student_code = selected_student_code
+    student_name = str(student_row.get(name_col, "")).strip()
 
-    st.markdown(f"**Selected:** {student_row.get(name_col, '')} ({student_code})")
+    st.markdown(f"**Selected:** {student_name} ({student_code})")
     st.subheader("Student Code")
     st.code(student_code)
 
-    # --- Student submissions (no assignment filter) ---
-    st.subheader("2) Pick a Submission to Mark (from drafts_v2 → lessons)")
+    # --- Resolve Firestore doc under drafts_v2 ---
+    st.subheader("1b) Match to Firestore student document (drafts_v2)")
+    if "tab7_effective_student_doc" not in st.session_state:
+        st.session_state["tab7_effective_student_doc"] = None
 
-    # Small control bar
+    needs_resolve = st.session_state.get("tab7_resolved_for") != student_code
+    colr1, colr2 = st.columns([1,1])
+    with colr1:
+        if st.button("🔍 Re-resolve Firestore doc", use_container_width=True):
+            needs_resolve = True
+    with colr2:
+        manual_override = st.text_input("Manual override (exact drafts_v2 doc id)", value=st.session_state.get("tab7_effective_student_doc") or "")
+
+    if manual_override.strip():
+        st.session_state["tab7_effective_student_doc"] = manual_override.strip()
+        st.session_state["tab7_resolved_for"] = student_code
+    elif needs_resolve:
+        match = _find_candidate_doc_ids_from_firestore(student_code, student_name)
+        exact = match.get("exact")
+        suggestions = match.get("suggestions", [])
+        if exact:
+            st.session_state["tab7_effective_student_doc"] = exact
+            st.session_state["tab7_resolved_for"] = student_code
+            st.success(f"Matched Firestore doc: {exact}")
+        else:
+            st.info("No exact doc match. Pick from suggestions or type manual override.")
+            if suggestions:
+                pick = st.selectbox("Suggestions from drafts_v2", suggestions, key="tab7_doc_suggestion")
+                if pick:
+                    st.session_state["tab7_effective_student_doc"] = pick
+                    st.session_state["tab7_resolved_for"] = student_code
+            else:
+                st.warning("No suggestions found. Use the manual override above.")
+
+    effective_doc = st.session_state.get("tab7_effective_student_doc")
+    if not effective_doc:
+        with st.expander("🧭 Debug: list drafts_v2 doc IDs", expanded=False):
+            ids = list_drafts_student_doc_ids(limit=200)
+            st.write(f"Found {len(ids)} doc IDs (showing up to 200):")
+            query = st.text_input("Filter IDs", "")
+            if query:
+                ids = [i for i in ids if query.lower() in i.lower()]
+            st.dataframe(pd.DataFrame({"doc_id": ids}))
+        st.stop()
+
+    st.success(f"Using Firestore doc: drafts_v2/{effective_doc}")
+
+    # --- Student submissions ---
+    st.subheader("2) Pick a Submission to Mark (from drafts_v2 → lessons)")
     colA, colB, colC = st.columns([1, 1, 1])
     with colA:
         refresh = st.button("🔄 Refresh list", use_container_width=True)
@@ -301,16 +384,14 @@ def render_marking_tab():
         max_items = st.number_input("Max lessons to load", min_value=10, max_value=500, value=200, step=10)
     with colC:
         search_lessons = st.text_input("Filter by title / doc id / text snippet", value="")
-
     if refresh:
         st.cache_data.clear()
 
-    df_lessons = load_student_lessons_from_drafts(student_code, limit=int(max_items))
+    df_lessons = load_student_lessons_from_drafts_doc(effective_doc, limit=int(max_items))
     if df_lessons.empty:
-        st.info("No drafts found for this student.")
-        return
+        st.info(f"No drafts found under drafts_v2/{effective_doc}.")
+        st.stop()
 
-    # Client-side filter
     if search_lessons:
         q = search_lessons.strip().lower()
         def _row_match(r):
@@ -325,9 +406,8 @@ def render_marking_tab():
 
     if df_view.empty:
         st.info("No drafts matched your filter.")
-        return
+        st.stop()
 
-    # Preview table
     df_preview = df_view.copy()
     df_preview["answer_preview"] = df_preview["answer_text"].fillna("").astype(str).str.slice(0, 160)
     try:
@@ -342,8 +422,6 @@ def render_marking_tab():
         st.dataframe(df_preview[["title","lesson_id","submitted_at","score","comment","file","answer_preview"]],
                      use_container_width=True, height=300)
 
-    # === Persistent submission select:
-    # Use lesson_id as the *value* (ID) and display a pretty label via format_func.
     ids = df_view["lesson_id"].astype(str).tolist()
     id_to_row = df_view.set_index("lesson_id").to_dict(orient="index")
 
@@ -365,7 +443,7 @@ def render_marking_tab():
         "file": chosen_row.get("file"),
     })
 
-    # --- Reference selection (independent of lesson title) ---
+    # --- Reference selection (and answer link auto-detect) ---
     st.subheader("3) Select Reference Answer (from Google Sheet)")
     available_assignments = ref_df['assignment'].dropna().astype(str).unique().tolist()
     with st.form("marking_assignment_form"):
@@ -377,19 +455,22 @@ def render_marking_tab():
         ref_filtered = available_assignments
     if not ref_filtered:
         st.info("No references match your search.")
-        return
+        st.stop()
     assignment = st.selectbox("Reference to use", ref_filtered, key="tab7_assign_select")
+
     ref_answers = []
+    ref_link_value = ""
     if assignment:
         assignment_row = ref_df[ref_df['assignment'].astype(str) == assignment]
         if not assignment_row.empty:
+            rowdict = assignment_row.iloc[0].to_dict()
+            # Answers
             all_cols = assignment_row.columns.tolist()
             answer_cols = [c for c in all_cols if str(c).startswith("answer")]
-            answer_cols = [
-                c for c in answer_cols
-                if pd.notnull(assignment_row.iloc[0][c]) and str(assignment_row.iloc[0][c]).strip() != ""
-            ]
+            answer_cols = [c for c in answer_cols if pd.notnull(assignment_row.iloc[0][c]) and str(assignment_row.iloc[0][c]).strip() != ""]
             ref_answers = [str(assignment_row.iloc[0][c]) for c in answer_cols]
+            # Try to pick an answer link
+            ref_link_value = _pick_first_nonempty(rowdict, ["answer_link","answerlink","reference_link","ref_link","link","url"], default="")
 
     if ref_answers:
         if len(ref_answers) == 1:
@@ -405,7 +486,10 @@ def render_marking_tab():
         answers_combined_str = "No answer available."
         st.info("No reference answer available for this selection.")
 
-    # --- Student Work (prefilled from the chosen submission) ---
+    if ref_link_value:
+        st.markdown(f"**Reference link detected:** [{ref_link_value}]({ref_link_value})")
+
+    # --- Student Work ---
     st.subheader("4) Student Work")
     student_work = st.text_area(
         "Edit before marking if needed:",
@@ -413,6 +497,37 @@ def render_marking_tab():
         key="tab7_student_work",
         value=chosen_row.get("answer_text") or ""
     )
+
+    # --- Grader Inputs: Score + Feedback ---
+    st.subheader("4b) Your Marking")
+    col_score, col_dummy = st.columns([1,1])
+    with col_score:
+        score_input = st.number_input("Score", min_value=0.0, max_value=10000.0, value=0.0, step=1.0, help="Enter the score you want to record")
+    comments_input = st.text_area("Feedback / Comments", value="", height=120)
+
+    # --- Link Source Selection (ref link vs submission file vs both vs custom) ---
+    st.subheader("4c) Link to attach in the sheet")
+    # decide default option based on availability
+    default_idx = 0 if ref_link_value else 1
+    link_source = st.selectbox(
+        "Pick which link goes into the 'link' column",
+        ["Reference answer link", "Submission file link", "Both (reference first)", "Custom..."],
+        index=default_idx
+    )
+    custom_link = ""
+    if link_source == "Custom...":
+        custom_link = st.text_input("Custom link", value="")
+    # Compute final link
+    submission_link = chosen_row.get("file") or ""
+    if link_source == "Reference answer link":
+        link_value = ref_link_value or submission_link
+    elif link_source == "Submission file link":
+        link_value = submission_link or ref_link_value
+    elif link_source == "Both (reference first)":
+        parts = [p for p in [ref_link_value, submission_link] if p]
+        link_value = " | ".join(parts)
+    else:
+        link_value = custom_link.strip()
 
     # --- Combined copy & downloads ---
     st.subheader("5) Copy Zone (Reference + Student Work)")
@@ -451,17 +566,16 @@ def render_marking_tab():
     else:
         assignment_value = st.text_input("Custom assignment text", value=(chosen_row.get("title") or ""))
 
-    student_name  = str(student_row.get(name_col, "")).strip()
     student_level = str(student_row.get("level", "")).strip()
     date_value    = _fmt_date(chosen_row.get("submitted_at"))
-    link_value    = chosen_row.get("file") or ""
 
+    # Now use your inputs for score & comments; attach auto-picked link
     one_row = {
         "studentcode": student_code,
         "name":        student_name,
         "assignment":  assignment_value,
-        "score":       "",        # you fill in
-        "comments":    "",        # you fill in
+        "score":       str(score_input) if score_input is not None else "",
+        "comments":    comments_input or "",
         "date":        date_value,
         "level":       student_level,
         "link":        link_value,
@@ -518,10 +632,8 @@ def render_marking_tab():
         ])
         st.write("Edit score/comments here if you like, then download or send:")
         edited_cart = st.data_editor(cart_df, use_container_width=True, num_rows="dynamic")
-        # Remember edits for the send button above
         st.session_state["edited_cart_rows"] = edited_cart.to_dict(orient="records")
 
-        # Download options
         cart_csv = edited_cart.to_csv(index=False)
         cart_tsv = edited_cart.to_csv(index=False, sep="\t")
         st.download_button("⬇️ Download cart as CSV", data=cart_csv, file_name="grades_export.csv", mime="text/csv")
