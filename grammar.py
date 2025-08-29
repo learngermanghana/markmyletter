@@ -21,6 +21,8 @@ st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
 # =============================================================================
 STUDENTS_CSV_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
 REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
+# Optional sheet holding previously recorded scores
+SCORES_CSV_URL   = st.secrets.get("SCORES_CSV_URL", "scores_backup.csv")
 
 # === Apps Script Webhook ===
 # Prefer storing in st.secrets:
@@ -292,6 +294,58 @@ def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | No
         raise RuntimeError(f"Webhook error {r.status_code}: {data}")
     return data
 
+
+@st.cache_data(show_spinner=False)
+def fetch_previous_scores(student_code: str) -> pd.DataFrame:
+    """Fetch prior score records for a given student code.
+
+    Tries Firestore collection ``scores`` first and falls back to a Google Sheet
+    defined by ``SCORES_CSV_URL``.  The returned dataframe is normalized to have
+    the columns ``assignment``, ``score``, ``date`` and ``comments`` when
+    available.
+    """
+
+    _ensure_firebase_clients()
+    records: list[dict] = []
+
+    # --- Firestore lookup ---------------------------------------------------
+    if _DB is not None:
+        try:
+            docs = _DB.collection("scores").where("studentcode", "==", student_code).stream()
+            for d in docs:
+                data = d.to_dict() or {}
+                records.append({
+                    "assignment": data.get("assignment"),
+                    "score": data.get("score"),
+                    "date": data.get("date"),
+                    "comments": data.get("comments", ""),
+                })
+        except Exception:
+            pass
+
+    # --- Google Sheet fallback --------------------------------------------
+    if not records and SCORES_CSV_URL:
+        try:
+            df = pd.read_csv(SCORES_CSV_URL, dtype=str)
+            df = _normalize_columns(df)
+            if "studentcode" in df.columns:
+                match = df[df["studentcode"].astype(str).str.lower() == str(student_code).lower()]
+                if not match.empty:
+                    records = match.to_dict(orient="records")
+        except Exception:
+            pass
+
+    if not records:
+        return pd.DataFrame()
+
+    df_out = pd.DataFrame(records)
+    for col in ["assignment", "score", "date", "comments"]:
+        if col not in df_out.columns:
+            df_out[col] = ""
+    if "date" in df_out.columns:
+        df_out = df_out.sort_values("date", ascending=False, na_position="last")
+    return df_out[["assignment", "score", "date", "comments"]]
+
 # =============================================================================
 # UI: MARKING TAB
 # =============================================================================
@@ -365,6 +419,13 @@ def render_marking_tab():
     st.markdown(f"**Selected:** {student_name} ({student_code})")
     st.subheader("Student Code")
     st.code(student_code)
+
+    prev_scores = fetch_previous_scores(student_code)
+    with st.expander("Previous scores", expanded=False):
+        if prev_scores.empty:
+            st.info("No previous scores found for this student.")
+        else:
+            st.dataframe(prev_scores, use_container_width=True, height=150)
 
     # --- Resolve Firestore doc under drafts_v2 ---
     st.subheader("1b) Match to Firestore student document (drafts_v2)")
