@@ -40,6 +40,7 @@ DEFAULT_TARGET_SHEET_NAME = None            # or e.g. "scores_backup"
 # =============================================================================
 _DB = None
 _BUCKET = None
+_FIREBASE_INIT_FAILED = False
 
 def _get_firebase_cred_dict():
     """Return service account credentials from secrets/env/dev file."""
@@ -63,12 +64,14 @@ def _get_firebase_cred_dict():
 
 def _ensure_firebase_clients():
     """Initialize Firestore and Storage once."""
-    global _DB, _BUCKET
-    if _DB is not None:
+    global _DB, _BUCKET, _FIREBASE_INIT_FAILED
+    if _DB is not None or _FIREBASE_INIT_FAILED:
         return
     cred_dict = _get_firebase_cred_dict()
     if not cred_dict:
+        st.error("Firebase credentials not found. Firestore features are disabled.")
         _DB, _BUCKET = None, None
+        _FIREBASE_INIT_FAILED = True
         return
     bucket_name = None
     try:
@@ -77,10 +80,16 @@ def _ensure_firebase_clients():
         pass
     if not bucket_name:
         bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
-    if not firebase_admin._apps:
-        cfg = {"storageBucket": bucket_name} if bucket_name else {}
-        firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
-    _DB = firestore.client()
+    try:
+        if not firebase_admin._apps:
+            cfg = {"storageBucket": bucket_name} if bucket_name else {}
+            firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
+        _DB = firestore.client()
+    except Exception as e:
+        st.error(f"Failed to initialize Firebase: {e}")
+        _DB, _BUCKET = None, None
+        _FIREBASE_INIT_FAILED = True
+        return
     try:
         _BUCKET = storage.bucket()
     except Exception:
@@ -210,7 +219,7 @@ def _autopick_ref_link_from_row(row: pd.Series) -> str:
 def list_drafts_student_doc_ids(limit: int = 500) -> list:
     """List up to N top-level doc IDs under drafts_v2 (student docs)."""
     _ensure_firebase_clients()
-    if _DB is None:
+    if _FIREBASE_INIT_FAILED or _DB is None:
         return []
     out = []
     try:
@@ -230,7 +239,7 @@ def list_drafts_student_doc_ids(limit: int = 500) -> list:
 def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) -> pd.DataFrame:
     """Read lessons from drafts_v2/{student_doc_id}/lessons."""
     _ensure_firebase_clients()
-    if _DB is None or not student_doc_id:
+    if _FIREBASE_INIT_FAILED or _DB is None or not student_doc_id:
         return pd.DataFrame()
 
     doc_ref = _DB.collection("drafts_v2").document(str(student_doc_id))
@@ -366,22 +375,25 @@ def select_student(df_students):
         st.session_state["tab7_effective_student_doc"] = manual_override.strip()
         st.session_state["tab7_resolved_for"] = student_code
     elif needs_resolve:
-        match = _find_candidate_doc_ids_from_firestore(student_code, student_name)
-        exact = match.get("exact")
-        suggestions = match.get("suggestions", [])
-        if exact:
-            st.session_state["tab7_effective_student_doc"] = exact
-            st.session_state["tab7_resolved_for"] = student_code
-            st.success(f"Matched Firestore doc: {exact}")
+        if _FIREBASE_INIT_FAILED:
+            st.warning("Firebase unavailable; cannot auto-resolve Firestore document.")
         else:
-            st.info("No exact doc match. Pick from suggestions or type manual override.")
-            if suggestions:
-                pick = st.selectbox("Suggestions from drafts_v2", suggestions, key="tab7_doc_suggestion")
-                if pick:
-                    st.session_state["tab7_effective_student_doc"] = pick
-                    st.session_state["tab7_resolved_for"] = student_code
+            match = _find_candidate_doc_ids_from_firestore(student_code, student_name)
+            exact = match.get("exact")
+            suggestions = match.get("suggestions", [])
+            if exact:
+                st.session_state["tab7_effective_student_doc"] = exact
+                st.session_state["tab7_resolved_for"] = student_code
+                st.success(f"Matched Firestore doc: {exact}")
             else:
-                st.warning("No suggestions found. Use the manual override above.")
+                st.info("No exact doc match. Pick from suggestions or type manual override.")
+                if suggestions:
+                    pick = st.selectbox("Suggestions from drafts_v2", suggestions, key="tab7_doc_suggestion")
+                    if pick:
+                        st.session_state["tab7_effective_student_doc"] = pick
+                        st.session_state["tab7_resolved_for"] = student_code
+                else:
+                    st.warning("No suggestions found. Use the manual override above.")
 
     effective_doc = st.session_state.get("tab7_effective_student_doc")
     if not effective_doc:
@@ -725,6 +737,9 @@ def export_row(one_row):
 # =============================================================================
 def render_marking_tab():
     _ensure_firebase_clients()
+    if _FIREBASE_INIT_FAILED:
+        st.error("Firebase initialization failed. Firestore-dependent features are unavailable.")
+        return
 
     st.title("📝 Reference & Student Work Share")
 
