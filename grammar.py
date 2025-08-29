@@ -25,11 +25,17 @@ REF_ANSWERS_URL  = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmE
 SCORES_CSV_URL   = st.secrets.get("SCORES_CSV_URL", "scores_backup.csv")
 
 # === Apps Script Webhook ===
-# Prefer storing in st.secrets:
+# Values must be supplied via st.secrets or environment variables
 #   G_SHEETS_WEBHOOK_URL, G_SHEETS_WEBHOOK_TOKEN
-# You can hardcode as fallback (replace placeholders).
-G_SHEETS_WEBHOOK_URL   = st.secrets.get("G_SHEETS_WEBHOOK_URL",   "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec")
-G_SHEETS_WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
+G_SHEETS_WEBHOOK_URL = (
+    st.secrets.get("G_SHEETS_WEBHOOK_URL")
+    or os.environ.get("G_SHEETS_WEBHOOK_URL")
+)
+_token_raw = (
+    st.secrets.get("G_SHEETS_WEBHOOK_TOKEN")
+    or os.environ.get("G_SHEETS_WEBHOOK_TOKEN")
+)
+G_SHEETS_WEBHOOK_TOKEN = _token_raw.rstrip("/") if _token_raw else None
 
 # Optional default target tab
 DEFAULT_TARGET_SHEET_GID  = 2121051612      # your grades tab gid
@@ -281,10 +287,13 @@ def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) 
 # --- Webhook helper -----------------------------------------------------------
 def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | None = None) -> dict:
     """POST rows to the Apps Script webhook. Supports optional tab selection."""
-    url = st.secrets.get("G_SHEETS_WEBHOOK_URL", G_SHEETS_WEBHOOK_URL)
-    token = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", G_SHEETS_WEBHOOK_TOKEN)
-    if not url or not token or "PUT_YOUR" in url or "PUT_YOUR" in token:
-        raise RuntimeError("Webhook URL/token missing. Add to st.secrets or set constants.")
+    url = st.secrets.get("G_SHEETS_WEBHOOK_URL") or G_SHEETS_WEBHOOK_URL
+    token = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN") or G_SHEETS_WEBHOOK_TOKEN
+    token = token.rstrip("/") if token else None
+    if not url or not token:
+        raise RuntimeError(
+            "Webhook URL/token missing. Supply via st.secrets or environment variables."
+        )
     payload = {"token": token, "rows": rows}
     if sheet_name:
         payload["sheet_name"] = sheet_name
