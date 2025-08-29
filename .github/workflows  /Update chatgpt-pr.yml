@@ -1,0 +1,54 @@
+name: ChatGPT Auto PR
+
+on:
+  workflow_dispatch: # run manually if needed
+  push:
+    branches:
+      - main # or your working branch
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "chatgpt-bot"
+          git config --global user.email "chatgpt-bot@example.com"
+
+      - name: Make code changes
+        run: |
+          # Example: ChatGPT could have edited files via API before this step
+          echo "Auto-update by ChatGPT at $(date)" >> updates.log
+
+      - name: Commit changes
+        run: |
+          git checkout -b chatgpt-update-branch
+          git add .
+          git commit -m "ChatGPT auto-update"
+          git push origin chatgpt-update-branch
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.CHATGPT_TOKEN }}
+          commit-message: "ChatGPT auto-update"
+          branch: chatgpt-update-branch
+          title: "ChatGPT Auto Update"
+          body: "This pull request was automatically created by ChatGPT."
+          labels: auto-update
+
+       - name: Commit and push changes
+        run: |
+          git config --global user.name "chatgpt-bot"
+          git config --global user.email "chatgpt-bot@example.com"
+          git checkout ${{ github.head_ref }}
+          git add .
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🤖 Auto-resolved merge conflicts with ChatGPT"
+            git push https://x-access-token:${{ secrets.PERSONAL_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.head_ref }}
+          fi
