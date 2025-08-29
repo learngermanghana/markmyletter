@@ -77,7 +77,9 @@ def _ensure_firebase_clients():
         pass
     if not bucket_name:
         bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET")
-    if not firebase_admin._apps:
+    try:
+        firebase_admin.get_app()
+    except ValueError:
         cfg = {"storageBucket": bucket_name} if bucket_name else {}
         firebase_admin.initialize_app(credentials.Certificate(cred_dict), cfg)
     _DB = firestore.client()
