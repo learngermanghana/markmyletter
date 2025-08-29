@@ -290,7 +290,13 @@ def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | No
         payload["sheet_name"] = sheet_name
     if sheet_gid is not None:
         payload["sheet_gid"] = int(sheet_gid)
-    r = requests.post(url, json=payload, timeout=20)
+    # Apps Script endpoint must accept JSON
+    r = requests.post(
+        url,
+        json=payload,
+        headers={"Content-Type": "application/json"},
+        timeout=20,
+    )
     data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"ok": False, "error": r.text[:200]}
     if r.status_code != 200 or not data.get("ok"):
         raise RuntimeError(f"Webhook error {r.status_code}: {data}")
