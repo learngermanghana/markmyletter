@@ -540,20 +540,7 @@ def mark_submission(student_code, student_name, student_row, chosen_row, assignm
         value=chosen_row.get("answer_text") or "",
     )
 
-    st.subheader("4b) Your Marking")
-    col_score, col_dummy = st.columns([1, 1])
-    with col_score:
-        score_input = st.number_input(
-            "Score",
-            min_value=0.0,
-            max_value=10000.0,
-            value=0.0,
-            step=1.0,
-            help="Enter the score you want to record",
-        )
-    comments_input = st.text_area("Feedback / Comments", value="", height=120)
-
-    st.subheader("4c) Link to attach in the sheet")
+    st.subheader("4b) Link to attach in the sheet")
     default_idx = 0
     link_source = st.selectbox(
         "Pick which link goes into the 'link' column",
@@ -589,6 +576,25 @@ def mark_submission(student_code, student_name, student_row, chosen_row, assignm
         "📋 Reference + Student (txt)", data=combined_text, file_name="ref_and_student.txt", mime="text/plain"
     )
 
+    st.subheader("5b) Your Marking")
+    col_score, col_dummy = st.columns([1, 1])
+    with col_score:
+        score_input = st.text_input(
+            "Score",
+            value="",
+            help="Enter the score you want to record",
+        )
+
+    score_str = ""
+    if score_input.strip():
+        try:
+            score_str = str(float(score_input))
+        except ValueError:
+            score_str = score_input.strip()
+            st.warning("Score is not a number; exporting as text.")
+
+    comments_input = st.text_area("Feedback / Comments", value="", height=120)
+
     st.subheader("6) Build Sheet Row (for Google Sheets)")
 
     def _fmt_date(dt):
@@ -616,7 +622,7 @@ def mark_submission(student_code, student_name, student_row, chosen_row, assignm
         "studentcode": student_code,
         "name": student_name,
         "assignment": assignment_value,
-        "score": str(score_input) if score_input is not None else "",
+        "score": score_str,
         "comments": comments_input or "",
         "date": date_value,
         "level": student_level,
