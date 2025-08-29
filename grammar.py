@@ -291,7 +291,13 @@ def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | No
     if sheet_gid is not None:
         payload["sheet_gid"] = int(sheet_gid)
     r = requests.post(url, json=payload, timeout=20)
-    data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"ok": False, "error": r.text[:200]}
+    if r.headers.get("content-type", "").lower().startswith("application/json"):
+        try:
+            data = r.json()
+        except json.JSONDecodeError:
+            data = {"ok": False, "error": r.text[:200]}
+    else:
+        data = {"ok": False, "error": r.text[:200]}
     if r.status_code != 200 or not data.get("ok"):
         raise RuntimeError(f"Webhook error {r.status_code}: {data}")
     return data
