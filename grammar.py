@@ -277,7 +277,7 @@ def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) 
     return df
 
 # --- Webhook helper -----------------------------------------------------------
-def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | None = None) -> dict:␊
+def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | None = None) -> dict:
     """POST rows to the Apps Script webhook. Supports optional tab selection."""
     url = st.secrets.get("G_SHEETS_WEBHOOK_URL", G_SHEETS_WEBHOOK_URL)
     token = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", G_SHEETS_WEBHOOK_TOKEN)
