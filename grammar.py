@@ -585,6 +585,15 @@ def render_marking_tab():
                        file_name="reference_answer.txt", mime="text/plain")
     st.download_button("📋 Reference + Student (txt)", data=combined_text,
                        file_name="ref_and_student.txt", mime="text/plain")
+    
+    def _copy_to_clipboard(text: str) -> None:
+        st.components.v1.html(
+            f"<script>navigator.clipboard.writeText({json.dumps(text)});</script>",
+            height=0,
+            width=0,
+        )
+
+    st.button("Copy combined text", on_click=_copy_to_clipboard, args=(combined_text,))
 
     # =======================
     # 6) Build Sheet Row (for Google Sheets)
