@@ -224,6 +224,51 @@ def list_drafts_student_doc_ids(limit: int = 500) -> list:
             return []
     return out
 
+def resolve_student_doc_id(student_code: str, student_name: str) -> str | None:
+    """Resolve drafts_v2 doc ID for a student.
+
+    Attempts an automatic match via Firestore. If no match is found, a hidden
+    debug expander is shown to allow manual selection or inspection.
+    Returns the resolved doc ID or None if still unresolved."""
+
+    if st.session_state.get("tab7_resolved_for") != student_code:
+        st.session_state["tab7_effective_student_doc"] = None
+        match = _find_candidate_doc_ids_from_firestore(student_code, student_name)
+        st.session_state["tab7_candidate_suggestions"] = match.get("suggestions", [])
+        exact = match.get("exact")
+        if exact:
+            st.session_state["tab7_effective_student_doc"] = exact
+        st.session_state["tab7_resolved_for"] = student_code
+
+    doc_id = st.session_state.get("tab7_effective_student_doc")
+    if doc_id:
+        st.success(f"Using Firestore doc: drafts_v2/{doc_id}")
+        return doc_id
+
+    st.error("Could not auto-resolve Firestore doc for this student.")
+    with st.expander("🧭 Debug: resolve Firestore doc manually", expanded=False):
+        suggestions = st.session_state.get("tab7_candidate_suggestions", [])
+        if suggestions:
+            pick = st.selectbox("Suggestions", suggestions, key="tab7_doc_suggestion")
+            if pick:
+                st.session_state["tab7_effective_student_doc"] = pick
+                doc_id = pick
+        manual = st.text_input("Manual doc id", key="tab7_doc_manual").strip()
+        if manual:
+            st.session_state["tab7_effective_student_doc"] = manual
+            doc_id = manual
+        ids = list_drafts_student_doc_ids(limit=200)
+        if ids:
+            query = st.text_input("Filter IDs", "", key="tab7_doc_filter")
+            if query:
+                ids = [i for i in ids if query.lower() in i.lower()]
+            st.dataframe(pd.DataFrame({"doc_id": ids}))
+
+    doc_id = st.session_state.get("tab7_effective_student_doc")
+    if doc_id:
+        st.success(f"Using Firestore doc: drafts_v2/{doc_id}")
+    return doc_id
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) -> pd.DataFrame:
     """Read lessons from drafts_v2/{student_doc_id}/lessons."""
@@ -367,54 +412,9 @@ def render_marking_tab():
     st.code(student_code)
 
     # --- Resolve Firestore doc under drafts_v2 ---
-    st.subheader("1b) Match to Firestore student document (drafts_v2)")
-    if "tab7_effective_student_doc" not in st.session_state:
-        st.session_state["tab7_effective_student_doc"] = None
-
-    needs_resolve = st.session_state.get("tab7_resolved_for") != student_code
-    colr1, colr2 = st.columns([1, 1])
-    with colr1:
-        if st.button("🔍 Re-resolve Firestore doc", use_container_width=True):
-            needs_resolve = True
-    with colr2:
-        manual_override = st.text_input(
-            "Manual override (exact drafts_v2 doc id)",
-            value=st.session_state.get("tab7_effective_student_doc") or ""
-        )
-
-    if manual_override.strip():
-        st.session_state["tab7_effective_student_doc"] = manual_override.strip()
-        st.session_state["tab7_resolved_for"] = student_code
-    elif needs_resolve:
-        match = _find_candidate_doc_ids_from_firestore(student_code, student_name)
-        exact = match.get("exact")
-        suggestions = match.get("suggestions", [])
-        if exact:
-            st.session_state["tab7_effective_student_doc"] = exact
-            st.session_state["tab7_resolved_for"] = student_code
-            st.success(f"Matched Firestore doc: {exact}")
-        else:
-            st.info("No exact doc match. Pick from suggestions or type manual override.")
-            if suggestions:
-                pick = st.selectbox("Suggestions from drafts_v2", suggestions, key="tab7_doc_suggestion")
-                if pick:
-                    st.session_state["tab7_effective_student_doc"] = pick
-                    st.session_state["tab7_resolved_for"] = student_code
-            else:
-                st.warning("No suggestions found. Use the manual override above.")
-
-    effective_doc = st.session_state.get("tab7_effective_student_doc")
+    effective_doc = resolve_student_doc_id(student_code, student_name)
     if not effective_doc:
-        with st.expander("🧭 Debug: list drafts_v2 doc IDs", expanded=False):
-            ids = list_drafts_student_doc_ids(limit=200)
-            st.write(f"Found {len(ids)} doc IDs (showing up to 200):")
-            query = st.text_input("Filter IDs", "")
-            if query:
-                ids = [i for i in ids if query.lower() in i.lower()]
-            st.dataframe(pd.DataFrame({"doc_id": ids}))
         st.stop()
-
-    st.success(f"Using Firestore doc: drafts_v2/{effective_doc}")
 
     # --- Student submissions ---
     st.subheader("2) Pick a Submission to Mark (from drafts_v2 → lessons)")
