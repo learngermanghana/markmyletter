@@ -1,45 +1,31 @@
-import os
-import json
 import streamlit as st
 import pandas as pd
-import gspread
 import requests
 from datetime import datetime
-from google.oauth2.service_account import Credentials
 import firebase_admin
 from firebase_admin import credentials, firestore
+import os, json
 
 # =========================
 # CONFIGURATION
 # =========================
-STUDENTS_SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
+STUDENTS_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
+REF_ANSWERS_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
 WEBHOOK_TOKEN = "Xenomexpress7727/"
 
 # =========================
-# GOOGLE SHEETS SETUP
+# LOAD SHEETS
 # =========================
-def get_gsheet_client():
-    creds_dict = json.loads(os.environ["G_SHEETS_KEY"])  # set in Streamlit secrets or env
-    scope = ["https://spreadsheets.google.com/feeds",
-             "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    return gspread.authorize(creds)
-
-gs_client = get_gsheet_client()
-
 def load_students():
-    ws = gs_client.open_by_key(STUDENTS_SHEET_ID).sheet1
-    return pd.DataFrame(ws.get_all_records())
+    return pd.read_csv(STUDENTS_SHEET_CSV)
 
 def load_references():
-    ws = gs_client.open_by_key(REF_ANSWERS_SHEET_ID).sheet1
-    return pd.DataFrame(ws.get_all_records())
+    return pd.read_csv(REF_ANSWERS_SHEET_CSV)
 
 # =========================
-# FIRESTORE SETUP
+# FIREBASE
 # =========================
 if not firebase_admin._apps:
     firebase_creds = json.loads(os.environ["FIREBASE_KEY"])
@@ -57,9 +43,6 @@ def get_student_submission(student_id: str):
 # APP SCRIPT SAVE FUNCTION
 # =========================
 def save_score(student_row, score, feedback, assignment="Assignment 1", level="A1", link=""):
-    """
-    student_row: row from students_df (with studentcode, name, etc.)
-    """
     row = {
         "studentcode": student_row.get("Code", ""),
         "name": student_row.get("Name", ""),
