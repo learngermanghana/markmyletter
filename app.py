@@ -10,11 +10,11 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# ================
-# CONFIG (Sheets)
-# ================
-SCORES_SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"      # has studentcode, name, level
-REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"  # has answer1..answer50 (+ links)
+# =========================
+# SHEET IDS (CSV export)
+# =========================
+STUDENTS_SHEET_ID    = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"   # studentcode, name, level
+REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"    # rows = assignments (e.g., 0.1), cols Answer1..50, answer_url, sheet_url
 
 # =========================
 # WEBHOOK (with fallbacks)
@@ -59,53 +59,73 @@ def load_sheet_csv(sheet_id: str) -> pd.DataFrame:
     return df
 
 def get_student_submissions(student_code: str):
-    """Return list of dicts from drafts_v2/{student_code}/lessons"""
+    """Return list of dicts from drafts_v2/{student_code}/lessons; fallback to 'lessens'."""
+    items = []
+    # normal
     try:
-        ref = db.collection("drafts_v2").document(student_code).collection("lessons")
-        return [doc.to_dict() for doc in ref.stream()]
-    except Exception as e:
-        st.error(f"Failed to load Firestore submissions: {e}")
-        return []
+        for snap in db.collection("drafts_v2").document(student_code).collection("lessons").stream():
+            d = snap.to_dict() or {}
+            d["id"] = snap.id
+            items.append(d)
+    except Exception:
+        pass
+    # typo-safe
+    if not items:
+        try:
+            for snap in db.collection("drafts_v2").document(student_code).collection("lessens").stream():
+                d = snap.to_dict() or {}
+                d["id"] = snap.id
+                items.append(d)
+        except Exception:
+            pass
+    return items
 
-def join_all_reference_answers(refs_df: pd.DataFrame) -> str:
-    ans_cols = [c for c in refs_df.columns if c.startswith("answer")]
-    parts = []
-    for col in ans_cols:
-        vals = refs_df[col].dropna()
-        if not vals.empty:
-            parts.append(f"{col.title()}: {vals.iloc[0]}")
-    return "\n\n".join(parts) if parts else "No reference answers found."
+def assignment_options_from_refs(refs_df: pd.DataFrame):
+    """Return list of (label, row_index). Label prefers 'assignment' + 'name' if present."""
+    opts = []
+    for idx, row in refs_df.iterrows():
+        a = str(row.get("assignment", "")).strip()
+        n = str(row.get("name", "")).strip()
+        if a and n:   label = f"{a} — {n}"
+        elif a:       label = a
+        elif n:       label = n
+        else:         label = f"Row {idx+1}"
+        opts.append((label, idx))
+    return opts
 
-def get_reference_for_assignment(refs_df: pd.DataFrame, assignment_num: int) -> str:
-    if assignment_num == 0:
-        return join_all_reference_answers(refs_df)
-    col = f"answer{assignment_num}"
-    if col in refs_df.columns:
-        vals = refs_df[col].dropna()
-        return str(vals.iloc[0]) if not vals.empty else "No reference found."
-    return "No reference found."
+def reference_text_all_for_row(row: pd.Series) -> str:
+    """Join all AnswerN cells from this assignment row, in numeric order."""
+    tuples = []
+    for col in row.index:
+        if col.startswith("answer"):
+            m = re.findall(r"\d+", col)
+            if m:
+                n = int(m[0])
+                val = str(row[col]).strip()
+                if val and val.lower() not in ("nan", "none"):
+                    tuples.append((n, val))
+    tuples.sort(key=lambda t: t[0])
+    if not tuples:
+        return "No reference answers found."
+    return "\n\n".join([f"Answer{n}: {val}" for n, val in tuples])
 
-def get_reference_link(refs_df: pd.DataFrame) -> str:
-    """Use answer_url first, else sheet_url, else generic sheet link."""
+def link_for_row(row: pd.Series) -> str:
     for col in ["answer_url", "sheet_url"]:
-        if col in refs_df.columns:
-            vals = refs_df[col].dropna()
-            if not vals.empty:
-                return str(vals.iloc[0])
+        if col in row.index:
+            v = str(row[col]).strip()
+            if v and v.lower() not in ("nan", "none"):
+                return v
     return f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
 
 def ai_mark(student_answer: str, ref_text: str):
-    """
-    Ask OpenAI for a JSON with {score:int, feedback:str (≈40 words)}.
-    """
+    """Ask OpenAI for JSON: {score:int 0-100, feedback: ~40 words}."""
     if not client:
         return None, "⚠️ OpenAI key missing (set in secrets)."
-
     prompt = f"""
 You are a German teacher. Compare the student's answer with the reference answer.
 Return STRICT JSON with two keys:
 - score: integer 0-100
-- feedback: exactly ~40 words of constructive feedback (no extra text)
+- feedback: ~40 words of constructive feedback (no extra text)
 
 Student answer:
 {student_answer}
@@ -123,9 +143,8 @@ Return only JSON.
             max_tokens=200,
         )
         text = resp.choices[0].message.content.strip()
-        json_match = re.search(r"\{.*\}", text, flags=re.S)
-        if json_match:
-            text = json_match.group(0)
+        m = re.search(r"\{.*\}", text, flags=re.S)
+        if m: text = m.group(0)
         data = json.loads(text)
         score = int(data.get("score", 0))
         feedback = str(data.get("feedback", "")).strip()
@@ -137,131 +156,129 @@ def save_row_to_scores(row: dict):
     payload = {"token": WEBHOOK_TOKEN, "row": row}
     try:
         r = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-        return r.json() if r.headers.get("content-type","").startswith("application/json") else {"ok": False, "raw": r.text}
+        if r.headers.get("content-type","").startswith("application/json"):
+            return r.json()
+        raw = r.text
+        if "violates the data validation rules" in raw:
+            return {"ok": False, "why": "validation", "raw": raw}
+        return {"ok": False, "raw": raw}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 # =========================
-# Load DataFrames
+# Load data
 # =========================
-scores_df = load_sheet_csv(SCORES_SHEET_ID)  # source for studentcode + name + level
-refs_df   = load_sheet_csv(REF_ANSWERS_SHEET_ID)
+students_df = load_sheet_csv(STUDENTS_SHEET_ID)
+refs_df     = load_sheet_csv(REF_ANSWERS_SHEET_ID)
 
-# Ensure needed columns exist (scores sheet)
-if "studentcode" not in scores_df.columns:
-    st.error("Scores sheet must have a 'studentcode' column.")
-    st.stop()
-if "name" not in scores_df.columns:
-    scores_df["name"] = ""
-if "level" not in scores_df.columns:
-    scores_df["level"] = ""
-
-# Build assignment choices from reference sheet columns
-answer_cols = [c for c in refs_df.columns if c.startswith("answer")]
-max_assign = len(answer_cols)
-assignment_choices = ["0 (All Answers)"] + [str(i) for i in range(1, max_assign + 1)]
+# Safety: ensure columns exist
+for col in ["studentcode", "name", "level"]:
+    if col not in students_df.columns:
+        students_df[col] = ""
+if "assignment" not in refs_df.columns:
+    refs_df["assignment"] = ""
 
 # =========================
 # UI
 # =========================
 st.title("📘 Marking Dashboard")
 
-# 1) Pick studentcode (auto-fill: name & level)
-studentcode = st.selectbox("Student Code", sorted(scores_df["studentcode"].dropna().unique()))
-row_match = scores_df[scores_df["studentcode"] == studentcode].head(1)
-name  = row_match["name"].iloc[0] if not row_match.empty else ""
-level = row_match["level"].iloc[0] if not row_match.empty else ""
+# 1) Student dropdown → auto-filled name & level
+studentcode = st.selectbox("Student Code", sorted(students_df["studentcode"].dropna().unique()))
+srow = students_df[students_df["studentcode"] == studentcode].head(1)
+name  = srow["name"].iloc[0]  if not srow.empty else ""
+level = srow["level"].iloc[0] if not srow.empty else ""
 
-col_a, col_b = st.columns(2)
-with col_a:
-    st.text_input("Name (auto)", value=name, disabled=True)
-with col_b:
-    st.text_input("Level (auto)", value=level, disabled=True)
+c1, c2 = st.columns(2)
+with c1: st.text_input("Name (auto)",  value=name,  disabled=True)
+with c2: st.text_input("Level (auto)", value=level, disabled=True)
 
-# 2) Pick assignment (0 = all answers joined)
-assign_label = st.selectbox("Assignment", assignment_choices)
-assignment = 0 if assign_label.startswith("0") else int(assign_label)
+# 2) Assignment dropdown (parent row). No Answer1/2 picking—always ALL answers in that row.
+assign_opts  = assignment_options_from_refs(refs_df)  # list[(label, idx)]
+assign_label = st.selectbox("Assignment (from Reference sheet)", [lbl for lbl, _ in assign_opts])
+assign_idx   = dict(assign_opts)[assign_label]
+assign_row   = refs_df.iloc[assign_idx]
 
-# 3) Load student's Firestore folder and pick ONE submission
+# Build reference text for THIS row (all answers joined)
+ref_text    = reference_text_all_for_row(assign_row)
+answer_link = link_for_row(assign_row)
+st.caption(f"Reference link: {answer_link}")
+
+# 3) Firestore dropdown: list all in drafts_v2/{studentcode}/lessons (or 'lessens')
 subs = get_student_submissions(studentcode)
 if subs:
-    def draft_label(idx, d):
+    def sub_label(i, d):
         txt = str(d.get("content", "") or "")
-        preview = (txt[:60] + "…") if len(txt) > 60 else txt
-        return f"Submission {idx+1}: {preview}"
-    draft_labels = [draft_label(i, d) for i, d in enumerate(subs)]
-    pick = st.selectbox("Pick submission to mark", draft_labels, index=0)
-    sel_idx = draft_labels.index(pick)
-    student_answer = subs[sel_idx].get("content", "") or ""
+        preview = (txt[:70] + "…") if len(txt) > 70 else txt
+        return f"{i+1} • {d.get('id','')} • {preview}"
+    sub_labels = [sub_label(i, d) for i, d in enumerate(subs)]
+    picked = st.selectbox("Student submission", sub_labels)
+    sel_idx = sub_labels.index(picked)
+    student_text = subs[sel_idx].get("content", "") or ""
 else:
     st.warning("No submissions in Firestore for this student.")
-    student_answer = ""
-
-# 4) Reference answer & link (auto)
-ref_text   = get_reference_for_assignment(refs_df, assignment)
-answer_link = get_reference_link(refs_df)
+    student_text = ""
 
 st.markdown("**Student Submission**")
-st.code(student_answer or "(empty)", language="markdown")
+st.code(student_text or "(empty)", language="markdown")
 
-st.markdown("**Reference Answer**")
+st.markdown("**Reference Answer (all answers in this assignment)**")
 st.code(ref_text or "(not found)", language="markdown")
 
-# --- Session defaults for AI result
-if "ai_score" not in st.session_state:
-    st.session_state.ai_score = 0
-if "ai_feedback" not in st.session_state:
-    st.session_state.ai_feedback = ""
+# --- AI generate once per selection; allow override
+if "ai_score" not in st.session_state:   st.session_state.ai_score = 0
+if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
+if "key_last" not in st.session_state:    st.session_state.key_last = None
 
-# Auto-generate once when we have both texts (you can override afterwards)
-combo_key = f"{studentcode}|{assignment}|{sel_idx if subs else -1}"
-if "last_combo" not in st.session_state:
-    st.session_state.last_combo = None
-should_autogen = (
+combo_key = f"{studentcode}|{assign_idx}|{picked if subs else 'none'}"
+should_gen = (
     client is not None
-    and student_answer.strip()
-    and ref_text.strip()
-    and st.session_state.last_combo != combo_key
+    and student_text.strip()
+    and ref_text.strip() != "No reference answers found."
+    and st.session_state.key_last != combo_key
 )
 
-if should_autogen:
-    ai_s, ai_fb = ai_mark(student_answer, ref_text)
+if should_gen:
+    ai_s, ai_fb = ai_mark(student_text, ref_text)
     if ai_s is not None:
         st.session_state.ai_score = ai_s
     st.session_state.ai_feedback = ai_fb
-    st.session_state.last_combo = combo_key
+    st.session_state.key_last = combo_key
 
-col1, col2 = st.columns([1,1])
-with col1:
+colA, colB = st.columns([1,1])
+with colA:
     if st.button("🔁 Regenerate AI"):
-        ai_s, ai_fb = ai_mark(student_answer, ref_text)
+        ai_s, ai_fb = ai_mark(student_text, ref_text)
         if ai_s is not None:
             st.session_state.ai_score = ai_s
         st.session_state.ai_feedback = ai_fb
 
 # Editable (override allowed)
-score = st.number_input("Score", min_value=0, max_value=100, step=1, value=st.session_state.ai_score)
+score    = st.number_input("Score", min_value=0, max_value=100, step=1, value=st.session_state.ai_score)
 comments = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
 
-# 5) Save to sheet (exact order expected)
+# 4) Save in exact order → studentcode, name, assignment, score, comments, date, level, link
 if st.button("💾 Save", type="primary", use_container_width=True):
     if not studentcode:
         st.error("Pick a student code first.")
     elif not comments.strip():
         st.error("Feedback is required (generate with AI or type manually).")
     else:
+        assignment_value = str(assign_row.get("assignment", assign_label)).strip() or assign_label
         row = {
             "studentcode": studentcode,
             "name": name,
-            "assignment": assignment,                   # 0 means "all answers"
+            "assignment": assignment_value,                 # parent assignment (e.g., "0.1")
             "score": int(score),
             "comments": comments.strip(),
             "date": datetime.now().strftime("%Y-%m-%d"),
             "level": level,
-            "link": answer_link,                        # auto-filled from reference sheet
+            "link": answer_link,                            # per-row link (usually ends with key)
         }
         result = save_row_to_scores(row)
         if result.get("ok"):
             st.success("✅ Saved to Scores sheet.")
+        elif result.get("why") == "validation":
+            st.error("❌ Sheet blocked the write due to **data validation** for studentcode.")
         else:
             st.error(f"❌ Failed to save: {result}")
