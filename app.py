@@ -1,11 +1,30 @@
+import os, json
 import streamlit as st
-import pandas as pd
-import gspread
-import os
-import json
-from google.oauth2.service_account import Credentials
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.oauth2.service_account import Credentials
+import gspread
+
+# =========================
+# GOOGLE SHEETS
+# =========================
+def get_gsheet_client():
+    creds_dict = json.loads(os.environ["G_SHEETS_KEY"])  # updated name
+    scope = ["https://spreadsheets.google.com/feeds",
+             "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    return gspread.authorize(creds)
+
+gs_client = get_gsheet_client()
+
+# =========================
+# FIREBASE
+# =========================
+if not firebase_admin._apps:
+    cred = credentials.Certificate(json.loads(os.environ["FIREBASE_KEY"]))  # updated name
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 # =========================
 # CONFIGURATION
