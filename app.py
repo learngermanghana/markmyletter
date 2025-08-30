@@ -8,33 +8,13 @@ from firebase_admin import credentials, firestore
 from openai import OpenAI
 
 # =========================
-# OPENAI INIT
-# =========================
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
-if OPENAI_API_KEY:
-    client = OpenAI(api_key=OPENAI_API_KEY)
-else:
-    client = None
-    st.warning("⚠️ OpenAI API key not found. AI marking will be disabled.")
-
-# =========================
 # FIREBASE INIT
 # =========================
-firebase_config = st.secrets.get("firebase", None)
-if firebase_config and not firebase_admin._apps:
-    try:
-        cred = credentials.Certificate(dict(firebase_config))
-        firebase_admin.initialize_app(cred, {
-            "storageBucket": firebase_config.get("FIREBASE_STORAGE_BUCKET")
-        })
-        db = firestore.client()
-    except Exception as e:
-        st.error(f"❌ Firebase init failed: {e}")
-        db = None
-else:
-    db = None
-    if not firebase_config:
-        st.warning("⚠️ Firebase config not found in secrets. Firestore disabled.")
+if not firebase_admin._apps:
+    cred = credentials.Certificate(dict(st.secrets["firebase"]))
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 # =========================
 # GOOGLE SHEETS (via public CSV export link)
@@ -43,12 +23,11 @@ STUDENTS_SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
 
 def load_sheet(sheet_id):
-    try:
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
-        return pd.read_csv(url)
-    except Exception as e:
-        st.error(f"❌ Failed to load sheet {sheet_id}: {e}")
-        return pd.DataFrame()
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
+    df = pd.read_csv(url)
+    # normalize headers: lowercase + strip spaces
+    df.columns = df.columns.str.strip().str.lower()
+    return df
 
 students_df = load_sheet(STUDENTS_SHEET_ID)
 refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
@@ -63,132 +42,89 @@ WEBHOOK_URL = st.secrets.get(
 WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
 
 def save_to_sheet(row: dict):
-    """Send one row to Google Sheets via App Script webhook"""
     payload = {"token": WEBHOOK_TOKEN, "row": row}
-    try:
-        r = requests.post(WEBHOOK_URL, json=payload)
-        return r.json()
-    except Exception as e:
-        st.error(f"❌ Failed to save row: {e}")
-        return {"ok": False, "error": str(e)}
+    r = requests.post(WEBHOOK_URL, json=payload)
+    return r.json()
 
 # =========================
-# FIREBASE SUBMISSIONS
+# OPENAI CLIENT
 # =========================
-def get_student_submissions(student_code: str):
-    """Fetch all drafts for a student"""
-    docs = db.collection("drafts_v2").document(student_code).collection("lessons").stream()
-    return [d.to_dict() for d in docs]
-
-
-# --- OpenAI setup ---
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
-
-if not OPENAI_API_KEY:
-    st.error("⚠️ Missing OpenAI API key in Streamlit secrets or env.")
-    st.stop()
-
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-
-
-def ai_mark(student_text: str, reference_text: str):
-    """Use GPT to assign a score (0-100) and give 40 words feedback"""
-    prompt = f"""
-    You are a German teacher. Compare the student's answer to the reference answer.
-    Assign a numeric score (0-100) and give exactly 40 words constructive feedback.
-    Student Answer: {student_text}
-    Reference Answer: {reference_text}
-    """
-
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    feedback = resp.choices[0].message.content.strip()
-
-    # very naive parse: first number found = score
-    import re
-    match = re.search(r"(\d{1,3})", feedback)
-    score = int(match.group(1)) if match else 0
-
-    return score, feedback
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", None)
+client = None
+if OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
 
 # =========================
 # STREAMLIT UI
 # =========================
 st.title("📘 Student Marking Dashboard")
 
-# 🔹 Select student
-student_code = st.selectbox("Select Student Code", students_df["studentcode"].unique())
-student_name = students_df.loc[students_df["studentcode"] == student_code, "name"].values[0]
-
-# 🔹 Load submissions from Firebase
-submissions = get_student_submissions(student_code)
-
-st.subheader("📝 Submissions")
-if submissions:
-    for i, sub in enumerate(submissions, start=1):
-        st.markdown(f"**Draft {i}:**")
-        st.code(sub.get("content", ""), language="markdown")
+# --- Select Student Code
+if "studentcode" not in students_df.columns:
+    st.error("❌ The students sheet does not have a 'studentcode' column. Please check the headers.")
 else:
-    st.warning("No submissions found in Firebase.")
+    student_code = st.selectbox("Select Student Code", students_df["studentcode"].unique())
 
-# 🔹 Select assignment (reference answer sheet)
-assignment = st.selectbox("Select Assignment", refs_df["assignment"].unique())
-ref_row = refs_df.loc[refs_df["assignment"] == assignment]
-reference_answer = " ".join([str(v) for v in ref_row.filter(like="Answer").values[0] if pd.notna(v)])
-sheet_link = ref_row["sheet_url"].values[0] if not ref_row.empty else ""
+    if student_code:
+        # --- Firestore submissions (all drafts under this student)
+        submissions_ref = db.collection("drafts_v2").document(student_code).collection("lessons")
+        submissions = [doc.to_dict() for doc in submissions_ref.stream()]
 
-st.subheader("✅ Reference Answer")
-st.code(reference_answer, language="markdown")
+        # --- Reference answers (all assignment answers in row)
+        ref_row = refs_df[refs_df["studentcode"] == student_code]
+        if not ref_row.empty:
+            ref_answers = ref_row.iloc[0].to_dict()
+        else:
+            ref_answers = {}
 
-# =========================
-# MANUAL MARKING
-# =========================
-st.subheader("✍️ Manual Marking")
-score = st.number_input("Enter Score", min_value=0, max_value=100, step=1)
-feedback = st.text_area("Enter Feedback (manual)")
+        # --- Display submissions
+        st.subheader("📝 Student Submission(s)")
+        if submissions:
+            for i, sub in enumerate(submissions, start=1):
+                st.markdown(f"**Draft {i}:**")
+                st.code(sub.get("content", ""), language="markdown")
+        else:
+            st.warning("No submission found for this student in Firestore.")
 
-if st.button("💾 Save Manual Mark"):
-    row = {
-        "studentcode": student_code,
-        "name": student_name,
-        "assignment": assignment,
-        "score": score,
-        "comments": feedback,
-        "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "level": "",  # optional
-        "link": sheet_link
-    }
-    resp = save_to_sheet(row)
-    st.success(f"✅ Saved to sheet: {resp}")
+        # --- Display reference answers
+        st.subheader("✅ Reference Answers")
+        if ref_answers:
+            st.json(ref_answers)
+        else:
+            st.warning("No reference answers found in sheet.")
 
-# =========================
-# AI MARKING
-# =========================
-st.subheader("🤖 AI Marking")
-if st.button("🔮 Let AI Mark"):
-    if submissions:
-        # take latest draft
-        student_answer = submissions[-1].get("content", "")
-        ai_score, ai_feedback = ai_mark(student_answer, reference_answer)
+        # --- Marking section
+        st.subheader("📊 Marking")
+        assignment_num = st.number_input("Assignment Number", min_value=1, max_value=50, step=1)
+        score = st.number_input("Enter Score", min_value=0, max_value=100, step=1)
+        comments = st.text_area("Enter Feedback (manual)")
 
-        st.write("**AI Score:**", ai_score)
-        st.write("**AI Feedback:**", ai_feedback)
+        # --- AI Feedback
+        ai_feedback = ""
+        if client and st.button("🤖 Generate AI Feedback"):
+            combined_text = f"Student submission:\n{submissions}\n\nReference:\n{ref_answers}"
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a teacher giving short constructive feedback."},
+                    {"role": "user", "content": combined_text}
+                ],
+                max_tokens=120
+            )
+            ai_feedback = response.choices[0].message.content.strip()
+            st.success(ai_feedback)
 
-        row = {
-            "studentcode": student_code,
-            "name": student_name,
-            "assignment": assignment,
-            "score": ai_score,
-            "comments": ai_feedback,
-            "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "level": "",
-            "link": sheet_link
-        }
-        resp = save_to_sheet(row)
-        st.success(f"✅ AI result saved to sheet: {resp}")
-    else:
-        st.error("No student submission found to mark.")
+        # --- Save to Google Sheets via App Script
+        if st.button("💾 Save Mark"):
+            row = {
+                "studentcode": student_code,
+                "name": students_df.loc[students_df["studentcode"] == student_code, "name"].values[0] if "name" in students_df.columns else "",
+                "assignment": assignment_num,
+                "score": score,
+                "comments": comments or ai_feedback,
+                "date": pd.Timestamp.now().strftime("%Y-%m-%d"),
+                "level": students_df.loc[students_df["studentcode"] == student_code, "level"].values[0] if "level" in students_df.columns else "",
+                "link": f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}"
+            }
+            result = save_to_sheet(row)
+            st.success(f"✅ Saved! Response: {result}")
