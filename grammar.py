@@ -12,11 +12,6 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 
 st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
-st.title("Falowen Marking Tab")
-
-if st.button("🔄 Refresh Data"):
-    st.cache_data.clear()
-    st.rerun()
 
 # =============================================================================
 # CONFIG: Google Sheets sources (edit to your sheet URLs)
@@ -95,7 +90,7 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
     return df
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_marking_students(url: str) -> pd.DataFrame:
     df = pd.read_csv(url, dtype=str)
     df = _normalize_columns(df)
@@ -447,12 +442,65 @@ def export_row(one_row):
                 result = _post_rows_to_sheet(
                     [one_row],
                     sheet_name=dest_name if dest_name else None,
-                    sheet_gid=int(dest_gid) if dest_gid else DEFAULT_TARGET_SHEET_GID,
+                    sheet_gid=int(dest_gid)
+                    if dest_gid
+                    else (DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else None),
+                )
+                st.success(
+                    f"Appended {result.get('appended', 1)} row ✅  → {result.get('sheetName')} (gid {result.get('sheetId')})"
                 )
             except Exception as e:
-                st.error(f"Failed to send row: {e}")
-            else:
-                st.success("Row sent to Google Sheet!")
-                st.write(result)
-                st.cache_data.clear()
-                st.experimental_rerun()
+                st.error(f"Failed to send: {e}")
+
+    st.divider()
+
+    st.subheader("7) Export Cart (build multiple rows, then export/send)")
+
+    if "export_cart" not in st.session_state:
+        st.session_state["export_cart"] = []
+
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    with col1:
+        if st.button("➕ Add current row to cart"):
+            st.session_state["export_cart"].append(one_row)
+    with col2:
+        if st.button("🧹 Clear cart"):
+            st.session_state["export_cart"] = []
+    with col3:
+        st.caption(f"{len(st.session_state['export_cart'])} row(s) in cart")
+    with col4:
+        if st.session_state["export_cart"]:
+            if st.button("📤 Send cart to Google Sheet (Webhook)"):
+                try:
+                    rows_to_send = st.session_state.get("edited_cart_rows") or st.session_state["export_cart"]
+                    result = _post_rows_to_sheet(
+                        rows_to_send,
+                        sheet_name=dest_name if dest_name else None,
+                        sheet_gid=int(dest_gid)
+                        if dest_gid
+                        else (DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else None),
+                    )
+                    st.success(
+                        f"Appended {result.get('appended', len(rows_to_send))} rows ✅  → {result.get('sheetName')} (gid {result.get('sheetId')})"
+                    )
+                except Exception as e:
+                    st.error(f"Failed to send: {e}")
+
+    if st.session_state["export_cart"]:
+        cart_df = pd.DataFrame(
+            st.session_state["export_cart"],
+            columns=["studentcode", "name", "assignment", "score", "comments", "date", "level", "link"],
+        )
+        st.write("Edit score/comments here if you like, then download or send:")
+        edited_cart = st.data_editor(cart_df, use_container_width=True, num_rows="dynamic")
+        st.session_state["edited_cart_rows"] = edited_cart.to_dict(orient="records")
+
+        cart_csv = edited_cart.to_csv(index=False)
+        cart_tsv = edited_cart.to_csv(index=False, sep="\t")
+        st.download_button(
+            "⬇️ Download cart as CSV", data=cart_csv, file_name="grades_export.csv", mime="text/csv"
+        )
+        with st.expander("Copy-friendly TSV (paste straight into Google Sheet)"):
+            st.code(cart_tsv.strip(), language="text")
+    else:
+        st.info("Cart is empty — add the row above to start building a batch.")
