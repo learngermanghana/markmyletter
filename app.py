@@ -9,7 +9,7 @@ import os, json
 # FIREBASE SETUP
 # =========================
 if not firebase_admin._apps:
-    cred = credentials.Certificate(json.loads(os.environ["FIREBASE_KEY"]))  # from Streamlit secrets or env
+    cred = credentials.Certificate(json.loads(os.environ["FIREBASE_KEY"]))  # from secrets
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -23,9 +23,7 @@ def get_student_submission(student_id: str):
 # =========================
 # SHEET DATA (via CSV export URL)
 # =========================
-# Student list
 STUDENTS_SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
-# Reference answers
 REF_ANSWERS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
 
 def load_students():
@@ -38,7 +36,7 @@ def load_references():
 # APP SCRIPT WEBHOOK
 # =========================
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
-WEBHOOK_TOKEN = "Xenomexpress7727/"  # must match your script property
+WEBHOOK_TOKEN = "Xenomexpress7727/"
 
 def save_score(student, assignment, score, feedback):
     row = {
@@ -47,10 +45,7 @@ def save_score(student, assignment, score, feedback):
         "score": score,
         "comments": feedback,
     }
-    payload = {
-        "token": WEBHOOK_TOKEN,
-        "row": row
-    }
+    payload = {"token": WEBHOOK_TOKEN, "row": row}
     res = requests.post(WEBHOOK_URL, json=payload)
     return res.json()
 
@@ -63,15 +58,20 @@ students_df = load_students()
 refs_df = load_references()
 
 student_name = st.selectbox("Select Student", students_df["Name"].unique())
+assignment_choice = st.selectbox("📌 Select Assignment", refs_df["assignment"].unique())
 
-if student_name:
+if student_name and assignment_choice:
     # --- Firestore submissions
     submissions = get_student_submission(student_name)
 
-    # --- Reference answer choice
-    assignment_choice = st.selectbox("📌 Select Assignment", [f"Answer{i}" for i in range(1, 51)])
-    if assignment_choice in refs_df.columns:
-        ref_text = refs_df[assignment_choice].dropna().values[0]
+    # --- Reference answers (all columns in that row)
+    ref_row = refs_df.loc[refs_df["assignment"] == assignment_choice].fillna("")
+    if not ref_row.empty:
+        ref_answers = []
+        for col in ref_row.columns:
+            if col.startswith("Answer") and ref_row.iloc[0][col]:
+                ref_answers.append(str(ref_row.iloc[0][col]))
+        ref_text = "\n".join(ref_answers)
     else:
         ref_text = "⚠️ No reference found."
 
@@ -88,15 +88,15 @@ if student_name:
         st.warning("No submission found for this student.")
 
     # --- Reference
-    st.subheader("✅ Reference Answer")
+    st.subheader("✅ Reference Answer(s)")
     st.code(ref_text, language="markdown")
 
     # --- Combined copy box
     st.subheader("📋 Combined for AI Marking")
     combined_text = (
-        "### Student Submission(s)\n"
+        f"### Student Submission(s) for {assignment_choice}\n"
         + "\n\n".join(student_texts)
-        + "\n\n### Reference Answer\n"
+        + "\n\n### Reference Answer(s)\n"
         + ref_text
     )
     st.text_area("Copy this text to send to AI", combined_text, height=300)
