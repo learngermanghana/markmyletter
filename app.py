@@ -5,8 +5,8 @@ import pandas as pd
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
-from openai import OpenAI
 from datetime import datetime
+from openai import OpenAI
 
 # =========================
 # FIREBASE INIT
@@ -14,10 +14,11 @@ from datetime import datetime
 if not firebase_admin._apps:
     cred = credentials.Certificate(dict(st.secrets["firebase"]))
     firebase_admin.initialize_app(cred)
+
 db = firestore.client()
 
 # =========================
-# GOOGLE SHEETS (public CSV export links)
+# SHEETS (CSV Export)
 # =========================
 SCORES_SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
@@ -26,22 +27,8 @@ def load_sheet(sheet_id):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
     return pd.read_csv(url)
 
-scores_df = load_sheet(SCORES_SHEET_ID)   # now main student list
+scores_df = load_sheet(SCORES_SHEET_ID)
 refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
-
-# reshape reference answers: Answer1..Answer50 → assignment, answer
-def reshape_refs(df):
-    df.columns = df.columns.str.strip().str.lower()
-    answer_cols = [c for c in df.columns if c.startswith("answer")]
-    long_df = df.melt(
-        id_vars=[c for c in df.columns if c not in answer_cols],
-        value_vars=answer_cols,
-        var_name="assignment",
-        value_name="answer"
-    )
-    return long_df
-
-refs_df = reshape_refs(refs_df)
 
 # =========================
 # APP SCRIPT WEBHOOK
@@ -58,88 +45,99 @@ def save_to_sheet(row: dict):
     return r.json()
 
 # =========================
+# FIRESTORE FETCH
+# =========================
+def get_student_submission(student_id: str):
+    doc_ref = db.collection("drafts_v2").document(student_id).collection("lessons")
+    docs = doc_ref.stream()
+    return [d.to_dict() for d in docs]
+
+# =========================
 # OPENAI CLIENT
 # =========================
-OPENAI_KEY = st.secrets.get("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
-def ai_mark(student_answer, ref_answer):
+def ai_feedback(student_text: str, ref_text: str) -> str:
     if not client:
-        return "⚠️ OpenAI key missing", 0
+        return "⚠️ OpenAI API key missing."
     prompt = f"""
-    You are a German teacher. Compare the student's answer with the reference answer.
-    Give a mark out of 100 and provide 40 words of constructive feedback.
-    
-    Student answer: {student_answer}
-    Reference answer: {ref_answer}
+    You are a German teacher. Compare the student’s answer with the reference answer.
+    Give clear marking feedback in about 40 words. 
+
+    Student Answer:
+    {student_text}
+
+    Reference Answer:
+    {ref_text}
     """
     resp = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.5,
+        max_tokens=120
     )
-    text = resp.choices[0].message.content.strip()
-    # naive split
-    return text, None
+    return resp.choices[0].message.content.strip()
 
 # =========================
 # STREAMLIT UI
 # =========================
 st.title("📘 Student Marking Dashboard")
 
-# pick student
-student_code = st.selectbox("Select Student Code", scores_df["studentcode"].dropna().unique())
-student_name = scores_df.loc[scores_df["studentcode"] == student_code, "name"].values[0]
-
-# pick assignment
-assignment_num = st.selectbox("Select Assignment", refs_df["assignment"].unique())
-ref_answer = refs_df.loc[refs_df["assignment"] == assignment_num, "answer"].values[0]
-
-# fetch Firestore submissions
-def get_student_submission(student_id: str):
-    doc_ref = db.collection("drafts_v2").document(student_id).collection("lessons")
-    docs = doc_ref.stream()
-    return [d.to_dict() for d in docs]
-
-submissions = get_student_submission(student_code)
-
-# show submissions
-st.subheader("📝 Student Submission(s)")
-if submissions:
-    for i, sub in enumerate(submissions, start=1):
-        st.markdown(f"**Draft {i}:**")
-        st.code(sub.get("content", ""), language="markdown")
+# --- Pick student from Scores sheet
+if "studentcode" not in scores_df.columns:
+    st.error("⚠️ 'studentcode' column not found in Scores sheet.")
 else:
-    st.warning("No submission found in Firestore.")
+    student_code = st.selectbox("Select Student Code", scores_df["studentcode"].dropna().unique())
+    student_name = scores_df.loc[scores_df["studentcode"] == student_code, "name"].values[0]
 
-# show reference
-st.subheader("✅ Reference Answer")
-st.code(ref_answer, language="markdown")
+    # --- Pick assignment
+    if "assignment" not in refs_df.columns:
+        st.error("⚠️ 'assignment' column not found in Reference sheet.")
+    else:
+        assignment_num = st.selectbox("Select Assignment", refs_df["assignment"].dropna().unique())
 
-# marking
-st.subheader("📊 Marking")
-use_ai = st.checkbox("Let AI generate mark & feedback")
-if use_ai and submissions:
-    ai_feedback, ai_score = ai_mark(submissions[0].get("content", ""), ref_answer)
-    st.write("🤖 AI Feedback:", ai_feedback)
-    score = st.number_input("Score", min_value=0, max_value=100, value=ai_score or 0)
-    feedback = st.text_area("Feedback", ai_feedback)
-else:
-    score = st.number_input("Score", min_value=0, max_value=100, step=1)
-    feedback = st.text_area("Feedback")
+        # --- Load button
+        if st.button("🔍 Load Work"):
+            # Firestore submissions
+            submissions = get_student_submission(student_code)
 
-# save
-if st.button("💾 Save to Sheet"):
-    today = datetime.today().strftime("%Y-%m-%d")
-    row = {
-        "studentcode": student_code,
-        "name": student_name,
-        "assignment": assignment_num,
-        "score": score,
-        "comments": feedback,
-        "date": today,
-        "level": "",   # optional, leave blank
-        "link": f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}"
-    }
-    result = save_to_sheet(row)
-    st.success(f"✅ Saved: {result}")
+            st.subheader("📝 Student Submission(s)")
+            if submissions:
+                for i, sub in enumerate(submissions, start=1):
+                    st.markdown(f"**Draft {i}:**")
+                    st.code(sub.get("content", ""), language="markdown")
+            else:
+                st.warning("No submission found in Firestore.")
+
+            # Reference answer
+            ref_row = refs_df[refs_df["assignment"] == assignment_num]
+            ref_text = ref_row.iloc[0].dropna().to_string(index=False) if not ref_row.empty else "No reference found."
+            st.subheader("✅ Reference Answer")
+            st.code(ref_text, language="markdown")
+
+            # AI feedback
+            if submissions and client:
+                st.subheader("🤖 AI Feedback")
+                feedback_text = ai_feedback(submissions[0].get("content", ""), ref_text)
+                st.info(feedback_text)
+            else:
+                feedback_text = ""
+
+            # Marking inputs
+            st.subheader("📊 Marking")
+            score = st.number_input("Enter Score", min_value=0, max_value=100, step=1)
+            manual_feedback = st.text_area("Enter Feedback (optional)", value=feedback_text)
+
+            if st.button("💾 Save Mark"):
+                row = {
+                    "studentcode": student_code,
+                    "name": student_name,
+                    "assignment": assignment_num,
+                    "score": score,
+                    "comments": manual_feedback,
+                    "date": datetime.today().strftime("%Y-%m-%d"),
+                    "level": "",  # optional
+                    "link": f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
+                }
+                result = save_to_sheet(row)
+                st.success(f"✅ Saved to sheet: {result}")
