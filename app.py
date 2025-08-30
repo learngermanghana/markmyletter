@@ -52,10 +52,6 @@ def get_student_submissions(student_code: str):
     docs = db.collection("drafts_v2").document(student_code).collection("lessons").stream()
     return [d.to_dict() for d in docs]
 
-# =========================
-# OPENAI CLIENT
-
-from openai import OpenAI
 
 # --- OpenAI setup ---
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
