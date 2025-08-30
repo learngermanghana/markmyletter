@@ -252,6 +252,106 @@ def display_copy_button(text: str):
     if st.button("Copy to clipboard"):
         copy_to_clipboard(text)
 
+def choose_submission(effective_doc):
+    """Choose a submission (lesson) to mark."""
+    st.subheader("2) Pick a Submission to Mark (from drafts_v2 → lessons)")
+    
+    # Check if effective_doc is valid
+    if not effective_doc:
+        st.error("No valid document ID found. Please resolve the document first.")
+        return None
+
+    colA, colB, colC = st.columns([1, 1, 1])
+    with colA:
+        refresh = st.button("🔄 Refresh list", use_container_width=True)
+    with colB:
+        max_items = st.number_input("Max lessons to load", min_value=10, max_value=500, value=200, step=10)
+    with colC:
+        search_lessons = st.text_input("Filter by title / doc id / text snippet", value="")
+    
+    if refresh:
+        st.cache_data.clear()
+
+    # Load lessons from drafts_v2
+    try:
+        df_lessons = load_student_lessons_from_drafts_doc(effective_doc, limit=int(max_items))
+    except Exception as e:
+        st.error(f"Error loading lessons: {e}")
+        return None
+
+    if df_lessons.empty:
+        st.info(f"No drafts found under drafts_v2/{effective_doc}.")
+        return None
+
+    if search_lessons:
+        q = search_lessons.strip().lower()
+
+        def _row_match(r):
+            return (
+                (str(r.get("title", "")).lower().find(q) >= 0)
+                or (str(r.get("lesson_id", "")).lower().find(q) >= 0)
+                or (str(r.get("answer_text", "")).lower().find(q) >= 0)
+            )
+
+        df_view = df_lessons[df_lessons.apply(_row_match, axis=1)].copy()
+    else:
+        df_view = df_lessons.copy()
+
+    if df_view.empty:
+        st.info("No drafts matched your filter.")
+        return None
+
+    df_preview = df_view.copy()
+    df_preview["answer_preview"] = df_preview["answer_text"].fillna("").astype(str).str.slice(0, 160)
+    try:
+        st.data_editor(
+            df_preview[["title", "lesson_id", "submitted_at", "score", "comment", "file", "answer_preview"]],
+            use_container_width=True,
+            column_config={"file": st.column_config.LinkColumn("File")},
+            disabled=True,
+            height=300,
+        )
+    except Exception:
+        st.dataframe(
+            df_preview[["title", "lesson_id", "submitted_at", "score", "comment", "file", "answer_preview"]],
+            use_container_width=True,
+            height=300,
+        )
+
+    ids = df_view["lesson_id"].astype(str).tolist()
+    id_to_row = df_view.set_index("lesson_id").to_dict(orient="index")
+
+    def _fmt_submission(lesson_id: str):
+        r = id_to_row.get(lesson_id, {})
+        return f"{r.get('title', '')} — {lesson_id} — {r.get('submitted_at', '')}"
+
+    selected_lesson_id = st.selectbox(
+        "Choose a submission to mark", ids, format_func=_fmt_submission, key="tab7_selected_submission"
+    )
+    
+    # Ensure a valid submission is selected
+    if not selected_lesson_id:
+        st.warning("No submission selected. Please select a submission to continue.")
+        return None
+
+    chosen_row = df_view[df_view["lesson_id"] == selected_lesson_id].iloc[0]
+
+    st.markdown("**Selected submission details:**")
+    st.json(
+        {
+            "doc_path": chosen_row.get("doc_path"),
+            "title": chosen_row.get("title"),
+            "lesson_id": chosen_row.get("lesson_id"),
+            "submitted_at": str(chosen_row.get("submitted_at")),
+            "score": chosen_row.get("score"),
+            "comment": chosen_row.get("comment"),
+            "file": chosen_row.get("file"),
+        }
+    )
+
+    return chosen_row
+
+
 # =============================================================================
 # UI: MARKING TAB
 # =============================================================================
