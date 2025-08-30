@@ -351,6 +351,51 @@ def choose_submission(effective_doc):
 
     return chosen_row
 
+def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) -> pd.DataFrame:
+    """Read lessons from drafts_v2/{student_doc_id}/lessons."""
+    _ensure_firebase_clients()  # Ensure Firestore client is initialized
+    if _DB is None or not student_doc_id:
+        return pd.DataFrame()
+
+    doc_ref = _DB.collection("drafts_v2").document(str(student_doc_id))
+    try:
+        _ = doc_ref.get()
+    except Exception as e:
+        st.error(f"Error fetching document: {e}")
+        return pd.DataFrame()
+
+    lessons_ref = doc_ref.collection("lessons")
+    try:
+        docs = list(lessons_ref.limit(limit).stream())
+    except Exception as e:
+        st.error(f"Error fetching lessons: {e}")
+        return pd.DataFrame()
+
+    rows = []
+    for d in docs:
+        data = d.to_dict() or {}
+        title = _pick_first_nonempty(data, ["assignment_title", "assignment", "title", "topic", "lesson", "name"], default=d.id)
+        answer_text = _pick_first_nonempty(data, ["answer_text", "text", "content", "draft", "body", "message", "answer"], default="")
+        ts_raw = _pick_first_nonempty(data, ["submitted_at", "updated_at", "timestamp", "ts", "created_at"], default="")
+        ts = _normalize_timestamp(ts_raw)
+        file_path = _pick_first_nonempty(data, ["file_path", "storage_path", "file"], default="")
+
+        rows.append({
+            "doc_path": f"drafts_v2/{student_doc_id}/lessons/{d.id}",
+            "lesson_id": d.id,
+            "title": title,
+            "submitted_at": ts,
+            "score": data.get("score"),
+            "comment": _pick_first_nonempty(data, ["comment", "feedback", "remarks"], default=""),
+            "file": file_path,
+            "answer_text": answer_text,
+        })
+
+    df = pd.DataFrame(rows)
+    if not df.empty and "submitted_at" in df.columns:
+        df = df.sort_values("submitted_at", ascending=False, na_position="last")
+    return df
+
 
 # =============================================================================
 # UI: MARKING TAB
