@@ -12,6 +12,11 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 
 st.set_page_config(page_title="Falowen Marking Tab", layout="wide")
+st.title("Falowen Marking Tab")
+
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.experimental_rerun()
 
 # =============================================================================
 # CONFIG: Google Sheets sources (edit to your sheet URLs)
@@ -90,7 +95,7 @@ def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [c.strip().lower().replace(" ", "").replace("_", "") for c in df.columns]
     return df
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_marking_students(url: str) -> pd.DataFrame:
     df = pd.read_csv(url, dtype=str)
     df = _normalize_columns(df)
