@@ -83,61 +83,65 @@ def ai_feedback(student_text: str, ref_text: str) -> str:
 # =========================
 st.title("📘 Student Marking Dashboard")
 
-# --- Pick student from Scores sheet
 if "studentcode" not in scores_df.columns:
     st.error("⚠️ 'studentcode' column not found in Scores sheet.")
 else:
     student_code = st.selectbox("Select Student Code", scores_df["studentcode"].dropna().unique())
     student_name = scores_df.loc[scores_df["studentcode"] == student_code, "name"].values[0]
 
-    # --- Pick assignment
-    if "assignment" not in refs_df.columns:
-        st.error("⚠️ 'assignment' column not found in Reference sheet.")
-    else:
-        assignment_num = st.selectbox("Select Assignment", refs_df["assignment"].dropna().unique())
+    # --- Assignment numbers from columns
+    answer_cols = [c for c in refs_df.columns if c.lower().startswith("answer")]
+    assignment_num = st.selectbox("Select Assignment", [0] + list(range(1, len(answer_cols) + 1)))
 
-        # --- Load button
-        if st.button("🔍 Load Work"):
-            # Firestore submissions
-            submissions = get_student_submission(student_code)
+    if st.button("🔍 Load Work"):
+        # Firestore submissions
+        submissions = get_student_submission(student_code)
 
-            st.subheader("📝 Student Submission(s)")
-            if submissions:
-                for i, sub in enumerate(submissions, start=1):
-                    st.markdown(f"**Draft {i}:**")
-                    st.code(sub.get("content", ""), language="markdown")
-            else:
-                st.warning("No submission found in Firestore.")
+        st.subheader("📝 Student Submission(s)")
+        if submissions:
+            for i, sub in enumerate(submissions, start=1):
+                st.markdown(f"**Draft {i}:**")
+                st.code(sub.get("content", ""), language="markdown")
+        else:
+            st.warning("No submission found in Firestore.")
 
-            # Reference answer
-            ref_row = refs_df[refs_df["assignment"] == assignment_num]
-            ref_text = ref_row.iloc[0].dropna().to_string(index=False) if not ref_row.empty else "No reference found."
-            st.subheader("✅ Reference Answer")
-            st.code(ref_text, language="markdown")
+        # --- Reference answers
+        if assignment_num == 0:  
+            # join all answers into one block
+            ref_text = "\n\n".join(
+                f"{col}: {refs_df[col].dropna().iloc[0]}" 
+                for col in answer_cols if col in refs_df.columns
+            )
+        else:
+            col_name = f"Answer{assignment_num}"
+            ref_text = str(refs_df[col_name].dropna().iloc[0]) if col_name in refs_df.columns else "No reference found."
 
-            # AI feedback
-            if submissions and client:
-                st.subheader("🤖 AI Feedback")
-                feedback_text = ai_feedback(submissions[0].get("content", ""), ref_text)
-                st.info(feedback_text)
-            else:
-                feedback_text = ""
+        st.subheader("✅ Reference Answer")
+        st.code(ref_text, language="markdown")
 
-            # Marking inputs
-            st.subheader("📊 Marking")
-            score = st.number_input("Enter Score", min_value=0, max_value=100, step=1)
-            manual_feedback = st.text_area("Enter Feedback (optional)", value=feedback_text)
+        # AI feedback
+        if submissions and client:
+            st.subheader("🤖 AI Feedback")
+            feedback_text = ai_feedback(submissions[0].get("content", ""), ref_text)
+            st.info(feedback_text)
+        else:
+            feedback_text = ""
 
-            if st.button("💾 Save Mark"):
-                row = {
-                    "studentcode": student_code,
-                    "name": student_name,
-                    "assignment": assignment_num,
-                    "score": score,
-                    "comments": manual_feedback,
-                    "date": datetime.today().strftime("%Y-%m-%d"),
-                    "level": "",  # optional
-                    "link": f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
-                }
-                result = save_to_sheet(row)
-                st.success(f"✅ Saved to sheet: {result}")
+        # Marking inputs
+        st.subheader("📊 Marking")
+        score = st.number_input("Enter Score", min_value=0, max_value=100, step=1)
+        manual_feedback = st.text_area("Enter Feedback (optional)", value=feedback_text)
+
+        if st.button("💾 Save Mark"):
+            row = {
+                "studentcode": student_code,
+                "name": student_name,
+                "assignment": assignment_num,
+                "score": score,
+                "comments": manual_feedback,
+                "date": datetime.today().strftime("%Y-%m-%d"),
+                "level": "",  # optional
+                "link": f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
+            }
+            result = save_to_sheet(row)
+            st.success(f"✅ Saved to sheet: {result}")
