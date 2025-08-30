@@ -55,7 +55,14 @@ def get_student_submissions(student_code: str):
 # =========================
 # OPENAI CLIENT
 # =========================
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# --- OpenAI ---
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
+
+if not OPENAI_API_KEY:
+    st.error("⚠️ Missing OpenAI API key. Please set it in Streamlit secrets or env.")
+else:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 def ai_mark(student_text: str, reference_text: str):
     """Use GPT to assign a score (0-100) and give 40 words feedback"""
