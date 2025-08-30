@@ -58,11 +58,22 @@ students_df = load_students()
 refs_df = load_references()
 
 student_name = st.selectbox("Select Student", students_df["Name"].unique())
-assignment_choice = st.selectbox("📌 Select Assignment", refs_df["assignment"].unique())
+assignment_choice = st.selectbox("📌 Select Assignment (for reference answers)", refs_df["assignment"].unique())
 
-if student_name and assignment_choice:
-    # --- Firestore submissions
+if student_name:
+    # --- Show ALL submissions from Firestore
     submissions = get_student_submission(student_name)
+
+    st.subheader("📝 Student Submission(s)")
+    student_texts = []
+    if submissions:
+        for i, sub in enumerate(submissions, start=1):
+            text = sub.get("content", "No content")
+            st.markdown(f"**Draft {i}:**")
+            st.code(text, language="markdown")
+            student_texts.append(text)
+    else:
+        st.warning("No submission found for this student.")
 
     # --- Reference answers (all columns in that row)
     ref_row = refs_df.loc[refs_df["assignment"] == assignment_choice].fillna("")
@@ -75,28 +86,16 @@ if student_name and assignment_choice:
     else:
         ref_text = "⚠️ No reference found."
 
-    # --- Student submissions
-    st.subheader("📝 Student Submission(s)")
-    student_texts = []
-    if submissions:
-        for i, sub in enumerate(submissions, start=1):
-            text = sub.get("content", "No content")
-            st.markdown(f"**Draft {i}:**")
-            st.code(text, language="markdown")
-            student_texts.append(text)
-    else:
-        st.warning("No submission found for this student.")
-
     # --- Reference
     st.subheader("✅ Reference Answer(s)")
     st.code(ref_text, language="markdown")
 
-    # --- Combined copy box
+    # --- Combined box (so you can copy & send to AI)
     st.subheader("📋 Combined for AI Marking")
     combined_text = (
-        f"### Student Submission(s) for {assignment_choice}\n"
+        f"### Student Submission(s)\n"
         + "\n\n".join(student_texts)
-        + "\n\n### Reference Answer(s)\n"
+        + f"\n\n### Reference Answer(s) for {assignment_choice}\n"
         + ref_text
     )
     st.text_area("Copy this text to send to AI", combined_text, height=300)
