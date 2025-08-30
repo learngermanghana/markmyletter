@@ -25,7 +25,13 @@ REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
 
 def load_sheet(sheet_id):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
-    return pd.read_csv(url)
+    df = pd.read_csv(url)
+    df.columns = df.columns.str.strip().str.lower()  # normalize col names
+    return df
+
+students_df = load_sheet(STUDENTS_SHEET_ID)
+refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
+
 
 students_df = load_sheet(STUDENTS_SHEET_ID)
 refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
@@ -38,6 +44,8 @@ WEBHOOK_URL = st.secrets.get(
     "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
 )
 WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
+
+
 
 def save_to_sheet(row: dict):
     payload = {"token": WEBHOOK_TOKEN, "row": row}
