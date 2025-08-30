@@ -1,5 +1,6 @@
-streamlit
+openai>=1.0.0
 pandas
 gspread
-google-auth
 firebase-admin
+streamlit
+requests
