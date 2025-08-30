@@ -196,8 +196,8 @@ def render_marking_tab():
         st.error(f"Could not load reference answers: {e}")
         return
 
-    student_code, student_name, student_row, effective_doc = select_student(df_students)
-    chosen_row = choose_submission(effective_doc)
+    student_code, student_name, student_row = select_student(df_students)
+    chosen_row = choose_submission(student_code)
     assignment, answers_combined_str, ref_link_value = pick_reference(ref_df)
     one_row = mark_submission(
         student_code,
