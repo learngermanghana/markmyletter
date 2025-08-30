@@ -442,6 +442,9 @@ def export_row(one_row):
                 result = _post_rows_to_sheet(
                     [one_row],
                     sheet_name=dest_name if dest_name else None,
-                    sheet_gid=int(dest_gid)
-                    if dest_gid
-                    else (DEFAULT
+                    sheet_gid=int(dest_gid) if dest_gid else DEFAULT_TARGET_SHEET_GID,
+                )
+                st.success("Row sent to Google Sheet!")
+                st.write(result)
+            except Exception as e:
+                st.error(f"Failed to send row: {e}")
