@@ -4,3 +4,4 @@ firebase-admin==7.1.0
 google-cloud-firestore==2.21.0
 google-cloud-storage==3.3.0
 requests==2.32.5
+pyperclip
