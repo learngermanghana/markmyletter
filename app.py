@@ -54,6 +54,17 @@ client = None
 if OPENAI_API_KEY:
     client = OpenAI(api_key=OPENAI_API_KEY)
 
+# --- Reference answers (based on assignment, not studentcode)
+if "assignment" in refs_df.columns:
+    ref_row = refs_df[refs_df["assignment"] == assignment_num]
+    if not ref_row.empty:
+        ref_answers = ref_row.iloc[0].to_dict()
+    else:
+        ref_answers = {}
+else:
+    ref_answers = {}
+
+
 # =========================
 # STREAMLIT UI
 # =========================
