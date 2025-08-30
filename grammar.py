@@ -108,19 +108,27 @@ def load_marking_ref_answers(url: str) -> pd.DataFrame:
     df = _normalize_columns(df)
     return df
 
+def col_lookup(df: pd.DataFrame, name: str):
+    """Flexible column lookup to handle spaces, underscores, and case variations."""
+    key = name.lower().replace(" ", "").replace("_", "")
+    for c in df.columns:
+        cleaned_col = c.lower().replace(" ", "").replace("_", "")
+        if cleaned_col == key:
+            return c
+    st.error(f"Column '{name}' not found in the dataset!")
+    return None
+
 # ---- Auto-pick reference link helpers ---------------------------------------
 _URL_RE = re.compile(r"https?://[^\s\]>)}\"'`]+", re.IGNORECASE)
 
 def _extract_urls_from_text(text: str) -> list[str]:
     if not isinstance(text, str) or not text:
         return []
-    # find urls and strip trailing punctuation that often sticks to cells
     raw = _URL_RE.findall(text)
     cleaned = []
     for u in raw:
         u = u.strip().rstrip(".,;:)]}>\"'")
         cleaned.append(u)
-    # de-dup preserve order
     seen = set()
     out = []
     for u in cleaned:
@@ -132,11 +140,11 @@ def _extract_urls_from_text(text: str) -> list[str]:
 # =============================================================================
 # UI helper functions
 # =============================================================================
-
 def select_student(df_students):
     """Select a student and resolve Firestore document."""
     name_col = col_lookup(df_students, "name")
     code_col = col_lookup(df_students, "studentcode")
+    
     if not name_col or not code_col:
         st.error("Required columns 'name' or 'studentcode' not found in students sheet.")
         return None, None, None, None
