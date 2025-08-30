@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import os
+import json
 from google.oauth2.service_account import Credentials
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -16,23 +18,23 @@ SCORES_SHEET_ID = "1BRb8p3Rq0VpFCLSwL4eS9tSgXBo9hSWzfW_J_7W36NQ"
 # GOOGLE SHEETS SETUP
 # =========================
 def get_gsheet_client():
-    scope = ["https://spreadsheets.google.com/feeds","https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(
-        st.secrets["google_sheets"], scopes=scope
-    )
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds_dict = json.loads(os.environ["GOOGLE_SHEETS_JSON"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     return gspread.authorize(creds)
 
 gs_client = get_gsheet_client()
 
 def load_students():
     ws = gs_client.open_by_key(STUDENTS_SHEET_ID).sheet1
-    df = pd.DataFrame(ws.get_all_records())
-    return df
+    return pd.DataFrame(ws.get_all_records())
 
 def load_references():
     ws = gs_client.open_by_key(REF_ANSWERS_SHEET_ID).sheet1
-    df = pd.DataFrame(ws.get_all_records())
-    return df
+    return pd.DataFrame(ws.get_all_records())
 
 def save_score(student, score, feedback):
     ws = gs_client.open_by_key(SCORES_SHEET_ID).sheet1
@@ -42,8 +44,12 @@ def save_score(student, score, feedback):
 # FIRESTORE SETUP
 # =========================
 if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["firebase"]))
-    firebase_admin.initialize_app(cred)
+    firebase_creds = json.loads(os.environ["FIREBASE_JSON"])
+    cred = credentials.Certificate(firebase_creds)
+    firebase_admin.initialize_app(
+        cred,
+        {"storageBucket": firebase_creds.get("storage_bucket")}
+    )
 db = firestore.client()
 
 def get_student_submission(student_id: str):
