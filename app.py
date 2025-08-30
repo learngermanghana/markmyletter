@@ -8,13 +8,33 @@ from firebase_admin import credentials, firestore
 from openai import OpenAI
 
 # =========================
+# OPENAI INIT
+# =========================
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
+if OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    client = None
+    st.warning("⚠️ OpenAI API key not found. AI marking will be disabled.")
+
+# =========================
 # FIREBASE INIT
 # =========================
-if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["firebase"]))
-    firebase_admin.initialize_app(cred)
-
-db = firestore.client()
+firebase_config = st.secrets.get("firebase", None)
+if firebase_config and not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate(dict(firebase_config))
+        firebase_admin.initialize_app(cred, {
+            "storageBucket": firebase_config.get("FIREBASE_STORAGE_BUCKET")
+        })
+        db = firestore.client()
+    except Exception as e:
+        st.error(f"❌ Firebase init failed: {e}")
+        db = None
+else:
+    db = None
+    if not firebase_config:
+        st.warning("⚠️ Firebase config not found in secrets. Firestore disabled.")
 
 # =========================
 # GOOGLE SHEETS (via public CSV export link)
@@ -23,8 +43,12 @@ STUDENTS_SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
 
 def load_sheet(sheet_id):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
-    return pd.read_csv(url)
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
+        return pd.read_csv(url)
+    except Exception as e:
+        st.error(f"❌ Failed to load sheet {sheet_id}: {e}")
+        return pd.DataFrame()
 
 students_df = load_sheet(STUDENTS_SHEET_ID)
 refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
@@ -32,7 +56,6 @@ refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
 # =========================
 # APP SCRIPT WEBHOOK
 # =========================
-# --- Webhook (with fallback) ---
 WEBHOOK_URL = st.secrets.get(
     "G_SHEETS_WEBHOOK_URL",
     "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
@@ -40,9 +63,14 @@ WEBHOOK_URL = st.secrets.get(
 WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
 
 def save_to_sheet(row: dict):
+    """Send one row to Google Sheets via App Script webhook"""
     payload = {"token": WEBHOOK_TOKEN, "row": row}
-    r = requests.post(WEBHOOK_URL, json=payload)
-    return r.json()
+    try:
+        r = requests.post(WEBHOOK_URL, json=payload)
+        return r.json()
+    except Exception as e:
+        st.error(f"❌ Failed to save row: {e}")
+        return {"ok": False, "error": str(e)}
 
 # =========================
 # FIREBASE SUBMISSIONS
