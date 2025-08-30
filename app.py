@@ -2,20 +2,18 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 import requests
-import json
-import os
 
 # =========================
 # CONFIGURATION
 # =========================
-WEBHOOK_URL   = st.secrets["appscript"]["url"]   # from secrets.toml
-WEBHOOK_TOKEN = st.secrets["appscript"]["token"] # from secrets.toml
+WEBHOOK_URL   = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
+WEBHOOK_TOKEN = "Xenomexpress7727/"
 
 # =========================
 # FIREBASE
 # =========================
 if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["firebase"]))
+    cred = credentials.Certificate(dict(st.secrets["firebase"]))  # this still comes from secrets.toml
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -69,9 +67,9 @@ if student_id:
 
     # --- Marking inputs
     st.subheader("📊 Marking")
+    assignment = st.text_input("Assignment Name")
     score = st.number_input("Enter Score", min_value=0, max_value=100, step=1)
     feedback = st.text_area("Enter Feedback")
-    assignment = st.text_input("Assignment name")
 
     if st.button("💾 Save Mark"):
         result = save_score(student_id, student_id, assignment, score, feedback)
