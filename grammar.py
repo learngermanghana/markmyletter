@@ -398,15 +398,50 @@ def select_student(df_students):
     st.success(f"Using Firestore doc: drafts_v2/{effective_doc}")
     return student_code, student_name, student_row, effective_doc
 
-
 def copy_to_clipboard(row):
     """Function to copy data to clipboard."""
     import pyperclip
     pyperclip.copy(str(row))
     st.success("Row copied to clipboard!")
 
-# The rest of your code continues here...
+def export_row(one_row):
+    """Preview, download, or export the built row."""
+    st.write("Preview row:")
+    st.dataframe(pd.DataFrame([one_row]), use_container_width=True)
 
-# Add the copy button in the `export_row` section:
+    # Add the copy to clipboard functionality here.
+    st.button("Copy to Clipboard", on_click=copy_to_clipboard, args=(one_row,))
 
-st.button("Copy to Clipboard", on_click=copy_to_clipboard, args=(one_row,))
+    st.markdown("**Destination tab (optional):**")
+    dest_mode = st.radio(
+        "Where to send?",
+        ["Use defaults", "Specify by gid", "Specify by name"],
+        horizontal=True,
+        index=0,
+    )
+    dest_gid = None
+    dest_name = None
+    if dest_mode == "Specify by gid":
+        dest_gid = st.number_input(
+            "sheet_gid", value=DEFAULT_TARGET_SHEET_GID if DEFAULT_TARGET_SHEET_GID else 0, step=1
+        )
+        if int(dest_gid) <= 0:
+            dest_gid = None
+    elif dest_mode == "Specify by name":
+        dest_name = st.text_input("sheet_name", value=DEFAULT_TARGET_SHEET_NAME or "")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        row_csv = pd.DataFrame([one_row]).to_csv(index=False)
+        st.download_button(
+            "⬇️ Download this row (CSV)", data=row_csv, file_name="grade_row.csv", mime="text/csv"
+        )
+    with c2:
+        if st.button("📤 Send this row to Google Sheet (Webhook)"):
+            try:
+                result = _post_rows_to_sheet(
+                    [one_row],
+                    sheet_name=dest_name if dest_name else None,
+                    sheet_gid=int(dest_gid)
+                    if dest_gid
+                    else (DEFAULT
