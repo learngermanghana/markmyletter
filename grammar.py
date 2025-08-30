@@ -270,7 +270,11 @@ def load_student_lessons_from_drafts_doc(student_doc_id: str, limit: int = 200) 
     return df
 
 # --- Webhook helper -----------------------------------------------------------
-def _post_rows_to_sheet(rows, sheet_name: str | None = None, sheet_gid: int | None = None) -> dict:
+def _post_rows_to_sheet(
+    rows,
+    sheet_name: str | None = None,
+    sheet_gid: int | None = DEFAULT_TARGET_SHEET_GID,
+) -> dict:
     """POST rows to the Apps Script webhook. Supports optional tab selection."""
     url = st.secrets.get("G_SHEETS_WEBHOOK_URL", G_SHEETS_WEBHOOK_URL)
     token = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", G_SHEETS_WEBHOOK_TOKEN)
@@ -444,4 +448,9 @@ def export_row(one_row):
                     sheet_name=dest_name if dest_name else None,
                     sheet_gid=int(dest_gid)
                     if dest_gid
-                    else (DEFAULT
+                    else DEFAULT_TARGET_SHEET_GID,
+                )
+                st.success("Row posted to Google Sheet")
+                st.write(result)
+            except Exception as e:
+                st.error(f"Failed to post row: {e}")
