@@ -1,36 +1,17 @@
 import streamlit as st
-import pandas as pd
 import requests
-from datetime import datetime
+import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os, json
 
 # =========================
-# CONFIGURATION
-# =========================
-STUDENTS_SHEET_CSV = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
-REF_ANSWERS_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
-
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
-WEBHOOK_TOKEN = "Xenomexpress7727/"
-
-# =========================
-# LOAD SHEETS
-# =========================
-def load_students():
-    return pd.read_csv(STUDENTS_SHEET_CSV)
-
-def load_references():
-    return pd.read_csv(REF_ANSWERS_SHEET_CSV)
-
-# =========================
-# FIREBASE
+# FIREBASE SETUP
 # =========================
 if not firebase_admin._apps:
-    firebase_creds = json.loads(os.environ["FIREBASE_KEY"])
-    cred = credentials.Certificate(firebase_creds)
+    cred = credentials.Certificate(json.loads(os.environ["FIREBASE_KEY"]))  # from Streamlit secrets or env
     firebase_admin.initialize_app(cred)
+
 db = firestore.client()
 
 def get_student_submission(student_id: str):
@@ -40,25 +21,38 @@ def get_student_submission(student_id: str):
     return [d.to_dict() for d in docs]
 
 # =========================
-# APP SCRIPT SAVE FUNCTION
+# SHEET DATA (via CSV export URL)
 # =========================
-def save_score(student_row, score, feedback, assignment="Assignment 1", level="A1", link=""):
+# Student list
+STUDENTS_SHEET_URL = "https://docs.google.com/spreadsheets/d/12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U/export?format=csv"
+# Reference answers
+REF_ANSWERS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo/export?format=csv"
+
+def load_students():
+    return pd.read_csv(STUDENTS_SHEET_URL)
+
+def load_references():
+    return pd.read_csv(REF_ANSWERS_SHEET_URL)
+
+# =========================
+# APP SCRIPT WEBHOOK
+# =========================
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
+WEBHOOK_TOKEN = "Xenomexpress7727/"  # must match your script property
+
+def save_score(student, assignment, score, feedback):
     row = {
-        "studentcode": student_row.get("Code", ""),
-        "name": student_row.get("Name", ""),
+        "studentcode": student,
         "assignment": assignment,
         "score": score,
         "comments": feedback,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "level": level,
-        "link": link
     }
-    payload = {"token": WEBHOOK_TOKEN, "row": row}
-    resp = requests.post(WEBHOOK_URL, json=payload)
-    if resp.status_code == 200:
-        return resp.json()
-    else:
-        return {"ok": False, "error": f"HTTP {resp.status_code}"}
+    payload = {
+        "token": WEBHOOK_TOKEN,
+        "row": row
+    }
+    res = requests.post(WEBHOOK_URL, json=payload)
+    return res.json()
 
 # =========================
 # STREAMLIT UI
@@ -74,22 +68,38 @@ if student_name:
     # --- Firestore submissions
     submissions = get_student_submission(student_name)
 
-    # --- Reference answer
-    ref_answer = refs_df.loc[refs_df["Name"] == student_name, "Answer"].values
-    ref_text = ref_answer[0] if len(ref_answer) else "No reference answer found."
+    # --- Reference answer choice
+    assignment_choice = st.selectbox("📌 Select Assignment", [f"Answer{i}" for i in range(1, 51)])
+    if assignment_choice in refs_df.columns:
+        ref_text = refs_df[assignment_choice].dropna().values[0]
+    else:
+        ref_text = "⚠️ No reference found."
 
-    # --- Display student submissions
+    # --- Student submissions
     st.subheader("📝 Student Submission(s)")
+    student_texts = []
     if submissions:
         for i, sub in enumerate(submissions, start=1):
+            text = sub.get("content", "No content")
             st.markdown(f"**Draft {i}:**")
-            st.code(sub.get("content", "No 'content' field in Firestore"), language="markdown")
+            st.code(text, language="markdown")
+            student_texts.append(text)
     else:
         st.warning("No submission found for this student.")
 
-    # --- Display reference
+    # --- Reference
     st.subheader("✅ Reference Answer")
     st.code(ref_text, language="markdown")
+
+    # --- Combined copy box
+    st.subheader("📋 Combined for AI Marking")
+    combined_text = (
+        "### Student Submission(s)\n"
+        + "\n\n".join(student_texts)
+        + "\n\n### Reference Answer\n"
+        + ref_text
+    )
+    st.text_area("Copy this text to send to AI", combined_text, height=300)
 
     # --- Marking inputs
     st.subheader("📊 Marking")
@@ -97,9 +107,8 @@ if student_name:
     feedback = st.text_area("Enter Feedback")
 
     if st.button("💾 Save Mark"):
-        student_row = students_df.loc[students_df["Name"] == student_name].iloc[0].to_dict()
-        result = save_score(student_row, score, feedback)
+        result = save_score(student_name, assignment_choice, score, feedback)
         if result.get("ok"):
-            st.success("✅ Score & feedback sent to Google Sheet via webhook")
+            st.success("✅ Score & feedback saved to Google Sheet via App Script")
         else:
-            st.error(f"❌ Failed to save: {result.get('error')}")
+            st.error(f"❌ Error: {result}")
