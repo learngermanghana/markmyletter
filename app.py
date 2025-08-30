@@ -32,8 +32,12 @@ refs_df = load_sheet(REF_ANSWERS_SHEET_ID)
 # =========================
 # APP SCRIPT WEBHOOK
 # =========================
-WEBHOOK_URL = st.secrets["G_SHEETS_WEBHOOK_URL"]
-WEBHOOK_TOKEN = st.secrets["G_SHEETS_WEBHOOK_TOKEN"]
+# --- Webhook (with fallback) ---
+WEBHOOK_URL = st.secrets.get(
+    "G_SHEETS_WEBHOOK_URL",
+    "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
+)
+WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
 
 def save_to_sheet(row: dict):
     payload = {"token": WEBHOOK_TOKEN, "row": row}
