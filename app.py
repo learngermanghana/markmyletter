@@ -54,14 +54,18 @@ def get_student_submissions(student_code: str):
 
 # =========================
 # OPENAI CLIENT
-# =========================
-# --- OpenAI ---
+
+from openai import OpenAI
+
+# --- OpenAI setup ---
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
 
 if not OPENAI_API_KEY:
-    st.error("⚠️ Missing OpenAI API key. Please set it in Streamlit secrets or env.")
-else:
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    st.error("⚠️ Missing OpenAI API key in Streamlit secrets or env.")
+    st.stop()
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 
 def ai_mark(student_text: str, reference_text: str):
