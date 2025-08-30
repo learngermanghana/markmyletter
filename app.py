@@ -1,30 +1,11 @@
-import os, json
+import os
+import json
+import pandas as pd
+import gspread
 import streamlit as st
+from google.oauth2.service_account import Credentials
 import firebase_admin
 from firebase_admin import credentials, firestore
-from google.oauth2.service_account import Credentials
-import gspread
-
-# =========================
-# GOOGLE SHEETS
-# =========================
-def get_gsheet_client():
-    creds_dict = json.loads(os.environ["G_SHEETS_KEY"])  # updated name
-    scope = ["https://spreadsheets.google.com/feeds",
-             "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    return gspread.authorize(creds)
-
-gs_client = get_gsheet_client()
-
-# =========================
-# FIREBASE
-# =========================
-if not firebase_admin._apps:
-    cred = credentials.Certificate(json.loads(os.environ["FIREBASE_KEY"]))  # updated name
-    firebase_admin.initialize_app(cred)
-
-db = firestore.client()
 
 # =========================
 # CONFIGURATION
@@ -41,7 +22,7 @@ def get_gsheet_client():
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ]
-    creds_dict = json.loads(os.environ["GOOGLE_SHEETS_JSON"])
+    creds_dict = json.loads(os.environ["G_SHEETS_KEY"])  # ✅ match secret name in Cloud Run
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     return gspread.authorize(creds)
 
@@ -63,12 +44,13 @@ def save_score(student, score, feedback):
 # FIRESTORE SETUP
 # =========================
 if not firebase_admin._apps:
-    firebase_creds = json.loads(os.environ["FIREBASE_JSON"])
+    firebase_creds = json.loads(os.environ["FIREBASE_KEY"])  # ✅ match secret name in Cloud Run
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(
         cred,
-        {"storageBucket": firebase_creds.get("storage_bucket")}
+        {"storageBucket": firebase_creds.get("storage_bucket", "")}
     )
+
 db = firestore.client()
 
 def get_student_submission(student_id: str):
