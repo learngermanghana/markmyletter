@@ -26,3 +26,12 @@ Run the app with:
 ```bash
 streamlit run app.py
 ```
+
+## AI scoring rubric
+
+When the optional OpenAI key is supplied, the app can request an AI generated
+assessment of a student's answer. The AI returns a JSON object with four
+criteria—grammar, vocabulary, content and structure—each scored from 0 to 25.
+The app sums these to produce the final 0‑100 score and shows the per‑criterion
+breakdown in the interface. If the AI response cannot be parsed, the app falls
+back to an error message and leaves the score at 0 so you can mark manually.

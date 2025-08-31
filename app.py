@@ -184,14 +184,22 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     if not items: pull("lessens")
     return items
 
-def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, str]:
+def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, str, Dict[str, int]]:
+    """Ask the AI to mark the answer and return (total, feedback, breakdown)."""
     if not ai_client:
-        return None, "⚠️ OpenAI key missing."
+        return None, "⚠️ OpenAI key missing.", {}
     prompt = f"""
 You are a German teacher. Compare the student's answer with the reference answer.
 Return STRICT JSON with:
-- score: integer 0-100
-- feedback: ~40 words, constructive.
+{{
+  "scores": {{
+    "grammar": integer 0-25,
+    "vocabulary": integer 0-25,
+    "content": integer 0-25,
+    "structure": integer 0-25
+  }},
+  "feedback": "~40 words, constructive"
+}}
 
 Student answer:
 {student_answer}
@@ -212,11 +220,21 @@ Return only JSON.
         m = re.search(r"\{.*\}", text, flags=re.S)
         text = m.group(0) if m else text
         data = json.loads(text)
-        score = int(data.get("score", 0))
+        scores = data.get("scores", {})
+        breakdown: Dict[str, int] = {}
+        total = 0
+        for crit in ["grammar", "vocabulary", "content", "structure"]:
+            val_raw = scores.get(crit)
+            if val_raw is None:
+                raise ValueError("missing criteria")
+            val = int(val_raw)
+            val = max(0, min(25, val))
+            breakdown[crit] = val
+            total += val
         fb = str(data.get("feedback", "")).strip()
-        return max(0, min(100, score)), (fb or "(no feedback)")
+        return total, (fb or "(no feedback)"), breakdown
     except Exception as e:
-        return None, f"(AI error: {e})"
+        return None, f"(AI error: {e})", {}
 
 def save_row_to_scores(row: dict) -> dict:
     try:
@@ -433,19 +451,28 @@ st.text_area("Combined", value=combined, height=200)
 # AI generate (override allowed)
 if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
+if "ai_breakdown" not in st.session_state: st.session_state.ai_breakdown = {}
 cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}"
 if ai_client and student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
-    s, fb = ai_mark(student_text, st.session_state.ref_text)
+    s, fb, br = ai_mark(student_text, st.session_state.ref_text)
     if s is not None: st.session_state.ai_score = s
     st.session_state.ai_feedback = fb
+    st.session_state.ai_breakdown = br
     st.session_state.ai_key = cur_key
 
 colA, colB = st.columns(2)
 with colA:
     if st.button("🔁 Regenerate AI"):
-        s, fb = ai_mark(student_text, st.session_state.ref_text)
+        s, fb, br = ai_mark(student_text, st.session_state.ref_text)
         if s is not None: st.session_state.ai_score = s
         st.session_state.ai_feedback = fb
+        st.session_state.ai_breakdown = br
+
+if st.session_state.ai_breakdown:
+    st.write("AI rubric (0-25 each):")
+    cols = st.columns(4)
+    for col, crit in zip(cols, ["grammar", "vocabulary", "content", "structure"]):
+        col.metric(crit.title(), f"{st.session_state.ai_breakdown.get(crit, 0)}/25")
 
 score = st.number_input("Score", 0, 100, value=int(st.session_state.ai_score))
 feedback = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
