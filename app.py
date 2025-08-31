@@ -231,8 +231,7 @@ Return only JSON.
         if not isinstance(fb_str, str):
             fb_str = str(fb_str)
         fb_str = fb_str.strip()
-        fb_dict = {c: fb_str for c in RUBRIC_CRITERIA}
-        return max(0, min(100, score)), fb_dict
+        return max(0, min(100, score)), fb_str
 
     except Exception as e:
         return None, f"(AI error: {e})"
@@ -462,7 +461,7 @@ if ai_client and student_text.strip() and st.session_state.ref_text.strip() and 
     if s is not None:
         st.session_state.ai_score = s
 
-    st.session_state.feedback = fb
+    st.session_state.feedback = fb if isinstance(fb, str) else json.dumps(fb, indent=2)
     st.session_state.ai_key = cur_key
 
 colA, colB = st.columns(2)
@@ -473,7 +472,7 @@ with colA:
         if s is not None:
             st.session_state.ai_score = s
 
-        st.session_state.feedback = fb
+        st.session_state.feedback = fb if isinstance(fb, str) else json.dumps(fb, indent=2)
 
 score = st.number_input("Score", 0, 100, value=int(st.session_state.ai_score))
 
