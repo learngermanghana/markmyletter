@@ -74,7 +74,14 @@ def load_answers_dictionary() -> Dict[str, Any]:
     for p in ANSWERS_JSON_PATHS:
         if os.path.exists(p):
             with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            # ensure every entry has an "answers" dict (Answer1, Answer2, ...)
+            for k, v in data.items():
+                if not isinstance(v, dict):
+                    data[k] = {"answers": {}}
+                elif "answers" not in v:
+                    v["answers"] = {}
+            return data
     st.error("❌ answers_dictionary.json not found in the repo.")
     return {}
 
@@ -92,7 +99,10 @@ def build_reference_text(row_obj: Dict[str, Any]) -> Tuple[str, str]:
     def n_from_key(k: str) -> int:
         m = re.search(r"(\d+)", k)
         return int(m.group(1)) if m else 0
-    ordered = [k for k in sorted(answers.keys(), key=n_from_key)]
+    ordered = [
+        k for k in sorted(answers.keys(), key=n_from_key)
+        if k.lower().startswith("answer")
+    ]
     chunks = []
     for k in ordered:
         v = str(answers[k]).strip()
