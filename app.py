@@ -223,8 +223,16 @@ Return only JSON.
         m = re.search(r"\{.*\}", text, flags=re.S)
         text = m.group(0) if m else text
         data = json.loads(text)
+        if isinstance(data, str):
+            data = json.loads(data)
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"AI response JSON must be an object, got {type(data).__name__}"
+            )
         score = int(data.get("score", 0))
         fb_obj = data.get("feedback") or {}
+        if not isinstance(fb_obj, dict):
+            fb_obj = {}
         fb_dict = {c: str(fb_obj.get(c, "")).strip() for c in RUBRIC_CRITERIA}
         return max(0, min(100, score)), fb_dict
     except Exception as e:
