@@ -184,14 +184,27 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     if not items: pull("lessens")
     return items
 
-def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, str]:
+def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, str]:
+    """Mark a student's answer against the reference answer using OpenAI.
+
+    Args:
+        student_answer: The student's submission.
+        ref_text: The reference answer to compare against.
+        student_level: The student's proficiency level (e.g., A1, B2).
+
+    Returns:
+        Tuple of (score, feedback). Score is ``None`` if the AI client is unavailable.
+    """
     if not ai_client:
         return None, "⚠️ OpenAI key missing."
     prompt = f"""
-You are a German teacher. Compare the student's answer with the reference answer.
+You are the student's German tutor. The student is at level {student_level}. Compare the student's answer with the reference answer and judge it according to that level.
 Return STRICT JSON with:
 - score: integer 0-100
-- feedback: ~40 words, constructive.
+- feedback: ~40 words in a friendly, encouraging tutor voice.
+
+Student level:
+{student_level}
 
 Student answer:
 {student_answer}
@@ -435,7 +448,7 @@ if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
 cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}"
 if ai_client and student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
-    s, fb = ai_mark(student_text, st.session_state.ref_text)
+    s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
     if s is not None: st.session_state.ai_score = s
     st.session_state.ai_feedback = fb
     st.session_state.ai_key = cur_key
@@ -443,7 +456,7 @@ if ai_client and student_text.strip() and st.session_state.ref_text.strip() and 
 colA, colB = st.columns(2)
 with colA:
     if st.button("🔁 Regenerate AI"):
-        s, fb = ai_mark(student_text, st.session_state.ref_text)
+        s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
         if s is not None: st.session_state.ai_score = s
         st.session_state.ai_feedback = fb
 
