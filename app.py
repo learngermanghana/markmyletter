@@ -191,10 +191,11 @@ def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int
         return None, ""
 
     prompt = f"""
-You are the student's German tutor. The student is at level {student_level}. Compare the student's answer with the reference answer and judge it according to that level.
-Return STRICT JSON with:
-- score: integer 0-100
-- feedback: ~40 words in a friendly, encouraging tutor voice.
+
+You are the student's German tutor. Evaluate the student's answer against the reference answer and judge it according to level {student_level}.
+Feedback must be about 40 words, friendly and encouraging. Explicitly highlight the student's mistakes with brief explanations.
+Return STRICT JSON with {{"score": 0-100 integer, "feedback": "string"}}.
+Reminder: Hold u, s, or o on your keyboard to insert umlauts (ü, ß, ö) or search online.
 
 Student level:
 {student_level}
@@ -225,8 +226,14 @@ Return only JSON.
                 f"AI response JSON must be an object, got {type(data).__name__}"
             )
         score = int(data.get("score", 0))
-        fb_text = str(data.get("feedback", "")).strip()
-        return max(0, min(100, score)), fb_text
+
+        fb_str = data.get("feedback") or ""
+        if not isinstance(fb_str, str):
+            fb_str = str(fb_str)
+        fb_str = fb_str.strip()
+        fb_dict = {c: fb_str for c in RUBRIC_CRITERIA}
+        return max(0, min(100, score)), fb_dict
+
     except Exception as e:
         return None, f"(AI error: {e})"
 
