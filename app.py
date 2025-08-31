@@ -77,6 +77,23 @@ def filter_students(df: pd.DataFrame, q: str) -> pd.DataFrame:
     mask = df.apply(lambda c: c.astype(str).str.contains(q, case=False, na=False))
     return df[mask.any(axis=1)]
 
+# Reference: list ALL assignments from the 'assignment' column
+st.subheader("Reference")
+
+ref_options, ref_indices, ASSIGNMENT_COL = build_assignment_options(refs_df)
+if not ref_options:
+    st.warning("No assignments found in the reference sheet.")
+    st.stop()
+
+# (Optional) quick search bar like in your working snippet
+search_assign = st.text_input("Search assignment title...")
+show_options = [o for o in ref_options if search_assign.lower() in o.lower()] if search_assign else ref_options
+
+assignment_choice = st.selectbox("Select Assignment", show_options)
+assign_idx = ref_indices[ref_options.index(assignment_choice)]  # map back to the original row index
+assign_row = refs_df.loc[assign_idx]
+
+
 def ref_options_all_rows(refs_df: pd.DataFrame):
     """
     Build options from the FIRST column only, no filtering.
