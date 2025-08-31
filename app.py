@@ -79,11 +79,15 @@ def load_answers_dictionary() -> Dict[str, Any]:
             for k, v in data.items():
                 if not isinstance(v, dict):
                     data[k] = {"answers": {}, "answer_url": ""}
+                    v = data[k]
                 else:
                     if "answers" not in v:
                         v["answers"] = {}
                     if "answer_url" not in v:
                         v["answer_url"] = ""
+                # move any top-level AnswerN keys into the nested "answers" dict
+                for ans_key in [kk for kk in list(v.keys()) if re.match(r"^Answer\d+", kk)]:
+                    v["answers"][ans_key] = v.pop(ans_key)
             return data
     st.error("❌ answers_dictionary.json not found in the repo.")
     return {}
