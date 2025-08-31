@@ -314,7 +314,7 @@ refs_df = load_sheet_csv(
 # answer column in the form "Answer1", "Answer2", etc.
 if (
     "assignment" not in refs_df.columns
-    or not any(refs_df.columns.str.match(r"^Answer\d+$"))
+    or not any(refs_df.columns.str.match(r"^Answer\d+$", case=False))
 ):
     st.error("Reference sheet missing required columns")
     st.stop()
