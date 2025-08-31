@@ -177,7 +177,9 @@ def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, str]:
 You are a German teacher. Compare the student's answer with the reference answer.
 Return STRICT JSON with:
 - score: integer 0-100
-- feedback: ~40 words, constructive.
+- feedback: constructive. List major errors and briefly justify the numeric score.
+  If the student's text lacks umlauts (ä, ö, ü, ß), remind them that holding "s",
+  "u", or "o" produces them, but do not deduct points for this omission.
 
 Student answer:
 {student_answer}
