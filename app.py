@@ -431,20 +431,27 @@ if st.button("💾 Save", type="primary", use_container_width=True):
     elif not feedback.strip():
         st.error("Feedback is required.")
     else:
-        row = {
-            "studentcode": studentcode,
-            "name":        student_name,
-            "assignment":  st.session_state.ref_assignment,
-            "score":       int(score),
-            "comments":    feedback.strip(),
-            "date":        datetime.now().strftime("%Y-%m-%d"),
-            "level":       student_level,
-            "link":        st.session_state.ref_link,  # uses answer_url only
-        }
-        result = save_row_to_scores(row)
-        if result.get("ok"):
-            st.success("✅ Saved to Scores sheet.")
-        elif result.get("why") == "validation":
-            st.error("❌ Sheet blocked the write due to data validation (studentcode).")
+        try:
+            studentcode_int = int(studentcode)
+            if studentcode_int <= 0:
+                raise ValueError
+        except ValueError:
+            st.error("Student code must be a positive integer.")
         else:
-            st.error(f"❌ Failed to save: {result}")
+            row = {
+                "studentcode": studentcode_int,
+                "name":        student_name,
+                "assignment":  st.session_state.ref_assignment,
+                "score":       int(score),
+                "comments":    feedback.strip(),
+                "date":        datetime.now().strftime("%Y-%m-%d"),
+                "level":       student_level,
+                "link":        st.session_state.ref_link,  # uses answer_url only
+            }
+            result = save_row_to_scores(row)
+            if result.get("ok"):
+                st.success("✅ Saved to Scores sheet.")
+            elif result.get("why") == "validation":
+                st.error("❌ Sheet blocked the write due to data validation (studentcode).")
+            else:
+                st.error(f"❌ Failed to save: {result}")
