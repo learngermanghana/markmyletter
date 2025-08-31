@@ -56,26 +56,22 @@ db = firestore.client()
 def load_sheet_csv(sheet_id: str) -> pd.DataFrame:
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
     df = pd.read_csv(url)
-    df.columns = df.columns.str.strip().str.lower()  # normalize headers
+    df.columns = df.columns.str.strip().str.lower()  # normalize headers to lowercase
     return df
 
 def filter_students(df: pd.DataFrame, query: str) -> pd.DataFrame:
     if not query:
         return df
-    # case-insensitive search across all columns
     mask = df.apply(lambda col: col.astype(str).str.contains(query, case=False, na=False))
     return df[mask.any(axis=1)]
 
-def assignment_options_from_refs(refs_df: pd.DataFrame):
-    """Return list of (label, row_index). Uses 'assignment' + 'name' if present."""
+def assignment_options_from_refs(refs_df: pd.DataFrame, assignment_col: str):
+    """Return list of (label, row_index) using the exact assignment cell text."""
     opts = []
     for idx, row in refs_df.iterrows():
-        a = str(row.get("assignment", "")).strip()
-        n = str(row.get("name", "")).strip()
-        if a and n:   label = f"{a} — {n}"
-        elif a:       label = a
-        elif n:       label = n
-        else:         label = f"Row {idx+1}"
+        label = str(row.get(assignment_col, "")).strip()
+        if not label or label.lower() == "nan":
+            label = f"Row {idx+1}"
         opts.append((label, idx))
     return opts
 
@@ -120,13 +116,11 @@ def extract_text_from_doc(doc: dict) -> str:
         if isinstance(v, str) and v.strip():
             return v.strip()
         if isinstance(v, list):
-            # join paragraphs/strings
             parts = []
             for item in v:
                 if isinstance(item, str):
                     parts.append(item)
                 elif isinstance(item, dict):
-                    # common paragraph structure
                     for key in ["text", "content", "value"]:
                         if key in item and isinstance(item[key], str):
                             parts.append(item[key])
@@ -136,7 +130,6 @@ def extract_text_from_doc(doc: dict) -> str:
             for key in ["text", "content", "value"]:
                 if key in v and isinstance(v[key], str):
                     return v[key].strip()
-    # fallback: join any string values in doc
     strings = []
     for k, v in doc.items():
         if isinstance(v, str) and v.strip():
@@ -217,8 +210,8 @@ refs_df     = load_sheet_csv(REF_ANSWERS_SHEET_ID)
 for col in ["studentcode", "name", "level"]:
     if col not in students_df.columns:
         students_df[col] = ""
-if "assignment" not in refs_df.columns:
-    refs_df["assignment"] = ""
+# Find assignment column (exact text used in dropdown)
+ASSIGNMENT_COL = next((c for c in refs_df.columns if c.strip().lower() == "assignment"), refs_df.columns[0])
 
 # =========================
 # UI
@@ -246,15 +239,14 @@ c1, c2 = st.columns(2)
 with c1: st.text_input("Name (auto)",  value=name,  disabled=True)
 with c2: st.text_input("Level (auto)", value=level, disabled=True)
 
-# ---- Reference dropdown (list everything in the sheet)
-assign_opts = assignment_options_from_refs(refs_df)  # list[(label, idx)]
-ref_label   = st.selectbox("Reference (assignment row from sheet)", [lbl for lbl, _ in assign_opts])
-assign_idx  = dict(assign_opts)[ref_label]
-assign_row  = refs_df.iloc[assign_idx]
+# ---- Reference dropdown (always show exact text from 'assignment' column)
+assign_opts  = assignment_options_from_refs(refs_df, ASSIGNMENT_COL)  # list[(label, idx)]
+ref_label    = st.selectbox("Reference (assignment row from sheet)", [lbl for lbl, _ in assign_opts])
+assign_idx   = dict(assign_opts)[ref_label]
+assign_row   = refs_df.iloc[assign_idx]
 
-# Default: ALL answers on the row. Optionally allow single AnswerN.
+# Reference scope
 mode = st.radio("Reference scope", ["All answers", "Pick a specific AnswerN"], horizontal=True)
-ref_text = ""
 if mode == "All answers":
     ref_text = reference_text_all_for_row(assign_row)
 else:
@@ -264,7 +256,6 @@ else:
         ref_text = "No reference answers found."
     else:
         ans_label = st.selectbox("Choose AnswerN", [f"Answer{n}" for n, _ in ans_pairs])
-        # map label back to column
         n = int(re.findall(r"\d+", ans_label)[0])
         answer_col = dict(ans_pairs)[n]
         ref_text = reference_text_single(assign_row, answer_col)
@@ -276,6 +267,7 @@ st.caption(f"Reference link: {answer_link}")
 subs = get_student_submissions(studentcode)
 if not subs:
     st.warning("No submissions in Firestore for this student (under drafts_v2/.../lessons or lessens).")
+    picked = "none"
     student_text = ""
 else:
     def sub_label(i, d):
@@ -306,7 +298,7 @@ if "ai_score" not in st.session_state:   st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
 if "key_last" not in st.session_state:    st.session_state.key_last = None
 
-combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked if subs else 'none'}"
+combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked}"
 should_gen = (
     client is not None
     and student_text.strip()
@@ -339,16 +331,16 @@ if st.button("💾 Save", type="primary", use_container_width=True):
     elif not comments.strip():
         st.error("Feedback is required.")
     else:
-        assignment_value = str(assign_row.get("assignment", ref_label)).strip() or ref_label
+        assignment_value = str(assign_row.get(ASSIGNMENT_COL, ref_label)).strip() or ref_label
         row = {
             "studentcode": studentcode,
             "name": name,
-            "assignment": assignment_value,              # parent assignment value (e.g., "0.1")
+            "assignment": assignment_value,              # exact text from 'assignment' column
             "score": int(score),
             "comments": comments.strip(),
             "date": datetime.now().strftime("%Y-%m-%d"),
             "level": level,
-            "link": answer_link,                         # from sheet row
+            "link": answer_link,                         # per-row link from the sheet
         }
         result = save_row_to_scores(row)
         if result.get("ok"):
