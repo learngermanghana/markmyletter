@@ -1,192 +1,117 @@
 # app.py
 import os
 import re
-import time
 import json
-import io
 from datetime import datetime
+from typing import Dict, Any, List, Tuple
 
 import pandas as pd
 import requests
 import streamlit as st
 
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-st.set_page_config(page_title="Marking Dashboard", layout="wide")
-
-# =========================================================
-# SHEET IDS
-# =========================================================
-STUDENTS_SHEET_ID    = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
-REF_TAB_NAME = "Sheet1"  # exact tab name holding the assignment list
-REF_TAB_GID = st.secrets.get("REF_TAB_GID", None)  # e.g. "123456789" (recommended)
-
-# =========================================================
-# APPS SCRIPT WEBHOOK (fallbacks)
-# =========================================================
-WEBHOOK_URL = st.secrets.get(
-    "G_SHEETS_WEBHOOK_URL",
-    "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
-)
-WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
-
-# =========================================================
-# OpenAI (optional)
-# =========================================================
+# ---------- Optional OpenAI ----------
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
 try:
     from openai import OpenAI
-    client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+    ai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 except Exception:
-    client = None
+    ai_client = None
 
-# =========================================================
-# Firebase init (from secrets)
-# =========================================================
+# ---------- Firebase (from secrets) ----------
+import firebase_admin
+from firebase_admin import credentials, firestore
+
 if not firebase_admin._apps:
-    fb = st.secrets.get("firebase")
-    if not fb:
-        st.error("⚠️ Missing [firebase] in Streamlit secrets.")
-        st.stop()
-    cred = credentials.Certificate(dict(fb))
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+    fb_cfg = st.secrets.get("firebase")
+    if fb_cfg:
+        cred = credentials.Certificate(dict(fb_cfg))
+        firebase_admin.initialize_app(cred)
+db = firestore.client() if firebase_admin._apps else None
+
+# ---------- Constants ----------
+# Students sheet (tab now "Sheet1")
+STUDENTS_SHEET_ID   = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+STUDENTS_SHEET_TAB  = st.secrets.get("STUDENTS_SHEET_TAB", "Sheet1")
+
+# Apps Script webhook (with fallbacks)
+WEBHOOK_URL   = st.secrets.get(
+    "G_SHEETS_WEBHOOK_URL",
+    "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec",
+)
+WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
+
+# Answers dictionary JSON from repo
+ANSWERS_JSON_PATHS = [
+    "answers_dictionary.json",
+    "data/answers_dictionary.json",
+    "assets/answers_dictionary.json",
+]
 
 # =========================================================
-# Helpers
+# Utilities
 # =========================================================
+def natural_key(s: str):
+    """Natural sort key: 'A1 10' after 'A1 2'."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.findall(r"\d+|\D+", str(s))]
+
 @st.cache_data(show_spinner=False, ttl=300)
-def load_sheet_csv(sheet_id: str, sheet: str | None = None, gid: str | None = None, cache_bust: bool = False) -> pd.DataFrame:
+def load_students_csv(sheet_id: str, tab: str) -> pd.DataFrame:
     """
-    Load a Google Sheet as CSV (no auth).
-
-    Prefer `gid` with export endpoint (no truncation).
-    Otherwise use gviz with an explicit high LIMIT.
-    Set `cache_bust=True` to add a timestamp param.
+    Load Google Sheet tab as CSV (no auth), normalize column names.
+    Uses gviz/tq export to target the specific tab.
     """
-    if gid:
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-    else:
-        tq = "select * limit 100000"
-        if sheet:
-            url = (
-                f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq"
-                f"?tqx=out:csv&sheet={requests.utils.quote(sheet)}&tq={requests.utils.quote(tq)}"
-            )
-        else:
-            url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&tq={requests.utils.quote(tq)}"
-    if cache_bust:
-        url += f"&_cb={int(time.time())}"
-    try:
-        response = requests.get(url, timeout=15)
-        response.raise_for_status()
-        csv_io = io.StringIO(response.content.decode("utf-8-sig"))
-        df = pd.read_csv(csv_io, dtype=str)
-    except Exception as e:
-        st.error(f"Failed to load sheet CSV: {e}")
-        raise
+    url = (
+        f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq"
+        f"?tqx=out:csv&sheet={requests.utils.quote(tab)}"
+        "&tq=select%20*%20limit%2010000"
+    )
+    df = pd.read_csv(url, dtype=str)
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+@st.cache_data(show_spinner=False)
+def load_answers_dictionary() -> Dict[str, Any]:
+    for p in ANSWERS_JSON_PATHS:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+    st.error("❌ answers_dictionary.json not found in the repo.")
+    return {}
 
-def filter_students(df: pd.DataFrame, q: str) -> pd.DataFrame:
-    """Case-insensitive contains across all columns."""
+def list_all_assignments(ans_dict: Dict[str, Any]) -> List[str]:
+    # keys of the dictionary are the assignment names
+    return sorted(list(ans_dict.keys()), key=natural_key)
+
+def build_reference_text(row_obj: Dict[str, Any]) -> Tuple[str, str]:
+    """
+    Join Answer1..AnswerN in numeric order into one reference text.
+    Returns (reference_text, answer_url_or_blank).
+    """
+    answers: Dict[str, str] = row_obj.get("answers", {}) or {}
+    # sort by AnswerN
+    def n_from_key(k: str) -> int:
+        m = re.search(r"(\d+)", k)
+        return int(m.group(1)) if m else 0
+    ordered = [k for k in sorted(answers.keys(), key=n_from_key)]
+    chunks = []
+    for k in ordered:
+        v = str(answers[k]).strip()
+        if v and v.lower() not in ("nan", "none"):
+            n = n_from_key(k)
+            chunks.append(f"{n}. {v}")
+    ref_text = "\n".join(chunks) if chunks else "No reference answers found."
+    # use the "answer_url" only (ignore sheet_url as requested)
+    answer_link = str(row_obj.get("answer_url") or "").strip()
+    return ref_text, answer_link
+
+def filter_df_any(df: pd.DataFrame, q: str) -> pd.DataFrame:
     if not q:
         return df
     mask = df.apply(lambda c: c.astype(str).str.contains(q, case=False, na=False))
     return df[mask.any(axis=1)]
 
-
-def col_lookup(df: pd.DataFrame, name: str) -> str:
-    """
-    Fuzzy match a column: 'Assignment' == 'assignment' == 'assign_ment' etc.
-    Returns the matched column name, or the first column as a fallback.
-    """
-    key = name.lower().strip().replace(" ", "").replace("_", "")
-    for c in df.columns:
-        norm = str(c).lower().strip().replace(" ", "").replace("_", "")
-        if norm == key:
-            return c
-    return df.columns[0]
-
-
-def _normalize_assignment_title(s: str) -> str:
-    """Clean quotes/newlines/extra spaces in assignment titles."""
-    if s is None:
-        return ""
-    s = str(s).replace("\r", " ").replace("\n", " ").strip()
-    s = s.strip('\'"“”‘’` ')
-    s = re.sub(r"\s+", " ", s)
-    return s.strip()
-
-
-def build_assignment_options(refs_df: pd.DataFrame):
-    """
-    Build options from the 'assignment' column (sheet order, cleaned, de-duped).
-    Returns (options, indices, assignment_col)
-    """
-    assignment_col = col_lookup(refs_df, "assignment")
-    ser = refs_df[assignment_col].fillna("").astype(str)
-    cleaned = ser.map(_normalize_assignment_title)
-    mask = cleaned.astype(str).str.strip().ne("").values
-    cleaned = cleaned[mask]
-    idxs = ser.index[mask].tolist()
-
-    seen = set()
-    options, indices = [], []
-    for lbl, i in zip(cleaned.tolist(), idxs):
-        if lbl not in seen:
-            seen.add(lbl)
-            options.append(lbl)
-            indices.append(i)
-    return options, indices, assignment_col
-
-
-def available_answer_columns(row: pd.Series):
-    """Return sorted list of existing AnswerN columns for this row (by N)."""
-    pairs = []
-    for col in row.index:
-        if col.lower().startswith("answer"):
-            m = re.findall(r"\d+", col)
-            if m:
-                n = int(m[0])
-                val = str(row[col]).strip()
-                if val and val.lower() not in ("nan", "none"):
-                    pairs.append((n, col))
-    pairs.sort(key=lambda x: x[0])
-    return pairs
-
-
-def reference_text_all_for_row(row: pd.Series) -> str:
-    """Concatenate all AnswerN cells for a row into a single block."""
-    pairs = available_answer_columns(row)
-    if not pairs:
-        return "No reference answers found."
-    return "\n\n".join([f"Answer{n}: {str(row[col]).strip()}" for n, col in pairs])
-
-
-def reference_text_single(row: pd.Series, answer_col: str) -> str:
-    """Return a single AnswerN text."""
-    return str(row.get(answer_col, "")).strip() or "No reference found."
-
-
-def link_for_row(row: pd.Series) -> str:
-    """Prefer answer_url, then sheet_url; else link to the whole reference sheet."""
-    for col in ["answer_url", "sheet_url"]:
-        if col in row.index:
-            v = str(row[col]).strip()
-            if v and v.lower() not in ("nan", "none"):
-                return v
-    return f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
-
-
-def extract_text_from_doc(doc: dict) -> str:
-    """
-    Try common fields; else join any string-like values from the document.
-    Handles nested lists/dicts with 'text' or 'content'.
-    """
+def extract_text_from_doc(doc: Dict[str, Any]) -> str:
+    # Try common fields; else join string-like values
     preferred = ["content", "text", "answer", "body", "draft", "message"]
     for k in preferred:
         v = doc.get(k)
@@ -214,11 +139,11 @@ def extract_text_from_doc(doc: dict) -> str:
             strings.append(v.strip())
     return "\n".join(strings).strip()
 
-
-def get_student_submissions(student_code: str):
-    """Fetch docs under drafts_v2/{code}/lessons (or lessens)."""
-    items = []
-    def pull(coll):
+def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
+    if not db or not student_code:
+        return []
+    items: List[Dict[str, Any]] = []
+    def pull(coll: str):
         try:
             for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
                 d = snap.to_dict() or {}
@@ -231,14 +156,10 @@ def get_student_submissions(student_code: str):
         pull("lessens")
     return items
 
-
-def ai_mark(student_answer: str, ref_text: str):
-    """
-    Return (score, feedback) via OpenAI, or (None, reason) if unavailable.
-    Expects a global `client` (OpenAI).
-    """
-    if not client:
-        return None, "⚠️ OpenAI key missing (set OPENAI_API_KEY in secrets)."
+def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, str]:
+    """Return (score, feedback) via OpenAI, or (None, reason) if unavailable."""
+    if not ai_client:
+        return None, "⚠️ OpenAI key missing (set OPENAI_API_KEY)."
     prompt = f"""
 You are a German teacher. Compare the student's answer with the reference answer.
 Return STRICT JSON with:
@@ -254,30 +175,27 @@ Reference answer:
 Return only JSON.
 """
     try:
-        resp = client.chat.completions.create(
+        resp = ai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=200,
+            max_tokens=220,
         )
         text = resp.choices[0].message.content.strip()
         m = re.search(r"\{.*\}", text, flags=re.S)
-        if m:
-            text = m.group(0)
+        text = m.group(0) if m else text
         data = json.loads(text)
         score = int(data.get("score", 0))
-        feedback = str(data.get("feedback", "")).strip()
-        return max(0, min(100, score)), (feedback or "(no feedback)")
+        fb = str(data.get("feedback", "")).strip()
+        return max(0, min(100, score)), (fb or "(no feedback)")
     except Exception as e:
         return None, f"(AI error: {e})"
 
-
-def save_row_to_scores(row: dict):
-    """POST a single row to your Apps Script webhook."""
+def save_row_to_scores(row: dict) -> dict:
     payload = {"token": WEBHOOK_TOKEN, "row": row}
     try:
         r = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-        if r.headers.get("content-type", "").startswith("application/json"):
+        if r.headers.get("content-type","").startswith("application/json"):
             return r.json()
         raw = r.text
         if "violates the data validation rules" in raw:
@@ -287,196 +205,139 @@ def save_row_to_scores(row: dict):
         return {"ok": False, "error": str(e)}
 
 # =========================================================
-# UI – top controls
+# UI
 # =========================================================
+st.set_page_config(page_title="📘 Marking Dashboard", page_icon="📘", layout="wide")
 st.title("📘 Marking Dashboard")
 
-c_top1, c_top2 = st.columns([1,1])
-with c_top1:
-    if st.button("🔄 Refresh sheets (clear cache)"):
-        st.cache_data.clear()
-        st.rerun()
-with c_top2:
-    cache_bust = st.checkbox("Force fresh pull this run", value=False, help="Adds a timestamp to the sheet URL")
+# Refresh button for all caches
+if st.button("🔄 Refresh sheets & dictionary (clear cache)"):
+    st.cache_data.clear()
+    st.rerun()
 
-# =========================================================
-# Load data (Students + Reference from 'assignment' tab)
-# =========================================================
-students_df = load_sheet_csv(STUDENTS_SHEET_ID, cache_bust=cache_bust)
+# --- Load data
+answers_dict = load_answers_dictionary()
+assignments = list_all_assignments(answers_dict)
 
-refs_df = load_sheet_csv(
-    REF_ANSWERS_SHEET_ID,
-    sheet=REF_TAB_NAME,
-    gid=REF_TAB_GID,          # if provided, uses export endpoint (no truncation)
-    cache_bust=cache_bust
-)
-# Expected columns: an "assignment" identifier column and at least one
-# answer column in the form "Answer1", "Answer2", etc.
-if (
-    "assignment" not in refs_df.columns
-    or not any(refs_df.columns.str.match(r"^Answer\d+$", case=False))
-):
-    st.error("Reference sheet missing required columns")
-    st.stop()
-
-st.caption(f"Loaded reference tab: **{REF_TAB_NAME}** — {len(refs_df)} rows")
-
-# Ensure expected student columns exist / rename common variants
-if "studentcode" not in students_df.columns and "student_code" in students_df.columns:
-    students_df = students_df.rename(columns={"student_code": "studentcode"})
+students_df = load_students_csv(STUDENTS_SHEET_ID, STUDENTS_SHEET_TAB)
 for col in ["studentcode", "name", "level"]:
     if col not in students_df.columns:
         students_df[col] = ""
 
-# =========================================================
-# Student picker with search
-# =========================================================
-search_q = st.text_input("Search student (code, name, phone, etc.)")
-filtered_students = filter_students(students_df, search_q)
-if filtered_students.empty:
+# --- Student select with search
+st.subheader("1) Pick Student")
+q = st.text_input("Search by code / name / phone / any field")
+students_filtered = filter_df_any(students_df, q)
+if students_filtered.empty:
     st.warning("No students match your search.")
     st.stop()
 
-student_labels = [
-    f"{row.get('studentcode','')} — {row.get('name','')} ({row.get('level','')})"
-    for _, row in filtered_students.iterrows()
+labels = [
+    f"{r.get('studentcode','')} — {r.get('name','')} ({r.get('level','')})"
+    for _, r in students_filtered.iterrows()
 ]
-pick_label = st.selectbox("Pick Student", student_labels)
-sel_row = filtered_students.iloc[student_labels.index(pick_label)]
-studentcode   = str(sel_row.get("studentcode","")).strip()
-student_name  = str(sel_row.get("name","")).strip()
-student_level = str(sel_row.get("level","")).strip()
+choice = st.selectbox("Select student", labels)
+row_sel = students_filtered.iloc[labels.index(choice)]
+studentcode = str(row_sel.get("studentcode","")).strip()
+student_name = str(row_sel.get("name","")).strip()
+student_level = str(row_sel.get("level","")).strip()
 
 c1, c2 = st.columns(2)
 with c1: st.text_input("Name (auto)",  value=student_name,  disabled=True)
 with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 
-# =========================================================
-# Reference: ALL assignments from 'assignment' column
-# =========================================================
-st.subheader("Reference")
-ref_options, ref_indices, ASSIGNMENT_COL = build_assignment_options(refs_df)
-st.caption(f"{len(ref_options)} assignments found")
+# --- Reference select (from dictionary)
+st.subheader("2) Reference (Answers Dictionary)")
+st.caption(f"{len(assignments)} assignments available from answers_dictionary.json")
+search_assign = st.text_input("Search assignment title…")
+assign_pool = [a for a in assignments if search_assign.lower() in a.lower()] if search_assign else assignments
+assignment_choice = st.selectbox("Select assignment", assign_pool)
+ref_obj = answers_dict.get(assignment_choice, {}) if assignment_choice else {}
+ref_text, answer_link = build_reference_text(ref_obj)
 
-search_assign = st.text_input("Search assignment title…", value="")
-pairs = [(o, i) for o, i in zip(ref_options, ref_indices)
-         if search_assign.lower() in o.lower()] if search_assign else list(zip(ref_options, ref_indices))
+st.markdown("**Reference Answer**")
+st.code(ref_text or "(not found)", language="markdown")
+if answer_link:
+    st.caption(f"Reference link: {answer_link}")
 
-if not pairs:
-    st.info("No assignments match your search.")
-    st.stop()
-
-show_options = [o for o, _ in pairs]
-show_indices = [i for _, i in pairs]
-
-assignment_choice = st.selectbox("Select Assignment", show_options)
-assign_idx = show_indices[show_options.index(assignment_choice)]
-assign_row = refs_df.loc[assign_idx]
-
-mode = st.radio("Reference scope", ["All answers", "Pick a specific AnswerN"], horizontal=True)
-if mode == "All answers":
-    ref_text = reference_text_all_for_row(assign_row)
-else:
-    ans_pairs = available_answer_columns(assign_row)
-    if not ans_pairs:
-        st.info("This row has no AnswerN columns filled. Showing empty reference.")
-        ref_text = "No reference answers found."
-    else:
-        ans_label = st.selectbox("Choose AnswerN", [f"Answer{n}" for n, _ in ans_pairs])
-        n = int(re.findall(r"\d+", ans_label)[0])
-        answer_col = dict(ans_pairs)[n]
-        ref_text = reference_text_single(assign_row, answer_col)
-
-answer_link = link_for_row(assign_row)
-st.caption(f"Reference link: {answer_link}")
-
-# =========================================================
-# Firestore submissions for the student (list all; you pick one)
-# =========================================================
-st.subheader("Student Submissions (Firestore)")
-subs = get_student_submissions(studentcode)
+# --- Firestore submissions for this student
+st.subheader("3) Student Submission (Firestore)")
+subs = fetch_submissions(studentcode)
 if not subs:
-    st.warning("No submissions found under drafts_v2/.../lessons (or lessens) for this student.")
-    picked_label = "none"
+    st.info("No submissions found under drafts_v2/{code}/lessons (or lessens).")
     student_text = ""
 else:
-    def sub_label(i, d):
+    def label_for(idx: int, d: Dict[str, Any]) -> str:
         txt = extract_text_from_doc(d)
-        preview = (txt[:70] + "…") if len(txt) > 70 else txt
-        return f"{i+1} • {d.get('id','(no-id)')} • {preview}"
-    sub_labels = [sub_label(i, d) for i, d in enumerate(subs)]
-    picked_label = st.selectbox("Pick submission to preview/mark", sub_labels)
-    student_text = extract_text_from_doc(subs[sub_labels.index(picked_label)])
+        preview = (txt[:80] + "…") if len(txt) > 80 else txt
+        return f"{idx+1} • {d.get('id','(no-id)')} • {preview}"
+    sub_labels = [label_for(i, d) for i, d in enumerate(subs)]
+    picked = st.selectbox("Pick submission to preview", sub_labels)
+    student_text = extract_text_from_doc(subs[sub_labels.index(picked)])
 
-st.markdown("### Student Submission")
+st.markdown("**Student Submission**")
 st.code(student_text or "(empty)", language="markdown")
 
-st.markdown("### Reference Answer")
-st.code(ref_text or "(not found)", language="markdown")
-
-# =========================================================
-# Combined copy box
-# =========================================================
+# --- Combined copy box
+st.subheader("4) Combined (copyable)")
 combined = f"""# Student Submission
 {student_text}
 
 # Reference Answer
 {ref_text}
 """
-st.text_area("Combined (copyable)", value=combined, height=200)
+st.text_area("Combined", value=combined, height=200)
 
-# =========================================================
-# AI generate (override allowed)
-# =========================================================
+# --- AI generate (override allowed)
 if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
-if "key_last" not in st.session_state:    st.session_state.key_last = None
+if "combo_key" not in st.session_state:   st.session_state.combo_key = None
 
-combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked_label}"
+cur_key = f"{studentcode}|{assignment_choice}|{student_text[:60]}"
 should_gen = (
-    client is not None
+    ai_client is not None
     and student_text.strip()
     and ref_text.strip()
     and ref_text.strip() != "No reference answers found."
-    and st.session_state.key_last != combo_key
+    and st.session_state.combo_key != cur_key
 )
 if should_gen:
-    ai_s, ai_fb = ai_mark(student_text, ref_text)
-    if ai_s is not None:
-        st.session_state.ai_score = ai_s
-    st.session_state.ai_feedback = ai_fb
-    st.session_state.key_last = combo_key
+    s, fb = ai_mark(student_text, ref_text)
+    if s is not None:
+        st.session_state.ai_score = s
+    st.session_state.ai_feedback = fb
+    st.session_state.combo_key = cur_key
 
 colA, colB = st.columns([1,1])
 with colA:
     if st.button("🔁 Regenerate AI"):
-        ai_s, ai_fb = ai_mark(student_text, ref_text)
-        if ai_s is not None:
-            st.session_state.ai_score = ai_s
-        st.session_state.ai_feedback = ai_fb
+        s, fb = ai_mark(student_text, ref_text)
+        if s is not None:
+            st.session_state.ai_score = s
+        st.session_state.ai_feedback = fb
 
-score    = st.number_input("Score", min_value=0, max_value=100, step=1, value=st.session_state.ai_score)
-comments = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
+score = st.number_input("Score", min_value=0, max_value=100, value=int(st.session_state.ai_score))
+feedback = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
 
-# =========================================================
-# Save to Scores via Apps Script webhook
-# =========================================================
+# --- Save to Scores (Apps Script webhook)
+st.subheader("5) Save to Scores sheet")
 if st.button("💾 Save", type="primary", use_container_width=True):
     if not studentcode:
         st.error("Pick a student first.")
-    elif not comments.strip():
+    elif not assignment_choice:
+        st.error("Pick an assignment.")
+    elif not feedback.strip():
         st.error("Feedback is required.")
     else:
-        assignment_value = str(assign_row.get(ASSIGNMENT_COL, assignment_choice)).strip() or assignment_choice
         row = {
             "studentcode": studentcode,
-            "name": student_name,
-            "assignment": assignment_value,
-            "score": int(score),
-            "comments": comments.strip(),
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "level": student_level,
-            "link": answer_link,
+            "name":        student_name,
+            "assignment":  assignment_choice,        # the dictionary key (your visible title)
+            "score":       int(score),
+            "comments":    feedback.strip(),
+            "date":        datetime.now().strftime("%Y-%m-%d"),
+            "level":       student_level,
+            "link":        answer_link,              # from dictionary; sheet_url is ignored by request
         }
         result = save_row_to_scores(row)
         if result.get("ok"):
