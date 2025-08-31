@@ -71,39 +71,56 @@ def load_sheet_csv(sheet_id: str, sheet: str | None = None) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+
 def filter_students(df: pd.DataFrame, q: str) -> pd.DataFrame:
+    """Case-insensitive contains across all columns."""
     if not q:
         return df
     mask = df.apply(lambda c: c.astype(str).str.contains(q, case=False, na=False))
     return df[mask.any(axis=1)]
 
-# Reference: list ALL assignments from the 'assignment' column
-st.subheader("Reference")
 
-ref_options, ref_indices, ASSIGNMENT_COL = build_assignment_options(refs_df)
-if not ref_options:
-    st.warning("No assignments found in the reference sheet.")
-    st.stop()
+def col_lookup(df: pd.DataFrame, name: str) -> str:
+    """
+    Fuzzy match a column: 'Assignment' == 'assignment' == 'assign_ment' etc.
+    Returns the matched column name, or the first column as a fallback.
+    """
+    key = name.lower().strip().replace(" ", "").replace("_", "")
+    for c in df.columns:
+        norm = str(c).lower().strip().replace(" ", "").replace("_", "")
+        if norm == key:
+            return c
+    return df.columns[0]
 
-# (Optional) quick search bar like in your working snippet
-search_assign = st.text_input("Search assignment title...")
-show_options = [o for o in ref_options if search_assign.lower() in o.lower()] if search_assign else ref_options
 
-assignment_choice = st.selectbox("Select Assignment", show_options)
-assign_idx = ref_indices[ref_options.index(assignment_choice)]  # map back to the original row index
-assign_row = refs_df.loc[assign_idx]
+def build_assignment_options(refs_df: pd.DataFrame):
+    """
+    Build the assignment options from the dedicated `assignment` column.
+    Returns (options, indices, assignment_col):
+      - options: list[str] visible titles (sheet order, blanks removed)
+      - indices: list[int] original DataFrame indices for each option
+      - assignment_col: the actual matched column name
+    """
+    assignment_col = col_lookup(refs_df, "assignment")
+    ser = refs_df[assignment_col].astype(str).fillna("").str.strip()
+    mask = (ser != "") & (ser.str.lower() != "nan")
+    ser = ser[mask]                    # keep original order, drop blanks
+    options = ser.tolist()             # visible text in selectbox
+    indices = ser.index.tolist()       # back-reference to df rows
+    return options, indices, assignment_col
 
 
 def ref_options_all_rows(refs_df: pd.DataFrame):
     """
-    Build options from the FIRST column only, no filtering.
-    Option label includes 1-based sheet row number: e.g., 'r2 • Assignment 0.1'
+    (Optional) Build options from the FIRST column only.
+    Labels include 1-based sheet row number (e.g., 'r2 • Assignment 0.1').
     """
     first_col = refs_df.columns[0]
     labels = refs_df[first_col].astype(str).fillna("").str.strip()
     options = [f"r{idx+2} • {lbl if lbl else '(blank)'}" for idx, lbl in enumerate(labels)]
     indices = list(range(len(labels)))
     return options, indices, first_col
+
 
 def available_answer_columns(row: pd.Series):
     """Return sorted list of existing AnswerN columns for this row (by N)."""
@@ -119,22 +136,29 @@ def available_answer_columns(row: pd.Series):
     pairs.sort(key=lambda x: x[0])
     return pairs
 
+
 def reference_text_all_for_row(row: pd.Series) -> str:
+    """Concatenate all AnswerN cells for a row into a single block."""
     pairs = available_answer_columns(row)
     if not pairs:
         return "No reference answers found."
     return "\n\n".join([f"Answer{n}: {str(row[col]).strip()}" for n, col in pairs])
 
+
 def reference_text_single(row: pd.Series, answer_col: str) -> str:
+    """Return a single AnswerN text."""
     return str(row.get(answer_col, "")).strip() or "No reference found."
 
+
 def link_for_row(row: pd.Series) -> str:
+    """Prefer answer_url, then sheet_url; else link to the whole reference sheet."""
     for col in ["answer_url", "sheet_url"]:
         if col in row.index:
             v = str(row[col]).strip()
             if v and v.lower() not in ("nan", "none"):
                 return v
     return f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
+
 
 def extract_text_from_doc(doc: dict) -> str:
     """
@@ -168,6 +192,7 @@ def extract_text_from_doc(doc: dict) -> str:
             strings.append(v.strip())
     return "\n".join(strings).strip()
 
+
 def get_student_submissions(student_code: str):
     """Fetch docs under drafts_v2/{code}/lessons (or lessens)."""
     items = []
@@ -184,8 +209,12 @@ def get_student_submissions(student_code: str):
         pull("lessens")
     return items
 
+
 def ai_mark(student_answer: str, ref_text: str):
-    """Return (score, feedback) via OpenAI, or (None, reason) if unavailable."""
+    """
+    Return (score, feedback) via OpenAI, or (None, reason) if unavailable.
+    Expects a global `client` (OpenAI) to be initialized elsewhere.
+    """
     if not client:
         return None, "⚠️ OpenAI key missing (set OPENAI_API_KEY in secrets)."
     prompt = f"""
@@ -220,11 +249,13 @@ Return only JSON.
     except Exception as e:
         return None, f"(AI error: {e})"
 
+
 def save_row_to_scores(row: dict):
+    """POST a single row to your Apps Script webhook."""
     payload = {"token": WEBHOOK_TOKEN, "row": row}
     try:
         r = requests.post(WEBHOOK_URL, json=payload, timeout=15)
-        if r.headers.get("content-type","").startswith("application/json"):
+        if r.headers.get("content-type", "").startswith("application/json"):
             return r.json()
         raw = r.text
         if "violates the data validation rules" in raw:
@@ -232,6 +263,7 @@ def save_row_to_scores(row: dict):
         return {"ok": False, "raw": raw}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
 
 # =========================================================
 # UI – top controls
