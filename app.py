@@ -11,29 +11,20 @@ import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# =========================================================
-# BASIC PAGE CONFIG
-# =========================================================
 st.set_page_config(page_title="Marking Dashboard", layout="wide")
 
-# =========================================================
-# SHEET IDS (you provided)
-# =========================================================
+# ==== SHEET IDS ====
 STUDENTS_SHEET_ID    = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
 
-# =========================================================
-# APPS SCRIPT WEBHOOK (fallbacks included)
-# =========================================================
+# ==== APPS SCRIPT WEBHOOK (with fallbacks) ====
 WEBHOOK_URL = st.secrets.get(
     "G_SHEETS_WEBHOOK_URL",
     "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec"
 )
 WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
 
-# =========================================================
-# OpenAI (optional)
-# =========================================================
+# ==== OpenAI (optional) ====
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
 try:
     from openai import OpenAI
@@ -41,9 +32,7 @@ try:
 except Exception:
     client = None
 
-# =========================================================
-# Firebase init (from secrets)
-# =========================================================
+# ==== Firebase init ====
 if not firebase_admin._apps:
     fb = st.secrets.get("firebase")
     if not fb:
@@ -51,18 +40,12 @@ if not firebase_admin._apps:
         st.stop()
     cred = credentials.Certificate(dict(fb))
     firebase_admin.initialize_app(cred)
-
 db = firestore.client()
 
-# =========================================================
-# Helpers
-# =========================================================
+# ==== Helpers ====
 @st.cache_data(show_spinner=False, ttl=300)
 def load_sheet_csv(sheet_id: str, sheet: str | None = None) -> pd.DataFrame:
-    """
-    Load a Google Sheet as CSV (no auth).
-    If `sheet` is provided, reads that worksheet/tab by name.
-    """
+    """Load Google Sheet tab as CSV (no auth)."""
     if sheet:
         url = (
             f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq"
@@ -74,6 +57,26 @@ def load_sheet_csv(sheet_id: str, sheet: str | None = None) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+def try_auto_ref_tab(sheet_id: str) -> tuple[pd.DataFrame, str]:
+    """
+    Try common tabs; pick the first whose first column contains early A1 entries,
+    e.g. 'a1 assignment 0.1'. Fallback to 'Sheet1'.
+    """
+    candidates = ["Sheet1", "A1", "A2", "B1", "C1"]
+    pattern = re.compile(r"\ba1\b|\ba1\s*assignment", re.I)
+
+    for tab in candidates:
+        try:
+            df = load_sheet_csv(sheet_id, tab)
+            first_col = df.columns[0]
+            col_vals = df[first_col].astype(str).str.lower()
+            if col_vals.str.contains(pattern).any():
+                return df, tab
+        except Exception:
+            pass
+    # fallback
+    return load_sheet_csv(sheet_id, "Sheet1"), "Sheet1"
+
 def filter_students(df: pd.DataFrame, q: str) -> pd.DataFrame:
     if not q:
         return df
@@ -81,18 +84,13 @@ def filter_students(df: pd.DataFrame, q: str) -> pd.DataFrame:
     return df[mask.any(axis=1)]
 
 def ref_options_all_rows(refs_df: pd.DataFrame):
-    """
-    Build options from the FIRST column only, no filtering.
-    Option label includes 1-based sheet row number: e.g., 'r2 • A1 Assignment 0.1'
-    """
-    first_col = refs_df.columns[0]          # first column explicitly
+    first_col = refs_df.columns[0]
     labels = refs_df[first_col].astype(str).fillna("").str.strip()
     options = [f"r{idx+2} • {lbl if lbl else '(blank)'}" for idx, lbl in enumerate(labels)]
-    indices = list(range(len(labels)))      # map option → df row index
+    indices = list(range(len(labels)))
     return options, indices, first_col
 
 def available_answer_columns(row: pd.Series):
-    """Return sorted list of existing AnswerN columns for this row (by N)."""
     pairs = []
     for col in row.index:
         if col.lower().startswith("answer"):
@@ -120,14 +118,9 @@ def link_for_row(row: pd.Series) -> str:
             v = str(row[col]).strip()
             if v and v.lower() not in ("nan", "none"):
                 return v
-    # fallback to entire reference sheet
     return f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
 
 def extract_text_from_doc(doc: dict) -> str:
-    """
-    Try common fields; else join any string-like values from the document.
-    Handles nested lists/dicts with 'text' or 'content'.
-    """
     preferred = ["content", "text", "answer", "body", "draft", "message"]
     for k in preferred:
         v = doc.get(k)
@@ -156,7 +149,6 @@ def extract_text_from_doc(doc: dict) -> str:
     return "\n".join(strings).strip()
 
 def get_student_submissions(student_code: str):
-    """Fetch docs under drafts_v2/{code}/lessons (or lessens)."""
     items = []
     def pull(coll):
         try:
@@ -172,7 +164,6 @@ def get_student_submissions(student_code: str):
     return items
 
 def ai_mark(student_answer: str, ref_text: str):
-    """Return (score, feedback) via OpenAI, or (None, reason) if unavailable."""
     if not client:
         return None, "⚠️ OpenAI key missing (set OPENAI_API_KEY in secrets)."
     prompt = f"""
@@ -220,39 +211,44 @@ def save_row_to_scores(row: dict):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-# =========================================================
-# UI – top controls
-# =========================================================
+# ==== UI ====
 st.title("📘 Marking Dashboard")
 
-# quick cache reset (sometimes the Google CSV cache is sticky)
 if st.button("🔄 Refresh sheets (clear cache)"):
     st.cache_data.clear()
-    st.experimental_rerun()
+    st.rerun()
 
-# Let you choose the reference sheet TAB name freely (e.g., A1, A2, B1, C1, Sheet1…)
-ref_tab_default = st.session_state.get("ref_tab", "Sheet1")
-ref_tab = st.text_input(
-    "Reference sheet tab name",
-    value=ref_tab_default,
-    help="Type the tab name exactly as it appears (e.g., A1, A2, B1, C1, Sheet1)."
+# --- Reference tab choice (Auto/quick/other) ---
+st.subheader("Reference tab")
+quick_tab = st.radio(
+    "Pick the tab that holds the *assignment* column:",
+    ["Auto", "Sheet1", "A1", "A2", "B1", "C1", "Other…"],
+    horizontal=True,
+    index=0,
 )
-st.session_state["ref_tab"] = ref_tab
+custom_tab = ""
+if quick_tab == "Other…":
+    custom_tab = st.text_input("Custom tab name")
 
-# =========================================================
-# Load data (after we collected the tab name)
-# =========================================================
+# --- Load students ---
 students_df = load_sheet_csv(STUDENTS_SHEET_ID)
-refs_df     = load_sheet_csv(REF_ANSWERS_SHEET_ID, sheet=ref_tab)
-
-# Ensure expected student columns exist
 for col in ["studentcode", "name", "level"]:
     if col not in students_df.columns:
         students_df[col] = ""
 
-# =========================================================
-# Student picker with search
-# =========================================================
+# --- Load reference (Auto ensures we start from A1/Assignment 0.1 if present) ---
+if quick_tab == "Auto":
+    refs_df, chosen_tab = try_auto_ref_tab(REF_ANSWERS_SHEET_ID)
+elif quick_tab == "Other…":
+    chosen_tab = custom_tab.strip() or "Sheet1"
+    refs_df = load_sheet_csv(REF_ANSWERS_SHEET_ID, chosen_tab)
+else:
+    chosen_tab = quick_tab
+    refs_df = load_sheet_csv(REF_ANSWERS_SHEET_ID, chosen_tab)
+
+st.caption(f"Loaded reference tab: **{chosen_tab}**")
+
+# --- Student picker with search ---
 search_q = st.text_input("Search student (code, name, phone, etc.)")
 filtered_students = filter_students(students_df, search_q)
 if filtered_students.empty:
@@ -273,12 +269,10 @@ c1, c2 = st.columns(2)
 with c1: st.text_input("Name (auto)",  value=student_name,  disabled=True)
 with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 
-# =========================================================
-# Reference: show ALL rows from FIRST column of chosen tab
-# =========================================================
+# --- Reference list (first-column rows) ---
 st.subheader("Reference")
 ref_options, ref_indices, ASSIGNMENT_COL = ref_options_all_rows(refs_df)
-st.caption(f"{len(ref_options)} rows loaded from tab **{ref_tab}**")
+st.caption(f"{len(ref_options)} rows loaded from **{chosen_tab}**")
 ref_choice = st.selectbox("Pick assignment (full list)", ref_options)
 assign_idx = ref_indices[ref_options.index(ref_choice)]
 assign_row = refs_df.iloc[assign_idx]
@@ -300,9 +294,7 @@ else:
 answer_link = link_for_row(assign_row)
 st.caption(f"Reference link: {answer_link}")
 
-# =========================================================
-# Firestore submissions for the student (list all; you pick one)
-# =========================================================
+# --- Firestore submissions (list all, you pick one) ---
 st.subheader("Student Submissions (Firestore)")
 subs = get_student_submissions(studentcode)
 if not subs:
@@ -324,9 +316,6 @@ st.code(student_text or "(empty)", language="markdown")
 st.markdown("### Reference Answer")
 st.code(ref_text or "(not found)", language="markdown")
 
-# =========================================================
-# Combined copy box
-# =========================================================
 combined = f"""# Student Submission
 {student_text}
 
@@ -335,9 +324,7 @@ combined = f"""# Student Submission
 """
 st.text_area("Combined (copyable)", value=combined, height=200)
 
-# =========================================================
-# AI generate (override allowed)
-# =========================================================
+# --- AI (optional) ---
 if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
 if "key_last" not in st.session_state:    st.session_state.key_last = None
@@ -368,9 +355,7 @@ with colA:
 score    = st.number_input("Score", min_value=0, max_value=100, step=1, value=st.session_state.ai_score)
 comments = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
 
-# =========================================================
-# Save to Scores via Apps Script webhook
-# =========================================================
+# --- Save to Scores via Apps Script webhook ---
 if st.button("💾 Save", type="primary", use_container_width=True):
     if not studentcode:
         st.error("Pick a student first.")
@@ -381,12 +366,12 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         row = {
             "studentcode": studentcode,
             "name": student_name,
-            "assignment": assignment_value,   # exact text from first column of chosen tab
+            "assignment": assignment_value,
             "score": int(score),
             "comments": comments.strip(),
             "date": datetime.now().strftime("%Y-%m-%d"),
             "level": student_level,
-            "link": answer_link,              # auto-insert ref link
+            "link": answer_link,
         }
         result = save_row_to_scores(row)
         if result.get("ok"):
