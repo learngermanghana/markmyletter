@@ -19,7 +19,7 @@ st.set_page_config(page_title="Marking Dashboard", layout="wide")
 # =========================================================
 STUDENTS_SHEET_ID    = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
-REF_TAB_NAME = "assignment"  # exact tab name holding the assignment list
+REF_TAB_NAME = "Sheet1"  # exact tab name holding the assignment list
 REF_TAB_GID = st.secrets.get("REF_TAB_GID", None)  # e.g. "123456789" (recommended)
 
 # =========================================================
