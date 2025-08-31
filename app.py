@@ -220,13 +220,42 @@ Return only JSON.
 
 def save_row_to_scores(row: dict) -> dict:
     try:
-        r = requests.post(WEBHOOK_URL, json={"token": WEBHOOK_TOKEN, "row": row}, timeout=15)
-        if r.headers.get("content-type","").startswith("application/json"):
-            return r.json()
-        raw = r.text
+        r = requests.post(
+            WEBHOOK_URL,
+            json={"token": WEBHOOK_TOKEN, "row": row},
+            timeout=15,
+        )
+
+        raw = r.text  # keep a copy for troubleshooting
+
+        # ---------------- Structured JSON ----------------
+        if r.headers.get("content-type", "").startswith("application/json"):
+            data: Dict[str, Any]
+            try:
+                data = r.json()
+            except Exception:
+                data = {}
+
+            if isinstance(data, dict):
+                # Apps Script may return structured error information
+                field = data.get("field")
+                if not data.get("ok") and field:
+                    return {
+                        "ok": False,
+                        "why": "validation",
+                        "field": field,
+                        "raw": raw,
+                    }
+
+                # Ensure raw message is included for debugging
+                data.setdefault("raw", raw)
+                return data
+
+        # ---------------- Fallback: plain text ----------------
         if "violates the data validation rules" in raw:
             return {"ok": False, "why": "validation", "raw": raw}
         return {"ok": False, "raw": raw}
+
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -431,12 +460,28 @@ if st.button("💾 Save", type="primary", use_container_width=True):
     elif not feedback.strip():
         st.error("Feedback is required.")
     else:
-        try:
-            studentcode_int = int(studentcode)
-            if studentcode_int <= 0:
-                raise ValueError
-        except ValueError:
-            st.error("Student code must be a positive integer.")
+      
+        row = {
+            "studentcode": studentcode,
+            "name":        student_name,
+            "assignment":  st.session_state.ref_assignment,
+            "score":       int(score),
+            "comments":    feedback.strip(),
+            "date":        datetime.now().strftime("%Y-%m-%d"),
+            "level":       student_level,
+            "link":        st.session_state.ref_link,  # uses answer_url only
+        }
+        result = save_row_to_scores(row)
+        if result.get("ok"):
+            st.success("✅ Saved to Scores sheet.")
+        elif result.get("why") == "validation":
+            field = result.get("field")
+            if field:
+                st.error(f"❌ Sheet blocked the write due to data validation ({field}).")
+            else:
+                st.error("❌ Sheet blocked the write due to data validation.")
+                if result.get("raw"):
+                    st.caption(result["raw"])
         else:
             row = {
                 "studentcode": studentcode_int,
