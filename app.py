@@ -187,7 +187,7 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     if not items: pull("lessens")
     return items
 
-def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, Dict[str, str]]:
+def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, Dict[str, str]]:
 
     if not ai_client:
         return None, {c: "" for c in RUBRIC_CRITERIA}
@@ -453,7 +453,7 @@ if "ai_feedback" not in st.session_state:
 cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}"
 if ai_client and student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
 
-    s, fb = ai_mark(student_text, st.session_state.ref_text)
+    s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
     if s is not None:
         st.session_state.ai_score = s
 
@@ -466,7 +466,7 @@ colA, colB = st.columns(2)
 with colA:
     if st.button("🔁 Regenerate AI"):
 
-        s, fb = ai_mark(student_text, st.session_state.ref_text)
+        s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
         if s is not None:
             st.session_state.ai_score = s
 
