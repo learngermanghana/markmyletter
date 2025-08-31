@@ -121,7 +121,9 @@ def list_json_assignments(ans_dict: Dict[str, Any]) -> List[str]:
     return sorted(list(ans_dict.keys()), key=natural_key)
 
 def build_reference_text_from_json(row_obj: Dict[str, Any]) -> Tuple[str, str]:
-    answers: Dict[str, str] = row_obj.get("answers", {}) or {}
+    answers: Dict[str, str] = row_obj.get("answers") or {
+        k: v for k, v in row_obj.items() if k.lower().startswith("answer")
+    }
     def n_from(k: str) -> int:
         m = re.search(r"(\d+)", k)
         return int(m.group(1)) if m else 0
