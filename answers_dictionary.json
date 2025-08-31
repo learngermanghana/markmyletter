@@ -22,7 +22,11 @@
       "Answer4": "A) K",
       "Answer5": "A) A-Umlaut",
       "Answer6": "A) A, O, U, B",
-      "Answer7": "B 4 Wasser Kaffee Blume Schule Tisch"
+      "Answer7": {
+        "choice": "B",
+        "count": 4,
+        "words": ["Wasser", "Kaffee", "Blume", "Schule", "Tisch"]
+      }
     },
     "answer_url": "https://example.com/reference/A1%20Assignment%200.2"
   },
@@ -646,7 +650,10 @@
       "Answer2": "C) Sie verbessert die Stimmun",
       "Answer3": "A) Sie beruhigen Korper und Geist",
       "Answer4": "B) Weil er den kpoper",
-      "Answer5": "B ;Sie helfen, das wohibefinden zu steigern",
+      "Answer5": {
+        "choice": "B",
+        "text": "Sie helfen, das Wohlbefinden zu steigern"
+      },
       "Answer6": "B) Sie tragen zum Wohlbefinden bei",
       "Answer7": "B) Auf die Signale des korpers horen fruhzeitig MaBnahmen ergreifen"
     },
