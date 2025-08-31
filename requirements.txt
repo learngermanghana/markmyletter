@@ -1,6 +1,5 @@
-openai>=1.0.0
+streamlit==1.37.0
 pandas
-gspread
-firebase-admin
-streamlit
 requests
+firebase-admin
+openai>=1.40.0
