@@ -188,16 +188,21 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     return items
 
 def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, Dict[str, str]]:
+
     if not ai_client:
         return None, {c: "" for c in RUBRIC_CRITERIA}
 
     crit_lines = "\n".join([f"- {c}: ~20 words, constructive." for c in RUBRIC_CRITERIA])
     prompt = f"""
-You are a German teacher. Compare the student's answer with the reference answer.
+You are the student's German tutor. The student is at level {student_level}. Compare the student's answer with the reference answer and judge it according to that level.
 Return STRICT JSON with:
 - score: integer 0-100
-- feedback: object with:
-{crit_lines}
+
+- feedback: ~40 words in a friendly, encouraging tutor voice.
+
+Student level:
+{student_level}
+
 
 Student answer:
 {student_answer}
@@ -447,9 +452,11 @@ if "ai_feedback" not in st.session_state:
 
 cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}"
 if ai_client and student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
+
     s, fb = ai_mark(student_text, st.session_state.ref_text)
     if s is not None:
         st.session_state.ai_score = s
+
     st.session_state.ai_feedback = fb
     for c, v in fb.items():
         st.session_state[f"feedback_{c}"] = v
@@ -458,9 +465,11 @@ if ai_client and student_text.strip() and st.session_state.ref_text.strip() and 
 colA, colB = st.columns(2)
 with colA:
     if st.button("🔁 Regenerate AI"):
+
         s, fb = ai_mark(student_text, st.session_state.ref_text)
         if s is not None:
             st.session_state.ai_score = s
+
         st.session_state.ai_feedback = fb
         for c, v in fb.items():
             st.session_state[f"feedback_{c}"] = v

@@ -33,3 +33,4 @@ The AI now produces separate feedback for each rubric criterion (grammar and voc
 Each comment is displayed in its own text area so instructors can review and edit before
 saving. When saved, the comments are combined into the overall `comments` field and also
 stored individually (e.g., `comment_grammar`, `comment_vocabulary`).
+
