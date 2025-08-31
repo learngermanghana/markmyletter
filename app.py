@@ -78,9 +78,12 @@ def load_answers_dictionary() -> Dict[str, Any]:
             # ensure every entry has an "answers" dict (Answer1, Answer2, ...)
             for k, v in data.items():
                 if not isinstance(v, dict):
-                    data[k] = {"answers": {}}
-                elif "answers" not in v:
-                    v["answers"] = {}
+                    data[k] = {"answers": {}, "answer_url": ""}
+                else:
+                    if "answers" not in v:
+                        v["answers"] = {}
+                    if "answer_url" not in v:
+                        v["answer_url"] = ""
             return data
     st.error("❌ answers_dictionary.json not found in the repo.")
     return {}
