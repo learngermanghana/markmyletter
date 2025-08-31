@@ -27,14 +27,10 @@ Run the app with:
 streamlit run app.py
 ```
 
-### Using `ai_mark`
+## Editing rubric feedback
 
-If you want to use the AI marking helper directly in Python code, call `ai_mark` with the student's answer, reference text, and the student's level:
+The AI now produces separate feedback for each rubric criterion (grammar and vocabulary).
+Each comment is displayed in its own text area so instructors can review and edit before
+saving. When saved, the comments are combined into the overall `comments` field and also
+stored individually (e.g., `comment_grammar`, `comment_vocabulary`).
 
-```python
-from app import ai_mark
-
-score, feedback = ai_mark("Ich bin ein Student", "Ich bin eine Studentin", "A1")
-```
-
-`score` will be an integer from 0–100 (or `None` if the OpenAI key is missing) and `feedback` is a short tutor-style message tailored to the specified student level.
