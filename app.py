@@ -60,6 +60,9 @@ ANSWER_SOURCE = (
 if ANSWER_SOURCE not in ("json", "sheet"):
     ANSWER_SOURCE = ""
 
+# Criteria used for rubric-based AI feedback
+RUBRIC_CRITERIA = ["overall"]
+
 
 # =========================================================
 # Helpers
