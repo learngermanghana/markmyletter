@@ -3,6 +3,7 @@ import os
 import re
 import time
 import json
+import io
 from datetime import datetime
 
 import pandas as pd
@@ -78,7 +79,14 @@ def load_sheet_csv(sheet_id: str, sheet: str | None = None, gid: str | None = No
             url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&tq={requests.utils.quote(tq)}"
     if cache_bust:
         url += f"&_cb={int(time.time())}"
-    df = pd.read_csv(url)
+    try:
+        response = requests.get(url, timeout=15)
+        response.raise_for_status()
+        csv_io = io.StringIO(response.content.decode("utf-8-sig"))
+        df = pd.read_csv(csv_io, dtype=str)
+    except Exception as e:
+        st.error(f"Failed to load sheet CSV: {e}")
+        raise
     df.columns = df.columns.str.strip().str.lower()
     return df
 
