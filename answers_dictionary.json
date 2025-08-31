@@ -11,7 +11,8 @@
       "Answer8": "A) Tschuss",
       "Answer9": "C) Guten Abend",
       "Answer10": "D) Gute Nacht"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%20Assignment%200.1"
   },
   "A1 Assignment 0.2": {
     "answers": {
@@ -22,7 +23,8 @@
       "Answer5": "A) A-Umlaut",
       "Answer6": "A) A, O, U, B",
       "Answer7": "B 4 Wasser Kaffee Blume Schule Tisch"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%20Assignment%200.2"
   },
   "A1 Assignment 1.1": {
     "answers": {
@@ -30,7 +32,8 @@
       "Answer2": "C",
       "Answer3": "A",
       "Answer4": "B"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%20Assignment%201.1"
   },
   "A1 Assignment 1.2": {
     "answers": {
@@ -43,7 +46,8 @@
       "Answer7": "Ich wohne in Berlin",
       "Answer8": "Du wohnst in Madrid",
       "Answer9": "Sie wohnt in Wien"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%20Assignment%201.2"
   },
   "A1 Assignment 2": {
     "answers": {
@@ -57,7 +61,8 @@
       "Answer8": "A) fünfhundertneun",
       "Answer9": "A) zweitausendvierzig",
       "Answer10": "A) fünftausendfünfhundertneun"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%20Assignment%202"
   },
   "A1 Assignment 4": {
     "answers": {
@@ -68,7 +73,8 @@
       "Answer5": "A) Nach Spanien",
       "Answer6": "B) Amsterdam",
       "Answer7": "C) In der Schweiz"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%20Assignment%204"
   },
   "A1 5": {
     "answers": {
@@ -82,7 +88,8 @@
       "Answer8": "Er pflückt die Blume",
       "Answer9": "Wir putzen das Fenster",
       "Answer10": "Sie benutzen den Computer"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%205"
   },
   "A1 6": {
     "answers": {
@@ -93,7 +100,8 @@
       "Answer5": "D",
       "Answer6": "B",
       "Answer7": "C"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%206"
   },
   "A1 7": {
     "answers": {
@@ -107,7 +115,8 @@
       "Answer8": "B) Bis zwei Uhr nachmittags",
       "Answer9": "B) Um drei Uhr nachmittags",
       "Answer10": "B) Um sieben Uhr"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%207"
   },
   "A1 8": {
     "answers": {
@@ -116,7 +125,8 @@
       "Answer3": "C) 28 Tage",
       "Answer4": "B) Tag. Monat. Jahr",
       "Answer5": "D) Montag"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%208"
   },
   "A1 9": {
     "answers": {
@@ -130,7 +140,8 @@
       "Answer8": "C) Kuchen",
       "Answer9": "C) Schokolade",
       "Answer10": "B) Der Bruder des Autors"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%209"
   },
   "A1 10": {
     "answers": {
@@ -143,7 +154,8 @@
       "Answer7": "Falsch",
       "Answer8": "Falsch",
       "Answer9": "Falsch"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%2010"
   },
   "A1 11": {
     "answers": {
@@ -153,7 +165,8 @@
       "Answer4": "Links abbiegen: 'Biegen Sie links ab'",
       "Answer5": "Rechts abbiegen: 'Biegen Sie rechts ab'",
       "Answer6": "On the left side: 'Das Kino ist auf der linken Seite'"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%2011"
   },
   "A1 12.1": {
     "answers": {
@@ -162,7 +175,8 @@
       "Answer3": "A) Richtig",
       "Answer4": "A) Richtig",
       "Answer5": "A) Richtig"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%2012.1"
   },
   "A1 12.2": {
     "answers": {
@@ -171,7 +185,8 @@
       "Answer3": "A) ein Computer und ein Drucker",
       "Answer4": "C) in einer Bar",
       "Answer5": "C) bar"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%2012.2"
   },
   "A1 13": {
     "answers": {
@@ -184,7 +199,8 @@
       "Answer7": "A",
       "Answer8": "B",
       "Answer9": "B"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%2013"
   },
   "A1 14.1": {
     "answers": {
@@ -198,7 +214,8 @@
       "Answer8": "h. Hand – Hand",
       "Answer9": "i. Foot – Fuß",
       "Answer10": "j. Stomach / Belly – Bauch"
-    }
+    },
+    "answer_url": "https://example.com/reference/A1%2014.1"
   },
   "A2 1.1 Small Talk": {
     "answers": {
@@ -209,7 +226,8 @@
       "Answer5": "C) Einen Spaziergang Machen",
       "Answer6": "B) Italien und Spanien",
       "Answer7": "C) Weil die Baume so schon bunt sind"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%201.1%20Small%20Talk"
   },
   "A2 1.2 Personen Beschreiben": {
     "answers": {
@@ -220,7 +238,8 @@
       "Answer5": "B) Weil er seine Mitarbeiter regelmaBig lobt",
       "Answer6": "A) Wenn eine Aufgabe nicht rechtzeitig erledigt wird",
       "Answer7": "B) Dass er fair ist und die Leistungen der Mitarbeiter wertschatzt"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%201.2%20Personen%20Beschreiben"
   },
   "A2 1.3 Dinge und Personen vergleichen": {
     "answers": {
@@ -231,7 +250,8 @@
       "Answer5": "B) Julia und Tobias kochen am Wochenende oft mit Sophie",
       "Answer6": "A) Max spielt oft FuBball mit seinen Freunden",
       "Answer7": "B) Am Wochenende machen Anna und Max Ausfluge oder besuchen Museen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%201.3%20Dinge%20und%20Personen%20vergleichen"
   },
   "A2 2.4 Wo möchten wir uns treffen?": {
     "answers": {
@@ -240,7 +260,8 @@
       "Answer3": "B) Ein Piknik",
       "Answer4": "C) in eienem restaurant",
       "Answer5": "A) Spielen und Spazieren gehen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%202.4%20Wo%20m%C3%B6chten%20wir%20uns%20treffen%3F"
   },
   "A2 2.5 Was machst du in deiner Freizeit": {
     "answers": {
@@ -249,7 +270,8 @@
       "Answer3": "A) Sie geht jogeen",
       "Answer4": "B) in den Bergen",
       "Answer5": "B) Klassische Musik"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%202.5%20Was%20machst%20du%20in%20deiner%20Freizeit"
   },
   "A2 3.6 Möbel und Räume kennenlernen": {
     "answers": {
@@ -258,7 +280,8 @@
       "Answer3": "B",
       "Answer4": "B",
       "Answer5": "B"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%203.6%20M%C3%B6bel%20und%20R%C3%A4ume%20kennenlernen"
   },
   "A2 3.7 Eine Wohnung suchen": {
     "answers": {
@@ -269,7 +292,8 @@
       "Answer5": "B) 150 Euro",
       "Answer6": "C) Von 22–7 Uhr und 13–15 Uhr",
       "Answer7": "C) Zum Wertstoffcontainer bringen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%203.7%20Eine%20Wohnung%20suchen"
   },
   "A2 3.8 Rezepte und Essen": {
     "answers": {
@@ -280,7 +304,8 @@
       "Answer5": "A) Gemuselasagne",
       "Answer6": "C) Sauerkraut und Bratwurst",
       "Answer7": "A) Eine zentrale Rolle"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%203.8%20Rezepte%20und%20Essen"
   },
   "A2 4.9 Urlaub": {
     "answers": {
@@ -291,7 +316,8 @@
       "Answer5": "A) Nach Kreta zu reisen",
       "Answer6": "C) 17,98 Euro",
       "Answer7": "C) In der Hausordnung"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%204.9%20Urlaub"
   },
   "A2 4.10 Tourismus und Traditionelle Feste": {
     "answers": {
@@ -302,7 +328,8 @@
       "Answer5": "B) Fahrgeschafte und Spiele",
       "Answer6": "b) Seit 1. Oktober 2017",
       "Answer7": "c) Jeder darf seine Religion frei wählen und ausüben"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%204.10%20Tourismus%20und%20Traditionelle%20Feste"
   },
   "A2 4.11 Unterwegs: Verkehrsmittel vergleichen": {
     "answers": {
@@ -313,7 +340,8 @@
       "Answer5": "B) Das Auto auf mögliche",
       "Answer6": "a) Viele Städte zu besuchen",
       "Answer7": "b) Sehr zufrieden"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%204.11%20Unterwegs%3A%20Verkehrsmittel%20vergleichen"
   },
   "A2 5.12 Ein Tag im Leben": {
     "answers": {
@@ -324,7 +352,8 @@
       "Answer5": "C) Vor 18 Uhr",
       "Answer6": "c) Ein Kochrezept",
       "Answer7": "c) Menschen unter 27 Jahren"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%205.12%20Ein%20Tag%20im%20Leben"
   },
   "A2 5.13 Ein Vorstellungsgespräch": {
     "answers": {
@@ -335,7 +364,8 @@
       "Answer5": "B) Klar und deutlich sprechen",
       "Answer6": "a) Reiche Familien",
       "Answer7": "b) Es bekommt Hilfe beim Deutschlernen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%205.13%20Ein%20Vorstellungsgespr%C3%A4ch"
   },
   "A2 5.14 Beruf und Karriere": {
     "answers": {
@@ -351,7 +381,8 @@
       "Answer10": "C) Auf der Baustelle oder am Flughafen",
       "Answer11": "C) Die Kündigung schriftlich und mit Frist einreichen",
       "Answer12": "C) In der Volkshochschule"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%205.14%20Beruf%20und%20Karriere"
   },
   "A2 6.15 Mein Lieblingssport": {
     "answers": {
@@ -362,7 +393,8 @@
       "Answer5": "B) Volleyball und Basketball",
       "Answer6": "B) Die Eröffnung eines neuen Kletterparks",
       "Answer7": "B) Eine wichtige Rolle zur Förderung der Lebensqualität"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%206.15%20Mein%20Lieblingssport"
   },
   "A2 6.16 Wohlbefinden und Entspannung": {
     "answers": {
@@ -371,7 +403,8 @@
       "Answer3": "A) Der Besuch eines Fitnessstudios",
       "Answer4": "B) Um Krankheiten frühzeitig zu erkennen",
       "Answer5": "A) Yoga und Pilates"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%206.16%20Wohlbefinden%20und%20Entspannung"
   },
   "A2 6.17 In die Apotheke gehen": {
     "answers": {
@@ -382,7 +415,8 @@
       "Answer5": "B) Proben von Produkten",
       "Answer6": "B) Nach einigen Stunden",
       "Answer7": "A) Sie kann sich auf den Rat der Apotheker verlassen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%206.17%20In%20die%20Apotheke%20gehen"
   },
   "A2 7.18 Die Bank Anrufen": {
     "answers": {
@@ -391,7 +425,8 @@
       "Answer3": "B) Drei",
       "Answer4": "A) Basiskonto",
       "Answer5": "D) Die Formulare vor dem Termin online ausfüllen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%207.18%20Die%20Bank%20Anrufen"
   },
   "A2 7.19 Einkaufen? Wo und wie?": {
     "answers": {
@@ -402,7 +437,8 @@
       "Answer5": "B) Es hat den Konsum revolutioniert und neue Möglichkeiten geschaffen",
       "Answer6": "A) Sich gut informieren",
       "Answer7": "B) Als komplexes Thema mit positiven und negativen Auswirkungen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%207.19%20Einkaufen%3F%20Wo%20und%20wie%3F"
   },
   "A2 7.20 Typische Reklamationssituationen üben": {
     "answers": {
@@ -414,7 +450,8 @@
       "Answer6": "A) Flexible Arbeitszeiten",
       "Answer7": "A) Es gab weniger",
       "Answer8": "B) Sie arbeiteten mehr und hatten weniger Freizeit"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%207.20%20Typische%20Reklamationssituationen%20%C3%BCben"
   },
   "A2 8.21 Ein Wochenende planen": {
     "answers": {
@@ -423,7 +460,8 @@
       "Answer3": "C) Machte er eine lange Reise",
       "Answer4": "A) Eine Fernsehsendung",
       "Answer5": "A) Den Berufsweg eines Kochs"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%208.21%20Ein%20Wochenende%20planen"
   },
   "A2 8.22 Die Woche Plannung": {
     "answers": {
@@ -432,7 +470,8 @@
       "Answer3": "C) Kocht jeder einmal für die anderen.",
       "Answer4": "B) Deutsch zu sprechen.",
       "Answer5": "C) Übernachtet Sonja in Marios Zimmer."
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%208.22%20Die%20Woche%20Plannung"
   },
   "A2 9.23 Wie kommst du zur Schule / zur Arbeit?": {
     "answers": {
@@ -441,7 +480,8 @@
       "Answer3": "A) Aus der Schweiz",
       "Answer4": "A) Mit der U-Bahn",
       "Answer5": "D) Die Berge und die Natur"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%209.23%20Wie%20kommst%20du%20zur%20Schule%20%2F%20zur%20Arbeit%3F"
   },
   "A2 9.24 Einen Urlaub planen": {
     "answers": {
@@ -450,7 +490,8 @@
       "Answer3": "Anzeige: X",
       "Answer4": "Anzeige: b",
       "Answer5": "Anzeige: a"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%209.24%20Einen%20Urlaub%20planen"
   },
   "A2 9.25 Tagesablauf": {
     "answers": {
@@ -464,7 +505,8 @@
       "Answer8": "a) an einem kleinen Bahnhof",
       "Answer9": "d) einen Zimmerschlüssel",
       "Answer10": "b) das Zimmer ist zu klein"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%209.25%20Tagesablauf"
   },
   "A2 10.26 Gefühle in verschiedenen Situationen beschr": {
     "answers": {
@@ -475,7 +517,8 @@
       "Answer5": "a) Impfungen und Vorsorgeuntersuchungen",
       "Answer6": "c) Ab 3 Jahren",
       "Answer7": "b) An speziellen Freizeitangeboten in der Stadt teilnehmen"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%2010.26%20Gef%C3%BChle%20in%20verschiedenen%20Situationen%20beschr"
   },
   "A2 10.27 Digitale Kommunikation": {
     "answers": {
@@ -486,7 +529,8 @@
       "Answer5": "c) In Supermärkten, Tankstellen oder Kiosken",
       "Answer6": "b) Name, Adresse, Geburtsdatum und ein Ausweisdokument",
       "Answer7": "d) Mit öffentlichem WLAN"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%2010.27%20Digitale%20Kommunikation"
   },
   "A2 10.28 Über die Zukunft sprechen": {
     "answers": {
@@ -497,7 +541,8 @@
       "Answer5": "c) Man muss sie übersetzen und anerkennen lassen",
       "Answer6": "c) Die Arbeitsagentur",
       "Answer7": "c) Kranken-, Renten- und Pflegeversicherung"
-    }
+    },
+    "answer_url": "https://example.com/reference/A2%2010.28%20%C3%9Cber%20die%20Zukunft%20sprechen"
   },
   "B1 1.1 Traumwelten": {
     "answers": {
@@ -508,7 +553,8 @@
       "Answer5": "A) In der REM-Phase",
       "Answer6": "B) Universelle Symbole wie der Held oder die Mutter",
       "Answer7": "B) Ein geheimnisvolles und faszinierendes Gebiet"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%201.1%20Traumwelten"
   },
   "B1 1.2 Freundes für Leben": {
     "answers": {
@@ -519,7 +565,8 @@
       "Answer5": "B) Fehler zu vergeben 6",
       "Answer6": "B) Er starkt die individuelle Freiheit",
       "Answer7": "B) Vertrauen, Unterstutzung, Ehrlichkeit, Gemeinsame Interessen und Vergebung"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%201.2%20Freundes%20f%C3%BCr%20Leben"
   },
   "B1 1.3 Erfolgsgeschichten": {
     "answers": {
@@ -530,7 +577,8 @@
       "Answer5": "A) Erschopft aber zufrieden",
       "Answer6": "B) Ein alleinerziehender Vater",
       "Answer7": "B) Wahre Helden sind diejenigen, die im Alltag still wirken"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%201.3%20Erfolgsgeschichten"
   },
   "B1 2.4 Wohnung suchen": {
     "answers": {
@@ -541,7 +589,8 @@
       "Answer5": "B) Es gibt eine U-Bahn Station und mehree Bushaltestellen in der Nahe",
       "Answer6": "A) Geduld und Flexibilitat",
       "Answer7": "B) Sie erfordert Zeit und Geduld"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%202.4%20Wohnung%20suchen"
   },
   "B1 2.5 Der Besichtigungsg termin": {
     "answers": {
@@ -552,7 +601,8 @@
       "Answer5": "B) Gehaltsnachweise und Mieterselbstauskunft",
       "Answer6": "B) Ein Jahr",
       "Answer7": "C) Sie entschied sich, die Wohnung zu mieten"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%202.5%20Der%20Besichtigungsg%20termin"
   },
   "B1 2.6 Leben in der Stadt oder auf dem Land?": {
     "answers": {
@@ -563,7 +613,8 @@
       "Answer5": "B) Mischung aus Privatsphare und sozialer interaktion",
       "Answer6": "B) Kurze Wege zu Geschaften und Restaurants",
       "Answer7": "C) WG"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%202.6%20Leben%20in%20der%20Stadt%20oder%20auf%20dem%20Land%3F"
   },
   "B1 3.7 Fast Food vs. Hausmannskost": {
     "answers": {
@@ -574,7 +625,8 @@
       "Answer5": "B) Den Zuckerkonsum zu reduzieren und mehr frische Lebensmittel zu essen",
       "Answer6": "C) Man sollte den Zukerkonsum reduzieren und auf eine ausgewogene Ernahrung achten",
       "Answer7": "A) Durch korperliche Aktivitat und Entspannungstechniken"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%203.7%20Fast%20Food%20vs.%20Hausmannskost"
   },
   "B1 3.8 Alles für die Gesundheit": {
     "answers": {
@@ -585,7 +637,8 @@
       "Answer5": "B) Sie sehen ihn als einen stillen Helden",
       "Answer6": "C) Jemand, der Engagement zeigt",
       "Answer7": "C) Sie leisten wichtige Beitrage, die oft unsichtber sind"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%203.8%20Alles%20f%C3%BCr%20die%20Gesundheit"
   },
   "B1 3.9. Work-Life-Balance im modernen Arbeitsumfeld": {
     "answers": {
@@ -596,7 +649,8 @@
       "Answer5": "B ;Sie helfen, das wohibefinden zu steigern",
       "Answer6": "B) Sie tragen zum Wohlbefinden bei",
       "Answer7": "B) Auf die Signale des korpers horen fruhzeitig MaBnahmen ergreifen"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%203.9.%20Work-Life-Balance%20im%20modernen%20Arbeitsumfeld"
   },
   "B1 4.10 Digitale Auszeit und Selbstfürsorge": {
     "answers": {
@@ -607,7 +661,8 @@
       "Answer5": "C) Gefuhle der Einsamkeit und Isolation",
       "Answer6": "C) Man sollte eine ausgewogene Balance zwischen Zeit fur sich und sozialen Kontakten finden",
       "Answer7": "B) Indem man Aktivitaten plant, die einem SpaB machen und guttun"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%204.10%20Digitale%20Auszeit%20und%20Selbstf%C3%BCrsorge"
   },
   "B1 4.11 Teamspiele und Kooperative Aktivitäten": {
     "answers": {
@@ -618,7 +673,8 @@
       "Answer5": "A) Traditionelle Spiele Haben Soziale und Korperliche Vorteile",
       "Answer6": "C) Eine Balance zwischen digitalem und traditionellem Spielen finden",
       "Answer7": "A) Minecraft"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%204.11%20Teamspiele%20und%20Kooperative%20Aktivit%C3%A4ten"
   },
   "B1 4.12 Abenteuer in der Natur": {
     "answers": {
@@ -629,7 +685,8 @@
       "Answer5": "B",
       "Answer6": "B",
       "Answer7": "B"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%204.12%20Abenteuer%20in%20der%20Natur"
   },
   "B1 4.13 Eigene Filmkritik schreiben": {
     "answers": {
@@ -640,7 +697,8 @@
       "Answer5": "C) Weil sie Abenteuer ohne echte Gefahr erleben wollen",
       "Answer6": "B) Die Dialoge waren klischeehaft",
       "Answer7": "A) Ja"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%204.13%20Eigene%20Filmkritik%20schreiben"
   },
   "B1 5.14 Traditionelles vs. digitales Lernen": {
     "answers": {
@@ -651,7 +709,8 @@
       "Answer5": "C) RegelmaBig und in kleinen Schritten lernen",
       "Answer6": "B) Kreativitat und Anpassungsfahigkeit",
       "Answer7": "C) Die richtige Einstellung und Disziplin"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%205.14%20Traditionelles%20vs.%20digitales%20Lernen"
   },
   "B1 5.15 Medien und Arbeiten im Homeoffice": {
     "answers": {
@@ -662,7 +721,8 @@
       "Answer5": "C) Balance zwischen digitalem und realem Leben finden",
       "Answer6": "B) Bessere digitale Bilding",
       "Answer7": "A) Uberwaltigt"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%205.15%20Medien%20und%20Arbeiten%20im%20Homeoffice"
   },
   "B1 5.16 Prüfungsangst und Stressbewältigung": {
     "answers": {
@@ -673,7 +733,8 @@
       "Answer5": "C) Negative Gedanken und Stress",
       "Answer6": "B) Enstspannungstechniken und gute Vorbereitung",
       "Answer7": "B) Sie sind fairer und individueller"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%205.16%20Pr%C3%BCfungsangst%20und%20Stressbew%C3%A4ltigung"
   },
   "B1 5.17 Wie lernt man am besten?": {
     "answers": {
@@ -684,7 +745,8 @@
       "Answer5": "B) Sich selbst belohnen",
       "Answer6": "C) Spaced repetition",
       "Answer7": "B) Sei bringen Struktur in den Lernprozess"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%205.17%20Wie%20lernt%20man%20am%20besten%3F"
   },
   "B1 6.18 Wege zum Wunschberuf": {
     "answers": {
@@ -695,7 +757,8 @@
       "Answer5": "C) Flexibel sein und sich anpassen",
       "Answer6": "C) Sie sind nur kurzfristig gefragt",
       "Answer7": "A) Durch Flexibilitat und Bereitschaft zur Weiterbildung"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%206.18%20Wege%20zum%20Wunschberuf"
   },
   "B1 6.19 Das Vorstellungsgespräch": {
     "answers": {
@@ -705,7 +768,8 @@
       "Answer4": "B) es ein neues Tourismus-Angebot gibt",
       "Answer5": "B) muss man nicht sportlich sein",
       "Answer6": "C) mehr Velo-Touristen in die Region kommen"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%206.19%20Das%20Vorstellungsgespr%C3%A4ch"
   },
   "B1 6.20 Wie wird man ?? (Ausbildung und Qu)": {
     "answers": {
@@ -715,7 +779,8 @@
       "Answer4": "B) Falsch",
       "Answer5": "A) Richtig",
       "Answer6": "B) Falsch"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%206.20%20Wie%20wird%20man%20%3F%3F%20%28Ausbildung%20und%20Qu%29"
   },
   "B1 7.21 Lebensformen heute ? Familie, Wohnge": {
     "answers": {
@@ -724,7 +789,8 @@
       "Answer3": "D) Ja, zwei Söhne.",
       "Answer4": "D) Ja, fünf Geschwister",
       "Answer5": "C) Weil ihre Eltern dort wohnen"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%207.21%20Lebensformen%20heute%20%3F%20Familie%2C%20Wohnge"
   },
   "B1 7.22 Was ist dir in einer Beziehung wichtig?": {
     "answers": {
@@ -733,7 +799,8 @@
       "Answer3": "D) Zeugnisse und Anschreiben",
       "Answer4": "A) Man lernt den Arbeitgeber kennen.",
       "Answer5": "C) Man kann sich bei der nächsten offenen Stelle bewerben."
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%207.22%20Was%20ist%20dir%20in%20einer%20Beziehung%20wichtig%3F"
   },
   "B1 7.23 Erstes Date ? Typische Situationen": {
     "answers": {
@@ -744,7 +811,8 @@
       "Answer5": "D) So gut wie nichts",
       "Answer6": "B) Weil Parker Brothers es verkaufte",
       "Answer7": "B) Mary Pilon"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%207.23%20Erstes%20Date%20%3F%20Typische%20Situationen"
   },
   "B1 8.24 Konsum und Nachhaltigkeit": {
     "answers": {
@@ -753,7 +821,8 @@
       "Answer3": "False",
       "Answer4": "False",
       "Answer5": "True"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%208.24%20Konsum%20und%20Nachhaltigkeit"
   },
   "B1 8.25 Online einkaufen ? Rechte und Risiken": {
     "answers": {
@@ -764,7 +833,8 @@
       "Answer5": "B) Beratung zu Konsum, Verträgen und Ernährung",
       "Answer6": "c) Durch den Staat und Kundenzahlungen",
       "Answer7": "B) Broschüren mit Informationen"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%208.25%20Online%20einkaufen%20%3F%20Rechte%20und%20Risiken"
   },
   "B1 9.26 Reiseprobleme und Lösungen": {
     "answers": {
@@ -774,7 +844,8 @@
       "Answer5": "B) Das Oktoberfest",
       "Answer6": "B) Neuschwanstein, Herrenchiemsee und Linderhof",
       "Answer7": "C) Weil das Wetter in Deutschland nicht immer sonnig und warm ist"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%209.26%20Reiseprobleme%20und%20L%C3%B6sungen"
   },
   "B1 10.27 Umweltfreundlich im Alltag": {
     "answers": {
@@ -785,7 +856,8 @@
       "Answer5": "B) Bei jedem Einzelnen",
       "Answer6": "C) Umweltfreundlich einkaufen",
       "Answer7": "C) Umweltfreundlich einkaufen"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%2010.27%20Umweltfreundlich%20im%20Alltag"
   },
   "B1 10.28 Klimafreundlich leben": {
     "answers": {
@@ -796,7 +868,8 @@
       "Answer5": "B",
       "Answer6": "B",
       "Answer7": "B"
-    }
+    },
+    "answer_url": "https://example.com/reference/B1%2010.28%20Klimafreundlich%20leben"
   },
   "C1 1": {
     "answers": {
@@ -807,7 +880,8 @@
       "Answer5": "b) Sie bietet sowohl Chancen als auch Risiken.",
       "Answer6": "b) Sie muss die Entwicklungen kritisch hinterfragen.",
       "Answer7": "b) Wegen der möglichen Auswirkungen auf zukünftige Generationen."
-    }
+    },
+    "answer_url": "https://example.com/reference/C1%201"
   },
   "B2 1": {
     "answers": {
@@ -818,7 +892,8 @@
       "Answer5": "C) Es gibt Zugausfälle und längere Fahrzeiten",
       "Answer6": "B) Sich regelmäßig reflektieren und Veränderungen zulassen",
       "Answer7": "B) Flexibilität"
-    }
+    },
+    "answer_url": "https://example.com/reference/B2%201"
   },
   "B2 1.2": {
     "answers": {
@@ -828,7 +903,8 @@
       "Answer4": "B) Probleme, wenn sich jemand vernachlässigt fühlt",
       "Answer5": "C) Ehrlich reden und aufmerksam zuhören",
       "Answer6": "C) Es kann zu Problemen in der Partnerschaft führen."
-    }
+    },
+    "answer_url": "https://example.com/reference/B2%201.2"
   },
   "B2 1.4 - Beruf und Karriere": {
     "answers": {
@@ -839,6 +915,7 @@
       "Answer5": "C) Menschen auf ihrem beruflichen Weg zu begleiten",
       "Answer6": "A) Sie ist der Schlüssel zu beruflichem und persönlichem Erfolg",
       "Answer7": "B) Sich aktiv mit Trends auseinandersetzen"
-    }
+    },
+    "answer_url": "https://example.com/reference/B2%201.4%20-%20Beruf%20und%20Karriere"
   }
 }
