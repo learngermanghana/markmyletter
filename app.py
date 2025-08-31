@@ -187,10 +187,28 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     if not items: pull("lessens")
     return items
 
+def detect_missing_umlauts(student_answer: str) -> list[str]:
+    """Return words that may be missing umlauts (ae, oe, ue, ss)."""
+    suspicious = ["ae", "oe", "ue", "ss"]
+    words = re.findall(r"[A-Za-z]+", student_answer.lower())
+    flagged = []
+    for w in words:
+        if any(s in w for s in suspicious) and not any(u in w for u in "äöüß"):
+            flagged.append(w)
+    # Return unique words to avoid duplicates
+    return sorted(set(flagged))
+
 def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, Dict[str, str]]:
+    issues = detect_missing_umlauts(student_answer)
 
     if not ai_client:
-        return None, {c: "" for c in RUBRIC_CRITERIA}
+        fb = {c: "" for c in RUBRIC_CRITERIA}
+        if issues:
+            note = (
+                "Remember to hold u, s, or o on your keyboard or search Google for umlaut shortcuts."
+            )
+            fb = {k: note for k in fb}
+        return None, fb
 
     crit_lines = "\n".join([f"- {c}: ~20 words, constructive." for c in RUBRIC_CRITERIA])
     prompt = f"""
@@ -234,9 +252,22 @@ Return only JSON.
         if not isinstance(fb_obj, dict):
             fb_obj = {}
         fb_dict = {c: str(fb_obj.get(c, "")).strip() for c in RUBRIC_CRITERIA}
+        if issues:
+            note = (
+                "Remember to hold u, s, or o on your keyboard or search Google for umlaut shortcuts."
+            )
+            fb_dict = {
+                k: (v + (" " if v else "") + note).strip() for k, v in fb_dict.items()
+            }
         return max(0, min(100, score)), fb_dict
     except Exception as e:
-        return None, {c: f"(AI error: {e})" for c in RUBRIC_CRITERIA}
+        fb = {c: f"(AI error: {e})" for c in RUBRIC_CRITERIA}
+        if issues:
+            note = (
+                "Remember to hold u, s, or o on your keyboard or search Google for umlaut shortcuts."
+            )
+            fb = {k: (v + " " + note).strip() for k, v in fb.items()}
+        return None, fb
 
 def save_row_to_scores(row: dict) -> dict:
     try:
