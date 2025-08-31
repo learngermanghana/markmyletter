@@ -310,6 +310,15 @@ refs_df = load_sheet_csv(
     gid=REF_TAB_GID,          # if provided, uses export endpoint (no truncation)
     cache_bust=cache_bust
 )
+# Expected columns: an "assignment" identifier column and at least one
+# answer column in the form "Answer1", "Answer2", etc.
+if (
+    "assignment" not in refs_df.columns
+    or not any(refs_df.columns.str.match(r"^Answer\d+$"))
+):
+    st.error("Reference sheet missing required columns")
+    st.stop()
+
 st.caption(f"Loaded reference tab: **{REF_TAB_NAME}** — {len(refs_df)} rows")
 
 # Ensure expected student columns exist / rename common variants
