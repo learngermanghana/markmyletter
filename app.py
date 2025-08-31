@@ -60,6 +60,9 @@ ANSWER_SOURCE = (
 if ANSWER_SOURCE not in ("json", "sheet"):
     ANSWER_SOURCE = ""
 
+# Rubric criteria for AI feedback
+RUBRIC_CRITERIA = ["grammar", "vocabulary"]
+
 # =========================================================
 # Helpers
 # =========================================================
@@ -184,14 +187,17 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     if not items: pull("lessens")
     return items
 
-def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, str]:
+def ai_mark(student_answer: str, ref_text: str) -> Tuple[int | None, Dict[str, str]]:
     if not ai_client:
-        return None, "⚠️ OpenAI key missing."
+        return None, {c: "" for c in RUBRIC_CRITERIA}
+
+    crit_lines = "\n".join([f"- {c}: ~20 words, constructive." for c in RUBRIC_CRITERIA])
     prompt = f"""
 You are a German teacher. Compare the student's answer with the reference answer.
 Return STRICT JSON with:
 - score: integer 0-100
-- feedback: ~40 words, constructive.
+- feedback: object with:
+{crit_lines}
 
 Student answer:
 {student_answer}
@@ -213,10 +219,11 @@ Return only JSON.
         text = m.group(0) if m else text
         data = json.loads(text)
         score = int(data.get("score", 0))
-        fb = str(data.get("feedback", "")).strip()
-        return max(0, min(100, score)), (fb or "(no feedback)")
+        fb_obj = data.get("feedback") or {}
+        fb_dict = {c: str(fb_obj.get(c, "")).strip() for c in RUBRIC_CRITERIA}
+        return max(0, min(100, score)), fb_dict
     except Exception as e:
-        return None, f"(AI error: {e})"
+        return None, {c: f"(AI error: {e})" for c in RUBRIC_CRITERIA}
 
 def save_row_to_scores(row: dict) -> dict:
     try:
@@ -431,24 +438,39 @@ combined = f"""# Student Submission
 st.text_area("Combined", value=combined, height=200)
 
 # AI generate (override allowed)
-if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
-if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
+if "ai_score" not in st.session_state:
+    st.session_state.ai_score = 0
+if "ai_feedback" not in st.session_state:
+    st.session_state.ai_feedback = {c: "" for c in RUBRIC_CRITERIA}
+    for c in RUBRIC_CRITERIA:
+        st.session_state[f"feedback_{c}"] = ""
+
 cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}"
 if ai_client and student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
     s, fb = ai_mark(student_text, st.session_state.ref_text)
-    if s is not None: st.session_state.ai_score = s
+    if s is not None:
+        st.session_state.ai_score = s
     st.session_state.ai_feedback = fb
+    for c, v in fb.items():
+        st.session_state[f"feedback_{c}"] = v
     st.session_state.ai_key = cur_key
 
 colA, colB = st.columns(2)
 with colA:
     if st.button("🔁 Regenerate AI"):
         s, fb = ai_mark(student_text, st.session_state.ref_text)
-        if s is not None: st.session_state.ai_score = s
+        if s is not None:
+            st.session_state.ai_score = s
         st.session_state.ai_feedback = fb
+        for c, v in fb.items():
+            st.session_state[f"feedback_{c}"] = v
 
 score = st.number_input("Score", 0, 100, value=int(st.session_state.ai_score))
-feedback = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
+
+feedback_inputs = {
+    c: st.text_area(f"{c.capitalize()} feedback", key=f"feedback_{c}", height=80)
+    for c in RUBRIC_CRITERIA
+}
 
 # Save to Scores
 st.subheader("5) Save to Scores sheet")
@@ -457,7 +479,7 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         st.error("Pick a student first.")
     elif not st.session_state.ref_assignment:
         st.error("Pick a reference (JSON or Sheet) and click its 'Use this … reference' button.")
-    elif not feedback.strip():
+    elif not any(v.strip() for v in feedback_inputs.values()):
         st.error("Feedback is required.")
     else:
         try:
@@ -465,16 +487,25 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         except ValueError:
             studentcode_val = studentcode
 
+        concatenated = "\n".join(
+            f"{c.capitalize()}: {feedback_inputs[c].strip()}"
+            for c in RUBRIC_CRITERIA
+            if feedback_inputs[c].strip()
+        )
+
         row = {
             "studentcode": studentcode_val,
             "name":        student_name,
             "assignment":  st.session_state.ref_assignment,
             "score":       int(score),
-            "comments":    feedback.strip(),
+            "comments":    concatenated,
             "date":        datetime.now().strftime("%Y-%m-%d"),
             "level":       student_level,
             "link":        st.session_state.ref_link,  # uses answer_url only
         }
+        for c in RUBRIC_CRITERIA:
+            row[f"comment_{c}"] = feedback_inputs[c].strip()
+
         result = save_row_to_scores(row)
         if result.get("ok"):
             st.success("✅ Saved to Scores sheet.")

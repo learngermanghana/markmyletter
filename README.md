@@ -26,3 +26,10 @@ Run the app with:
 ```bash
 streamlit run app.py
 ```
+
+## Editing rubric feedback
+
+The AI now produces separate feedback for each rubric criterion (grammar and vocabulary).
+Each comment is displayed in its own text area so instructors can review and edit before
+saving. When saved, the comments are combined into the overall `comments` field and also
+stored individually (e.g., `comment_grammar`, `comment_vocabulary`).
