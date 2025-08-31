@@ -333,39 +333,48 @@ with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 # Reference: ALL assignments from 'assignment' column (sheet order)
 # =========================================================
 st.subheader("Reference")
-ref_options, ref_indices, ASSIGNMENT_COL = build_assignment_options(refs_df)
-st.caption(f"{len(ref_options)} assignments found")
+ASSIGNMENT_COL = col_lookup(refs_df, "assignment")
 
 search_assign = st.text_input("Search assignment title…", value="")
-pairs = [(o, i) for o, i in zip(ref_options, ref_indices)
-         if search_assign.lower() in o.lower()] if search_assign else list(zip(ref_options, ref_indices))
 
-if not pairs:
+all_rows = []
+for idx, row in refs_df.iterrows():
+    title = str(row.get(ASSIGNMENT_COL, "")).strip()
+    if not title or title.lower() in ("nan", "none"):
+        continue
+    all_rows.append(
+        {
+            "title": title,
+            "index": idx,
+            "ref_text": reference_text_all_for_row(row),
+            "link": link_for_row(row),
+        }
+    )
+
+if search_assign:
+    disp_rows = [r for r in all_rows if search_assign.lower() in r["title"].lower()]
+else:
+    disp_rows = all_rows
+
+if not disp_rows:
     st.info("No assignments match your search.")
     st.stop()
 
-show_options = [o for o, _ in pairs]
-show_indices = [i for _, i in pairs]
+st.caption(f"{len(disp_rows)} assignments found")
 
-assignment_choice = st.selectbox("Select Assignment", show_options)
-assign_idx = show_indices[show_options.index(assignment_choice)]
+for r in disp_rows:
+    with st.expander(r["title"], expanded=True):
+        st.markdown(r["ref_text"])
+        st.caption(f"Reference link: {r['link']}")
+
+assignment_choice = st.selectbox(
+    "Select assignment for marking", [r["title"] for r in all_rows]
+)
+current = next(r for r in all_rows if r["title"] == assignment_choice)
+assign_idx = current["index"]
 assign_row = refs_df.loc[assign_idx]
-
-mode = st.radio("Reference scope", ["All answers", "Pick a specific AnswerN"], horizontal=True)
-if mode == "All answers":
-    ref_text = reference_text_all_for_row(assign_row)
-else:
-    ans_pairs = available_answer_columns(assign_row)
-    if not ans_pairs:
-        st.info("This row has no AnswerN columns filled. Showing empty reference.")
-        ref_text = "No reference answers found."
-    else:
-        ans_label = st.selectbox("Choose AnswerN", [f"Answer{n}" for n, _ in ans_pairs])
-        n = int(re.findall(r"\d+", ans_label)[0])
-        answer_col = dict(ans_pairs)[n]
-        ref_text = reference_text_single(assign_row, answer_col)
-
-answer_link = link_for_row(assign_row)
+ref_text = current["ref_text"]
+answer_link = current["link"]
 st.caption(f"Reference link: {answer_link}")
 
 # =========================================================
@@ -410,7 +419,7 @@ if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
 if "key_last" not in st.session_state:    st.session_state.key_last = None
 
-combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked_label}"
+combo_key = f"{studentcode}|{assign_idx}|{picked_label}"
 should_gen = (
     client is not None
     and student_text.strip()
