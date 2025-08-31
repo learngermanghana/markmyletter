@@ -12,7 +12,8 @@
       "Answer9": "C) Guten Abend",
       "Answer10": "D) Gute Nacht"
     },
-    "answer_url": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQHsswuK6rSfxo7NzGa2k9AGpORf1Sqy6k2-mj53_o6W5FRQHbkScLEWY4A8fTIzuZSDDH8gyAolBC9/pubhtml?gid=0&single=true"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1AgS3Kb78KcvbJnZvZijM4-cBJ1PitCVnUwe19T4TMPQ/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1AgS3Kb78KcvbJnZvZijM4-cBJ1PitCVnUwe19T4TMPQ/edit"
   },
   "A1 Assignment 0.2": {
     "answers": {
@@ -29,7 +30,8 @@
       "Answer11": "Schule",
       "Answer12": "Tisch"
     },
-    "answer_url": "https://docs.google.com/spreadsheets/d/1XJcdMuaivOh2JCnXi1b9E4l5qN4KldyDSRNHJgiHnBs/gviz/tq?tqx=out:html&sheet=Key"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1XJcdMuaivOh2JCnXi1b9E4l5qN4KldyDSRNHJgiHnBs/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1XJcdMuaivOh2JCnXi1b9E4l5qN4KldyDSRNHJgiHnBs/edit"
   },
   "A1 Assignment 1.1": {
     "answers": {
@@ -38,9 +40,10 @@
       "Answer3": "A",
       "Answer4": "B"
     },
-    "answer_url": "https://docs.google.com/spreadsheets/d/1KCNaM0_sgbrPhYMm89iC8WRzSfQgz80qUO9EAoCpXuo/gviz/tq?tqx=out:html&sheet=Key"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1KCNaM0_sgbrPhYMm89iC8WRzSfQgz80qUO9EAoCpXuo/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1KCNaM0_sgbrPhYMm89iC8WRzSfQgz80qUO9EAoCpXuo/edit"
   },
-  "Assignment 2": {
+  "A1 Assignment 2": {
     "answers": {
       "Answer1": "A) sieben",
       "Answer2": "B) Drei",
@@ -58,132 +61,265 @@
       "Answer14": "1020 – tausendzwanzig",
       "Answer15": "8553 – achttausendfünfhundertdreiundfünfzig"
     },
-    "answer_url": "https://docs.google.com/spreadsheets/d/1OVDkJimsz7wZwNa4s4QccST3TFvLkqzt720P_CWPdD8/gviz/tq?tqx=out:html&sheet=Key"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1OVDkJimsz7wZwNa4s4QccST3TFvLkqzt720P_CWPdD8/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1OVDkJimsz7wZwNa4s4QccST3TFvLkqzt720P_CWPdD8/edit"
+  },
+  "A1 Assignment 1.2": {
+    "answers": {
+      "Answer1": "Ich heiße Anna",
+      "Answer2": "Du heißt Max",
+      "Answer3": "Er heißt Peter",
+      "Answer4": "Wir kommen aus Italien",
+      "Answer5": "Ihr kommt aus Brasilien",
+      "Answer6": "Sie kommt/k kommen aus Russland",
+      "Answer7": "Ich wohne in Berlin",
+      "Answer8": "Du wohnst in Madrid",
+      "Answer9": "Sie wohnt in Wien",
+      "Answer10": "A) Anna",
+      "Answer11": "C) Aus Italien",
+      "Answer12": "D) In Berlin",
+      "Answer13": "B) Tom",
+      "Answer14": "A) In Berlin"
+    },
+    "answer_url": "https://docs.google.com/spreadsheets/d/1NuId_slE2LVNXvhfwQvdjYaqtBGa78aBNVETEw2RMmY/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1NuId_slE2LVNXvhfwQvdjYaqtBGa78aBNVETEw2RMmY/edit"
   },
   "A1 Assignment 4": {
     "answers": {
-      "Answer1": "C) In Italien und Frankreich",
-      "Answer2": "C) Rom",
-      "Answer3": "B) Das Essen",
-      "Answer4": "B) Paris",
-      "Answer5": "A) Nach Spanien",
+      "Answer1": "C) Neun",
+      "Answer2": "B) Polnisch",
+      "Answer3": "D) Niederländisch",
+      "Answer4": "A) Deutsch",
+      "Answer5": "C) Paris",
       "Answer6": "B) Amsterdam",
-      "Answer7": "C) In der Schweiz"
+      "Answer7": "C) In der Schweiz",
+      "Answer8": "C) In Italien und Frankreich",
+      "Answer9": "C) Rom",
+      "Answer10": "B) Das Essen",
+      "Answer11": "B) Paris",
+      "Answer12": "A) Nach Spanien"
     },
-    "answer_url": "https://example.com/reference/A1%20Assignment%204"
-  },
-  "A1 Assignment 5": {
-    "answers": {
-      "Answer1": "Ich sehe den Tisch",
-      "Answer2": "Sie kauft die Lampe",
-      "Answer3": "Er liest das Buch",
-      "Answer4": "Wir brauchen den Stuhl",
-      "Answer5": "Du fütterst die Katze",
-      "Answer6": "Ich fahre das Auto",
-      "Answer7": "Sie streichelt den Hund",
-      "Answer8": "Er pflückt die Blume",
-      "Answer9": "Wir putzen das Fenster",
-      "Answer10": "Sie benutzen den Computer"
-    },
-    "answer_url": "https://example.com/reference/A1%205"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1SiYvtaw-LwoeCff7yxlpWsfENMlIbQRqfuh3MPobPOE/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1SiYvtaw-LwoeCff7yxlpWsfENMlIbQRqfuh3MPobPOE/edit"
   },
   "A1 Assignment 6": {
     "answers": {
-      "Answer1": "B",
-      "Answer2": "B",
-      "Answer3": "B",
-      "Answer4": "C",
-      "Answer5": "D",
-      "Answer6": "B",
-      "Answer7": "C"
+      "Answer1": "Das Wohnzimmer – the living room",
+      "Answer2": "Die Küche – the kitchen",
+      "Answer3": "Das Schlafzimmer – the bedroom",
+      "Answer4": "Das Badezimmer – the bathroom",
+      "Answer5": "Der Balkon – the balcony",
+      "Answer6": "Der Flur – the hallway",
+      "Answer7": "Das Bett – the bed",
+      "Answer8": "Der Tisch – the table",
+      "Answer9": "Der Stuhl – the chair",
+      "Answer10": "Der Schrank – the wardrobe",
+      "Answer11": "B) Vier",
+      "Answer12": "A) Ein Sofa und ein Fernseher",
+      "Answer13": "B) Einen Herd, einen Kühlschrank und einen Tisch mit vier Stühlen",
+      "Answer14": "C) Ein großes Bett",
+      "Answer15": "D) Eine Dusche, eine Badewanne und ein Waschbecken",
+      "Answer16": "B) Klein und schön",
+      "Answer17": "C) Blumen und einen kleinen Tisch mit zwei Stühlen",
+      "Answer18": "B",
+      "Answer19": "B",
+      "Answer20": "B",
+      "Answer21": "C",
+      "Answer22": "D",
+      "Answer23": "B",
+      "Answer24": "C"
     },
-    "answer_url": "https://example.com/reference/A1%206"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1yXUzZdoz-wKnorDUbg-7e_SGMklgUXNxGakDlw5chgA/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1yXUzZdoz-wKnorDUbg-7e_SGMklgUXNxGakDlw5chgA/edit"
+  },
+  "A1 Assignment 5": {
+    "answers": {
+      "Answer1": "Der Tisch – the table",
+      "Answer2": "Die Lampe – the lamp",
+      "Answer3": "Das Buch – the book",
+      "Answer4": "Der Stuhl – the chair",
+      "Answer5": "Die Katze – the cat",
+      "Answer6": "Das Auto – the car",
+      "Answer7": "Der Hund – the dog",
+      "Answer8": "Die Blume – the flower",
+      "Answer9": "Das Fenster – the window",
+      "Answer10": "Der Computer – the computer",
+      "Answer11": "Der Tisch ist groß",
+      "Answer12": "Die Lampe ist neu",
+      "Answer13": "Das Buch ist interessant",
+      "Answer14": "Der Stuhl ist bequem",
+      "Answer15": "Die Katze ist süß",
+      "Answer16": "Das Auto ist schnell",
+      "Answer17": "Der Hund ist freundlich",
+      "Answer18": "Die Blume ist schön",
+      "Answer19": "Das Fenster ist offen",
+      "Answer20": "Der Computer ist teuer",
+      "Answer21": "Ich sehe den Tisch",
+      "Answer22": "Sie kauft die Lampe",
+      "Answer23": "Er liest das Buch",
+      "Answer24": "Wir brauchen den Stuhl",
+      "Answer25": "Du fütterst die Katze",
+      "Answer26": "Ich fahre das Auto",
+      "Answer27": "Sie streichelt den Hund",
+      "Answer28": "Er pflückt die Blume",
+      "Answer29": "Wir putzen das Fenster",
+      "Answer30": "Sie benutzen den Computer"
+    },
+    "answer_url": "https://docs.google.com/spreadsheets/d/1d0dvYURPHf69KlJhToqOxn39V8GCcAsdrhrEAQ78phw/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1d0dvYURPHf69KlJhToqOxn39V8GCcAsdrhrEAQ78phw/edit"
   },
   "A1 Assignment 7": {
     "answers": {
-      "Answer1": "B) Um Siehen Uhr",
+      "Answer1": "B) Um sieben Uhr",
       "Answer2": "B) Um acht Uhr",
-      "Answer3": "B) Um Sechs Uhr",
+      "Answer3": "B) Um sechs Uhr",
       "Answer4": "B) Um zehn Uhr",
-      "Answer5": "A) Sie geht zur Arbeit",
-      "Answer6": "B) Um neun Uhr",
-      "Answer7": "B) Er geht in die Bibliothek",
-      "Answer8": "B) Bis zwei Uhr nachmittags",
-      "Answer9": "B) Um drei Uhr nachmittags",
-      "Answer10": "B) Um sieben Uhr"
+      "Answer5": "B) Um neun Uhr",
+      "Answer6": "C) Nachmittags",
+      "Answer7": "B) Um sieben Uhr",
+      "Answer8": "A) Montag",
+      "Answer9": "B) Am Dienstag und Donnerstag",
+      "Answer10": "B) Er ruht sich aus",
+      "Answer11": "B) Um Siehen Uhr",
+      "Answer12": "B) Um acht Uhr",
+      "Answer13": "B) Um Sechs Uhr",
+      "Answer14": "B) Um zehn Uhr",
+      "Answer15": "A) Sie geht zur Arbeit",
+      "Answer16": "B) Um neun Uhr",
+      "Answer17": "B) Er geht in die Bibliothek",
+      "Answer18": "B) Bis zwei Uhr nachmittags",
+      "Answer19": "B) Um drei Uhr nachmittags",
+      "Answer20": "B) Um sieben Uhr"
     },
-    "answer_url": "https://example.com/reference/A1%207"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1dCI5BbOvfvI4RekolDshv19jyNFPmzenDSrgBMGL9Uk/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1dCI5BbOvfvI4RekolDshv19jyNFPmzenDSrgBMGL9Uk/edit"
   },
   "A1 Assignment 8": {
     "answers": {
-      "Answer1": "B) Um Mitternacht",
-      "Answer2": "B) Vier Uhr nachmittags",
-      "Answer3": "C) 28 Tage",
-      "Answer4": "B) Tag. Monat. Jahr",
-      "Answer5": "D) Montag"
+      "Answer1": "B) Zwei Uhr nachmittags",
+      "Answer2": "B) 29 Tage",
+      "Answer3": "B) April",
+      "Answer4": "C) 03.02.2024",
+      "Answer5": "C) Mittwoch",
+      "Answer6": "Falsch",
+      "Answer7": "Richtig",
+      "Answer8": "Richtig",
+      "Answer9": "Falsch",
+      "Answer10": "Richtig",
+      "Answer11": "B) Um Mitternacht",
+      "Answer12": "B) Vier Uhr nachmittags",
+      "Answer13": "C) 28 Tage",
+      "Answer14": "B) Tag. Monat. Jahr",
+      "Answer15": "D) Montag"
     },
-    "answer_url": "https://example.com/reference/A1%208"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1Y8Zk4BvzbE2MhD2Wh0VIDbxwPib9biQ2zR60gaIQDYQ/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1Y8Zk4BvzbE2MhD2Wh0VIDbxwPib9biQ2zR60gaIQDYQ/edit"
   },
   "A1 Assignment 9": {
     "answers": {
-      "Answer1": "A) Apfel, Bananen und Karotten",
-      "Answer2": "A) Müsli mit Joghurt",
-      "Answer3": "D) Karotten",
-      "Answer4": "A) Käse",
-      "Answer5": "C) Schokoladenkuchen",
+      "Answer1": "B) Apfel und Karotten",
+      "Answer2": "C) Karotten",
+      "Answer3": "A) Weil er Vegetarier ist",
+      "Answer4": "C) Käse",
+      "Answer5": "B) Fleisch",
       "Answer6": "B) Kekse",
       "Answer7": "A) Käse",
       "Answer8": "C) Kuchen",
       "Answer9": "C) Schokolade",
-      "Answer10": "B) Der Bruder des Autors"
+      "Answer10": "B) Der Bruder des Autors",
+      "Answer11": "A) Apfel, Bananen und Karotten",
+      "Answer12": "A) Müsli mit Joghurt",
+      "Answer13": "D) Karotten",
+      "Answer14": "A) Käse",
+      "Answer15": "C) Schokoladenkuchen"
     },
-    "answer_url": "https://example.com/reference/A1%209"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1paS9hx9oc7iB2VnxGSUg5Y9-hMf8l08nCNGNSU4__SA/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1paS9hx9oc7iB2VnxGSUg5Y9-hMf8l08nCNGNSU4__SA/edit"
   },
   "A1 Assignment 10": {
     "answers": {
-      "Answer1": "B) Einmal pro Woche",
-      "Answer2": "C) Apfel und Bananen",
-      "Answer3": "A) Ein halbes Kilo",
-      "Answer4": "B) 10 Euro",
-      "Answer5": "B) Einen schönen Tag",
+      "Answer1": "Falsch",
+      "Answer2": "Wahr",
+      "Answer3": "Falsch",
+      "Answer4": "Wahr",
+      "Answer5": "Wahr",
       "Answer6": "Falsch",
       "Answer7": "Wahr",
       "Answer8": "Falsch",
       "Answer9": "Falsch",
-      "Answer10": "Falsch"
+      "Answer10": "Falsch",
+      "Answer11": "B) Einmal pro Woche",
+      "Answer12": "C) Apfel und Bananen",
+      "Answer13": "A) Ein halbes Kilo",
+      "Answer14": "B) 10 Euro",
+      "Answer15": "B) Einen schönen Tag"
     },
-    "answer_url": "https://example.com/reference/A1%2010"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1OOxtH3ZuP6Vd8wfZScnV_Ht1ywke1C3OmFm5_kFrVGs/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1OOxtH3ZuP6Vd8wfZScnV_Ht1ywke1C3OmFm5_kFrVGs/edit"
   },
   "A1 Assignment 11": {
     "answers": {
-      "Answer1": "Fragen nach dem Weg: 'Entschuldigung, wie komme ich zum Bahnhof'",
-      "Answer2": "Die Straße überqueren: 'Überqueren Sie die Straße'",
-      "Answer3": "Geradeaus gehen: 'Gehen Sie geradeaus'",
-      "Answer4": "Links abbiegen: 'Biegen Sie links ab'",
-      "Answer5": "Rechts abbiegen: 'Biegen Sie rechts ab'",
-      "Answer6": "On the left side: 'Das Kino ist auf der linken Seite'"
+      "Answer1": "B) Entschuldigung, wo ist der Bahnhof?",
+      "Answer2": "B) Links abbiegen",
+      "Answer3": "B) Auf der rechten Seite, direkt neben dem großen Supermarkt",
+      "Answer4": "B) Wie komme ich zur nächsten Apotheke?",
+      "Answer5": "C) Gute Reise und einen schönen Tag noch",
+      "Answer6": "C) Wie komme ich zur nächsten Apotheke?",
+      "Answer7": "C) Rechts abbiegen",
+      "Answer8": "B) Auf der linken Seite, direkt neben der Bäckerei",
+      "Answer9": "A) Gehen Sie geradeaus bis zur Kreuzung, dann links",
+      "Answer10": "C) Einen schönen Tag noch",
+      "Answer11": "Fragen nach dem Weg: 'Entschuldigung, wie komme ich zum Bahnhof'",
+      "Answer12": "Die Straße überqueren: 'Überqueren Sie die Straße'",
+      "Answer13": "Geradeaus gehen: 'Gehen Sie geradeaus'",
+      "Answer14": "Links abbiegen: 'Biegen Sie links ab'",
+      "Answer15": "Rechts abbiegen: 'Biegen Sie rechts ab'",
+      "Answer16": "On the left side: 'Das Kino ist auf der linken Seite'"
     },
-    "answer_url": "https://example.com/reference/A1%2011"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1kGGQZ89YZV-xGUdFKIHUFOVYG7wB7PnCBF8DqBd4Zok/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1kGGQZ89YZV-xGUdFKIHUFOVYG7wB7PnCBF8DqBd4Zok/edit"
   },
   "A1 Assignment 12.1": {
     "answers": {
-      "Answer1": "A) Richtig",
-      "Answer2": "A) Richtig",
-      "Answer3": "A) Richtig",
-      "Answer4": "A) Richtig",
-      "Answer5": "A) Richtig"
+      "Answer1": "B) Ärztin",
+      "Answer2": "A) Weil sie keine Zeit hat",
+      "Answer3": "B) Um 8 Uhr",
+      "Answer4": "C) Viele verschiedene Fächer",
+      "Answer5": "C) Einen Sprachkurs besuchen",
+      "Answer6": "Der Supermarkt ist nur am Wochenende geöffnet. Antwort: B) Falsch (Der Supermarkt hat jeden Tag von 8 Uhr bis 20 Uhr geöffnet.)",
+      "Answer7": "Die Theoriestunden sind jeden Tag. Antwort: B) Falsch (Die Theoriestunden finden dienstags und donnerstags statt.)",
+      "Answer8": "Das Büro ist auch am Wochenende geöffnet. Antwort: B) Falsch (Das Büro ist von Montag bis Freitag geöffnet.)",
+      "Answer9": "Der Englischkurs ist zweimal pro Woche. Antwort: B) Falsch (Der Englischkurs findet dreimal pro Woche statt.)",
+      "Answer10": "Das Fitnessstudio ist nur vormittags geöffnet. Antwort: B) Falsch (Das Fitnessstudio ist jeden Tag von 6 Uhr bis 22 Uhr geöffnet.)",
+      "Answer11": "A) Richtig",
+      "Answer12": "A) Richtig",
+      "Answer13": "A) Richtig",
+      "Answer14": "A) Richtig",
+      "Answer15": "A) Richtig"
     },
-    "answer_url": "https://example.com/reference/A1%2012.1"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1vgjfS9u_dS8ypgMOkCkVp3j_04dM8hwGvQiJdCKT74c/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1vgjfS9u_dS8ypgMOkCkVp3j_04dM8hwGvQiJdCKT74c/edit"
   },
   "A1 Assignment 12.2": {
     "answers": {
-      "Answer1": "B) Um 9 Uhr",
-      "Answer2": "B) Um 12 Uhr",
-      "Answer3": "A) ein Computer und ein Drucker",
-      "Answer4": "C) in einer Bar",
-      "Answer5": "C) bar"
+      "Answer1": "In Berlin",
+      "Answer2": "Mit seiner Frau und seinen drei Kindern",
+      "Answer3": "Mit seinem Auto",
+      "Answer4": "Um 7:30 Uhr",
+      "Answer5": "a) Barzahlung (cash)",
+      "Answer6": "B) Um 9:00 Uhr",
+      "Answer7": "B) Um 12:00 Uhr",
+      "Answer8": "B) Um 18:00 Uhr",
+      "Answer9": "B) Um 21:00 Uhr",
+      "Answer10": "D) Alles Genannte",
+      "Answer11": "B) Um 9 Uhr",
+      "Answer12": "B) Um 12 Uhr",
+      "Answer13": "A) ein Computer und ein Drucker",
+      "Answer14": "C) in einer Bar",
+      "Answer15": "C) bar"
     },
-    "answer_url": "https://example.com/reference/A1%2012.2"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1DiO7gh0xrt-SyWWhpxVNtMs9lFjEGuzqJww9OMmTjDY/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1DiO7gh0xrt-SyWWhpxVNtMs9lFjEGuzqJww9OMmTjDY/edit"
   },
   "A1 Assignment 13": {
     "answers": {
@@ -197,22 +333,29 @@
       "Answer8": "B",
       "Answer9": "B"
     },
-    "answer_url": "https://example.com/reference/A1%2013"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1VOz1kZqSXitbHO6ciV4GbGSZJkwXiZM1ifSxPVlvNNA/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1VOz1kZqSXitbHO6ciV4GbGSZJkwXiZM1ifSxPVlvNNA/edit"
   },
   "A1 Assignment 14.1": {
     "answers": {
-      "Answer1": "a. Head – Kopf",
-      "Answer2": "b. Arm – Arm",
-      "Answer3": "c. Leg – Bein",
-      "Answer4": "d. Eye – Auge",
-      "Answer5": "e. Nose – Nase",
-      "Answer6": "f. Ear – Ohr",
-      "Answer7": "g. Mouth – Mund",
-      "Answer8": "h. Hand – Hand",
-      "Answer9": "i. Foot – Fuß",
-      "Answer10": "j. Stomach / Belly – Bauch"
+      "Answer1": "Frage 1: Anzeige A",
+      "Answer2": "Frage 2: Anzeige B",
+      "Answer3": "Frage 3: Anzeige B",
+      "Answer4": "Frage 4: Anzeige A",
+      "Answer5": "Frage 5: Anzeige A",
+      "Answer6": "a. Head – Kopf",
+      "Answer7": "b. Arm – Arm",
+      "Answer8": "c. Leg – Bein",
+      "Answer9": "d. Eye – Auge",
+      "Answer10": "e. Nose – Nase",
+      "Answer11": "f. Ear – Ohr",
+      "Answer12": "g. Mouth – Mund",
+      "Answer13": "h. Hand – Hand",
+      "Answer14": "i. Foot – Fuß",
+      "Answer15": "j. Stomach / Belly – Bauch"
     },
-    "answer_url": "https://example.com/reference/A1%2014.1"
+    "answer_url": "https://docs.google.com/spreadsheets/d/1FUBXLMY-KhlaDrFbsgKIuHRENalKdl5Zdlqb4Td9Yds/gviz/tq?tqx=out:html&sheet=Key",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1FUBXLMY-KhlaDrFbsgKIuHRENalKdl5Zdlqb4Td9Yds/edit"
   },
   "A2 1.1 Small Talk": {
     "answers": {
