@@ -15,17 +15,15 @@ from firebase_admin import credentials, firestore
 st.set_page_config(page_title="Marking Dashboard", layout="wide")
 
 # =========================================================
-# SHEET IDS (you provided)
+# SHEET IDS
 # =========================================================
 STUDENTS_SHEET_ID    = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
-REF_TAB_NAME = "assignment"  # exact tab name that contains Assignment 0.1 etc.
-
-# If you know the gid of the 'assignment' tab, set it here or via secrets["REF_TAB_GID"]
-REF_TAB_GID = st.secrets.get("REF_TAB_GID", None)  # e.g. "123456789"
+REF_TAB_NAME = "assignment"  # exact tab name holding the assignment list
+REF_TAB_GID = st.secrets.get("REF_TAB_GID", None)  # e.g. "123456789" (recommended)
 
 # =========================================================
-# APPS SCRIPT WEBHOOK (fallbacks included)
+# APPS SCRIPT WEBHOOK (fallbacks)
 # =========================================================
 WEBHOOK_URL = st.secrets.get(
     "G_SHEETS_WEBHOOK_URL",
@@ -65,13 +63,11 @@ def load_sheet_csv(sheet_id: str, sheet: str | None = None, gid: str | None = No
 
     Prefer `gid` with export endpoint (no truncation).
     Otherwise use gviz with an explicit high LIMIT.
-    Set `cache_bust=True` to bypass cache via a timestamp param.
+    Set `cache_bust=True` to add a timestamp param.
     """
     if gid:
-        # Export endpoint – reliable, no row cap
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     else:
-        # Visualization endpoint – add high LIMIT to avoid truncation
         tq = "select * limit 100000"
         if sheet:
             url = (
@@ -80,10 +76,8 @@ def load_sheet_csv(sheet_id: str, sheet: str | None = None, gid: str | None = No
             )
         else:
             url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&tq={requests.utils.quote(tq)}"
-
     if cache_bust:
         url += f"&_cb={int(time.time())}"
-
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
@@ -110,20 +104,35 @@ def col_lookup(df: pd.DataFrame, name: str) -> str:
     return df.columns[0]
 
 
+def _normalize_assignment_title(s: str) -> str:
+    """Clean quotes/newlines/extra spaces in assignment titles."""
+    if s is None:
+        return ""
+    s = str(s).replace("\r", " ").replace("\n", " ").strip()
+    s = s.strip('\'"“”‘’` ')
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
+
+
 def build_assignment_options(refs_df: pd.DataFrame):
     """
-    Build the assignment options from the dedicated `assignment` column.
-    Returns (options, indices, assignment_col):
-      - options: list[str] visible titles (sheet order, blanks removed)
-      - indices: list[int] original DataFrame indices for each option
-      - assignment_col: the actual matched column name
+    Build options from the 'assignment' column (sheet order, cleaned, de-duped).
+    Returns (options, indices, assignment_col)
     """
     assignment_col = col_lookup(refs_df, "assignment")
-    ser = refs_df[assignment_col].astype(str).fillna("").str.strip()
-    mask = (ser != "") & (ser.str.lower() != "nan")
-    ser = ser[mask]                    # keep original order, drop blanks
-    options = ser.tolist()             # visible text in selectbox
-    indices = ser.index.tolist()       # back-reference to df rows
+    ser = refs_df[assignment_col].fillna("").astype(str)
+    cleaned = ser.map(_normalize_assignment_title)
+    mask = cleaned.astype(str).str.strip().ne("").values
+    cleaned = cleaned[mask]
+    idxs = ser.index[mask].tolist()
+
+    seen = set()
+    options, indices = [], []
+    for lbl, i in zip(cleaned.tolist(), idxs):
+        if lbl not in seen:
+            seen.add(lbl)
+            options.append(lbl)
+            indices.append(i)
     return options, indices, assignment_col
 
 
@@ -218,7 +227,7 @@ def get_student_submissions(student_code: str):
 def ai_mark(student_answer: str, ref_text: str):
     """
     Return (score, feedback) via OpenAI, or (None, reason) if unavailable.
-    Expects a global `client` (OpenAI) to be initialized elsewhere.
+    Expects a global `client` (OpenAI).
     """
     if not client:
         return None, "⚠️ OpenAI key missing (set OPENAI_API_KEY in secrets)."
@@ -274,7 +283,7 @@ def save_row_to_scores(row: dict):
 # =========================================================
 st.title("📘 Marking Dashboard")
 
-c_top1, c_top2, c_top3 = st.columns([1,1,2])
+c_top1, c_top2 = st.columns([1,1])
 with c_top1:
     if st.button("🔄 Refresh sheets (clear cache)"):
         st.cache_data.clear()
@@ -287,21 +296,17 @@ with c_top2:
 # =========================================================
 students_df = load_sheet_csv(STUDENTS_SHEET_ID, cache_bust=cache_bust)
 
-# Use gid (export endpoint, no truncation) if provided; else gviz with high LIMIT
 refs_df = load_sheet_csv(
     REF_ANSWERS_SHEET_ID,
     sheet=REF_TAB_NAME,
-    gid=REF_TAB_GID,
+    gid=REF_TAB_GID,          # if provided, uses export endpoint (no truncation)
     cache_bust=cache_bust
 )
 st.caption(f"Loaded reference tab: **{REF_TAB_NAME}** — {len(refs_df)} rows")
 
-# Ensure expected student columns exist
-for c_guess, alias in [("student_code","studentcode"), ("studentcode","studentcode"),
-                       ("name","name"), ("level","level")]:
-    if alias not in students_df.columns and c_guess in students_df.columns:
-        students_df = students_df.rename(columns={c_guess: alias})
-
+# Ensure expected student columns exist / rename common variants
+if "studentcode" not in students_df.columns and "student_code" in students_df.columns:
+    students_df = students_df.rename(columns={"student_code": "studentcode"})
 for col in ["studentcode", "name", "level"]:
     if col not in students_df.columns:
         students_df[col] = ""
@@ -330,51 +335,42 @@ with c1: st.text_input("Name (auto)",  value=student_name,  disabled=True)
 with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 
 # =========================================================
-# Reference: ALL assignments from 'assignment' column (sheet order)
+# Reference: ALL assignments from 'assignment' column
 # =========================================================
 st.subheader("Reference")
-ASSIGNMENT_COL = col_lookup(refs_df, "assignment")
+ref_options, ref_indices, ASSIGNMENT_COL = build_assignment_options(refs_df)
+st.caption(f"{len(ref_options)} assignments found")
 
 search_assign = st.text_input("Search assignment title…", value="")
+pairs = [(o, i) for o, i in zip(ref_options, ref_indices)
+         if search_assign.lower() in o.lower()] if search_assign else list(zip(ref_options, ref_indices))
 
-all_rows = []
-for idx, row in refs_df.iterrows():
-    title = str(row.get(ASSIGNMENT_COL, "")).strip()
-    if not title or title.lower() in ("nan", "none"):
-        continue
-    all_rows.append(
-        {
-            "title": title,
-            "index": idx,
-            "ref_text": reference_text_all_for_row(row),
-            "link": link_for_row(row),
-        }
-    )
-
-if search_assign:
-    disp_rows = [r for r in all_rows if search_assign.lower() in r["title"].lower()]
-else:
-    disp_rows = all_rows
-
-if not disp_rows:
+if not pairs:
     st.info("No assignments match your search.")
     st.stop()
 
-st.caption(f"{len(disp_rows)} assignments found")
+show_options = [o for o, _ in pairs]
+show_indices = [i for _, i in pairs]
 
-for r in disp_rows:
-    with st.expander(r["title"], expanded=True):
-        st.markdown(r["ref_text"])
-        st.caption(f"Reference link: {r['link']}")
-
-assignment_choice = st.selectbox(
-    "Select assignment for marking", [r["title"] for r in all_rows]
-)
-current = next(r for r in all_rows if r["title"] == assignment_choice)
-assign_idx = current["index"]
+assignment_choice = st.selectbox("Select Assignment", show_options)
+assign_idx = show_indices[show_options.index(assignment_choice)]
 assign_row = refs_df.loc[assign_idx]
-ref_text = current["ref_text"]
-answer_link = current["link"]
+
+mode = st.radio("Reference scope", ["All answers", "Pick a specific AnswerN"], horizontal=True)
+if mode == "All answers":
+    ref_text = reference_text_all_for_row(assign_row)
+else:
+    ans_pairs = available_answer_columns(assign_row)
+    if not ans_pairs:
+        st.info("This row has no AnswerN columns filled. Showing empty reference.")
+        ref_text = "No reference answers found."
+    else:
+        ans_label = st.selectbox("Choose AnswerN", [f"Answer{n}" for n, _ in ans_pairs])
+        n = int(re.findall(r"\d+", ans_label)[0])
+        answer_col = dict(ans_pairs)[n]
+        ref_text = reference_text_single(assign_row, answer_col)
+
+answer_link = link_for_row(assign_row)
 st.caption(f"Reference link: {answer_link}")
 
 # =========================================================
@@ -419,7 +415,7 @@ if "ai_score" not in st.session_state:    st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
 if "key_last" not in st.session_state:    st.session_state.key_last = None
 
-combo_key = f"{studentcode}|{assign_idx}|{picked_label}"
+combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked_label}"
 should_gen = (
     client is not None
     and student_text.strip()
@@ -458,12 +454,12 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         row = {
             "studentcode": studentcode,
             "name": student_name,
-            "assignment": assignment_value,   # exact text from 'assignment' column
+            "assignment": assignment_value,
             "score": int(score),
             "comments": comments.strip(),
             "date": datetime.now().strftime("%Y-%m-%d"),
             "level": student_level,
-            "link": answer_link,              # auto-insert ref link
+            "link": answer_link,
         }
         result = save_row_to_scores(row)
         if result.get("ok"):
