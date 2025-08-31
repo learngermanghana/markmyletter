@@ -1,7 +1,7 @@
 # app.py
 import os
-import json
 import re
+import json
 from datetime import datetime
 
 import pandas as pd
@@ -12,13 +12,13 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # =========================
-# SHEET IDS
+# SHEET IDS (you provided)
 # =========================
 STUDENTS_SHEET_ID    = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
 
 # =========================
-# WEBHOOK (with fallbacks)
+# APPS SCRIPT WEBHOOK (fallbacks included)
 # =========================
 WEBHOOK_URL = st.secrets.get(
     "G_SHEETS_WEBHOOK_URL",
@@ -27,7 +27,7 @@ WEBHOOK_URL = st.secrets.get(
 WEBHOOK_TOKEN = st.secrets.get("G_SHEETS_WEBHOOK_TOKEN", "Xenomexpress7727/")
 
 # =========================
-# OPENAI (optional)
+# OpenAI (optional)
 # =========================
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
 try:
@@ -37,14 +37,14 @@ except Exception:
     client = None
 
 # =========================
-# Firebase Init (secrets)
+# Firebase init (from secrets)
 # =========================
 if not firebase_admin._apps:
-    fb_cfg = st.secrets.get("firebase")
-    if not fb_cfg:
-        st.error("⚠️ Missing [firebase] block in Streamlit secrets.")
+    fb = st.secrets.get("firebase")
+    if not fb:
+        st.error("⚠️ Missing [firebase] in Streamlit secrets.")
         st.stop()
-    cred = credentials.Certificate(dict(fb_cfg))
+    cred = credentials.Certificate(dict(fb))
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -54,33 +54,34 @@ db = firestore.client()
 # =========================
 @st.cache_data(show_spinner=False, ttl=300)
 def load_sheet_csv(sheet_id: str) -> pd.DataFrame:
-    """Load a Google Sheet as CSV (no auth) and normalize column names to lowercase."""
+    """Load a Google Sheet as CSV (no auth) and normalize columns to lowercase."""
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
     df = pd.read_csv(url)
     df.columns = df.columns.str.strip().str.lower()
     return df
 
-def filter_students(df: pd.DataFrame, query: str) -> pd.DataFrame:
-    if not query:
+def filter_students(df: pd.DataFrame, q: str) -> pd.DataFrame:
+    if not q:
         return df
-    mask = df.apply(lambda col: col.astype(str).str.contains(query, case=False, na=False))
+    mask = df.apply(lambda c: c.astype(str).str.contains(q, case=False, na=False))
     return df[mask.any(axis=1)]
 
-def assignment_options_from_refs(refs_df: pd.DataFrame, assignment_col: str):
-    """Return list of (label, row_index) using the exact assignment cell text — NO FILTERS."""
-    opts = []
-    for idx, row in refs_df.iterrows():
-        label = str(row.get(assignment_col, "")).strip()
-        if not label or label.lower() == "nan":
-            label = f"Row {idx+1}"
-        opts.append((label, idx))
-    return opts
+def ref_options_all_rows(refs_df: pd.DataFrame):
+    """
+    Build options from the FIRST column only, no filtering.
+    Option label includes 1-based sheet row number: e.g., 'r2 • A1 Assignment 0.1'
+    """
+    first_col = refs_df.columns[0]          # take first column explicitly
+    labels = refs_df[first_col].astype(str).fillna("").str.strip()
+    options = [f"r{idx+2} • {lbl if lbl else '(blank)'}" for idx, lbl in enumerate(labels)]
+    indices = list(range(len(labels)))      # map option → df row index
+    return options, indices, first_col
 
 def available_answer_columns(row: pd.Series):
-    """Return sorted list of existing AnswerN columns for this row (by number)."""
+    """Return sorted list of existing AnswerN columns for this row (by N)."""
     pairs = []
     for col in row.index:
-        if col.startswith("answer"):
+        if col.lower().startswith("answer"):
             m = re.findall(r"\d+", col)
             if m:
                 n = int(m[0])
@@ -105,11 +106,14 @@ def link_for_row(row: pd.Series) -> str:
             v = str(row[col]).strip()
             if v and v.lower() not in ("nan", "none"):
                 return v
-    # fallback to the sheet itself
+    # fallback to entire reference sheet
     return f"https://docs.google.com/spreadsheets/d/{REF_ANSWERS_SHEET_ID}/edit"
 
 def extract_text_from_doc(doc: dict) -> str:
-    """Try common fields; else concatenate any string-like values in the document."""
+    """
+    Try common fields; else join any string-like values from the document.
+    Handles nested lists/dicts with 'text' or 'content'.
+    """
     preferred = ["content", "text", "answer", "body", "draft", "message"]
     for k in preferred:
         v = doc.get(k)
@@ -121,15 +125,16 @@ def extract_text_from_doc(doc: dict) -> str:
                 if isinstance(item, str):
                     parts.append(item)
                 elif isinstance(item, dict):
-                    for key in ["text", "content", "value"]:
-                        if key in item and isinstance(item[key], str):
-                            parts.append(item[key])
+                    for kk in ["text", "content", "value"]:
+                        if kk in item and isinstance(item[kk], str):
+                            parts.append(item[kk])
             if parts:
                 return "\n".join(parts).strip()
         if isinstance(v, dict):
-            for key in ["text", "content", "value"]:
-                if key in v and isinstance(v[key], str):
-                    return v[key].strip()
+            for kk in ["text", "content", "value"]:
+                vv = v.get(kk)
+                if isinstance(vv, str) and vv.strip():
+                    return vv.strip()
     strings = []
     for _, v in doc.items():
         if isinstance(v, str) and v.strip():
@@ -137,11 +142,11 @@ def extract_text_from_doc(doc: dict) -> str:
     return "\n".join(strings).strip()
 
 def get_student_submissions(student_code: str):
-    """Fetch docs under drafts_v2/{student_code}/lessons (or lessens)."""
+    """Fetch docs under drafts_v2/{code}/lessons (or lessens)."""
     items = []
-    def pull(coll_name):
+    def pull(coll):
         try:
-            for snap in db.collection("drafts_v2").document(student_code).collection(coll_name).stream():
+            for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
                 d = snap.to_dict() or {}
                 d["id"] = snap.id
                 items.append(d)
@@ -153,14 +158,14 @@ def get_student_submissions(student_code: str):
     return items
 
 def ai_mark(student_answer: str, ref_text: str):
-    """Return (score, feedback) via OpenAI (or (None, 'reason') if not available)."""
+    """Return (score, feedback) via OpenAI, or (None, reason) if unavailable."""
     if not client:
         return None, "⚠️ OpenAI key missing (set OPENAI_API_KEY in secrets)."
     prompt = f"""
 You are a German teacher. Compare the student's answer with the reference answer.
-Return STRICT JSON with two keys:
+Return STRICT JSON with:
 - score: integer 0-100
-- feedback: ~40 words of constructive feedback (no extra text)
+- feedback: ~40 words, constructive.
 
 Student answer:
 {student_answer}
@@ -179,7 +184,8 @@ Return only JSON.
         )
         text = resp.choices[0].message.content.strip()
         m = re.search(r"\{.*\}", text, flags=re.S)
-        if m: text = m.group(0)
+        if m:
+            text = m.group(0)
         data = json.loads(text)
         score = int(data.get("score", 0))
         feedback = str(data.get("feedback", "")).strip()
@@ -211,15 +217,12 @@ for col in ["studentcode", "name", "level"]:
     if col not in students_df.columns:
         students_df[col] = ""
 
-# Detect assignment column (used for the dropdown labels)
-ASSIGNMENT_COL = next((c for c in refs_df.columns if c.strip().lower() == "assignment"), refs_df.columns[0])
-
 # =========================
 # UI
 # =========================
 st.title("📘 Marking Dashboard")
 
-# ---- Student picker (with search) ----
+# ---- Student picker with search
 search_q = st.text_input("Search student (code, name, phone, etc.)")
 filtered_students = filter_students(students_df, search_q)
 if filtered_students.empty:
@@ -233,18 +236,19 @@ student_labels = [
 pick_label = st.selectbox("Pick Student", student_labels)
 sel_row = filtered_students.iloc[student_labels.index(pick_label)]
 studentcode = str(sel_row.get("studentcode","")).strip()
-name        = str(sel_row.get("name","")).strip()
-level       = str(sel_row.get("level","")).strip()
+student_name = str(sel_row.get("name","")).strip()
+student_level = str(sel_row.get("level","")).strip()
 
 c1, c2 = st.columns(2)
-with c1: st.text_input("Name (auto)",  value=name,  disabled=True)
-with c2: st.text_input("Level (auto)", value=level, disabled=True)
+with c1: st.text_input("Name (auto)",  value=student_name,  disabled=True)
+with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 
-# ---- Reference: show ALL assignments (no filters at all) ----
+# ---- Reference: show ALL rows from first column
 st.subheader("Reference")
-assign_opts_all = assignment_options_from_refs(refs_df, ASSIGNMENT_COL)  # ALL rows
-ref_label = st.selectbox("Pick assignment (full list)", [lbl for lbl, _ in assign_opts_all])
-assign_idx = dict(assign_opts_all)[ref_label]
+ref_options, ref_indices, ASSIGNMENT_COL = ref_options_all_rows(refs_df)
+st.caption(f"{len(ref_options)} rows loaded from reference sheet")
+ref_choice = st.selectbox("Pick assignment (full list)", ref_options)
+assign_idx = ref_indices[ref_options.index(ref_choice)]
 assign_row = refs_df.iloc[assign_idx]
 
 mode = st.radio("Reference scope", ["All answers", "Pick a specific AnswerN"], horizontal=True)
@@ -264,21 +268,21 @@ else:
 answer_link = link_for_row(assign_row)
 st.caption(f"Reference link: {answer_link}")
 
-# ---- Firestore submissions for the student ----
+# ---- Firestore submissions for the student (list all; you pick one)
 st.subheader("Student Submissions (Firestore)")
 subs = get_student_submissions(studentcode)
 if not subs:
-    st.warning("No submissions in Firestore for this student (under drafts_v2/.../lessons or lessens).")
-    picked = "none"
+    st.warning("No submissions found under drafts_v2/.../lessons (or lessens) for this student.")
+    picked_label = "none"
     student_text = ""
 else:
     def sub_label(i, d):
         txt = extract_text_from_doc(d)
         preview = (txt[:70] + "…") if len(txt) > 70 else txt
-        return f"{i+1} • {d.get('id','')} • {preview}"
+        return f"{i+1} • {d.get('id','(no-id)')} • {preview}"
     sub_labels = [sub_label(i, d) for i, d in enumerate(subs)]
-    picked = st.selectbox("Pick submission to preview/mark", sub_labels)
-    student_text = extract_text_from_doc(subs[sub_labels.index(picked)])
+    picked_label = st.selectbox("Pick submission to preview/mark", sub_labels)
+    student_text = extract_text_from_doc(subs[sub_labels.index(picked_label)])
 
 st.markdown("### Student Submission")
 st.code(student_text or "(empty)", language="markdown")
@@ -286,7 +290,7 @@ st.code(student_text or "(empty)", language="markdown")
 st.markdown("### Reference Answer")
 st.code(ref_text or "(not found)", language="markdown")
 
-# ---- Combined (copyable) ----
+# ---- Combined copy box
 combined = f"""# Student Submission
 {student_text}
 
@@ -295,12 +299,12 @@ combined = f"""# Student Submission
 """
 st.text_area("Combined (copyable)", value=combined, height=200)
 
-# ---- AI (generate & override) ----
+# ---- AI generate (override allowed)
 if "ai_score" not in st.session_state:   st.session_state.ai_score = 0
 if "ai_feedback" not in st.session_state: st.session_state.ai_feedback = ""
 if "key_last" not in st.session_state:    st.session_state.key_last = None
 
-combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked}"
+combo_key = f"{studentcode}|{assign_idx}|{mode}|{picked_label}"
 should_gen = (
     client is not None
     and student_text.strip()
@@ -326,23 +330,23 @@ with colA:
 score    = st.number_input("Score", min_value=0, max_value=100, step=1, value=st.session_state.ai_score)
 comments = st.text_area("Feedback (you can edit)", value=st.session_state.ai_feedback, height=140)
 
-# ---- Save to Scores via Apps Script webhook ----
+# ---- Save to Scores via Apps Script webhook
 if st.button("💾 Save", type="primary", use_container_width=True):
     if not studentcode:
         st.error("Pick a student first.")
     elif not comments.strip():
         st.error("Feedback is required.")
     else:
-        assignment_value = str(assign_row.get(ASSIGNMENT_COL, ref_label)).strip() or ref_label
+        assignment_value = str(assign_row.get(ASSIGNMENT_COL, ref_choice)).strip() or ref_choice
         row = {
             "studentcode": studentcode,
-            "name": name,
-            "assignment": assignment_value,      # exact text from 'assignment' column
+            "name": student_name,
+            "assignment": assignment_value,      # exact text from first column of ref sheet
             "score": int(score),
             "comments": comments.strip(),
             "date": datetime.now().strftime("%Y-%m-%d"),
-            "level": level,
-            "link": answer_link,
+            "level": student_level,
+            "link": answer_link,                 # auto-insert the ref link you requested
         }
         result = save_row_to_scores(row)
         if result.get("ok"):
