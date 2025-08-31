@@ -51,7 +51,7 @@ ANSWERS_JSON_PATHS = [
 # Utilities
 # =========================================================
 def natural_key(s: str):
-    """Natural sort key: 'A1 10' after 'A1 2'."""
+    """Natural sort key: 'A1 Assignment 10' after 'A1 Assignment 2'."""
     return [int(t) if t.isdigit() else t.lower() for t in re.findall(r"\d+|\D+", str(s))]
 
 @st.cache_data(show_spinner=False, ttl=300)
