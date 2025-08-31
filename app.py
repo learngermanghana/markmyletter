@@ -460,9 +460,13 @@ if st.button("💾 Save", type="primary", use_container_width=True):
     elif not feedback.strip():
         st.error("Feedback is required.")
     else:
-      
+        try:
+            studentcode_val = int(studentcode)
+        except ValueError:
+            studentcode_val = studentcode
+
         row = {
-            "studentcode": studentcode,
+            "studentcode": studentcode_val,
             "name":        student_name,
             "assignment":  st.session_state.ref_assignment,
             "score":       int(score),
@@ -483,20 +487,4 @@ if st.button("💾 Save", type="primary", use_container_width=True):
                 if result.get("raw"):
                     st.caption(result["raw"])
         else:
-            row = {
-                "studentcode": studentcode_int,
-                "name":        student_name,
-                "assignment":  st.session_state.ref_assignment,
-                "score":       int(score),
-                "comments":    feedback.strip(),
-                "date":        datetime.now().strftime("%Y-%m-%d"),
-                "level":       student_level,
-                "link":        st.session_state.ref_link,  # uses answer_url only
-            }
-            result = save_row_to_scores(row)
-            if result.get("ok"):
-                st.success("✅ Saved to Scores sheet.")
-            elif result.get("why") == "validation":
-                st.error("❌ Sheet blocked the write due to data validation (studentcode).")
-            else:
-                st.error(f"❌ Failed to save: {result}")
+            st.error(f"❌ Failed to save: {result}")
