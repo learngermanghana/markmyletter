@@ -51,6 +51,15 @@ ANSWERS_JSON_PATHS = [
     "assets/answers_dictionary.json",
 ]
 
+# Default reference source: "json" or "sheet" (configurable via Streamlit
+# secrets or environment variable "ANSWER_SOURCE")
+ANSWER_SOURCE = (
+    st.secrets.get("ANSWER_SOURCE")
+    or os.environ.get("ANSWER_SOURCE", "")
+).lower()
+if ANSWER_SOURCE not in ("json", "sheet"):
+    ANSWER_SOURCE = ""
+
 # =========================================================
 # Helpers
 # =========================================================
@@ -258,17 +267,22 @@ with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 
 # ---------------- Reference chooser (Tabs) ----------------
 st.subheader("2) Reference source")
-tab_json, tab_sheet = st.tabs(["📦 JSON dictionary", "🔗 Google Sheet"])
 
 # Session holder for the *chosen* reference
 if "ref_source" not in st.session_state:
-    st.session_state.ref_source = None
+    st.session_state.ref_source = ANSWER_SOURCE or None
 if "ref_assignment" not in st.session_state:
     st.session_state.ref_assignment = ""
 if "ref_text" not in st.session_state:
     st.session_state.ref_text = ""
 if "ref_link" not in st.session_state:
     st.session_state.ref_link = ""
+
+tab_titles = ["📦 JSON dictionary", "🔗 Google Sheet"]
+if st.session_state.ref_source == "sheet":
+    tab_sheet, tab_json = st.tabs(tab_titles[::-1])
+else:
+    tab_json, tab_sheet = st.tabs(tab_titles)
 
 # ---- JSON tab
 with tab_json:
@@ -317,24 +331,40 @@ with tab_sheet:
             st.session_state.ref_link = link_sheet
             st.success("Using Sheet reference")
 
-# If nothing chosen yet, default to JSON if available; else Sheet if available
+# Ensure default reference choice based on config/availability
+if st.session_state.ref_source == "json" and not load_answers_dictionary():
+    st.session_state.ref_source = None
+if st.session_state.ref_source == "sheet":
+    try:
+        find_col(load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB), ["assignment"])
+    except Exception:
+        st.session_state.ref_source = None
+
 if not st.session_state.ref_source:
     if load_answers_dictionary():
         st.session_state.ref_source = "json"
-        # pick first for safety
-        first = list_json_assignments(load_answers_dictionary())[0]
-        txt, ln = build_reference_text_from_json(load_answers_dictionary()[first])
-        st.session_state.ref_assignment, st.session_state.ref_text, st.session_state.ref_link = first, txt, ln
     else:
-        ref_df_tmp = load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB)
         try:
-            ac = find_col(ref_df_tmp, ["assignment"])
-            first = list_sheet_assignments(ref_df_tmp, ac)[0]
-            txt, ln = build_reference_text_from_sheet(ref_df_tmp, ac, first)
+            find_col(load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB), ["assignment"])
             st.session_state.ref_source = "sheet"
-            st.session_state.ref_assignment, st.session_state.ref_text, st.session_state.ref_link = first, txt, ln
         except Exception:
             pass
+
+if st.session_state.ref_source == "json" and not st.session_state.ref_assignment:
+    ans = load_answers_dictionary()
+    if ans:
+        first = list_json_assignments(ans)[0]
+        txt, ln = build_reference_text_from_json(ans[first])
+        st.session_state.ref_assignment, st.session_state.ref_text, st.session_state.ref_link = first, txt, ln
+elif st.session_state.ref_source == "sheet" and not st.session_state.ref_assignment:
+    ref_df_tmp = load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB)
+    try:
+        ac = find_col(ref_df_tmp, ["assignment"])
+        first = list_sheet_assignments(ref_df_tmp, ac)[0]
+        txt, ln = build_reference_text_from_sheet(ref_df_tmp, ac, first)
+        st.session_state.ref_assignment, st.session_state.ref_text, st.session_state.ref_link = first, txt, ln
+    except Exception:
+        pass
 
 st.info(f"Currently using **{st.session_state.ref_source or '—'}** reference → **{st.session_state.ref_assignment or '—'}**")
 
