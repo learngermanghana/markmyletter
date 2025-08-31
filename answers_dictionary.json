@@ -150,10 +150,11 @@
       "Answer3": "A) Ein halbes Kilo",
       "Answer4": "B) 10 Euro",
       "Answer5": "B) Einen schönen Tag",
-      "Answer6": "Falsch Wahr",
-      "Answer7": "Falsch",
+      "Answer6": "Falsch",
+      "Answer7": "Wahr",
       "Answer8": "Falsch",
-      "Answer9": "Falsch"
+      "Answer9": "Falsch",
+      "Answer10": "Falsch"
     },
     "answer_url": "https://example.com/reference/A1%2010"
   },
