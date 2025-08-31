@@ -114,39 +114,64 @@ def ordered_answer_cols(cols: List[str]) -> List[str]:
             if m: pairs.append((int(m.group(1)), c))
     return [c for _, c in sorted(pairs, key=lambda x: x[0])]
 
-def build_reference_text_from_sheet(ref_df: pd.DataFrame, assignment_col: str, assignment_value: str) -> Tuple[str, str]:
+def build_reference_text_from_sheet(
+    ref_df: pd.DataFrame, assignment_col: str, assignment_value: str
+) -> Tuple[str, str, str, Dict[int, str]]:
+    """Return reference text, link, format and raw answers for a sheet row."""
     row = ref_df[ref_df[assignment_col] == assignment_value]
     if row.empty:
-        return "No reference answers found.", ""
+        return "No reference answers found.", "", "essay", {}
     row = row.iloc[0]
     ans_cols = ordered_answer_cols(list(ref_df.columns))
-    chunks = []
+    chunks: List[str] = []
+    answers_map: Dict[int, str] = {}
     for c in ans_cols:
         v = str(row.get(c, "")).strip()
         if v and v.lower() not in ("nan", "none"):
             m = re.search(r"(\d+)", c)
             n = int(m.group(1)) if m else 0
             chunks.append(f"{n}. {v}")
+            answers_map[n] = v
     link = str(row.get("answer_url", "")).strip()  # ignore sheet_url by request
-    return ("\n".join(chunks) if chunks else "No reference answers found."), link
+    fmt = str(row.get("format", "essay")).strip().lower() or "essay"
+    return (
+        "\n".join(chunks) if chunks else "No reference answers found.",
+        link,
+        fmt,
+        answers_map,
+    )
 
 def list_json_assignments(ans_dict: Dict[str, Any]) -> List[str]:
     return sorted(list(ans_dict.keys()), key=natural_key)
 
-def build_reference_text_from_json(row_obj: Dict[str, Any]) -> Tuple[str, str]:
+def build_reference_text_from_json(
+    row_obj: Dict[str, Any]
+) -> Tuple[str, str, str, Dict[int, str]]:
+    """Return reference text, link, format and raw answers from JSON row."""
     answers: Dict[str, str] = row_obj.get("answers") or {
         k: v for k, v in row_obj.items() if k.lower().startswith("answer")
     }
+
     def n_from(k: str) -> int:
         m = re.search(r"(\d+)", k)
         return int(m.group(1)) if m else 0
+
     ordered = sorted(answers.items(), key=lambda kv: n_from(kv[0]))
-    chunks = []
+    chunks: List[str] = []
+    answers_map: Dict[int, str] = {}
     for k, v in ordered:
         v = str(v).strip()
         if v and v.lower() not in ("nan", "none"):
-            chunks.append(f"{n_from(k)}. {v}")
-    return ("\n".join(chunks) if chunks else "No reference answers found."), str(row_obj.get("answer_url", "")).strip()
+            idx = n_from(k)
+            chunks.append(f"{idx}. {v}")
+            answers_map[idx] = v
+    fmt = str(row_obj.get("format", "essay")).strip().lower() or "essay"
+    return (
+        "\n".join(chunks) if chunks else "No reference answers found.",
+        str(row_obj.get("answer_url", "")).strip(),
+        fmt,
+        answers_map,
+    )
 
 def filter_any(df: pd.DataFrame, q: str) -> pd.DataFrame:
     if not q: return df
@@ -239,6 +264,32 @@ Return only JSON.
     except Exception as e:
         return None, f"(AI error: {e})"
 
+
+def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[int, str]:
+    """Simple string comparison for objective questions."""
+
+    def parse_answers(text: str) -> Dict[int, str]:
+        result: Dict[int, str] = {}
+        for line in text.splitlines():
+            m = re.match(r"\s*(\d+)[\.)-]?\s*(.+)", line)
+            if m:
+                result[int(m.group(1))] = m.group(2).strip()
+        return result
+
+    student_map = parse_answers(student_answer)
+    total = len(ref_answers) or 1
+    correct = 0
+    wrong: List[str] = []
+    for idx, ref in ref_answers.items():
+        stu = student_map.get(idx, "")
+        if stu.strip().lower() == str(ref).strip().lower():
+            correct += 1
+        else:
+            wrong.append(f"{idx}: expected '{ref}', got '{stu or '—'}'")
+    score = int(round(100 * correct / total))
+    feedback = "All correct." if not wrong else "Incorrect -> " + "; ".join(wrong)
+    return score, feedback
+
 def save_row_to_scores(row: dict) -> dict:
     try:
         r = requests.post(
@@ -327,6 +378,10 @@ if "ref_text" not in st.session_state:
     st.session_state.ref_text = ""
 if "ref_link" not in st.session_state:
     st.session_state.ref_link = ""
+if "ref_format" not in st.session_state:
+    st.session_state.ref_format = "essay"
+if "ref_answers" not in st.session_state:
+    st.session_state.ref_answers = {}
 
 tab_titles = ["📦 JSON dictionary", "🔗 Google Sheet"]
 if st.session_state.ref_source == "sheet":
@@ -345,15 +400,21 @@ with tab_json:
         qj = st.text_input("Search assignment (JSON)", key="search_json")
         pool_json = [a for a in all_assignments_json if qj.lower() in a.lower()] if qj else all_assignments_json
         pick_json = st.selectbox("Select assignment (JSON)", pool_json, key="pick_json")
-        ref_text_json, link_json = build_reference_text_from_json(ans_dict.get(pick_json, {}))
+        ref_text_json, link_json, fmt_json, ans_map_json = build_reference_text_from_json(
+            ans_dict.get(pick_json, {})
+        )
         st.markdown("**Reference preview (JSON):**")
         st.code(ref_text_json or "(none)", language="markdown")
-        if link_json: st.caption(f"Reference link: {link_json}")
+        st.caption(f"Format: {fmt_json}")
+        if link_json:
+            st.caption(f"Reference link: {link_json}")
         if st.button("✅ Use this JSON reference"):
             st.session_state.ref_source = "json"
             st.session_state.ref_assignment = pick_json
             st.session_state.ref_text = ref_text_json
             st.session_state.ref_link = link_json
+            st.session_state.ref_format = fmt_json
+            st.session_state.ref_answers = ans_map_json
             st.success("Using JSON reference")
 
 # ---- Sheet tab
@@ -370,15 +431,24 @@ with tab_sheet:
         qs = st.text_input("Search assignment (Sheet)", key="search_sheet")
         pool_sheet = [a for a in all_assignments_sheet if qs.lower() in a.lower()] if qs else all_assignments_sheet
         pick_sheet = st.selectbox("Select assignment (Sheet)", pool_sheet, key="pick_sheet")
-        ref_text_sheet, link_sheet = build_reference_text_from_sheet(ref_df, assign_col, pick_sheet)
+        (
+            ref_text_sheet,
+            link_sheet,
+            fmt_sheet,
+            ans_map_sheet,
+        ) = build_reference_text_from_sheet(ref_df, assign_col, pick_sheet)
         st.markdown("**Reference preview (Sheet):**")
         st.code(ref_text_sheet or "(none)", language="markdown")
-        if link_sheet: st.caption(f"Reference link: {link_sheet}")
+        st.caption(f"Format: {fmt_sheet}")
+        if link_sheet:
+            st.caption(f"Reference link: {link_sheet}")
         if st.button("✅ Use this SHEET reference"):
             st.session_state.ref_source = "sheet"
             st.session_state.ref_assignment = pick_sheet
             st.session_state.ref_text = ref_text_sheet
             st.session_state.ref_link = link_sheet
+            st.session_state.ref_format = fmt_sheet
+            st.session_state.ref_answers = ans_map_sheet
             st.success("Using Sheet reference")
 
 # Ensure default reference choice based on config/availability
@@ -404,19 +474,29 @@ if st.session_state.ref_source == "json" and not st.session_state.ref_assignment
     ans = load_answers_dictionary()
     if ans:
         first = list_json_assignments(ans)[0]
-        txt, ln = build_reference_text_from_json(ans[first])
-        st.session_state.ref_assignment, st.session_state.ref_text, st.session_state.ref_link = first, txt, ln
+        txt, ln, fmt, ans_map = build_reference_text_from_json(ans[first])
+        st.session_state.ref_assignment = first
+        st.session_state.ref_text = txt
+        st.session_state.ref_link = ln
+        st.session_state.ref_format = fmt
+        st.session_state.ref_answers = ans_map
 elif st.session_state.ref_source == "sheet" and not st.session_state.ref_assignment:
     ref_df_tmp = load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB)
     try:
         ac = find_col(ref_df_tmp, ["assignment"])
         first = list_sheet_assignments(ref_df_tmp, ac)[0]
-        txt, ln = build_reference_text_from_sheet(ref_df_tmp, ac, first)
-        st.session_state.ref_assignment, st.session_state.ref_text, st.session_state.ref_link = first, txt, ln
+        txt, ln, fmt, ans_map = build_reference_text_from_sheet(ref_df_tmp, ac, first)
+        st.session_state.ref_assignment = first
+        st.session_state.ref_text = txt
+        st.session_state.ref_link = ln
+        st.session_state.ref_format = fmt
+        st.session_state.ref_answers = ans_map
     except Exception:
         pass
 
-st.info(f"Currently using **{st.session_state.ref_source or '—'}** reference → **{st.session_state.ref_assignment or '—'}**")
+st.info(
+    f"Currently using **{st.session_state.ref_source or '—'}** reference → **{st.session_state.ref_assignment or '—'}** (format: {st.session_state.ref_format})"
+)
 
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
@@ -438,6 +518,7 @@ st.code(student_text or "(empty)", language="markdown")
 
 st.markdown("**Reference Answer (chosen)**")
 st.code(st.session_state.ref_text or "(not set)", language="markdown")
+st.caption(f"Format: {st.session_state.ref_format}")
 if st.session_state.ref_link:
     st.caption(f"Reference link: {st.session_state.ref_link}")
 
@@ -457,24 +538,29 @@ if "ai_score" not in st.session_state:
 if "feedback" not in st.session_state:
     st.session_state.feedback = ""
 
-cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}"
-if ai_client and student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
-
-    s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
+cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}|{st.session_state.ref_format}"
+if student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
+    if st.session_state.ref_format == "objective":
+        s, fb = objective_mark(student_text, st.session_state.ref_answers)
+    elif ai_client:
+        s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
+    else:
+        s, fb = (None, "")
     if s is not None:
         st.session_state.ai_score = s
-
     st.session_state.feedback = fb if isinstance(fb, str) else json.dumps(fb, indent=2)
     st.session_state.ai_key = cur_key
 
 colA, colB = st.columns(2)
 with colA:
-    if st.button("🔁 Regenerate AI"):
-
-        s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
+    btn_label = "🔁 Recalculate" if st.session_state.ref_format == "objective" else "🔁 Regenerate AI"
+    if st.button(btn_label):
+        if st.session_state.ref_format == "objective":
+            s, fb = objective_mark(student_text, st.session_state.ref_answers)
+        else:
+            s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
         if s is not None:
             st.session_state.ai_score = s
-
         st.session_state.feedback = fb if isinstance(fb, str) else json.dumps(fb, indent=2)
 
 score = st.number_input("Score", 0, 100, value=int(st.session_state.ai_score))
