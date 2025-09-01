@@ -13,9 +13,16 @@ except Exception:  # pragma: no cover
         return None
 
 # ---- Firebase setup ----
-from firebase_utils import get_firestore_client
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-db = get_firestore_client()
+if not firebase_admin._apps:
+    fb_cfg = st.secrets.get("firebase")
+    if fb_cfg:
+        cred = credentials.Certificate(dict(fb_cfg))
+        firebase_admin.initialize_app(cred)
+
+db = firestore.client() if firebase_admin._apps else None
 
 # Show which Firestore project we’re connected to
 if db:
@@ -50,36 +57,32 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
     return "\n".join(strings).strip()
 
 
-def _extract_ts_ms(doc: Dict[str, Any]) -> int:
-    """Return timestamp in milliseconds; accepts many Firestore/time shapes.
-    Falls back to `_meta_ts` when `timestamp` is missing.
-    """
-    ts: Optional[Any] = doc.get("timestamp")
-    if ts is None:
-        ts = doc.get("_meta_ts")
-
+def _coerce_dt_to_ms(dt: Any) -> int:
     try:
-        # Numeric (ms or s)
-        if isinstance(ts, (int, float)):
-            return int(ts if ts > 10_000_000_000 else ts * 1000)
+        if isinstance(dt, datetime):
+            return int(dt.timestamp() * 1000)
+        if hasattr(dt, "to_datetime") and callable(dt.to_datetime):
+            return int(dt.to_datetime().timestamp() * 1000)  # Firestore Timestamp
+        if hasattr(dt, "seconds") and hasattr(dt, "nanoseconds"):
+            return int(int(dt.seconds) * 1000 + int(dt.nanoseconds) / 1_000_000)
+        if hasattr(dt, "timestamp") and callable(dt.timestamp):
+            return int(dt.timestamp() * 1000)
+    except Exception:
+        pass
+    return 0
 
-        # datetime
+
+def _coerce_any_ts_to_ms(ts: Any) -> int:
+    """Coerce many timestamp shapes to ms. Accepts ints(s/ms), datetime, dict, ISO strings."""
+    try:
+        if isinstance(ts, (int, float)):
+            # If seconds-ish, scale to ms
+            return int(ts if ts > 10_000_000_000 else ts * 1000)
         if isinstance(ts, datetime):
             return int(ts.timestamp() * 1000)
-
-        # Firestore Timestamp-like
-        if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
-            return int(ts.to_datetime().timestamp() * 1000)
-        if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
-            return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
-        if hasattr(ts, "timestamp") and callable(ts.timestamp):
-            return int(ts.timestamp() * 1000)
-
-        # Dict-ish ({"_seconds": ...})
         if isinstance(ts, dict):
             if "_seconds" in ts:
-                seconds = int(ts.get("_seconds", 0))
-                nanos = int(ts.get("_nanoseconds", 0))
+                seconds = int(ts.get("_seconds", 0)); nanos = int(ts.get("_nanoseconds", 0))
                 return int(seconds * 1000 + nanos / 1_000_000)
             for key in ("iso", "time", "date", "datetime"):
                 if key in ts and isinstance(ts[key], str):
@@ -87,8 +90,8 @@ def _extract_ts_ms(doc: Dict[str, Any]) -> int:
                         return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
                     except Exception:
                         pass
-
-        # ISO string
+        if hasattr(ts, "to_datetime") or hasattr(ts, "seconds") or hasattr(ts, "timestamp"):
+            return _coerce_dt_to_ms(ts)
         if isinstance(ts, str):
             try:
                 return int(datetime.fromisoformat(ts).timestamp() * 1000)
@@ -99,11 +102,25 @@ def _extract_ts_ms(doc: Dict[str, Any]) -> int:
     return 0
 
 
-def fetch_all_submissions() -> List[Dict[str, Any]]:
-    """Collect all docs from ANY student's `lessons` subcollection using collection_group.
+def _best_ts_ms(doc: Dict[str, Any]) -> int:
+    """Choose the best submission time: submitted_at > timestamp > meta(update/create)."""
+    candidates: List[int] = []
+    for key in ("submitted_at", "timestamp", "created_at", "updated_at"):
+        if key in doc:
+            candidates.append(_coerce_any_ts_to_ms(doc.get(key)))
+    # meta times precomputed during fetch
+    if "_meta_update_ms" in doc:
+        candidates.append(int(doc["_meta_update_ms"]))
+    if "_meta_create_ms" in doc:
+        candidates.append(int(doc["_meta_create_ms"]))
+    candidates = [c for c in candidates if c and c > 0]
+    return max(candidates) if candidates else 0
 
-    If a doc lacks a `timestamp` field, we set `_meta_ts` from snapshot times
-    (update_time preferred, then create_time).
+
+def fetch_all_submissions() -> List[Dict[str, Any]]:
+    """Collect all docs from ANY student's `lessons` via collection_group.
+
+    Adds metadata times and a precomputed '_best_ts_ms' for reliable sorting.
     """
     if not db:
         return []
@@ -122,11 +139,14 @@ def fetch_all_submissions() -> List[Dict[str, Any]]:
             except Exception:
                 pass
 
-            if not d.get("timestamp"):
-                meta_ts = getattr(snap, "update_time", None) or getattr(snap, "create_time", None)
-                if meta_ts:
-                    d["_meta_ts"] = meta_ts
+            # Metadata times
+            upd = getattr(snap, "update_time", None)
+            crt = getattr(snap, "create_time", None)
+            d["_meta_update_ms"] = _coerce_dt_to_ms(upd)
+            d["_meta_create_ms"] = _coerce_dt_to_ms(crt)
 
+            # Precompute best timestamp for consistent sorting/notifications
+            d["_best_ts_ms"] = _best_ts_ms(d)
             items.append(d)
     except Exception as e:
         st.error(f"collection_group('lessons') failed: {e}")
@@ -138,11 +158,7 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
     if not subs:
         return
 
-    times: List[int] = []
-    for d in subs:
-        t = _extract_ts_ms(d)
-        if t > 0:
-            times.append(t)
+    times = [int(d.get("_best_ts_ms", 0)) for d in subs if int(d.get("_best_ts_ms", 0)) > 0]
     newest = max(times) if times else 0
 
     # Initialize on first render so old backlog doesn't trigger a burst
@@ -214,11 +230,38 @@ def quick_debug_student(student_code: str):
 # ---- UI ----
 st.title("New Drafts")
 
-cols = st.columns([1, 1, 8])
-with cols[0]:
+top = st.columns([1.2, 1.2, 1.2, 6.4])
+with top[0]:
     if st.button("Reload now", use_container_width=True):
         st.rerun()
-with cols[1]:
+with top[1]:
+    if st.button("Reset last-seen", use_container_width=True):
+        st.session_state.pop("last_seen_ts", None)
+        st.toast("Last-seen timestamp reset.")
+with top[2]:
+    # Test notification button so you can grant permission & verify
+    if st.button("Test notification", use_container_width=True):
+        st_html("""
+        <script>
+        (async function () {
+          try {
+            if (!("Notification" in window)) return;
+            if (Notification.permission !== "granted") {
+              try { await Notification.requestPermission(); } catch (e) {}
+            }
+            if (Notification.permission === "granted") {
+              new Notification("Test: New drafts", {
+                body: "Notifications are working.",
+                tag: "drafts_v2_test",
+                renotify: true
+              });
+            }
+          } catch (e) {}
+        })();
+        </script>
+        """, height=0)
+
+with top[3]:
     st.caption(datetime.now().strftime("Last refresh: %Y-%m-%d %H:%M:%S"))
 
 # Auto-refresh every 5 seconds
@@ -270,11 +313,10 @@ def _passes_filters(d: Dict[str, Any]) -> bool:
             return False
     # date filter
     if date_input_val:
-        ts = _extract_ts_ms(d)
+        ts = int(d.get("_best_ts_ms", 0))
         if ts <= 0:
             return False
         ddate = datetime.fromtimestamp(ts / 1000).date()
-        # Streamlit can return a single date or a tuple/list(range))
         if isinstance(date_input_val, (list, tuple)):
             if len(date_input_val) == 2 and all(isinstance(x, date) for x in date_input_val):
                 start, end = date_input_val
@@ -289,7 +331,7 @@ def _passes_filters(d: Dict[str, Any]) -> bool:
 # Apply filters, sort, limit
 filtered = [d for d in subs if _passes_filters(d)]
 reverse = (sort_choice == "Newest first")
-filtered.sort(key=_extract_ts_ms, reverse=reverse)
+filtered.sort(key=lambda d: int(d.get("_best_ts_ms", 0)), reverse=reverse)
 filtered = filtered[:limit_n]
 
 # --- Debug info (optional) ---
@@ -303,11 +345,11 @@ with st.expander("Debug info"):
 if not filtered:
     # Still trigger notifications against ALL docs so you don't miss anything
     if subs:
-        notify_on_new(sorted(subs, key=_extract_ts_ms, reverse=True))
+        notify_on_new(sorted(subs, key=lambda d: int(d.get("_best_ts_ms", 0)), reverse=True))
     st.info("No drafts match your filters.")
 else:
     # Fire notifications for fresh arrivals against the FULL set (not just filtered)
-    notify_on_new(sorted(subs, key=_extract_ts_ms, reverse=True))
+    notify_on_new(sorted(subs, key=lambda d: int(d.get("_best_ts_ms", 0)), reverse=True))
 
     # Table or cards
     show_table = st.checkbox("Show as table", value=False)
@@ -315,7 +357,7 @@ else:
         import pandas as pd
         rows = []
         for d in filtered:
-            ts_ms = _extract_ts_ms(d)
+            ts_ms = int(d.get("_best_ts_ms", 0))
             ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else ""
             rows.append({
                 "Time": ts_str,
@@ -331,11 +373,10 @@ else:
             if group_by == "Student":
                 return d.get("student_code", "(unknown)")
             if group_by == "Date":
-                ts = _extract_ts_ms(d)
+                ts = int(d.get("_best_ts_ms", 0))
                 return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d") if ts else "(no-date)"
             return "All"
 
-        # Build groups preserving order
         grouped: Dict[str, List[Dict[str, Any]]] = {}
         for d in filtered:
             k = _group_key(d)
@@ -345,7 +386,7 @@ else:
             if group_by != "None":
                 st.subheader(f"{gkey}  ·  {len(items)}")
             for doc in items:
-                ts_ms = _extract_ts_ms(doc)
+                ts_ms = int(doc.get("_best_ts_ms", 0))
                 ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else "(no time)"
                 lesson = doc.get("lesson") or doc.get("assignment") or ""
                 student_code = doc.get("student_code", "")
