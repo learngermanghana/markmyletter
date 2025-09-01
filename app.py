@@ -297,63 +297,133 @@ def globalize_objective_numbers(student_text: str) -> str:
 
 # ===================== AI MARKING (OBJECTIVES ONLY, WITH GLOBALIZATION) =====================
 
+# --- Feedback + scoring utilities to guarantee 40–60 words and correct diffs ---
+
+def _count_words(s: str) -> int:
+    return len(re.findall(r"\b[\wÄÖÜäöüß]+(?:'[A-Za-z]+)?\b", s or ""))
+
+
+def _canonical_token(s: str) -> str:
+    s = (s or "").strip()
+    if not s:
+        return ""
+    if re.fullmatch(r"[a-dA-D]", s):
+        return s.upper()
+    s = (
+        s.lower()
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    if s in {"t", "true", "ja", "j", "y", "yes"}:
+        return "true"
+    if s in {"f", "false", "nein", "n", "no"}:
+        return "false"
+    return re.sub(r"[^\w]+", "", s)
+
+
+def _parse_ref_map(ref_text: str) -> Dict[int, str]:
+    m: Dict[int, str] = {}
+    for line in (ref_text or "").splitlines():
+        hit = re.match(r"\s*(\d+)\s*[\.\)-]?\s*(.+)$", line)
+        if hit:
+            n = int(hit.group(1))
+            tok = hit.group(2).strip()
+            m[n] = tok
+    return m
+
+
+def _parse_student_global_map(student_text: str) -> Dict[int, str]:
+    """Uses the globalizer, then parses 'n. token' lines."""
+    g = globalize_objective_numbers(student_text or "")
+    out: Dict[int, str] = {}
+    for line in g.splitlines():
+        hit = re.match(r"\s*(\d+)\s*[\.\)-]?\s*(.+)$", line)
+        if hit:
+            out[int(hit.group(1))] = hit.group(2).strip()
+    return out
+
+
+def _compute_objective_diffs(student_text: str, ref_text: str) -> Tuple[int, int, List[Tuple[int, str, str]]]:
+    """Returns (correct, total, wrong_list) where wrong_list items are (n, correct_token, student_token_raw)."""
+    ref_map = _parse_ref_map(ref_text)
+    stu_map = _parse_student_global_map(student_text)
+    total = len(ref_map) or 1
+    wrong: List[Tuple[int, str, str]] = []
+    correct = 0
+    for n in sorted(ref_map.keys()):
+        ref_tok = ref_map[n]
+        stu_tok_raw = stu_map.get(n, "")
+        if _canonical_token(stu_tok_raw) == _canonical_token(ref_tok):
+            correct += 1
+        else:
+            wrong.append((n, ref_tok, stu_tok_raw))
+    return correct, total, wrong
+
+
+def _build_feedback_40_60(correct: int, total: int, wrong: List[Tuple[int, str, str]]) -> str:
+    pieces = [f"Good effort for A1 objectives—you answered {correct} of {total} correctly."]
+    if wrong:
+        shown = ", ".join(f"{n}→{corr} (you wrote {stu or '—'})" for n, corr, stu in wrong[:6])
+        pieces.append(f"Check these items: {shown}.")
+    tips = [
+        "Slow down, read each stem fully, and match letters carefully.",
+        "Use umlauts (ä/ö/ü) and verify meaning before choosing.",
+        "Underline keywords, compare similar options, and double-check B/C confusions.",
+    ]
+    for t in tips:
+        pieces.append(t)
+        if _count_words(" ".join(pieces)) >= 40:
+            break
+    text = " ".join(pieces)
+    i = 0
+    while _count_words(text) < 40 and i < len(tips):
+        text = text + " " + tips[i]
+        i += 1
+    while _count_words(text) > 60:
+        text = re.sub(r"\s*[^.?!]*[.?!]\s*$", "", text).strip()
+        if not re.search(r"[.?!]$", text):
+            break
+    return text
+
+
 def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, str]:
     """
-    Uses OpenAI to mark A1-style objective answers ONLY.
-    Pre-normalizes student answers so all sections are mapped to global numbers (1..N).
-    Returns (score [0..100] | None, feedback).
+    A1 objectives-only marking.
+    - Pre-normalizes numbering (Teil sections → global).
+    - Computes mistakes deterministically.
+    - Ensures feedback is 40–60 words; never lists correct items as wrong.
+    - Still calls OpenAI but uses local truth for correctness/score/feedback if needed.
     """
+    # Compute local truth first (used for safety + feedback building)
+    correct, total, wrong = _compute_objective_diffs(student_answer, ref_text)
+    local_score = int(round(100 * correct / max(total, 1)))
+    local_feedback = _build_feedback_40_60(correct, total, wrong)
+
     if not ai_client:
-        return None, ""
+        return local_score, local_feedback
 
-    # Build a global, one-per-line version of the student's objective answers
+    # Build globalized block for the model (it helps parsing if we ever use AI output)
     student_global = globalize_objective_numbers(student_answer)
+
     try:
-        expected_total = max(
-            [int(n) for n in re.findall(r"^\s*(\d+)\s*[\.\)-]", ref_text, flags=re.M)] or [0]
+        system_prompt = (
+            "You are a precise but kind German tutor. Grade ONLY objective questions.\n"
+            "Return ONLY JSON: {\"score\": <int 0-100>, \"feedback\": \"<30–50 words>\"}.\n"
+            "No markdown, no extra keys, no explanations."
         )
-    except Exception:
-        expected_total = 0
-
-    system_prompt = """You are a precise but kind German tutor. Grade ONLY objective questions.
-
-OUTPUT
-Return ONLY JSON: {"score": <int 0-100>, "feedback": "<30–50 words>"}.
-No markdown, no extra keys, no explanations.
-
-PARSING & SCORING
-- Use the GLOBALIZED STUDENT ANSWERS block if present (already remapped to 1..N).
-- If it is missing, parse the original free-form answers, accepting formats like "1 A", "1: A", "1)A", "Q1=B", "1. Uhr", etc.
-- Normalize: case-insensitive letters (A–D), lowercase words, strip punctuation.
-- Treat umlauts/ß equivalently to ASCII: ä↔ae, ö↔oe, ü↔ue, ß↔ss.
-- Treat true/false equal to T/F and ja/nein.
-- Score = round((correct/total)*100), with total = number of reference items.
-- Feedback (EN, 30–50 words): encouraging verdict, list wrong as "2→B (you wrote C)", one actionable tip.
-
-CONSTRAINTS
-- If the student's answer is blank/unusable, return {"score": 0, "feedback": "No assessable answer provided. Try again with complete responses."}.
-- Be slightly lenient if reference lines are inconsistent; do NOT invent keys.
-"""
-
-    user_prompt = f"""Level: {student_level}
-Expected total items: {expected_total}
+        user_prompt = f"""Level: {student_level}
 
 REFERENCE ANSWERS (numbered lines):
 {ref_text}
 
-STUDENT ANSWERS (original):
-{student_answer}
-
-GLOBALIZED STUDENT ANSWERS (authoritative, one per line; use this to grade):
-{student_global or "(none detected)"}
+GLOBALIZED STUDENT ANSWERS (1..N):
+{student_global or "(none)"}
 """
-
-    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-    try:
-        # Prefer the Responses API; fall back to Chat Completions if needed.
         try:
             resp = ai_client.responses.create(
-                model=model,
+                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
                 temperature=0,
                 response_format={"type": "json_object"},
                 input=[
@@ -364,7 +434,7 @@ GLOBALIZED STUDENT ANSWERS (authoritative, one per line; use this to grade):
             raw = getattr(resp, "output_text", "") or ""
         except Exception:
             resp = ai_client.chat.completions.create(
-                model=model,
+                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
                 temperature=0,
                 response_format={"type": "json_object"},
                 messages=[
@@ -376,13 +446,13 @@ GLOBALIZED STUDENT ANSWERS (authoritative, one per line; use this to grade):
 
         m = re.search(r"\{.*\}", raw, flags=re.S)
         text = m.group(0) if m else raw
-        data = json.loads(text)
-        score = int(data.get("score", 0))
-        feedback = str(data.get("feedback", "")).strip()
-        return max(0, min(100, score)), feedback
+        data = json.loads(text) if text.strip().startswith("{") else {}
+        # We do NOT trust the AI's wrong list; we keep our deterministic result.
+        # We also keep our local feedback length guarantee.
+        return local_score, local_feedback
     except Exception:
-        # If anything goes wrong, don't crash the app — just skip AI marking.
-        return None, ""
+        # Safe fallback
+        return local_score, local_feedback
 
 
 # ===================== LOCAL MARKING (OBJECTIVES ONLY) =====================
@@ -488,6 +558,7 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
         )
     )
     return score, feedback
+
 
 
 def save_row_to_scores(row: dict) -> dict:
