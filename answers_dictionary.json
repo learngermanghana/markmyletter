@@ -359,18 +359,22 @@
   },
   "A2 1.1 Small Talk": {
     "answers": {
-      "Answer1": "C) In einer Schule",
-      "Answer2": "B) Weil sie gerne mit Kindern arbeitet",
-      "Answer3": "A) In einem Buro",
-      "Answer4": "B) Tennis",
-      "Answer5": "B) Es war sonnig und warm",
-      "Answer6": "B) Italien und Spanien",
-      "Answer7": "C) Weil die Baume so schon bunt sind",
-      "Answer8": "B) Ins Kino gehen",
-      "Answer9": "A) Weil sie spannende Geschichten liebt",
-      "Answer10": "A) Tennis",
-      "Answer11": "B) Es war sonnig und warm",
-      "Answer12": "C) Einen Spaziergang Machen"
+      "teil3": {
+        "Answer1": "C) In einer Schule",
+        "Answer2": "B) Weil sie gerne mit Kindern arbeitet",
+        "Answer3": "A) In einem Buro",
+        "Answer4": "B) Tennis",
+        "Answer5": "B) Es war sonnig und warm",
+        "Answer6": "B) Italien und Spanien",
+        "Answer7": "C) Weil die Baume so schon bunt sind"
+      },
+      "teil4": {
+        "Answer1": "B) Ins Kino gehen",
+        "Answer2": "A) Weil sie spannende Geschichten liebt",
+        "Answer3": "A) Tennis",
+        "Answer4": "B) Es war sonnig und warm",
+        "Answer5": "C) Einen Spaziergang Machen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1bENY4-5AG9hrgaDKqyNpTwKT02i58wGva6tVRn-hhbE/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1bENY4-5AG9hrgaDKqyNpTwKT02i58wGva6tVRn-hhbE/edit",
@@ -378,16 +382,20 @@
   },
   "A2 1.2 Personen Beschreiben": {
     "answers": {
-      "Answer1": "B) Ein Jahr",
-      "Answer2": "B) Er ist immer gut gelaunt und organisiert",
-      "Answer3": "C) Einen Anzug und eine Brille",
-      "Answer4": "B) Er geht geduldig auf ihre Anliegen ein",
-      "Answer5": "B) Weil er seine Mitarbeiter regelmaBig lobt",
-      "Answer6": "A) Wenn eine Aufgabe nicht rechtzeitig erledigt wird",
-      "Answer7": "B) Dass er fair ist und die Leistungen der Mitarbeiter wertschatzt",
-      "Answer8": "B) Weil er",
-      "Answer9": "C) Sprachkurse",
-      "Answer10": "A) Jeden tag"
+      "teil3": {
+        "Answer1": "B) Ein Jahr",
+        "Answer2": "B) Er ist immer gut gelaunt und organisiert",
+        "Answer3": "C) Einen Anzug und eine Brille",
+        "Answer4": "B) Er geht geduldig auf ihre Anliegen ein",
+        "Answer5": "B) Weil er seine Mitarbeiter regelmaBig lobt",
+        "Answer6": "A) Wenn eine Aufgabe nicht rechtzeitig erledigt wird",
+        "Answer7": "B) Dass er fair ist und die Leistungen der Mitarbeiter wertschatzt"
+      },
+      "teil4": {
+        "Answer1": "B) Weil er",
+        "Answer2": "C) Sprachkurse",
+        "Answer3": "A) Jeden tag"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1rjZ3kemRqOJIfZCX2GwQKMt715GRdo0M90IfKdzOGH0/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1rjZ3kemRqOJIfZCX2GwQKMt715GRdo0M90IfKdzOGH0/edit",
@@ -395,18 +403,22 @@
   },
   "A2 1.3 Dinge und Personen vergleichen": {
     "answers": {
-      "Answer1": "B) Anna ist 25 Jahre alt",
-      "Answer2": "B) In ihrer Freizeit liest Anna Bucher und geht spazieren",
-      "Answer3": "C) Anna arbeitet in einem Krankenhaus",
-      "Answer4": "C) Anna hat einen Hund",
-      "Answer5": "B) Max unterrichtet Mathematik",
-      "Answer6": "A) Max spielt oft FuBball mit seinen Freunden",
-      "Answer7": "B) Am Wochenende machen Anna und Max Ausfluge oder besuchen Museen",
-      "Answer8": "B) Julia ist 26 Jahre alt",
-      "Answer9": "C) Julia arbeitet als Architektin",
-      "Answer10": "B) Tobias lebt in Frankfurt",
-      "Answer11": "A) Tobias mochte ein eigenes Restaurant eroffnen",
-      "Answer12": "B) Julia und Tobias kochen am Wochenende oft mit Sophie"
+      "teil3": {
+        "Answer1": "B) Anna ist 25 Jahre alt",
+        "Answer2": "B) In ihrer Freizeit liest Anna Bucher und geht spazieren",
+        "Answer3": "C) Anna arbeitet in einem Krankenhaus",
+        "Answer4": "C) Anna hat einen Hund",
+        "Answer5": "B) Max unterrichtet Mathematik",
+        "Answer6": "A) Max spielt oft FuBball mit seinen Freunden",
+        "Answer7": "B) Am Wochenende machen Anna und Max Ausfluge oder besuchen Museen"
+      },
+      "teil4": {
+        "Answer1": "B) Julia ist 26 Jahre alt",
+        "Answer2": "C) Julia arbeitet als Architektin",
+        "Answer3": "B) Tobias lebt in Frankfurt",
+        "Answer4": "A) Tobias mochte ein eigenes Restaurant eroffnen",
+        "Answer5": "B) Julia und Tobias kochen am Wochenende oft mit Sophie"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1ftIKdxbCKTlcDJUj7uHNWZu-dRfH_Tuja0FzTgS_97M/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1ftIKdxbCKTlcDJUj7uHNWZu-dRfH_Tuja0FzTgS_97M/edit",
@@ -414,16 +426,20 @@
   },
   "A2 2.4 Wo möchten wir uns treffen?": {
     "answers": {
-      "Answer1": "B) faul sein",
-      "Answer2": "d) Hockey spielen",
-      "Answer3": "a) schwimmen gehen",
-      "Answer4": "d) zum See fahren und dort im Zelt übernachten",
-      "Answer5": "b) eine Route mit dem Zug durch das ganze Land",
-      "Answer6": "B) Um 10 Uhr",
-      "Answer7": "B) Eine Rucksack",
-      "Answer8": "B) Ein Piknik",
-      "Answer9": "C) in eienem restaurant",
-      "Answer10": "A) Spielen und Spazieren gehen"
+      "teil3": {
+        "Answer1": "B) faul sein",
+        "Answer2": "d) Hockey spielen",
+        "Answer3": "a) schwimmen gehen",
+        "Answer4": "d) zum See fahren und dort im Zelt übernachten",
+        "Answer5": "b) eine Route mit dem Zug durch das ganze Land",
+        "Answer6": "B) Um 10 Uhr",
+        "Answer7": "B) Eine Rucksack"
+      },
+      "teil4": {
+        "Answer1": "B) Ein Piknik",
+        "Answer2": "C) in eienem restaurant",
+        "Answer3": "A) Spielen und Spazieren gehen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1Fy36SwyPWJOPXpAPJjIck6JLTdhIlrk11l6KYw1umvk/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1Fy36SwyPWJOPXpAPJjIck6JLTdhIlrk11l6KYw1umvk/edit",
@@ -431,16 +447,20 @@
   },
   "A2 2.5 Was machst du in deiner Freizeit": {
     "answers": {
-      "Answer1": "c) Nudeln, Pizza und Salat",
-      "Answer2": "c) Den grünen Salat",
-      "Answer3": "c) Schokoladenkuchen und Tiramisu",
-      "Answer4": "b) Die Suppe ist kalt",
-      "Answer5": "c) In bar",
-      "Answer6": "A) Sie trinkt Tee",
-      "Answer7": "B) Mensch aregre",
-      "Answer8": "A) Sie geht jogeen",
-      "Answer9": "B) in den Bergen",
-      "Answer10": "B) Klassische Musik"
+      "teil3": {
+        "Answer1": "c) Nudeln, Pizza und Salat",
+        "Answer2": "c) Den grünen Salat",
+        "Answer3": "c) Schokoladenkuchen und Tiramisu",
+        "Answer4": "b) Die Suppe ist kalt",
+        "Answer5": "c) In bar",
+        "Answer6": "A) Sie trinkt Tee",
+        "Answer7": "B) Mensch aregre"
+      },
+      "teil4": {
+        "Answer1": "A) Sie geht jogeen",
+        "Answer2": "B) in den Bergen",
+        "Answer3": "B) Klassische Musik"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/13s4XR4XAKonwV9KVjT-MOw5wXW6b99l3PMmuod7xu7w/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/13s4XR4XAKonwV9KVjT-MOw5wXW6b99l3PMmuod7xu7w/edit",
@@ -448,16 +468,20 @@
   },
   "A2 3.6 Möbel und Räume kennenlernen": {
     "answers": {
-      "Answer1": "b) Weil ich studiere",
-      "Answer2": "b) Wenn es nicht regnet, stürmt oder schneit → Formuliert im Text als:",
-      "Answer3": "d) Es ist billig",
-      "Answer4": "d) Haustiere",
-      "Answer5": "c) Im Zoo",
-      "Answer6": "A",
-      "Answer7": "A",
-      "Answer8": "B",
-      "Answer9": "B",
-      "Answer10": "B"
+      "teil3": {
+        "Answer1": "b) Weil ich studiere",
+        "Answer2": "b) Wenn es nicht regnet, stürmt oder schneit → Formuliert im Text als:",
+        "Answer3": "d) Es ist billig",
+        "Answer4": "d) Haustiere",
+        "Answer5": "c) Im Zoo",
+        "Answer6": "A",
+        "Answer7": "A"
+      },
+      "teil4": {
+        "Answer1": "B",
+        "Answer2": "B",
+        "Answer3": "B"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1eMuNXnkWU_AQr422gKKkm8v6-MQTY7B7pzIEXjt5q3s/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1eMuNXnkWU_AQr422gKKkm8v6-MQTY7B7pzIEXjt5q3s/edit",
@@ -465,18 +489,22 @@
   },
   "A2 3.7 Eine Wohnung suchen": {
     "answers": {
-      "Answer1": "b) In Zeitungen und im Internet",
-      "Answer2": "c) Eine Person, die bei der Wohnungssuche hilft",
-      "Answer3": "c) Kaltmiete und Nebenkosten",
-      "Answer4": "b) Ein Betrag, den man beim Auszug zurückbekommt",
-      "Answer5": "c) Ein Formular, das Schäden in der Wohnung zeigt",
-      "Answer6": "C) Von 22–7 Uhr und 13–15 Uhr",
-      "Answer7": "C) Zum Wertstoffcontainer bringen",
-      "Answer8": "C) im dritten stock",
-      "Answer9": "B) 75 Quadratmeter",
-      "Answer10": "B) Drei",
-      "Answer11": "A) Ein balkon",
-      "Answer12": "B) 150 Euro"
+      "teil3": {
+        "Answer1": "b) In Zeitungen und im Internet",
+        "Answer2": "c) Eine Person, die bei der Wohnungssuche hilft",
+        "Answer3": "c) Kaltmiete und Nebenkosten",
+        "Answer4": "b) Ein Betrag, den man beim Auszug zurückbekommt",
+        "Answer5": "c) Ein Formular, das Schäden in der Wohnung zeigt",
+        "Answer6": "C) Von 22–7 Uhr und 13–15 Uhr",
+        "Answer7": "C) Zum Wertstoffcontainer bringen"
+      },
+      "teil4": {
+        "Answer1": "C) im dritten stock",
+        "Answer2": "B) 75 Quadratmeter",
+        "Answer3": "B) Drei",
+        "Answer4": "A) Ein balkon",
+        "Answer5": "B) 150 Euro"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1eeiY8L1DYMjbBYjXAy9sPfw_gQt2-WrYAYcPGoeN1d4/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1eeiY8L1DYMjbBYjXAy9sPfw_gQt2-WrYAYcPGoeN1d4/edit",
@@ -484,18 +512,22 @@
   },
   "A2 3.8 Rezepte und Essen": {
     "answers": {
-      "Answer1": "B) Brot, Brotchen, Aufschnitt, Kase und Marmelade",
-      "Answer2": "B) Ein Kaltes Abendessen",
-      "Answer3": "A) Fischgerichte",
-      "Answer4": "B) Oktoberfest",
-      "Answer5": "B) Gerichte aus aller Welt",
-      "Answer6": "C) Sauerkraut und Bratwurst",
-      "Answer7": "A) Eine zentrale Rolle",
-      "Answer8": "B) Samstag",
-      "Answer9": "B) Obst und Gemuse",
-      "Answer10": "B) Mozzarella",
-      "Answer11": "B) Sie gehen in ein Café",
-      "Answer12": "A) Gemuselasagne"
+      "teil3": {
+        "Answer1": "B) Brot, Brotchen, Aufschnitt, Kase und Marmelade",
+        "Answer2": "B) Ein Kaltes Abendessen",
+        "Answer3": "A) Fischgerichte",
+        "Answer4": "B) Oktoberfest",
+        "Answer5": "B) Gerichte aus aller Welt",
+        "Answer6": "C) Sauerkraut und Bratwurst",
+        "Answer7": "A) Eine zentrale Rolle"
+      },
+      "teil4": {
+        "Answer1": "B) Samstag",
+        "Answer2": "B) Obst und Gemuse",
+        "Answer3": "B) Mozzarella",
+        "Answer4": "B) Sie gehen in ein Café",
+        "Answer5": "A) Gemuselasagne"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1Qdiqusfbg9sqkrkspHljsD3vJPKb0bghFGskL8tCPp0/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1Qdiqusfbg9sqkrkspHljsD3vJPKb0bghFGskL8tCPp0/edit",
@@ -503,18 +535,22 @@
   },
   "A2 4.9 Urlaub": {
     "answers": {
-      "Answer1": "B) Musik hören, Bücher lesen, Filme sehen oder ausleihen",
-      "Answer2": "C) An der Volkshochschule",
-      "Answer3": "C) Sie treffen sich, weil sie gemeinsame Interessen haben.",
-      "Answer4": "C) Im botanischen Garten",
-      "Answer5": "B) Der Besuch von Parks und Spielplätzen",
-      "Answer6": "C) 17,98 Euro",
-      "Answer7": "C) In der Hausordnung",
-      "Answer8": "B) Griechenland",
-      "Answer9": "A) Eine woche",
-      "Answer10": "B) Der strand von",
-      "Answer11": "B) Eine Bootstour",
-      "Answer12": "A) Nach Kreta zu reisen"
+      "teil3": {
+        "Answer1": "B) Musik hören, Bücher lesen, Filme sehen oder ausleihen",
+        "Answer2": "C) An der Volkshochschule",
+        "Answer3": "C) Sie treffen sich, weil sie gemeinsame Interessen haben.",
+        "Answer4": "C) Im botanischen Garten",
+        "Answer5": "B) Der Besuch von Parks und Spielplätzen",
+        "Answer6": "C) 17,98 Euro",
+        "Answer7": "C) In der Hausordnung"
+      },
+      "teil4": {
+        "Answer1": "B) Griechenland",
+        "Answer2": "A) Eine woche",
+        "Answer3": "B) Der strand von",
+        "Answer4": "B) Eine Bootstour",
+        "Answer5": "A) Nach Kreta zu reisen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1YxZ2noWRoB12-oYlPxhum_LPPShshjQvyXOqnwymtAw/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1YxZ2noWRoB12-oYlPxhum_LPPShshjQvyXOqnwymtAw/edit",
@@ -522,18 +558,22 @@
   },
   "A2 4.10 Tourismus und Traditionelle Feste": {
     "answers": {
-      "Answer1": "b) Die wichtigsten rechtlichen und politischen Regeln",
-      "Answer2": "c) Man muss Steuern zahlen",
-      "Answer3": "b) EU-Bürger dürfen bei Kommunalwahlen wählen",
-      "Answer4": "b) Er vertritt die Interessen von Migranten",
-      "Answer5": "a) Christlich-orthodox, jüdisch, islamisch, evangelisch, katholisch",
-      "Answer6": "b) Seit 1. Oktober 2017",
-      "Answer7": "c) Jeder darf seine Religion frei wählen und ausüben",
-      "Answer8": "C) Munchen",
-      "Answer9": "B) Zwei Wochen",
-      "Answer10": "B) Brezeln, Bratwurst und Schweinebraten",
-      "Answer11": "B) Lederhosen und Dirndl",
-      "Answer12": "B) Fahrgeschafte und Spiele"
+      "teil3": {
+        "Answer1": "b) Die wichtigsten rechtlichen und politischen Regeln",
+        "Answer2": "c) Man muss Steuern zahlen",
+        "Answer3": "b) EU-Bürger dürfen bei Kommunalwahlen wählen",
+        "Answer4": "b) Er vertritt die Interessen von Migranten",
+        "Answer5": "a) Christlich-orthodox, jüdisch, islamisch, evangelisch, katholisch",
+        "Answer6": "b) Seit 1. Oktober 2017",
+        "Answer7": "c) Jeder darf seine Religion frei wählen und ausüben"
+      },
+      "teil4": {
+        "Answer1": "C) Munchen",
+        "Answer2": "B) Zwei Wochen",
+        "Answer3": "B) Brezeln, Bratwurst und Schweinebraten",
+        "Answer4": "B) Lederhosen und Dirndl",
+        "Answer5": "B) Fahrgeschafte und Spiele"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1fhMpgMdfNWuZcoRnXMvKhGxXBJLYF-cGV4hyPHmcFu4/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1fhMpgMdfNWuZcoRnXMvKhGxXBJLYF-cGV4hyPHmcFu4/edit",
@@ -541,18 +581,22 @@
   },
   "A2 4.11 Unterwegs: Verkehrsmittel vergleichen": {
     "answers": {
-      "Answer1": "b) In Italien",
-      "Answer2": "b) Weil sie in der Stadt fahren wird",
-      "Answer3": "a) Eine gute Versicherung",
-      "Answer4": "b) Führerschein und Personalausweis",
-      "Answer5": "b) Der Angestellte der Autovermietung",
-      "Answer6": "a) Viele Städte zu besuchen",
-      "Answer7": "b) Sehr zufrieden",
-      "Answer8": "B) in die Berge",
-      "Answer9": "B) Ein Mittel..",
-      "Answer10": "B) 50 Euro",
-      "Answer11": "C) Führerschein und Kreditkarte",
-      "Answer12": "B) Das Auto auf mögliche"
+      "teil3": {
+        "Answer1": "b) In Italien",
+        "Answer2": "b) Weil sie in der Stadt fahren wird",
+        "Answer3": "a) Eine gute Versicherung",
+        "Answer4": "b) Führerschein und Personalausweis",
+        "Answer5": "b) Der Angestellte der Autovermietung",
+        "Answer6": "a) Viele Städte zu besuchen",
+        "Answer7": "b) Sehr zufrieden"
+      },
+      "teil4": {
+        "Answer1": "B) in die Berge",
+        "Answer2": "B) Ein Mittel..",
+        "Answer3": "B) 50 Euro",
+        "Answer4": "C) Führerschein und Kreditkarte",
+        "Answer5": "B) Das Auto auf mögliche"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/16aS6UmVL-kQqcje1f3rDeqobEnkoNsxUwCNE_iBokI4/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/16aS6UmVL-kQqcje1f3rDeqobEnkoNsxUwCNE_iBokI4/edit",
@@ -560,18 +604,22 @@
   },
   "A2 5.12 Ein Tag im Leben": {
     "answers": {
-      "Answer1": "C) Eine Behörde prüft, ob das Dokument echt ist",
-      "Answer2": "b) Auf der Internetseite „Anerkennung in Deutschland“",
-      "Answer3": "b) Die Zeitung",
-      "Answer4": "c) Berufsinformationszentrum",
-      "Answer5": "b) Ein Praktikum",
-      "Answer6": "c) Ein Kochrezept",
-      "Answer7": "c) Menschen unter 27 Jahren",
-      "Answer8": "B) um 6 Uhr",
-      "Answer9": "C) Beginnt die Visite",
-      "Answer10": "B) um 9 Uhr",
-      "Answer11": "B) fuhrt wichtige",
-      "Answer12": "C) Vor 18 Uhr"
+      "teil3": {
+        "Answer1": "C) Eine Behörde prüft, ob das Dokument echt ist",
+        "Answer2": "b) Auf der Internetseite „Anerkennung in Deutschland“",
+        "Answer3": "b) Die Zeitung",
+        "Answer4": "c) Berufsinformationszentrum",
+        "Answer5": "b) Ein Praktikum",
+        "Answer6": "c) Ein Kochrezept",
+        "Answer7": "c) Menschen unter 27 Jahren"
+      },
+      "teil4": {
+        "Answer1": "B) um 6 Uhr",
+        "Answer2": "C) Beginnt die Visite",
+        "Answer3": "B) um 9 Uhr",
+        "Answer4": "B) fuhrt wichtige",
+        "Answer5": "C) Vor 18 Uhr"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1z8wEWz-HJxm1DUvr0a7OE5md3Gj4OR5ZJ3SpJNI-hyQ/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1z8wEWz-HJxm1DUvr0a7OE5md3Gj4OR5ZJ3SpJNI-hyQ/edit",
@@ -579,18 +627,22 @@
   },
   "A2 5.13 Ein Vorstellungsgespräch": {
     "answers": {
-      "Answer1": "c) Ein Ort für kleine Kinder bis 3 Jahre",
-      "Answer2": "c) Ab 3 Jahren",
-      "Answer3": "d) Sie spielen, singen und basteln",
-      "Answer4": "d) Sie spielen, singen und basteln",
-      "Answer5": "c) Mittagessen",
-      "Answer6": "a) Reiche Familien",
-      "Answer7": "b) Es bekommt Hilfe beim Deutschlernen",
-      "Answer8": "B) Um Interesse zu zeigen",
-      "Answer9": "B) Pünktlich sein",
-      "Answer10": "C) Um Interesse zu zeigen",
-      "Answer11": "A) Eine Dankes-E-Mail",
-      "Answer12": "B) Klar und deutlich sprechen"
+      "teil3": {
+        "Answer1": "c) Ein Ort für kleine Kinder bis 3 Jahre",
+        "Answer2": "c) Ab 3 Jahren",
+        "Answer3": "d) Sie spielen, singen und basteln",
+        "Answer4": "d) Sie spielen, singen und basteln",
+        "Answer5": "c) Mittagessen",
+        "Answer6": "a) Reiche Familien",
+        "Answer7": "b) Es bekommt Hilfe beim Deutschlernen"
+      },
+      "teil4": {
+        "Answer1": "B) Um Interesse zu zeigen",
+        "Answer2": "B) Pünktlich sein",
+        "Answer3": "C) Um Interesse zu zeigen",
+        "Answer4": "A) Eine Dankes-E-Mail",
+        "Answer5": "B) Klar und deutlich sprechen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1fySC84kZ7Xl1YfzmK4FaZImNjVI6wsr_YFi-4mfdrm4/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1fySC84kZ7Xl1YfzmK4FaZImNjVI6wsr_YFi-4mfdrm4/edit",
@@ -598,18 +650,22 @@
   },
   "A2 5.14 Beruf und Karriere": {
     "answers": {
-      "Answer1": "B) Die Kollegen und die Arbeit",
-      "Answer2": "C) Mit „Sie“",
-      "Answer3": "C) Eine Arbeitnehmervertretung",
-      "Answer4": "C) Arbeitskleidung, Pausen und feste Arbeitszeiten",
-      "Answer5": "C) Man kann Arbeitsbeginn und -ende flexibel wählen",
-      "Answer6": "C) 38–40 Stunden",
-      "Answer7": "B) Den Urlaub eintragen und genehmigen lassen",
-      "Answer8": "D) Weiter das Gehalt oder den Lohn",
-      "Answer9": "C) Sofort den Arbeitgeber informieren und zum Arzt gehen",
-      "Answer10": "C) Auf der Baustelle oder am Flughafen",
-      "Answer11": "C) Die Kündigung schriftlich und mit Frist einreichen",
-      "Answer12": "C) In der Volkshochschule"
+      "teil3": {
+        "Answer1": "B) Die Kollegen und die Arbeit",
+        "Answer2": "C) Mit „Sie“",
+        "Answer3": "C) Eine Arbeitnehmervertretung",
+        "Answer4": "C) Arbeitskleidung, Pausen und feste Arbeitszeiten",
+        "Answer5": "C) Man kann Arbeitsbeginn und -ende flexibel wählen",
+        "Answer6": "C) 38–40 Stunden",
+        "Answer7": "B) Den Urlaub eintragen und genehmigen lassen"
+      },
+      "teil4": {
+        "Answer1": "D) Weiter das Gehalt oder den Lohn",
+        "Answer2": "C) Sofort den Arbeitgeber informieren und zum Arzt gehen",
+        "Answer3": "C) Auf der Baustelle oder am Flughafen",
+        "Answer4": "C) Die Kündigung schriftlich und mit Frist einreichen",
+        "Answer5": "C) In der Volkshochschule"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1wKcE29sav7yHsSc9SSOwrbmtq15MF33LbVAeDaz4CAw/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1wKcE29sav7yHsSc9SSOwrbmtq15MF33LbVAeDaz4CAw/edit",
@@ -617,18 +673,22 @@
   },
   "A2 6.15 Mein Lieblingssport": {
     "answers": {
-      "Answer1": "A) Yoga und Zumba",
-      "Answer2": "B) Fußball, Handball und Volleyball",
-      "Answer3": "C) Die Spenden an lokale Wohltätigkeitsorganisationen",
-      "Answer4": "B) Im Stadtpark",
-      "Answer5": "B) Fitnessprogramme",
-      "Answer6": "B) Die Eröffnung eines neuen Kletterparks",
-      "Answer7": "B) Eine wichtige Rolle zur Förderung der Lebensqualität",
-      "Answer8": "B) Pilates- und Aerobic-Kurse",
-      "Answer9": "A) Kostenlose Yoga-Kurse",
-      "Answer10": "A) Wassergymnastik und Aqua-Zumba",
-      "Answer11": "C) Für Anfänger und Fortgeschrittene",
-      "Answer12": "B) Volleyball und Basketball"
+      "teil3": {
+        "Answer1": "A) Yoga und Zumba",
+        "Answer2": "B) Fußball, Handball und Volleyball",
+        "Answer3": "C) Die Spenden an lokale Wohltätigkeitsorganisationen",
+        "Answer4": "B) Im Stadtpark",
+        "Answer5": "B) Fitnessprogramme",
+        "Answer6": "B) Die Eröffnung eines neuen Kletterparks",
+        "Answer7": "B) Eine wichtige Rolle zur Förderung der Lebensqualität"
+      },
+      "teil4": {
+        "Answer1": "B) Pilates- und Aerobic-Kurse",
+        "Answer2": "A) Kostenlose Yoga-Kurse",
+        "Answer3": "A) Wassergymnastik und Aqua-Zumba",
+        "Answer4": "C) Für Anfänger und Fortgeschrittene",
+        "Answer5": "B) Volleyball und Basketball"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/11cVglcrlXHA5N9UBp5S6Mepm2KFP57Cp__4F2GRLRcM/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/11cVglcrlXHA5N9UBp5S6Mepm2KFP57Cp__4F2GRLRcM/edit",
@@ -636,16 +696,20 @@
   },
   "A2 6.16 Wohlbefinden und Entspannung": {
     "answers": {
-      "Answer1": "C) Anzeige",
-      "Answer2": "B) Anzeige",
-      "Answer3": "E) Anzeige",
-      "Answer4": "F) Anzeige",
-      "Answer5": "A) Anzeige",
-      "Answer6": "B) Mehr Obst und Gemüse essen",
-      "Answer7": "C) 30 Minuten",
-      "Answer8": "A) Der Besuch eines Fitnessstudios",
-      "Answer9": "B) Um Krankheiten frühzeitig zu erkennen",
-      "Answer10": "A) Yoga und Pilates"
+      "teil3": {
+        "Answer1": "C) Anzeige",
+        "Answer2": "B) Anzeige",
+        "Answer3": "E) Anzeige",
+        "Answer4": "F) Anzeige",
+        "Answer5": "A) Anzeige",
+        "Answer6": "B) Mehr Obst und Gemüse essen",
+        "Answer7": "C) 30 Minuten"
+      },
+      "teil4": {
+        "Answer1": "A) Der Besuch eines Fitnessstudios",
+        "Answer2": "B) Um Krankheiten frühzeitig zu erkennen",
+        "Answer3": "A) Yoga und Pilates"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/13fG-McZz3Q_rmcHymAwfLwX7C1illz91v5b2yXyoArI/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/13fG-McZz3Q_rmcHymAwfLwX7C1illz91v5b2yXyoArI/edit",
@@ -653,18 +717,22 @@
   },
   "A2 6.17 In die Apotheke gehen": {
     "answers": {
-      "Answer1": "B) Weil sie sich krank fühlte",
-      "Answer2": "B) Hustensaft",
-      "Answer3": "C) Hilfsbereit",
-      "Answer4": "B) Broschüren mit Tipps",
-      "Answer5": "C) Besser",
-      "Answer6": "B) Nach einigen Stunden",
-      "Answer7": "A) Sie kann sich auf den Rat der Apotheker verlassen",
-      "Answer8": "B) Wegen Kopfschmerzen",
-      "Answer9": "C) Ibuprofen",
-      "Answer10": "B) Trockene Haut",
-      "Answer11": "B) Sie war erleichtert",
-      "Answer12": "B) Proben von Produkten"
+      "teil3": {
+        "Answer1": "B) Weil sie sich krank fühlte",
+        "Answer2": "B) Hustensaft",
+        "Answer3": "C) Hilfsbereit",
+        "Answer4": "B) Broschüren mit Tipps",
+        "Answer5": "C) Besser",
+        "Answer6": "B) Nach einigen Stunden",
+        "Answer7": "A) Sie kann sich auf den Rat der Apotheker verlassen"
+      },
+      "teil4": {
+        "Answer1": "B) Wegen Kopfschmerzen",
+        "Answer2": "C) Ibuprofen",
+        "Answer3": "B) Trockene Haut",
+        "Answer4": "B) Sie war erleichtert",
+        "Answer5": "B) Proben von Produkten"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1X-H0rjHjyJeTbm_bVNh_Bp8VMT-ZwZBQdhadUS1Coqs/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1X-H0rjHjyJeTbm_bVNh_Bp8VMT-ZwZBQdhadUS1Coqs/edit",
@@ -672,16 +740,20 @@
   },
   "A2 7.18 Die Bank Anrufen": {
     "answers": {
-      "Answer1": "B. Sparkasse",
-      "Answer2": "F. ING-DiBa",
-      "Answer3": "B. Sparkasse",
-      "Answer4": "D. Volksbank",
-      "Answer5": "C. Commerzbank",
-      "Answer6": "B) Reisepass, Meldebescheinigung, Einkommensnachweis",
-      "Answer7": "B) Eine Stunde",
-      "Answer8": "B) Drei",
-      "Answer9": "A) Basiskonto",
-      "Answer10": "D) Die Formulare vor dem Termin online ausfüllen"
+      "teil3": {
+        "Answer1": "B. Sparkasse",
+        "Answer2": "F. ING-DiBa",
+        "Answer3": "B. Sparkasse",
+        "Answer4": "D. Volksbank",
+        "Answer5": "C. Commerzbank",
+        "Answer6": "B) Reisepass, Meldebescheinigung, Einkommensnachweis",
+        "Answer7": "B) Eine Stunde"
+      },
+      "teil4": {
+        "Answer1": "B) Drei",
+        "Answer2": "A) Basiskonto",
+        "Answer3": "D) Die Formulare vor dem Termin online ausfüllen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/11swMhsZxMZKG8YqavvspmntM6RzTtP5NDG6zk19GskI/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/11swMhsZxMZKG8YqavvspmntM6RzTtP5NDG6zk19GskI/edit",
@@ -689,18 +761,22 @@
   },
   "A2 7.19 Einkaufen? Wo und wie?": {
     "answers": {
-      "Answer1": "B) Die Zunahme von Online-Shopping und Werbung",
-      "Answer2": "B) Wegen der ständigen Verfügbarkeit und einfachen Bestellung",
-      "Answer3": "B) Nachhaltiger Konsum",
-      "Answer4": "B) Weniger Plastik verwenden und lokale Produkte kaufen",
-      "Answer5": "B) Umweltverschmutzung und schlechte Arbeitsbedingungen",
-      "Answer6": "A) Sich gut informieren",
-      "Answer7": "B) Als komplexes Thema mit positiven und negativen Auswirkungen",
-      "Answer8": "B) Bequeme Möglichkeit Produkte nach Hause zu bestellen",
-      "Answer9": "B) Hohe Anzahl von Rücksendungen und Umweltbelastung",
-      "Answer10": "A) Auf vertrauenswürdige Websites und Schutz persönlicher Daten",
-      "Answer11": "A) Aus nachhaltigen Quellen und fairen Bedingungen",
-      "Answer12": "B) Es hat den Konsum revolutioniert und neue Möglichkeiten geschaffen"
+      "teil3": {
+        "Answer1": "B) Die Zunahme von Online-Shopping und Werbung",
+        "Answer2": "B) Wegen der ständigen Verfügbarkeit und einfachen Bestellung",
+        "Answer3": "B) Nachhaltiger Konsum",
+        "Answer4": "B) Weniger Plastik verwenden und lokale Produkte kaufen",
+        "Answer5": "B) Umweltverschmutzung und schlechte Arbeitsbedingungen",
+        "Answer6": "A) Sich gut informieren",
+        "Answer7": "B) Als komplexes Thema mit positiven und negativen Auswirkungen"
+      },
+      "teil4": {
+        "Answer1": "B) Bequeme Möglichkeit Produkte nach Hause zu bestellen",
+        "Answer2": "B) Hohe Anzahl von Rücksendungen und Umweltbelastung",
+        "Answer3": "A) Auf vertrauenswürdige Websites und Schutz persönlicher Daten",
+        "Answer4": "A) Aus nachhaltigen Quellen und fairen Bedingungen",
+        "Answer5": "B) Es hat den Konsum revolutioniert und neue Möglichkeiten geschaffen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1OaEeNnHmG3brY-OhbHDpFmj86YUMLIqzMOEAlpAcnFE/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1OaEeNnHmG3brY-OhbHDpFmj86YUMLIqzMOEAlpAcnFE/edit",
@@ -708,19 +784,23 @@
   },
   "A2 7.20 Typische Reklamationssituationen üben": {
     "answers": {
-      "Answer1": "C) Man sollte seine Qualifikationen und Erfahrungen erwähnen, weil sie die Eignung für die Stelle zeigen",
-      "Answer2": "A) Man sollte die Firma recherchieren, um gut informiert zu sein; B) Man sollte den Arbeitsweg üben, um pünktlich zu sein",
-      "Answer3": "A) Die Bezahlung, weil man finanziell abgesichert sein möchte; B) Die Arbeitszeiten, weil man eine gute Work-Life-Balance haben möchte",
-      "Answer4": "A) Frauen haben oft geringere Aufstiegschancen. Eine Lösung wäre eine Frauenquote.; B) Frauen verdienen häufig weniger als Männer. Transparente Gehaltsstrukturen könnten helfen.; C) Frauen müssen oft Beruf und Familie vereinbaren. Flexible Arbeitszeiten könnten eine Lösung sein.",
-      "Answer5": "A) Es gab weniger technische Geräte im Haushalt; B) Die Menschen waren weniger mobil und reisten seltener.; D) Die Arbeitszeiten waren länger und härter",
-      "Answer6": "B) Die Berufliche",
-      "Answer7": "B) Man informiert sich",
-      "Answer8": "A) Die Bezahlung",
-      "Answer9": "A) Man sammelt",
-      "Answer10": "A) Geringere",
-      "Answer11": "A) Flexible Arbeitszeiten",
-      "Answer12": "A) Es gab weniger",
-      "Answer13": "B) Sie arbeiteten mehr und hatten weniger Freizeit"
+      "teil3": {
+        "Answer1": "C) Man sollte seine Qualifikationen und Erfahrungen erwähnen, weil sie die Eignung für die Stelle zeigen",
+        "Answer2": "A) Man sollte die Firma recherchieren, um gut informiert zu sein; B) Man sollte den Arbeitsweg üben, um pünktlich zu sein",
+        "Answer3": "A) Die Bezahlung, weil man finanziell abgesichert sein möchte; B) Die Arbeitszeiten, weil man eine gute Work-Life-Balance haben möchte",
+        "Answer4": "A) Frauen haben oft geringere Aufstiegschancen. Eine Lösung wäre eine Frauenquote.; B) Frauen verdienen häufig weniger als Männer. Transparente Gehaltsstrukturen könnten helfen.; C) Frauen müssen oft Beruf und Familie vereinbaren. Flexible Arbeitszeiten könnten eine Lösung sein.",
+        "Answer5": "A) Es gab weniger technische Geräte im Haushalt; B) Die Menschen waren weniger mobil und reisten seltener.; D) Die Arbeitszeiten waren länger und härter",
+        "Answer6": "B) Die Berufliche",
+        "Answer7": "B) Man informiert sich"
+      },
+      "teil4": {
+        "Answer1": "A) Die Bezahlung",
+        "Answer2": "A) Man sammelt",
+        "Answer3": "A) Geringere",
+        "Answer4": "A) Flexible Arbeitszeiten",
+        "Answer5": "A) Es gab weniger",
+        "Answer6": "B) Sie arbeiteten mehr und hatten weniger Freizeit"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1C-utAPIEGi9Rsp_gI3qsfHddX9IXvazP27sxRrobI40/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1C-utAPIEGi9Rsp_gI3qsfHddX9IXvazP27sxRrobI40/edit",
@@ -728,11 +808,14 @@
   },
   "A2 8.21 Ein Wochenende planen": {
     "answers": {
-      "Answer1": "C) Sollen Plätze reservieren",
-      "Answer2": "C) Nur ein Restaurant haben",
-      "Answer3": "C) Machte er eine lange Reise",
-      "Answer4": "A) Eine Fernsehsendung",
-      "Answer5": "A) Den Berufsweg eines Kochs"
+      "teil3": {
+        "Answer1": "C) Sollen Plätze reservieren",
+        "Answer2": "C) Nur ein Restaurant haben",
+        "Answer3": "C) Machte er eine lange Reise",
+        "Answer4": "A) Eine Fernsehsendung",
+        "Answer5": "A) Den Berufsweg eines Kochs"
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/16SKkqpJNa7NyqrnH5xyiyD5VH6AmmyJWG4dc2SiIVO4/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/16SKkqpJNa7NyqrnH5xyiyD5VH6AmmyJWG4dc2SiIVO4/edit",
@@ -740,11 +823,14 @@
   },
   "A2 8.22 Die Woche Plannung": {
     "answers": {
-      "Answer1": "C) Im Moment ist vieles neu für sie.",
-      "Answer2": "B) Für neue Studenten eine Stadtführung gemacht.",
-      "Answer3": "C) Kocht jeder einmal für die anderen.",
-      "Answer4": "B) Deutsch zu sprechen.",
-      "Answer5": "C) Übernachtet Sonja in Marios Zimmer."
+      "teil3": {
+        "Answer1": "C) Im Moment ist vieles neu für sie.",
+        "Answer2": "B) Für neue Studenten eine Stadtführung gemacht.",
+        "Answer3": "C) Kocht jeder einmal für die anderen.",
+        "Answer4": "B) Deutsch zu sprechen.",
+        "Answer5": "C) Übernachtet Sonja in Marios Zimmer."
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1IltGaPYHb_jPazZNClHdjzTu-Tgs94zfHNzixrizvCs/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1IltGaPYHb_jPazZNClHdjzTu-Tgs94zfHNzixrizvCs/edit",
@@ -752,11 +838,14 @@
   },
   "A2 9.23 Wie kommst du zur Schule / zur Arbeit?": {
     "answers": {
-      "Answer1": "C) An die Nordsee",
-      "Answer2": "B) Auf einer Insel",
-      "Answer3": "A) Aus der Schweiz",
-      "Answer4": "A) Mit der U-Bahn",
-      "Answer5": "D) Die Berge und die Natur"
+      "teil3": {
+        "Answer1": "C) An die Nordsee",
+        "Answer2": "B) Auf einer Insel",
+        "Answer3": "A) Aus der Schweiz",
+        "Answer4": "A) Mit der U-Bahn",
+        "Answer5": "D) Die Berge und die Natur"
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1u7kFhf4yTXKlRhxVNsr7nmDfaR1XBnkzwG6ZnIwvAmo/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1u7kFhf4yTXKlRhxVNsr7nmDfaR1XBnkzwG6ZnIwvAmo/edit",
@@ -764,11 +853,14 @@
   },
   "A2 9.24 Einen Urlaub planen": {
     "answers": {
-      "Answer1": "Anzeige: f",
-      "Answer2": "Anzeige: c",
-      "Answer3": "Anzeige: X",
-      "Answer4": "Anzeige: b",
-      "Answer5": "Anzeige: a"
+      "teil3": {
+        "Answer1": "Anzeige: f",
+        "Answer2": "Anzeige: c",
+        "Answer3": "Anzeige: X",
+        "Answer4": "Anzeige: b",
+        "Answer5": "Anzeige: a"
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1VhkmUp18ZHieB-bTyZavqvEs1ikz9bXAHh_aDOai-7E/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1VhkmUp18ZHieB-bTyZavqvEs1ikz9bXAHh_aDOai-7E/edit",
@@ -776,16 +868,20 @@
   },
   "A2 9.25 Tagesablauf": {
     "answers": {
-      "Answer1": "a) kurz vor 7 Uhr",
-      "Answer2": "d) Müsli oder Toast mit Marmelade",
-      "Answer3": "b) Hausaufgaben",
-      "Answer4": "a) am Nachmittag",
-      "Answer5": "b) Freunde treffen",
-      "Answer6": "c) die Schweiz",
-      "Answer7": "d) mit dem Zug",
-      "Answer8": "a) an einem kleinen Bahnhof",
-      "Answer9": "d) einen Zimmerschlüssel",
-      "Answer10": "b) das Zimmer ist zu klein"
+      "teil3": {
+        "Answer1": "a) kurz vor 7 Uhr",
+        "Answer2": "d) Müsli oder Toast mit Marmelade",
+        "Answer3": "b) Hausaufgaben",
+        "Answer4": "a) am Nachmittag",
+        "Answer5": "b) Freunde treffen",
+        "Answer6": "c) die Schweiz",
+        "Answer7": "d) mit dem Zug"
+      },
+      "teil4": {
+        "Answer1": "a) an einem kleinen Bahnhof",
+        "Answer2": "d) einen Zimmerschlüssel",
+        "Answer3": "b) das Zimmer ist zu klein"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/edit",
@@ -793,13 +889,16 @@
   },
   "A2 10.26 Gefühle in verschiedenen Situationen beschr": {
     "answers": {
-      "Answer1": "b) Er beantwortet Fragen und kontrolliert die Gesundheit des Kindes.",
-      "Answer2": "c) 14 Wochen",
-      "Answer3": "c) 14 Monate",
-      "Answer4": "a) Man muss einen festen Arbeitsvertrag haben.",
-      "Answer5": "a) Impfungen und Vorsorgeuntersuchungen",
-      "Answer6": "c) Ab 3 Jahren",
-      "Answer7": "b) An speziellen Freizeitangeboten in der Stadt teilnehmen"
+      "teil3": {
+        "Answer1": "b) Er beantwortet Fragen und kontrolliert die Gesundheit des Kindes.",
+        "Answer2": "c) 14 Wochen",
+        "Answer3": "c) 14 Monate",
+        "Answer4": "a) Man muss einen festen Arbeitsvertrag haben.",
+        "Answer5": "a) Impfungen und Vorsorgeuntersuchungen",
+        "Answer6": "c) Ab 3 Jahren",
+        "Answer7": "b) An speziellen Freizeitangeboten in der Stadt teilnehmen"
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1SQsUUW6_A3X-SGbOsyMZuOgm6Qo7gGsnqY9pbNxYgmY/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1SQsUUW6_A3X-SGbOsyMZuOgm6Qo7gGsnqY9pbNxYgmY/edit",
@@ -807,13 +906,16 @@
   },
   "A2 10.27 Digitale Kommunikation": {
     "answers": {
-      "Answer1": "b) Sie sind oft sehr teuer oder funktionieren nicht.",
-      "Answer2": "c) Ein deutsches Bankkonto und einen Ausweis.",
-      "Answer3": "C) 1 bis 2 Jahre",
-      "Answer4": "c) Drei Monate vor Vertragsende",
-      "Answer5": "c) In Supermärkten, Tankstellen oder Kiosken",
-      "Answer6": "b) Name, Adresse, Geburtsdatum und ein Ausweisdokument",
-      "Answer7": "d) Mit öffentlichem WLAN"
+      "teil3": {
+        "Answer1": "b) Sie sind oft sehr teuer oder funktionieren nicht.",
+        "Answer2": "c) Ein deutsches Bankkonto und einen Ausweis.",
+        "Answer3": "C) 1 bis 2 Jahre",
+        "Answer4": "c) Drei Monate vor Vertragsende",
+        "Answer5": "c) In Supermärkten, Tankstellen oder Kiosken",
+        "Answer6": "b) Name, Adresse, Geburtsdatum und ein Ausweisdokument",
+        "Answer7": "d) Mit öffentlichem WLAN"
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1CDLU1BEBm-xCS0BEdXunjSN8CHol1UMuxlF_QDSGNc8/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1CDLU1BEBm-xCS0BEdXunjSN8CHol1UMuxlF_QDSGNc8/edit",
@@ -821,13 +923,16 @@
   },
   "A2 10.28 Über die Zukunft sprechen": {
     "answers": {
-      "Answer1": "c) Einen gültigen Reisepass",
-      "Answer2": "b) Bei der Deutschen Botschaft im Heimatland",
-      "Answer3": "c) Einen Aufenthaltstitel",
-      "Answer4": "b) Ein Kurs für Deutsch und Leben in Deutschland",
-      "Answer5": "c) Man muss sie übersetzen und anerkennen lassen",
-      "Answer6": "c) Die Arbeitsagentur",
-      "Answer7": "c) Kranken-, Renten- und Pflegeversicherung"
+      "teil3": {
+        "Answer1": "c) Einen gültigen Reisepass",
+        "Answer2": "b) Bei der Deutschen Botschaft im Heimatland",
+        "Answer3": "c) Einen Aufenthaltstitel",
+        "Answer4": "b) Ein Kurs für Deutsch und Leben in Deutschland",
+        "Answer5": "c) Man muss sie übersetzen und anerkennen lassen",
+        "Answer6": "c) Die Arbeitsagentur",
+        "Answer7": "c) Kranken-, Renten- und Pflegeversicherung"
+      },
+      "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1fAP60NXAKiJ8wdugvjQtZxDX-3ap88vKya7yZWo9mEs/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1fAP60NXAKiJ8wdugvjQtZxDX-3ap88vKya7yZWo9mEs/edit",

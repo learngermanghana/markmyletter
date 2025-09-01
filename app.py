@@ -157,27 +157,29 @@ def build_reference_text_from_json(
     chunks: List[str] = []
     answers_map: Dict[int, str] = {}
 
-    if isinstance(answers, dict) and ("teil3" in answers or "teil4" in answers):
-        idx = 1
-        for part_key in ("teil3", "teil4"):
-            part = answers.get(part_key) or {}
-            if part:
-                chunks.append(part_key.replace("teil", "Teil "))
-                ordered = sorted(part.items(), key=lambda kv: n_from(kv[0]))
-                for k, v in ordered:
-                    v = str(v).strip()
-                    if v and v.lower() not in ("nan", "none"):
-                        chunks.append(f"{idx}. {v}")
-                        answers_map[idx] = v
-                        idx += 1
-    else:
-        ordered = sorted(answers.items(), key=lambda kv: n_from(kv[0]))
-        for k, v in ordered:
-            v = str(v).strip()
-            if v and v.lower() not in ("nan", "none"):
-                idx = n_from(k)
-                chunks.append(f"{idx}. {v}")
-                answers_map[idx] = v
+    if isinstance(answers, dict):
+        part_keys = [k for k in answers if k.lower().startswith("teil")]
+        if part_keys:
+            idx = 1
+            for part_key in sorted(part_keys, key=natural_key):
+                part = answers.get(part_key) or {}
+                if part:
+                    chunks.append(part_key.replace("teil", "Teil "))
+                    ordered = sorted(part.items(), key=lambda kv: n_from(kv[0]))
+                    for k, v in ordered:
+                        v = str(v).strip()
+                        if v and v.lower() not in ("nan", "none"):
+                            chunks.append(f"{idx}. {v}")
+                            answers_map[idx] = v
+                            idx += 1
+        else:
+            ordered = sorted(answers.items(), key=lambda kv: n_from(kv[0]))
+            for k, v in ordered:
+                v = str(v).strip()
+                if v and v.lower() not in ("nan", "none"):
+                    idx = n_from(k)
+                    chunks.append(f"{idx}. {v}")
+                    answers_map[idx] = v
     fmt = str(row_obj.get("format", "essay")).strip().lower() or "essay"
     return (
         "\n".join(chunks) if chunks else "No reference answers found.",
