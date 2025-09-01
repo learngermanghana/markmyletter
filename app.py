@@ -213,85 +213,206 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     if not items: pull("lessens")
     return items
 
+# ===================== AI MARKING (OBJECTIVES ONLY) =====================
 def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, str]:
-
+    """
+    Uses OpenAI to mark A1-style objective answers ONLY.
+    Returns (score [0..100] | None, feedback).
+    """
     if not ai_client:
         return None, ""
 
-    prompt = f"""
+    system_prompt = """You are a precise but kind German tutor. Grade ONLY objective questions.
+There are numbered reference answers (e.g., "1. B", "2. Uhr", "3. Ja"). Student responses may be messy.
 
-You are the student's German tutor. Evaluate the student's answer against the reference answer and judge it according to level {student_level}.
-Always give feedback in English.
-Feedback must be about 40 words, friendly and encouraging. Explicitly highlight the student's mistakes with brief explanations.
-Student work can be messy should check it well to give right scores.
-When the assignment has only a,b,c,d know it is objectives. Some work can have only objectives and some too both objectives and essay.
-Always cite phrases in student work when giving corrections.
-Return STRICT JSON with {{"score": 0-100 integer, "feedback": "string"}}.
-Reminder: Hold u, s, or o on your keyboard to insert umlauts (ü, ß, ö) or search online.
+OUTPUT
+Return ONLY JSON: {"score": <int 0-100>, "feedback": "<30–50 words>"}.
+No markdown, no extra keys, no explanations.
 
-Student level:
-{student_level}
+TASK
+1) Build the reference key:
+   - Parse each line like "<number>.<space><answer>" from the reference block into a map {n -> token}.
+   - A token can be a letter (A–D) or a short word/phrase.
+2) Parse the student's selections into {n -> token}:
+   - Accept formats like "1 A", "1: A", "1)A", "Q1=B", "1- a", "1. Uhr", "1) true", or multiple lines.
+   - Ignore case, punctuation, extra spaces, and prefixes like "Q".
+   - If the student gives multiple tokens for the same number, use the FIRST valid one.
+3) Normalize when comparing:
+   - For letters, compare A–D case-insensitively.
+   - For words, lowercase and strip punctuation.
+   - Treat umlauts/ß equivalently to ASCII: ä↔ae, ö↔oe, ü↔ue, ß↔ss.
+   - Treat true/false equal to T/F and ja/nein.
+4) Score:
+   - total = count of reference items.
+   - correct = matches after normalization. Unanswered or invalid = wrong.
+   - score = round((correct / total) * 100).
+5) Feedback (English, 30–50 words):
+   - Start with an encouraging verdict for A1 level.
+   - List wrong numbers as "2→B (you wrote C), 5→Uhr (you wrote Zeit)".
+   - Give ONE concrete tip (e.g., re-check Artikel, read the choices carefully, or use umlauts like 'ö').
 
-Student answer:
-{student_answer}
+CONSTRAINTS
+- If the student's answer is blank/unusable, return {"score": 0, "feedback": "No assessable answer provided. Try again with complete responses."}.
+- Be slightly lenient if reference lines look inconsistent, but DO NOT invent keys.
+"""
 
-Reference answer:
+    user_prompt = f"""Level: {student_level}
+
+REFERENCE ANSWERS (numbered lines):
 {ref_text}
 
-Return only JSON.
+STUDENT ANSWERS (free-form):
+{student_answer}
 """
+
+    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
     try:
-        resp = ai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            max_tokens=220,
-        )
-        text = resp.choices[0].message.content.strip()
+        # Prefer the Responses API
+        try:
+            resp = ai_client.responses.create(
+                model=model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            raw = getattr(resp, "output_text", None)
+            if not raw:
+                # Fallback extraction for older SDK shapes
+                raw = json.dumps(resp) if isinstance(resp, dict) else ""
+        except Exception:
+            # Fallback to Chat Completions
+            resp = ai_client.chat.completions.create(
+                model=model,
+                temperature=0,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            raw = resp.choices[0].message.content
+
+        text = (raw or "").strip()
+        # Be safe: extract the first JSON object
         m = re.search(r"\{.*\}", text, flags=re.S)
         text = m.group(0) if m else text
-        data = json.loads(text)
-        if isinstance(data, str):
-            data = json.loads(data)
-        if not isinstance(data, dict):
-            raise ValueError(
-                f"AI response JSON must be an object, got {type(data).__name__}"
-            )
+        data = json.loads(text) if isinstance(text, str) else dict(text)
+
         score = int(data.get("score", 0))
-
-        fb_str = data.get("feedback") or ""
-        if not isinstance(fb_str, str):
-            fb_str = str(fb_str)
-        fb_str = fb_str.strip()
+        fb_str = str(data.get("feedback", "")).strip()
         return max(0, min(100, score)), fb_str
+    except Exception:
+        # If anything goes wrong, don't crash the app — just skip AI marking.
+        return None, ""
 
-    except Exception as e:
-        return None, f"(AI error: {e})"
-
-
+# ===================== LOCAL MARKING (OBJECTIVES ONLY) =====================
 def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[int, str]:
-    """Simple string comparison for objective questions."""
+    """
+    Robust objective marking without AI.
+    - Parses messy "Qn -> answer" formats.
+    - Normalizes umlauts/ß to ASCII equivalents for comparison.
+    - Accepts synonyms for True/False and Ja/Nein.
+    """
 
-    def parse_answers(text: str) -> Dict[int, str]:
-        result: Dict[int, str] = {}
+    def canonical_word(s: str) -> str:
+        s = (s or "").strip()
+        if not s:
+            return ""
+        # Letter option? Keep A-D uppercase
+        if re.fullmatch(r"[a-dA-D]", s):
+            return s.upper()
+
+        # Lowercase words, normalize umlauts to ASCII
+        s = s.lower()
+        s = (s
+             .replace("ä", "ae")
+             .replace("ö", "oe")
+             .replace("ü", "ue")
+             .replace("ß", "ss"))
+        # Common boolean/YN synonyms
+        if s in {"t", "true", "ja", "j", "y", "yes"}:
+            return "true"
+        if s in {"f", "false", "nein", "n", "no"}:
+            return "false"
+
+        # Remove surrounding punctuation/spaces inside small tokens
+        s = re.sub(r"[^\w]+", "", s)
+        return s
+
+    def parse_pairs_freeform(text: str) -> Dict[int, str]:
+        """
+        Parse "1 A", "1: B", "1)C", "Q1=B", "1. Uhr", and also compact streams.
+        Strategy: find each question number and capture the token until the next number.
+        """
+        res: Dict[int, str] = {}
+        if not text:
+            return res
+
+        # Find all number anchors
+        anchors = list(re.finditer(r"(?i)(?:q\s*)?(\d+)\s*[\.\):=\-]*\s*", text))
+        for i, m in enumerate(anchors):
+            qnum = int(m.group(1))
+            start = m.end()
+            end = anchors[i + 1].start() if i + 1 < len(anchors) else len(text)
+            chunk = text[start:end].strip()
+
+            if not chunk:
+                continue
+
+            # First plausible token within the chunk (letter or short word)
+            # Split by whitespace/commas/semicolons/pipes/newlines
+            token = re.split(r"[,\|\n;/\t ]+", chunk, maxsplit=1)[0]
+            token = token.strip().strip("()[]{}.:=").strip()
+            if token and qnum not in res:
+                res[qnum] = token
+        # Also handle simple per-line "n. token" formats
         for line in text.splitlines():
-            m = re.match(r"\s*(\d+)[\.)-]?\s*(.+)", line)
+            m = re.match(r"\s*(?:q\s*)?(\d+)\s*[\.\):=\-]?\s*(.+?)\s*$", line, flags=re.I)
             if m:
-                result[int(m.group(1))] = m.group(2).strip()
-        return result
+                qn = int(m.group(1))
+                tok = m.group(2).strip()
+                if qn not in res and tok:
+                    res[qn] = tok
+        return res
 
-    student_map = parse_answers(student_answer)
-    total = len(ref_answers) or 1
+    # Build canonical reference map
+    ref_canon: Dict[int, str] = {}
+    for idx, ans in (ref_answers or {}).items():
+        ref_canon[int(idx)] = canonical_word(str(ans))
+
+    # Parse student's freeform text
+    stu_raw = parse_pairs_freeform(student_answer or "")
+    stu_canon: Dict[int, str] = {qn: canonical_word(tok) for qn, tok in stu_raw.items()}
+
+    total = len(ref_canon) or 1
     correct = 0
-    wrong: List[str] = []
-    for idx, ref in ref_answers.items():
-        stu = student_map.get(idx, "")
-        if stu.strip().lower() == str(ref).strip().lower():
+    wrong_bits: List[str] = []
+
+    for idx in sorted(ref_canon.keys()):
+        ref_tok = ref_canon[idx]
+        stu_tok = stu_canon.get(idx, "")
+
+        if stu_tok and re.fullmatch(r"[A-D]", ref_tok):
+            # choice letter expected; student may have given letter or word—compare canon
+            is_ok = (stu_tok == ref_tok)
+        else:
+            is_ok = (stu_tok == ref_tok)
+
+        if is_ok:
             correct += 1
         else:
-            wrong.append(f"{idx}: expected '{ref}', got '{stu or '—'}'")
+            # For display, keep original (un-canon) when possible
+            stu_disp = stu_raw.get(idx, "") or "—"
+            wrong_bits.append(f"{idx}→{ref_answers.get(idx, '')} (you wrote {stu_disp})")
+
     score = int(round(100 * correct / total))
-    feedback = "All correct." if not wrong else "Incorrect -> " + "; ".join(wrong)
+    feedback = "Great job — all correct!" if not wrong_bits else (
+        "Keep going. Check these: " + ", ".join(wrong_bits) +
+        ". Tip: read each item carefully and watch letters like A/B/C/D and umlauts (ä/ö/ü)."
+    )
     return score, feedback
 
 def save_row_to_scores(row: dict) -> dict:
@@ -334,6 +455,7 @@ def save_row_to_scores(row: dict) -> dict:
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
 
 # =========================================================
 # UI
