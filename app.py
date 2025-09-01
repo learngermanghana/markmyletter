@@ -9,14 +9,6 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# ---------------- OpenAI (optional) ----------------
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
-try:
-    from openai import OpenAI
-    ai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-except Exception:
-    ai_client = None
-
 # ---------------- Firebase ----------------
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -59,10 +51,6 @@ ANSWER_SOURCE = (
 ).lower()
 if ANSWER_SOURCE not in ("json", "sheet"):
     ANSWER_SOURCE = ""
-
-# Criteria used for rubric-based AI feedback
-RUBRIC_CRITERIA = ["overall"]
-
 
 # =========================================================
 # Helpers
@@ -386,73 +374,6 @@ def _build_feedback_40_60(correct: int, total: int, wrong: List[Tuple[int, str, 
         if not re.search(r"[.?!]$", text):
             break
     return text
-
-
-def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, str]:
-    """
-    A1 objectives-only marking.
-    - Pre-normalizes numbering (Teil sections → global).
-    - Computes mistakes deterministically.
-    - Ensures feedback is 40–60 words; never lists correct items as wrong.
-    - Still calls OpenAI but uses local truth for correctness/score/feedback if needed.
-    """
-    # Compute local truth first (used for safety + feedback building)
-    correct, total, wrong = _compute_objective_diffs(student_answer, ref_text)
-    local_score = int(round(100 * correct / max(total, 1)))
-    local_feedback = _build_feedback_40_60(correct, total, wrong)
-
-    if not ai_client:
-        return local_score, local_feedback
-
-    # Build globalized block for the model (it helps parsing if we ever use AI output)
-    student_global = globalize_objective_numbers(student_answer)
-
-    try:
-        system_prompt = (
-            "You are a precise but kind German tutor. Grade ONLY objective questions.\n"
-            "Return ONLY JSON: {\"score\": <int 0-100>, \"feedback\": \"<30–50 words>\"}.\n"
-            "No markdown, no extra keys, no explanations."
-        )
-        user_prompt = f"""Level: {student_level}
-
-REFERENCE ANSWERS (numbered lines):
-{ref_text}
-
-GLOBALIZED STUDENT ANSWERS (1..N):
-{student_global or "(none)"}
-"""
-        try:
-            resp = ai_client.responses.create(
-                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-                temperature=0,
-                response_format={"type": "json_object"},
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            )
-            raw = getattr(resp, "output_text", "") or ""
-        except Exception:
-            resp = ai_client.chat.completions.create(
-                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-                temperature=0,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            )
-            raw = resp.choices[0].message.content or ""
-
-        m = re.search(r"\{.*\}", raw, flags=re.S)
-        text = m.group(0) if m else raw
-        data = json.loads(text) if text.strip().startswith("{") else {}
-        # We do NOT trust the AI's wrong list; we keep our deterministic result.
-        # We also keep our local feedback length guarantee.
-        return local_score, local_feedback
-    except Exception:
-        # Safe fallback
-        return local_score, local_feedback
 
 
 # ===================== LOCAL MARKING (OBJECTIVES ONLY) =====================
@@ -805,38 +726,18 @@ combined = f"""# Student Submission
 """
 st.text_area("Combined", value=combined, height=200)
 
-# AI generate (override allowed)
+# Manual scoring
 if "ai_score" not in st.session_state:
     st.session_state.ai_score = 0
 if "feedback" not in st.session_state:
     st.session_state.feedback = ""
 
-cur_key = f"{studentcode}|{st.session_state.ref_assignment}|{student_text[:60]}|{st.session_state.ref_format}"
-if student_text.strip() and st.session_state.ref_text.strip() and st.session_state.get("ai_key") != cur_key:
-    if st.session_state.ref_format == "objective":
-        s, fb = objective_mark(student_text, st.session_state.ref_answers)
-    elif ai_client:
-        s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
-    else:
-        s, fb = (None, "")
-    if s is not None:
-        st.session_state.ai_score = s
-    st.session_state.feedback = fb if isinstance(fb, str) else json.dumps(fb, indent=2)
-    st.session_state.ai_key = cur_key
-
-colA, colB = st.columns(2)
-with colA:
-    btn_label = "🔁 Recalculate" if st.session_state.ref_format == "objective" else "🔁 Regenerate AI"
-    if st.button(btn_label):
-        if st.session_state.ref_format == "objective":
-            s, fb = objective_mark(student_text, st.session_state.ref_answers)
-        else:
-            s, fb = ai_mark(student_text, st.session_state.ref_text, student_level)
-        if s is not None:
-            st.session_state.ai_score = s
-        st.session_state.feedback = fb if isinstance(fb, str) else json.dumps(fb, indent=2)
+if st.button("Reset"):
+    st.session_state.ai_score = 0
+    st.session_state.feedback = ""
 
 score = st.number_input("Score", 0, 100, value=int(st.session_state.ai_score))
+st.session_state.ai_score = score
 
 feedback = st.text_area("Feedback", key="feedback", height=80)
 
