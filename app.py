@@ -8,6 +8,11 @@ from typing import Dict, Any, List, Tuple
 import pandas as pd
 import requests
 import streamlit as st
+try:
+    from streamlit_autorefresh import st_autorefresh
+except Exception:  # pragma: no cover - allow running without plugin
+    def st_autorefresh(*args, **kwargs):
+        return None
 
 # ---------------- Firebase ----------------
 import firebase_admin
@@ -711,18 +716,35 @@ st.info(
 
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
-subs = fetch_submissions(studentcode)
-if not subs:
-    st.warning("No submissions found under drafts_v2/{code}/lessons (or lessens).")
-    student_text = ""
-else:
-    def label_for(i: int, d: Dict[str, Any]) -> str:
-        txt = extract_text_from_doc(d)
-        preview = (txt[:80] + "…") if len(txt) > 80 else txt
-        return f"{i+1} • {d.get('id','(no-id)')} • {preview}"
-    labels_sub = [label_for(i, d) for i, d in enumerate(subs)]
-    pick = st.selectbox("Pick submission", labels_sub)
-    student_text = extract_text_from_doc(subs[labels_sub.index(pick)])
+student_text = ""
+tab_subs, tab_new = st.tabs(["Submissions", "New drafts"])
+
+with tab_subs:
+    subs = fetch_submissions(studentcode)
+    if not subs:
+        st.warning(
+            "No submissions found under drafts_v2/{code}/lessons (or lessens)."
+        )
+    else:
+        def label_for(i: int, d: Dict[str, Any]) -> str:
+            txt = extract_text_from_doc(d)
+            preview = (txt[:80] + "…") if len(txt) > 80 else txt
+            return f"{i+1} • {d.get('id','(no-id)')} • {preview}"
+
+        labels_sub = [label_for(i, d) for i, d in enumerate(subs)]
+        pick = st.selectbox("Pick submission", labels_sub)
+        student_text = extract_text_from_doc(subs[labels_sub.index(pick)])
+
+with tab_new:
+    st_autorefresh(interval=5000, key="draft_refresh")
+    subs = fetch_submissions(studentcode)
+    if not subs:
+        st.info("No drafts yet.")
+    else:
+        latest = max(subs, key=lambda d: d.get("timestamp", 0))
+        latest_text = extract_text_from_doc(latest)
+        st.markdown("**Newest Draft**")
+        st.code(latest_text or "(empty)", language="markdown")
 
 st.markdown("**Student Submission**")
 st.code(student_text or "(empty)", language="markdown")
