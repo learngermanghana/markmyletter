@@ -3,7 +3,7 @@ import os
 import re
 import json
 from datetime import datetime
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 import pandas as pd
 import requests
@@ -232,11 +232,46 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
         return []
     items: List[Dict[str, Any]] = []
 
+    def _ts_ms(doc: Dict[str, Any]) -> int:
+        """Best-effort extraction of timestamp in milliseconds."""
+        ts: Optional[Any] = doc.get("timestamp")
+        try:
+            if isinstance(ts, (int, float)):
+                return int(ts if ts > 10_000_000_000 else ts * 1000)
+            if isinstance(ts, datetime):
+                return int(ts.timestamp() * 1000)
+            if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
+                return int(ts.to_datetime().timestamp() * 1000)
+            if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
+                return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
+            if hasattr(ts, "timestamp") and callable(ts.timestamp):
+                return int(ts.timestamp() * 1000)
+            if isinstance(ts, dict):
+                if "_seconds" in ts:
+                    seconds = int(ts.get("_seconds", 0))
+                    nanos = int(ts.get("_nanoseconds", 0))
+                    return int(seconds * 1000 + nanos / 1_000_000)
+                for key in ("iso", "time", "date", "datetime"):
+                    if key in ts and isinstance(ts[key], str):
+                        try:
+                            return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
+                        except Exception:
+                            pass
+            if isinstance(ts, str):
+                try:
+                    return int(datetime.fromisoformat(ts).timestamp() * 1000)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return 0
+
     def pull(coll: str):
         try:
             for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
                 d = snap.to_dict() or {}
                 d["id"] = snap.id
+                d["_ts_ms"] = _ts_ms(d)
                 items.append(d)
         except Exception:
             pass
@@ -244,6 +279,8 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
     pull("lessons")
     if not items:
         pull("lessens")
+
+    items.sort(key=lambda d: d.get("_ts_ms", 0), reverse=True)
     return items
 
 
@@ -726,12 +763,13 @@ with tab_subs:
             "No submissions found under drafts_v2/{code}/lessons (or lessens)."
         )
     else:
-        def label_for(i: int, d: Dict[str, Any]) -> str:
+        def label_for(d: Dict[str, Any]) -> str:
             txt = extract_text_from_doc(d)
             preview = (txt[:80] + "…") if len(txt) > 80 else txt
-            return f"{i+1} • {d.get('id','(no-id)')} • {preview}"
+            ts = datetime.fromtimestamp(d.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
+            return f"{ts} • {d.get('id','(no-id)')} • {preview}"
 
-        labels_sub = [label_for(i, d) for i, d in enumerate(subs)]
+        labels_sub = [label_for(d) for d in subs]
         pick = st.selectbox("Pick submission", labels_sub)
         student_text = extract_text_from_doc(subs[labels_sub.index(pick)])
 
@@ -741,10 +779,13 @@ with tab_new:
     if not subs:
         st.info("No drafts yet.")
     else:
-        latest = max(subs, key=lambda d: d.get("timestamp", 0))
+        latest = subs[0]
         latest_text = extract_text_from_doc(latest)
         st.markdown("**Newest Draft**")
         st.code(latest_text or "(empty)", language="markdown")
+        st.caption(
+            datetime.fromtimestamp(latest.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
+        )
 
 st.markdown("**Student Submission**")
 st.code(student_text or "(empty)", language="markdown")
