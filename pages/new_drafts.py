@@ -13,131 +13,13 @@ except Exception:  # pragma: no cover
         return None
 
 # ---- Firebase setup ----
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-if not firebase_admin._apps:
-    fb_cfg = st.secrets.get("firebase")
-    if fb_cfg:
-        cred = credentials.Certificate(dict(fb_cfg))
-        firebase_admin.initialize_app(cred)
-
-db = firestore.client() if firebase_admin._apps else None
+from firebase_utils import db, extract_text_from_doc, extract_ts_ms, fetch_all_submissions
 
 # Show which Firestore project we’re connected to
 if db:
     st.caption(f"Firestore project: {getattr(db, 'project', '?')}")
 
 
-# ---- Helpers ----
-def extract_text_from_doc(doc: Dict[str, Any]) -> str:
-    """Best-effort extraction of text content from heterogeneous docs."""
-    preferred = ["content", "text", "answer", "body", "draft", "message"]
-    for k in preferred:
-        v = doc.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-        if isinstance(v, list):
-            parts = []
-            for item in v:
-                if isinstance(item, str):
-                    parts.append(item)
-                elif isinstance(item, dict):
-                    for kk in ["text", "content", "value"]:
-                        if kk in item and isinstance(item[kk], str):
-                            parts.append(item[kk])
-            if parts:
-                return "\n".join(parts).strip()
-        if isinstance(v, dict):
-            for kk in ["text", "content", "value"]:
-                vv = v.get(kk)
-                if isinstance(vv, str) and vv.strip():
-                    return vv.strip()
-    strings = [str(v).strip() for v in doc.values() if isinstance(v, str) and str(v).strip()]
-    return "\n".join(strings).strip()
-
-
-def _extract_ts_ms(doc: Dict[str, Any]) -> int:
-    """Return timestamp in milliseconds; accepts many Firestore/time shapes.
-    Falls back to `_meta_ts` when `timestamp` is missing.
-    """
-    ts: Optional[Any] = doc.get("timestamp")
-    if ts is None:
-        ts = doc.get("_meta_ts")
-
-    try:
-        # Numeric (ms or s)
-        if isinstance(ts, (int, float)):
-            return int(ts if ts > 10_000_000_000 else ts * 1000)
-
-        # datetime
-        if isinstance(ts, datetime):
-            return int(ts.timestamp() * 1000)
-
-        # Firestore Timestamp-like
-        if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
-            return int(ts.to_datetime().timestamp() * 1000)
-        if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
-            return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
-        if hasattr(ts, "timestamp") and callable(ts.timestamp):
-            return int(ts.timestamp() * 1000)
-
-        # Dict-ish ({"_seconds": ...})
-        if isinstance(ts, dict):
-            if "_seconds" in ts:
-                seconds = int(ts.get("_seconds", 0))
-                nanos = int(ts.get("_nanoseconds", 0))
-                return int(seconds * 1000 + nanos / 1_000_000)
-            for key in ("iso", "time", "date", "datetime"):
-                if key in ts and isinstance(ts[key], str):
-                    try:
-                        return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
-                    except Exception:
-                        pass
-
-        # ISO string
-        if isinstance(ts, str):
-            try:
-                return int(datetime.fromisoformat(ts).timestamp() * 1000)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return 0
-
-
-def fetch_all_submissions() -> List[Dict[str, Any]]:
-    """Collect all docs from ANY student's `lessons` subcollection using collection_group.
-
-    If a doc lacks a `timestamp` field, we set `_meta_ts` from snapshot times
-    (update_time preferred, then create_time).
-    """
-    if not db:
-        return []
-
-    items: List[Dict[str, Any]] = []
-    try:
-        for snap in db.collection_group("lessons").stream():
-            d = snap.to_dict() or {}
-            d["id"] = snap.id
-
-            # Parent of 'lessons' is the student document
-            try:
-                parent_doc = snap.reference.parent.parent
-                if parent_doc:
-                    d["student_code"] = parent_doc.id
-            except Exception:
-                pass
-
-            if not d.get("timestamp"):
-                meta_ts = getattr(snap, "update_time", None) or getattr(snap, "create_time", None)
-                if meta_ts:
-                    d["_meta_ts"] = meta_ts
-
-            items.append(d)
-    except Exception as e:
-        st.error(f"collection_group('lessons') failed: {e}")
-    return items
 
 
 def notify_on_new(subs: List[Dict[str, Any]]) -> None:
@@ -147,7 +29,7 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
 
     times: List[int] = []
     for d in subs:
-        t = _extract_ts_ms(d)
+        t = extract_ts_ms(d)
         if t > 0:
             times.append(t)
     newest = max(times) if times else 0
@@ -277,7 +159,7 @@ def _passes_filters(d: Dict[str, Any]) -> bool:
             return False
     # date filter
     if date_input_val:
-        ts = _extract_ts_ms(d)
+        ts = extract_ts_ms(d)
         if ts <= 0:
             return False
         ddate = datetime.fromtimestamp(ts / 1000).date()
@@ -296,7 +178,7 @@ def _passes_filters(d: Dict[str, Any]) -> bool:
 # Apply filters, sort, limit
 filtered = [d for d in subs if _passes_filters(d)]
 reverse = (sort_choice == "Newest first")
-filtered.sort(key=_extract_ts_ms, reverse=reverse)
+filtered.sort(key=extract_ts_ms, reverse=reverse)
 filtered = filtered[:limit_n]
 
 # --- Debug info (optional) ---
@@ -310,11 +192,11 @@ with st.expander("Debug info"):
 if not filtered:
     # Still trigger notifications against ALL docs so you don't miss anything
     if subs:
-        notify_on_new(sorted(subs, key=_extract_ts_ms, reverse=True))
+        notify_on_new(sorted(subs, key=extract_ts_ms, reverse=True))
     st.info("No drafts match your filters.")
 else:
     # Fire notifications for fresh arrivals against the FULL set (not just filtered)
-    notify_on_new(sorted(subs, key=_extract_ts_ms, reverse=True))
+    notify_on_new(sorted(subs, key=extract_ts_ms, reverse=True))
 
     # Table or cards
     show_table = st.checkbox("Show as table", value=False)
@@ -322,7 +204,7 @@ else:
         import pandas as pd
         rows = []
         for d in filtered:
-            ts_ms = _extract_ts_ms(d)
+            ts_ms = extract_ts_ms(d)
             ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else ""
             rows.append({
                 "Time": ts_str,
@@ -338,7 +220,7 @@ else:
             if group_by == "Student":
                 return d.get("student_code", "(unknown)")
             if group_by == "Date":
-                ts = _extract_ts_ms(d)
+                ts = extract_ts_ms(d)
                 return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d") if ts else "(no-date)"
             return "All"
 
@@ -352,7 +234,7 @@ else:
             if group_by != "None":
                 st.subheader(f"{gkey}  ·  {len(items)}")
             for doc in items:
-                ts_ms = _extract_ts_ms(doc)
+                ts_ms = extract_ts_ms(doc)
                 ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else "(no time)"
                 lesson = doc.get("lesson") or doc.get("assignment") or ""
                 student_code = doc.get("student_code", "")
