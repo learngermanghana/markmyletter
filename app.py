@@ -15,15 +15,9 @@ except Exception:  # pragma: no cover - allow running without plugin
         return None
 
 # ---------------- Firebase ----------------
-import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_utils import get_firestore_client
 
-if not firebase_admin._apps:
-    fb_cfg = st.secrets.get("firebase")
-    if fb_cfg:
-        cred = credentials.Certificate(dict(fb_cfg))
-        firebase_admin.initialize_app(cred)
-db = firestore.client() if firebase_admin._apps else None
+db = get_firestore_client()
 
 # ---------------- IDs / Config ----------------
 # Students Google Sheet (tab now "Sheet1" unless you override in secrets)
