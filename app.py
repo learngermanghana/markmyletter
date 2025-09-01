@@ -15,15 +15,7 @@ except Exception:  # pragma: no cover - allow running without plugin
         return None
 
 # ---------------- Firebase ----------------
-import firebase_admin
-from firebase_admin import credentials, firestore
-
-if not firebase_admin._apps:
-    fb_cfg = st.secrets.get("firebase")
-    if fb_cfg:
-        cred = credentials.Certificate(dict(fb_cfg))
-        firebase_admin.initialize_app(cred)
-db = firestore.client() if firebase_admin._apps else None
+from firebase_utils import fetch_submissions, extract_text_from_doc
 
 # ---------------- IDs / Config ----------------
 # Students Google Sheet (tab now "Sheet1" unless you override in secrets)
@@ -201,87 +193,6 @@ def filter_any(df: pd.DataFrame, q: str) -> pd.DataFrame:
     return df[mask.any(axis=1)]
 
 
-def extract_text_from_doc(doc: Dict[str, Any]) -> str:
-    preferred = ["content", "text", "answer", "body", "draft", "message"]
-    for k in preferred:
-        v = doc.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-        if isinstance(v, list):
-            parts = []
-            for item in v:
-                if isinstance(item, str):
-                    parts.append(item)
-                elif isinstance(item, dict):
-                    for kk in ["text", "content", "value"]:
-                        if kk in item and isinstance(item[kk], str):
-                            parts.append(item[kk])
-            if parts:
-                return "\n".join(parts).strip()
-        if isinstance(v, dict):
-            for kk in ["text", "content", "value"]:
-                vv = v.get(kk)
-                if isinstance(vv, str) and vv.strip():
-                    return vv.strip()
-    strings = [str(v).strip() for v in doc.values() if isinstance(v, str) and str(v).strip()]
-    return "\n".join(strings).strip()
-
-
-def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
-    if not db or not student_code:
-        return []
-    items: List[Dict[str, Any]] = []
-
-    def _ts_ms(doc: Dict[str, Any]) -> int:
-        """Best-effort extraction of timestamp in milliseconds."""
-        ts: Optional[Any] = doc.get("timestamp")
-        try:
-            if isinstance(ts, (int, float)):
-                return int(ts if ts > 10_000_000_000 else ts * 1000)
-            if isinstance(ts, datetime):
-                return int(ts.timestamp() * 1000)
-            if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
-                return int(ts.to_datetime().timestamp() * 1000)
-            if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
-                return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
-            if hasattr(ts, "timestamp") and callable(ts.timestamp):
-                return int(ts.timestamp() * 1000)
-            if isinstance(ts, dict):
-                if "_seconds" in ts:
-                    seconds = int(ts.get("_seconds", 0))
-                    nanos = int(ts.get("_nanoseconds", 0))
-                    return int(seconds * 1000 + nanos / 1_000_000)
-                for key in ("iso", "time", "date", "datetime"):
-                    if key in ts and isinstance(ts[key], str):
-                        try:
-                            return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
-                        except Exception:
-                            pass
-            if isinstance(ts, str):
-                try:
-                    return int(datetime.fromisoformat(ts).timestamp() * 1000)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        return 0
-
-    def pull(coll: str):
-        try:
-            for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
-                d = snap.to_dict() or {}
-                d["id"] = snap.id
-                d["_ts_ms"] = _ts_ms(d)
-                items.append(d)
-        except Exception:
-            pass
-
-    pull("lessons")
-    if not items:
-        pull("lessens")
-
-    items.sort(key=lambda d: d.get("_ts_ms", 0), reverse=True)
-    return items
 
 
 # ---------- PRE-NORMALIZER: turn "Teil 3/4" local numbers into global 1..N ----------
