@@ -146,7 +146,7 @@ def build_reference_text_from_json(
     row_obj: Dict[str, Any]
 ) -> Tuple[str, str, str, Dict[int, str]]:
     """Return reference text, link, format and raw answers from JSON row."""
-    answers: Dict[str, str] = row_obj.get("answers") or {
+    answers: Dict[str, Any] = row_obj.get("answers") or {
         k: v for k, v in row_obj.items() if k.lower().startswith("answer")
     }
 
@@ -154,15 +154,30 @@ def build_reference_text_from_json(
         m = re.search(r"(\d+)", k)
         return int(m.group(1)) if m else 0
 
-    ordered = sorted(answers.items(), key=lambda kv: n_from(kv[0]))
     chunks: List[str] = []
     answers_map: Dict[int, str] = {}
-    for k, v in ordered:
-        v = str(v).strip()
-        if v and v.lower() not in ("nan", "none"):
-            idx = n_from(k)
-            chunks.append(f"{idx}. {v}")
-            answers_map[idx] = v
+
+    if isinstance(answers, dict) and ("teil3" in answers or "teil4" in answers):
+        idx = 1
+        for part_key in ("teil3", "teil4"):
+            part = answers.get(part_key) or {}
+            if part:
+                chunks.append(part_key.replace("teil", "Teil "))
+                ordered = sorted(part.items(), key=lambda kv: n_from(kv[0]))
+                for k, v in ordered:
+                    v = str(v).strip()
+                    if v and v.lower() not in ("nan", "none"):
+                        chunks.append(f"{idx}. {v}")
+                        answers_map[idx] = v
+                        idx += 1
+    else:
+        ordered = sorted(answers.items(), key=lambda kv: n_from(kv[0]))
+        for k, v in ordered:
+            v = str(v).strip()
+            if v and v.lower() not in ("nan", "none"):
+                idx = n_from(k)
+                chunks.append(f"{idx}. {v}")
+                answers_map[idx] = v
     fmt = str(row_obj.get("format", "essay")).strip().lower() or "essay"
     return (
         "\n".join(chunks) if chunks else "No reference answers found.",
