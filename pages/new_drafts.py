@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit.components.v1 import html as st_html
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any, Dict, List, Optional
 
 # ---- Page setup ----
@@ -145,7 +145,11 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
     if not subs:
         return
 
-    times = [_extract_ts_ms(d) for d in subs if _extract_ts_ms(d) > 0]
+    times: List[int] = []
+    for d in subs:
+        t = _extract_ts_ms(d)
+        if t > 0:
+            times.append(t)
     newest = max(times) if times else 0
 
     # Initialize on first render so old backlog doesn't trigger a burst
@@ -244,39 +248,115 @@ if not db:
 
 subs = fetch_all_submissions()
 
-# Small debug info
+# --- Filters & view controls ---
+with st.expander("Filters & view", expanded=True):
+    # Build choices
+    all_students = sorted({d.get("student_code", "") for d in subs if d.get("student_code")})
+    colA, colB, colC = st.columns([2, 2, 2])
+    selected_students = colA.multiselect("Students", options=all_students, default=[])
+    text_query = colB.text_input("Search (lesson/content)", value="")
+    date_input_val = colC.date_input("Date range (optional)", value=None)
+
+    colD, colE, colF = st.columns([2, 2, 2])
+    group_by = colD.radio("Group by", options=["None", "Student", "Date"], horizontal=True, index=0)
+    sort_choice = colE.selectbox("Sort", options=["Newest first", "Oldest first"], index=0)
+    limit_n = int(colF.number_input("Show latest N", min_value=10, max_value=1000, value=200, step=10))
+
+
+def _passes_filters(d: Dict[str, Any]) -> bool:
+    # student filter
+    if selected_students and d.get("student_code", "") not in selected_students:
+        return False
+    # search over lesson + content
+    if text_query:
+        hay = " ".join([
+            str(d.get("lesson") or d.get("assignment") or ""),
+            extract_text_from_doc(d)
+        ]).lower()
+        if text_query.lower() not in hay:
+            return False
+    # date filter
+    if date_input_val:
+        ts = _extract_ts_ms(d)
+        if ts <= 0:
+            return False
+        ddate = datetime.fromtimestamp(ts / 1000).date()
+        # Streamlit can return a single date or a tuple/list(range))
+        if isinstance(date_input_val, (list, tuple)):
+            if len(date_input_val) == 2 and all(isinstance(x, date) for x in date_input_val):
+                start, end = date_input_val
+                if not (start <= ddate <= end):
+                    return False
+        elif isinstance(date_input_val, date):
+            if ddate != date_input_val:
+                return False
+    return True
+
+
+# Apply filters, sort, limit
+filtered = [d for d in subs if _passes_filters(d)]
+reverse = (sort_choice == "Newest first")
+filtered.sort(key=_extract_ts_ms, reverse=reverse)
+filtered = filtered[:limit_n]
+
+# --- Debug info (optional) ---
 with st.expander("Debug info"):
     st.write({
-        "documents_found": len(subs),
+        "documents_found_total": len(subs),
+        "after_filters": len(filtered),
         "last_seen_ts": st.session_state.get("last_seen_ts"),
     })
 
-if not subs:
-    st.info("No drafts found.")
+if not filtered:
+    # Still trigger notifications against ALL docs so you don't miss anything
+    if subs:
+        notify_on_new(sorted(subs, key=_extract_ts_ms, reverse=True))
+    st.info("No drafts match your filters.")
 else:
-    subs = sorted(subs, key=_extract_ts_ms, reverse=True)
+    # Fire notifications for fresh arrivals against the FULL set (not just filtered)
+    notify_on_new(sorted(subs, key=_extract_ts_ms, reverse=True))
 
-    # Fire notifications for fresh arrivals
-    notify_on_new(subs)
-
-    # Toggle view
+    # Table or cards
     show_table = st.checkbox("Show as table", value=False)
     if show_table:
         import pandas as pd
-        st.dataframe(pd.DataFrame(subs))
+        rows = []
+        for d in filtered:
+            ts_ms = _extract_ts_ms(d)
+            ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else ""
+            rows.append({
+                "Time": ts_str,
+                "Student": d.get("student_code", ""),
+                "Lesson": d.get("lesson") or d.get("assignment") or "",
+                "Preview": (extract_text_from_doc(d) or "(empty)")[:200],
+            })
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True)
     else:
-        for doc in subs:
-            ts_ms = _extract_ts_ms(doc)
-            if ts_ms:
-                ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                ts_str = str(doc.get("timestamp", "")) or "(no time)"
+        # Grouped card view
+        def _group_key(d):
+            if group_by == "Student":
+                return d.get("student_code", "(unknown)")
+            if group_by == "Date":
+                ts = _extract_ts_ms(d)
+                return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d") if ts else "(no-date)"
+            return "All"
 
-            lesson = doc.get("lesson") or doc.get("assignment") or ""
-            student_code = doc.get("student_code", "")
-            content = extract_text_from_doc(doc) or "(empty)"
+        # Build groups preserving order
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        for d in filtered:
+            k = _group_key(d)
+            grouped.setdefault(k, []).append(d)
 
-            # Border param is available on recent Streamlit; safe if ignored on older
-            with st.container(border=True):
-                st.markdown(f"**{ts_str} — {lesson} — {student_code}**")
-                st.markdown(content)
+        for gkey, items in grouped.items():
+            if group_by != "None":
+                st.subheader(f"{gkey}  ·  {len(items)}")
+            for doc in items:
+                ts_ms = _extract_ts_ms(doc)
+                ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else "(no time)"
+                lesson = doc.get("lesson") or doc.get("assignment") or ""
+                student_code = doc.get("student_code", "")
+                content = extract_text_from_doc(doc) or "(empty)"
+                with st.container(border=True):
+                    st.markdown(f"**{ts_str} — {lesson} — {student_code}**")
+                    st.markdown(content)
