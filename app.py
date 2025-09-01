@@ -67,8 +67,10 @@ RUBRIC_CRITERIA = ["overall"]
 # =========================================================
 # Helpers
 # =========================================================
+
 def natural_key(s: str):
     return [int(t) if t.isdigit() else t.lower() for t in re.findall(r"\d+|\D+", str(s))]
+
 
 @st.cache_data(show_spinner=False, ttl=300)
 def load_sheet_csv(sheet_id: str, tab: str) -> pd.DataFrame:
@@ -82,6 +84,7 @@ def load_sheet_csv(sheet_id: str, tab: str) -> pd.DataFrame:
     df.columns = df.columns.str.strip().str.lower()
     return df
 
+
 @st.cache_data(show_spinner=False)
 def load_answers_dictionary() -> Dict[str, Any]:
     for p in ANSWERS_JSON_PATHS:
@@ -89,6 +92,7 @@ def load_answers_dictionary() -> Dict[str, Any]:
             with open(p, "r", encoding="utf-8") as f:
                 return json.load(f)
     return {}
+
 
 def find_col(df: pd.DataFrame, candidates: List[str], default: str = "") -> str:
     norm = {c: c.lower().strip().replace(" ", "").replace("_", "") for c in df.columns}
@@ -101,18 +105,22 @@ def find_col(df: pd.DataFrame, candidates: List[str], default: str = "") -> str:
         return default
     raise KeyError(f"Missing columns: {candidates}")
 
+
 def list_sheet_assignments(ref_df: pd.DataFrame, assignment_col: str) -> List[str]:
     vals = ref_df[assignment_col].astype(str).fillna("").str.strip()
     vals = [v for v in vals if v]
     return sorted(vals, key=natural_key)
+
 
 def ordered_answer_cols(cols: List[str]) -> List[str]:
     pairs = []
     for c in cols:
         if c.lower().startswith("answer"):
             m = re.search(r"(\d+)", c)
-            if m: pairs.append((int(m.group(1)), c))
+            if m:
+                pairs.append((int(m.group(1)), c))
     return [c for _, c in sorted(pairs, key=lambda x: x[0])]
+
 
 def build_reference_text_from_sheet(
     ref_df: pd.DataFrame, assignment_col: str, assignment_value: str
@@ -141,8 +149,10 @@ def build_reference_text_from_sheet(
         answers_map,
     )
 
+
 def list_json_assignments(ans_dict: Dict[str, Any]) -> List[str]:
     return sorted(list(ans_dict.keys()), key=natural_key)
+
 
 def build_reference_text_from_json(
     row_obj: Dict[str, Any]
@@ -173,34 +183,45 @@ def build_reference_text_from_json(
         answers_map,
     )
 
+
 def filter_any(df: pd.DataFrame, q: str) -> pd.DataFrame:
-    if not q: return df
+    if not q:
+        return df
     mask = df.apply(lambda c: c.astype(str).str.contains(q, case=False, na=False))
     return df[mask.any(axis=1)]
+
 
 def extract_text_from_doc(doc: Dict[str, Any]) -> str:
     preferred = ["content", "text", "answer", "body", "draft", "message"]
     for k in preferred:
         v = doc.get(k)
-        if isinstance(v, str) and v.strip(): return v.strip()
+        if isinstance(v, str) and v.strip():
+            return v.strip()
         if isinstance(v, list):
             parts = []
             for item in v:
-                if isinstance(item, str): parts.append(item)
+                if isinstance(item, str):
+                    parts.append(item)
                 elif isinstance(item, dict):
                     for kk in ["text", "content", "value"]:
-                        if kk in item and isinstance(item[kk], str): parts.append(item[kk])
-            if parts: return "\n".join(parts).strip()
+                        if kk in item and isinstance(item[kk], str):
+                            parts.append(item[kk])
+            if parts:
+                return "\n".join(parts).strip()
         if isinstance(v, dict):
             for kk in ["text", "content", "value"]:
                 vv = v.get(kk)
-                if isinstance(vv, str) and vv.strip(): return vv.strip()
+                if isinstance(vv, str) and vv.strip():
+                    return vv.strip()
     strings = [str(v).strip() for v in doc.values() if isinstance(v, str) and str(v).strip()]
     return "\n".join(strings).strip()
 
+
 def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
-    if not db or not student_code: return []
+    if not db or not student_code:
+        return []
     items: List[Dict[str, Any]] = []
+
     def pull(coll: str):
         try:
             for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
@@ -209,66 +230,127 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
                 items.append(d)
         except Exception:
             pass
+
     pull("lessons")
-    if not items: pull("lessens")
+    if not items:
+        pull("lessens")
     return items
 
-# ===================== AI MARKING (OBJECTIVES ONLY) =====================
+
+# ---------- PRE-NORMALIZER: turn "Teil 3/4" local numbers into global 1..N ----------
+
+def globalize_objective_numbers(student_text: str) -> str:
+    """
+    Reads a student's mixed submission (may contain 'Teil 3', 'Teil 4', essays, etc.),
+    extracts objective answers, and rewrites them to GLOBAL numbering (1..N).
+    Output is one-per-line: '1. B', '2. A', ...
+    """
+    if not student_text:
+        return ""
+
+    def parse_pairs_freeform_with_teil_offsets(text: str) -> Dict[int, str]:
+        res: Dict[int, str] = {}
+        offset = 0
+
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+
+            # Detect new section headings like "Teil 3", "TEIL 4", etc.
+            if re.search(r"^\s*teil\s*\d+\s*$", line, flags=re.I):
+                # When a new Teil starts, bump the offset to the max global index seen so far
+                offset = max(res.keys() or [0])
+                continue
+
+            # First, try standard "n. token" per-line formats
+            m = re.match(r"\s*(?:q\s*)?(\d+)\s*[\\.\):=\-]?\s*(.+?)\s*$", line, flags=re.I)
+            if m:
+                local_n = int(m.group(1))
+                token = m.group(2).strip().strip("()[]{}.:=,;")
+                gnum = local_n + offset if offset else local_n
+                res.setdefault(gnum, token)
+                continue
+
+            # Also handle multiple Qs on one line: "... 1) B ... 2. A ..."
+            anchors = list(re.finditer(r"(?i)(?:q\s*)?(\d+)\s*[\\.\):=\-]*\s*", line))
+            for i, am in enumerate(anchors):
+                local_n = int(am.group(1))
+                start = am.end()
+                end = anchors[i + 1].start() if i + 1 < len(anchors) else len(line)
+                chunk = line[start:end].strip()
+                if not chunk:
+                    continue
+                token = re.split(r"[,\|\n;/\t ]+", chunk, maxsplit=1)[0].strip("()[]{}.:=")
+                if token:
+                    gnum = local_n + offset if offset else local_n
+                    res.setdefault(gnum, token)
+
+        return res
+
+    pairs = parse_pairs_freeform_with_teil_offsets(student_text)
+    if not pairs:
+        return ""
+
+    # Emit clean, sorted global lines
+    lines = [f"{k}. {v}" for k, v in sorted(pairs.items())]
+    return "\n".join(lines)
+
+
+# ===================== AI MARKING (OBJECTIVES ONLY, WITH GLOBALIZATION) =====================
+
 def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int | None, str]:
     """
     Uses OpenAI to mark A1-style objective answers ONLY.
+    Pre-normalizes student answers so all sections are mapped to global numbers (1..N).
     Returns (score [0..100] | None, feedback).
     """
     if not ai_client:
         return None, ""
 
+    # Build a global, one-per-line version of the student's objective answers
+    student_global = globalize_objective_numbers(student_answer)
+    try:
+        expected_total = max(
+            [int(n) for n in re.findall(r"^\s*(\d+)\s*[\.\)-]", ref_text, flags=re.M)] or [0]
+        )
+    except Exception:
+        expected_total = 0
+
     system_prompt = """You are a precise but kind German tutor. Grade ONLY objective questions.
-There are numbered reference answers (e.g., "1. B", "2. Uhr", "3. Ja"). Student responses may be messy.
 
 OUTPUT
 Return ONLY JSON: {"score": <int 0-100>, "feedback": "<30–50 words>"}.
 No markdown, no extra keys, no explanations.
 
-TASK
-1) Build the reference key:
-   - Parse each line like "<number>.<space><answer>" from the reference block into a map {n -> token}.
-   - A token can be a letter (A–D) or a short word/phrase.
-2) Parse the student's selections into {n -> token}:
-   - Accept formats like "1 A", "1: A", "1)A", "Q1=B", "1- a", "1. Uhr", "1) true", or multiple lines.
-   - Ignore case, punctuation, extra spaces, and prefixes like "Q".
-   - If the student gives multiple tokens for the same number, use the FIRST valid one.
-3) Normalize when comparing:
-   - For letters, compare A–D case-insensitively.
-   - For words, lowercase and strip punctuation.
-   - Treat umlauts/ß equivalently to ASCII: ä↔ae, ö↔oe, ü↔ue, ß↔ss.
-   - Treat true/false equal to T/F and ja/nein.
-4) Score:
-   - total = count of reference items.
-   - correct = matches after normalization. Unanswered or invalid = wrong.
-   - score = round((correct / total) * 100).
-5) Feedback (English, 30–50 words):
-   - Start with an encouraging verdict for A1 level.
-   - List wrong numbers as "2→B (you wrote C), 5→Uhr (you wrote Zeit)".
-   - Give ONE concrete tip (e.g., re-check Artikel, read the choices carefully, or use umlauts like 'ö').
+PARSING & SCORING
+- Use the GLOBALIZED STUDENT ANSWERS block if present (already remapped to 1..N).
+- If it is missing, parse the original free-form answers, accepting formats like "1 A", "1: A", "1)A", "Q1=B", "1. Uhr", etc.
+- Normalize: case-insensitive letters (A–D), lowercase words, strip punctuation.
+- Treat umlauts/ß equivalently to ASCII: ä↔ae, ö↔oe, ü↔ue, ß↔ss.
+- Treat true/false equal to T/F and ja/nein.
+- Score = round((correct/total)*100), with total = number of reference items.
+- Feedback (EN, 30–50 words): encouraging verdict, list wrong as "2→B (you wrote C)", one actionable tip.
 
 CONSTRAINTS
 - If the student's answer is blank/unusable, return {"score": 0, "feedback": "No assessable answer provided. Try again with complete responses."}.
-- Be slightly lenient if reference lines look inconsistent, but DO NOT invent keys.
+- Be slightly lenient if reference lines are inconsistent; do NOT invent keys.
 """
 
     user_prompt = f"""Level: {student_level}
+Expected total items: {expected_total}
 
 REFERENCE ANSWERS (numbered lines):
 {ref_text}
 
-STUDENT ANSWERS (free-form):
+STUDENT ANSWERS (original):
 {student_answer}
+
+GLOBALIZED STUDENT ANSWERS (authoritative, one per line; use this to grade):
+{student_global or "(none detected)"}
 """
 
     model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-
     try:
-        # Prefer the Responses API
+        # Prefer the Responses API; fall back to Chat Completions if needed.
         try:
             resp = ai_client.responses.create(
                 model=model,
@@ -279,40 +361,36 @@ STUDENT ANSWERS (free-form):
                     {"role": "user", "content": user_prompt},
                 ],
             )
-            raw = getattr(resp, "output_text", None)
-            if not raw:
-                # Fallback extraction for older SDK shapes
-                raw = json.dumps(resp) if isinstance(resp, dict) else ""
+            raw = getattr(resp, "output_text", "") or ""
         except Exception:
-            # Fallback to Chat Completions
             resp = ai_client.chat.completions.create(
                 model=model,
                 temperature=0,
+                response_format={"type": "json_object"},
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
             )
-            raw = resp.choices[0].message.content
+            raw = resp.choices[0].message.content or ""
 
-        text = (raw or "").strip()
-        # Be safe: extract the first JSON object
-        m = re.search(r"\{.*\}", text, flags=re.S)
-        text = m.group(0) if m else text
-        data = json.loads(text) if isinstance(text, str) else dict(text)
-
+        m = re.search(r"\{.*\}", raw, flags=re.S)
+        text = m.group(0) if m else raw
+        data = json.loads(text)
         score = int(data.get("score", 0))
-        fb_str = str(data.get("feedback", "")).strip()
-        return max(0, min(100, score)), fb_str
+        feedback = str(data.get("feedback", "")).strip()
+        return max(0, min(100, score)), feedback
     except Exception:
         # If anything goes wrong, don't crash the app — just skip AI marking.
         return None, ""
 
+
 # ===================== LOCAL MARKING (OBJECTIVES ONLY) =====================
+
 def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[int, str]:
     """
     Robust objective marking without AI.
-    - Parses messy "Qn -> answer" formats.
+    - Parses messy "Qn -> answer" formats with Teil section offsets.
     - Normalizes umlauts/ß to ASCII equivalents for comparison.
     - Accepts synonyms for True/False and Ja/Nein.
     """
@@ -327,64 +405,62 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
 
         # Lowercase words, normalize umlauts to ASCII
         s = s.lower()
-        s = (s
-             .replace("ä", "ae")
-             .replace("ö", "oe")
-             .replace("ü", "ue")
-             .replace("ß", "ss"))
+        s = (
+            s.replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("ß", "ss")
+        )
         # Common boolean/YN synonyms
         if s in {"t", "true", "ja", "j", "y", "yes"}:
             return "true"
         if s in {"f", "false", "nein", "n", "no"}:
             return "false"
 
-        # Remove surrounding punctuation/spaces inside small tokens
+        # Remove non-word characters
         s = re.sub(r"[^\w]+", "", s)
         return s
 
-    def parse_pairs_freeform(text: str) -> Dict[int, str]:
+    def parse_pairs_freeform_with_teil_offsets(text: str) -> Dict[int, str]:
         """
         Parse "1 A", "1: B", "1)C", "Q1=B", "1. Uhr", and also compact streams.
-        Strategy: find each question number and capture the token until the next number.
+        Apply offsets whenever a new 'Teil <n>' heading is encountered.
         """
         res: Dict[int, str] = {}
-        if not text:
-            return res
+        offset = 0
+        lines = text.splitlines()
 
-        # Find all number anchors
-        anchors = list(re.finditer(r"(?i)(?:q\s*)?(\d+)\s*[\.\):=\-]*\s*", text))
-        for i, m in enumerate(anchors):
-            qnum = int(m.group(1))
-            start = m.end()
-            end = anchors[i + 1].start() if i + 1 < len(anchors) else len(text)
-            chunk = text[start:end].strip()
-
-            if not chunk:
+        for line in lines:
+            # Detect new section headings like "Teil 3" (case-insensitive)
+            if re.search(r"^\s*teil\s*\d+\s*$", line, flags=re.I):
+                offset = max(res.keys() or [0])
                 continue
 
-            # First plausible token within the chunk (letter or short word)
-            # Split by whitespace/commas/semicolons/pipes/newlines
-            token = re.split(r"[,\|\n;/\t ]+", chunk, maxsplit=1)[0]
-            token = token.strip().strip("()[]{}.:=").strip()
-            if token and qnum not in res:
-                res[qnum] = token
-        # Also handle simple per-line "n. token" formats
-        for line in text.splitlines():
-            m = re.match(r"\s*(?:q\s*)?(\d+)\s*[\.\):=\-]?\s*(.+?)\s*$", line, flags=re.I)
+            # Standard per-line "n .... token"
+            m = re.match(r"\s*(?:q\s*)?(\d+)\s*[\\.\):=\-]?\s*(.+?)\s*$", line, flags=re.I)
             if m:
-                qn = int(m.group(1))
-                tok = m.group(2).strip()
-                if qn not in res and tok:
-                    res[qn] = tok
+                local_n = int(m.group(1))
+                token = m.group(2).strip().strip("()[]{}.:=,;")
+                gnum = local_n + offset if offset else local_n
+                res.setdefault(gnum, token)
+                continue
+
+            # Fallback: scan inline anchors
+            for m in re.finditer(r"(?i)(?:q\s*)?(\d+)\s*[\\.\):=\-]*\s*", line):
+                local_n = int(m.group(1))
+                tail = line[m.end():].strip()
+                token = re.split(r"[,\|\n;/\t ]+", tail, maxsplit=1)[0].strip("()[]{}.:=")
+                if token:
+                    gnum = local_n + offset if offset else local_n
+                    res.setdefault(gnum, token)
+                    break
         return res
 
     # Build canonical reference map
-    ref_canon: Dict[int, str] = {}
-    for idx, ans in (ref_answers or {}).items():
-        ref_canon[int(idx)] = canonical_word(str(ans))
+    ref_canon: Dict[int, str] = {int(idx): canonical_word(str(ans)) for idx, ans in (ref_answers or {}).items()}
 
-    # Parse student's freeform text
-    stu_raw = parse_pairs_freeform(student_answer or "")
+    # Parse student's freeform text WITH section offsets
+    stu_raw = parse_pairs_freeform_with_teil_offsets(student_answer or "")
     stu_canon: Dict[int, str] = {qn: canonical_word(tok) for qn, tok in stu_raw.items()}
 
     total = len(ref_canon) or 1
@@ -394,26 +470,25 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
     for idx in sorted(ref_canon.keys()):
         ref_tok = ref_canon[idx]
         stu_tok = stu_canon.get(idx, "")
-
-        if stu_tok and re.fullmatch(r"[A-D]", ref_tok):
-            # choice letter expected; student may have given letter or word—compare canon
-            is_ok = (stu_tok == ref_tok)
-        else:
-            is_ok = (stu_tok == ref_tok)
-
-        if is_ok:
+        ok = (stu_tok == ref_tok)
+        if ok:
             correct += 1
         else:
-            # For display, keep original (un-canon) when possible
             stu_disp = stu_raw.get(idx, "") or "—"
             wrong_bits.append(f"{idx}→{ref_answers.get(idx, '')} (you wrote {stu_disp})")
 
     score = int(round(100 * correct / total))
-    feedback = "Great job — all correct!" if not wrong_bits else (
-        "Keep going. Check these: " + ", ".join(wrong_bits) +
-        ". Tip: read each item carefully and watch letters like A/B/C/D and umlauts (ä/ö/ü)."
+    feedback = (
+        "Great job — all correct!"
+        if not wrong_bits
+        else (
+            "Keep going. Check these: "
+            + ", ".join(wrong_bits)
+            + ". Tip: match section numbering (Teil), read each stem carefully, and watch umlauts (ä/ö/ü)."
+        )
     )
     return score, feedback
+
 
 def save_row_to_scores(row: dict) -> dict:
     try:
@@ -455,6 +530,7 @@ def save_row_to_scores(row: dict) -> dict:
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
 
 
 # =========================================================
