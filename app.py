@@ -221,7 +221,11 @@ def ai_mark(student_answer: str, ref_text: str, student_level: str) -> Tuple[int
     prompt = f"""
 
 You are the student's German tutor. Evaluate the student's answer against the reference answer and judge it according to level {student_level}.
+Always give feedback in English.
 Feedback must be about 40 words, friendly and encouraging. Explicitly highlight the student's mistakes with brief explanations.
+Student work can be messy should check it well to give right scores.
+When the assignment has only a,b,c,d know it is objectives. Some work can have only objectives and some too both objectives and essay.
+Always cite phrases in student work when giving corrections.
 Return STRICT JSON with {{"score": 0-100 integer, "feedback": "string"}}.
 Reminder: Hold u, s, or o on your keyboard to insert umlauts (ü, ß, ö) or search online.
 
