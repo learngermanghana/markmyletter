@@ -3,7 +3,7 @@ from streamlit.components.v1 import html as st_html
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-# Optional: nicer page metadata
+# ---- Page setup ----
 st.set_page_config(page_title="New Drafts", page_icon="🛎️", layout="wide")
 
 try:
@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover
     def st_autorefresh(*args, **kwargs):
         return None
 
-# --- Firebase setup ---
+# ---- Firebase setup ----
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -24,10 +24,14 @@ if not firebase_admin._apps:
 
 db = firestore.client() if firebase_admin._apps else None
 
+# Show which Firestore project we’re connected to
+if db:
+    st.caption(f"Firestore project: {getattr(db, 'project', '?')}")
 
-# --- Helpers ---
+
+# ---- Helpers ----
 def extract_text_from_doc(doc: Dict[str, Any]) -> str:
-    """Extract a best-guess text body from heterogeneous Firestore docs."""
+    """Best-effort extraction of text content from heterogeneous docs."""
     preferred = ["content", "text", "answer", "body", "draft", "message"]
     for k in preferred:
         v = doc.get(k)
@@ -54,21 +58,23 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
 
 
 def _extract_ts_ms(doc: Dict[str, Any]) -> int:
-    """Return a timestamp in milliseconds for a submission doc, robust to types."""
-    ts: Optional[Any] = doc.get("timestamp", 0)
+    """Return timestamp in milliseconds; accepts many Firestore/time shapes.
+    Falls back to `_meta_ts` when `timestamp` is missing.
+    """
+    ts: Optional[Any] = doc.get("timestamp")
+    if ts is None:
+        ts = doc.get("_meta_ts")
 
     try:
-        # Numeric millis already
+        # Numeric (ms or s)
         if isinstance(ts, (int, float)):
-            # If it's suspiciously small (e.g., seconds), try scaling to ms
             return int(ts if ts > 10_000_000_000 else ts * 1000)
 
-        # Datetime object
+        # datetime
         if isinstance(ts, datetime):
             return int(ts.timestamp() * 1000)
 
-        # Firestore Timestamp-like objects
-        # (google.cloud.firestore_v1._helpers.Timestamp has .seconds/.nanoseconds or .to_datetime())
+        # Firestore Timestamp-like
         if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
             return int(ts.to_datetime().timestamp() * 1000)
         if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
@@ -76,14 +82,12 @@ def _extract_ts_ms(doc: Dict[str, Any]) -> int:
         if hasattr(ts, "timestamp") and callable(ts.timestamp):
             return int(ts.timestamp() * 1000)
 
-        # Dict-ish timestamp: {"_seconds": ..., "_nanoseconds": ...}
+        # Dict-ish ({"_seconds": ...})
         if isinstance(ts, dict):
             if "_seconds" in ts:
                 seconds = int(ts.get("_seconds", 0))
                 nanos = int(ts.get("_nanoseconds", 0))
                 return int(seconds * 1000 + nanos / 1_000_000)
-
-            # ISO8601 string in dict?
             for key in ("iso", "time", "date", "datetime"):
                 if key in ts and isinstance(ts[key], str):
                     try:
@@ -91,7 +95,7 @@ def _extract_ts_ms(doc: Dict[str, Any]) -> int:
                     except Exception:
                         pass
 
-        # ISO8601 string
+        # ISO string
         if isinstance(ts, str):
             try:
                 return int(datetime.fromisoformat(ts).timestamp() * 1000)
@@ -99,65 +103,49 @@ def _extract_ts_ms(doc: Dict[str, Any]) -> int:
                 pass
     except Exception:
         pass
-
     return 0
 
 
-def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
-    """Fetch submissions for a single student code from drafts_v2."""
-    if not db or not student_code:
-        return []
-    items: List[Dict[str, Any]] = []
-
-    def pull(coll: str):
-        try:
-            for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
-                d = snap.to_dict() or {}
-                d["id"] = snap.id
-                items.append(d)
-        except Exception:
-            pass
-
-    pull("lessons")
-    if not items:
-        pull("lessens")
-    return items
-
-
 def fetch_all_submissions() -> List[Dict[str, Any]]:
-    """Fetch submissions for all students under drafts_v2."""
+    """Collect all docs from ANY student's `lessons` subcollection using collection_group.
+
+    If a doc lacks a `timestamp` field, we set `_meta_ts` from snapshot times
+    (update_time preferred, then create_time).
+    """
     if not db:
         return []
 
     items: List[Dict[str, Any]] = []
     try:
-        for doc in db.collection("drafts_v2").stream():
-            code = doc.id
-            for coll in ["lessons", "lessens"]:
-                try:
-                    for snap in doc.reference.collection(coll).stream():
-                        d = snap.to_dict() or {}
-                        d["id"] = snap.id
-                        d["student_code"] = code
-                        items.append(d)
-                except Exception:
-                    pass
-    except Exception:
-        pass
+        for snap in db.collection_group("lessons").stream():
+            d = snap.to_dict() or {}
+            d["id"] = snap.id
+
+            # Parent of 'lessons' is the student document
+            try:
+                parent_doc = snap.reference.parent.parent
+                if parent_doc:
+                    d["student_code"] = parent_doc.id
+            except Exception:
+                pass
+
+            if not d.get("timestamp"):
+                meta_ts = getattr(snap, "update_time", None) or getattr(snap, "create_time", None)
+                if meta_ts:
+                    d["_meta_ts"] = meta_ts
+
+            items.append(d)
+    except Exception as e:
+        st.error(f"collection_group('lessons') failed: {e}")
     return items
 
 
 def notify_on_new(subs: List[Dict[str, Any]]) -> None:
-    """Show toast + desktop notification + short beep if newer drafts arrived.
-
-    Desktop notification will attempt to request permission automatically and
-    always show when new items are detected (no visibility check).
-    """
+    """Toast + desktop notification + short beep if newer drafts arrived (always show)."""
     if not subs:
         return
 
-    times = [_extract_ts_ms(d) for d in subs]
-    times = [t for t in times if t > 0]
+    times = [_extract_ts_ms(d) for d in subs if _extract_ts_ms(d) > 0]
     newest = max(times) if times else 0
 
     # Initialize on first render so old backlog doesn't trigger a burst
@@ -178,14 +166,12 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
           try {{
             if (!("Notification" in window)) return;
             if (Notification.permission !== "granted") {{
-              try {{
-                await Notification.requestPermission();
-              }} catch (e) {{}}
+              try {{ await Notification.requestPermission(); }} catch (e) {{}}
             }}
             if (Notification.permission === "granted") {{
               new Notification("{new_count} new draft{'s' if new_count>1 else ''}", {{
                 body: "Open the New Drafts page to review.",
-                tag: "drafts_v2",   // same tag collapses into a single updated notification
+                tag: "drafts_v2",
                 renotify: true
               }});
             }}
@@ -194,7 +180,7 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
         </script>
         """, height=0)
 
-        # Short beep as an extra cue (may require a prior user interaction on some browsers)
+        # Short beep (may need a prior user interaction on some browsers)
         st_html("""
         <script>
           try {
@@ -209,23 +195,65 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
         </script>
         """, height=0)
 
-    # Update last seen AFTER notifying
     st.session_state["last_seen_ts"] = max(last_seen, newest)
 
 
-# --- UI ---
+# ---- Direct path quick test ----
+def quick_debug_student(student_code: str):
+    """Directly read drafts_v2/{student_code}/lessons to verify access and fields."""
+    try:
+        col = db.collection("drafts_v2").document(student_code).collection("lessons")
+        snaps = list(col.limit(5).stream())
+        st.success(f"Read {len(snaps)} docs under drafts_v2/{student_code}/lessons")
+        for s in snaps:
+            st.write("•", s.reference.path)
+        if snaps:
+            st.write("First doc body:")
+            st.json(snaps[0].to_dict())
+    except Exception as e:
+        st.error(f"Direct read error: {e}")
+
+
+# ---- UI ----
 st.title("New Drafts")
+
+cols = st.columns([1, 1, 8])
+with cols[0]:
+    if st.button("Reload now", use_container_width=True):
+        st.rerun()
+with cols[1]:
+    st.caption(datetime.now().strftime("Last refresh: %Y-%m-%d %H:%M:%S"))
 
 # Auto-refresh every 5 seconds
 st_autorefresh(interval=5000, key="new_drafts_refresh")
 
+# Quick debug box
+with st.expander("Quick debug"):
+    default_code = "akentenga1"  # change if you like
+    code = st.text_input("Student code", value=default_code)
+    if st.button("Test read"):
+        if not db:
+            st.error("Firestore is not initialized. Check your `st.secrets['firebase']` JSON.")
+        else:
+            quick_debug_student(code)
+
 # Pull data
+if not db:
+    st.error("Firestore is not initialized. Check your `st.secrets['firebase']` JSON.")
+    st.stop()
+
 subs = fetch_all_submissions()
+
+# Small debug info
+with st.expander("Debug info"):
+    st.write({
+        "documents_found": len(subs),
+        "last_seen_ts": st.session_state.get("last_seen_ts"),
+    })
 
 if not subs:
     st.info("No drafts found.")
 else:
-    # Sort using robust timestamp extractor
     subs = sorted(subs, key=_extract_ts_ms, reverse=True)
 
     # Fire notifications for fresh arrivals
@@ -242,14 +270,13 @@ else:
             if ts_ms:
                 ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S")
             else:
-                # Fall back to raw string if provided
-                ts_raw = doc.get("timestamp", "")
-                ts_str = str(ts_raw)
+                ts_str = str(doc.get("timestamp", "")) or "(no time)"
 
             lesson = doc.get("lesson") or doc.get("assignment") or ""
             student_code = doc.get("student_code", "")
             content = extract_text_from_doc(doc) or "(empty)"
 
+            # Border param is available on recent Streamlit; safe if ignored on older
             with st.container(border=True):
                 st.markdown(f"**{ts_str} — {lesson} — {student_code}**")
                 st.markdown(content)
