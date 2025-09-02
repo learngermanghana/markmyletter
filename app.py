@@ -199,26 +199,22 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
             pass
         return 0
 
-    def _normalize_row(d: Dict[str, Any], level: str, doc_id: str) -> Dict[str, Any]:
+    def _normalize_row(d: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
         """Attach common metadata like path, level and timestamp."""
         d = dict(d)
         d["id"] = doc_id
-        d["level"] = d.get("level") or level
+        d["level"] = d.get("level", "")
         d["_ts_ms"] = _ts_ms(d)
-        d["_path"] = f"submission/{level}/post/posts/{doc_id}"
+        d["_path"] = f"drafts_v2/{student_code}/lessons/{doc_id}"
         return d
 
     try:
-        # Iterate through all level documents and gather posts for the student
-        for lvl_snap in db.collection("submission").stream():
-            level = lvl_snap.id
-            try:
-                posts_ref = db.collection("submission").document(level).collection("post/posts")
-                for snap in posts_ref.where("student_code", "==", student_code).stream():
-                    d = snap.to_dict() or {}
-                    items.append(_normalize_row(d, level, snap.id))
-            except Exception:
-                pass
+        lessons_ref = (
+            db.collection("drafts_v2").document(student_code).collection("lessons")
+        )
+        for snap in lessons_ref.stream():
+            d = snap.to_dict() or {}
+            items.append(_normalize_row(d, snap.id))
     except Exception:
         pass
 
@@ -628,7 +624,7 @@ student_text = ""
 subs = fetch_submissions(studentcode)
 if not subs:
     st.warning(
-        "No submissions found under submission/<level>/post/posts/."
+        f"No submissions found under drafts_v2/{studentcode}/lessons/."
     )
 else:
     def label_for(d: Dict[str, Any]) -> str:
