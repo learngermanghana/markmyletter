@@ -8,11 +8,6 @@ from typing import Dict, Any, List, Tuple, Optional
 import pandas as pd
 import requests
 import streamlit as st
-try:
-    from streamlit_autorefresh import st_autorefresh
-except Exception:  # pragma: no cover - allow running without plugin
-    def st_autorefresh(*args, **kwargs):
-        return None
 
 # ---------------- Firebase ----------------
 from firebase_utils import get_firestore_client
@@ -748,38 +743,21 @@ st.info(
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
 student_text = ""
-tab_subs, tab_new = st.tabs(["Submissions", "New drafts"])
+subs = fetch_submissions(studentcode)
+if not subs:
+    st.warning(
+        "No submissions found under drafts_v2/{code}/lessons (or lessens)."
+    )
+else:
+    def label_for(d: Dict[str, Any]) -> str:
+        txt = extract_text_from_doc(d)
+        preview = (txt[:80] + "…") if len(txt) > 80 else txt
+        ts = datetime.fromtimestamp(d.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
+        return f"{ts} • {d.get('id','(no-id)')} • {preview}"
 
-with tab_subs:
-    subs = fetch_submissions(studentcode)
-    if not subs:
-        st.warning(
-            "No submissions found under drafts_v2/{code}/lessons (or lessens)."
-        )
-    else:
-        def label_for(d: Dict[str, Any]) -> str:
-            txt = extract_text_from_doc(d)
-            preview = (txt[:80] + "…") if len(txt) > 80 else txt
-            ts = datetime.fromtimestamp(d.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
-            return f"{ts} • {d.get('id','(no-id)')} • {preview}"
-
-        labels_sub = [label_for(d) for d in subs]
-        pick = st.selectbox("Pick submission", labels_sub)
-        student_text = extract_text_from_doc(subs[labels_sub.index(pick)])
-
-with tab_new:
-    st_autorefresh(interval=5000, key="draft_refresh")
-    subs = fetch_submissions(studentcode)
-    if not subs:
-        st.info("No drafts yet.")
-    else:
-        latest = subs[0]
-        latest_text = extract_text_from_doc(latest)
-        st.markdown("**Newest Draft**")
-        st.code(latest_text or "(empty)", language="markdown")
-        st.caption(
-            datetime.fromtimestamp(latest.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
-        )
+    labels_sub = [label_for(d) for d in subs]
+    pick = st.selectbox("Pick submission", labels_sub)
+    student_text = extract_text_from_doc(subs[labels_sub.index(pick)])
 
 st.markdown("**Student Submission**")
 st.code(student_text or "(empty)", language="markdown")
