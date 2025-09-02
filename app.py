@@ -24,10 +24,6 @@ db = get_firestore_client()
 STUDENTS_SHEET_ID   = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 STUDENTS_SHEET_TAB  = st.secrets.get("STUDENTS_SHEET_TAB", "Sheet1")
 
-# Reference Google Sheet (answers) and tab name (default Sheet1)
-REF_ANSWERS_SHEET_ID = "1CtNlidMfmE836NBh5FmEF5tls9sLmMmkkhewMTQjkBo"
-REF_ANSWERS_TAB      = st.secrets.get("REF_ANSWERS_TAB", "Sheet1")
-
 # Apps Script webhook (fallbacks included)
 WEBHOOK_URL   = st.secrets.get(
     "G_SHEETS_WEBHOOK_URL",
@@ -42,14 +38,6 @@ ANSWERS_JSON_PATHS = [
     "assets/answers_dictionary.json",
 ]
 
-# Default reference source: "json" or "sheet" (configurable via Streamlit
-# secrets or environment variable "ANSWER_SOURCE")
-ANSWER_SOURCE = (
-    st.secrets.get("ANSWER_SOURCE")
-    or os.environ.get("ANSWER_SOURCE", "")
-).lower()
-if ANSWER_SOURCE not in ("json", "sheet"):
-    ANSWER_SOURCE = ""
 
 # =========================================================
 # Helpers
@@ -91,50 +79,6 @@ def find_col(df: pd.DataFrame, candidates: List[str], default: str = "") -> str:
         df[default] = ""
         return default
     raise KeyError(f"Missing columns: {candidates}")
-
-
-def list_sheet_assignments(ref_df: pd.DataFrame, assignment_col: str) -> List[str]:
-    vals = ref_df[assignment_col].astype(str).fillna("").str.strip()
-    vals = [v for v in vals if v]
-    return sorted(vals, key=natural_key)
-
-
-def ordered_answer_cols(cols: List[str]) -> List[str]:
-    pairs = []
-    for c in cols:
-        if c.lower().startswith("answer"):
-            m = re.search(r"(\d+)", c)
-            if m:
-                pairs.append((int(m.group(1)), c))
-    return [c for _, c in sorted(pairs, key=lambda x: x[0])]
-
-
-def build_reference_text_from_sheet(
-    ref_df: pd.DataFrame, assignment_col: str, assignment_value: str
-) -> Tuple[str, str, str, Dict[int, str]]:
-    """Return reference text, link, format and raw answers for a sheet row."""
-    row = ref_df[ref_df[assignment_col] == assignment_value]
-    if row.empty:
-        return "No reference answers found.", "", "essay", {}
-    row = row.iloc[0]
-    ans_cols = ordered_answer_cols(list(ref_df.columns))
-    chunks: List[str] = []
-    answers_map: Dict[int, str] = {}
-    for c in ans_cols:
-        v = str(row.get(c, "")).strip()
-        if v and v.lower() not in ("nan", "none"):
-            m = re.search(r"(\d+)", c)
-            n = int(m.group(1)) if m else 0
-            chunks.append(f"{n}. {v}")
-            answers_map[n] = v
-    link = str(row.get("answer_url", "")).strip()  # ignore sheet_url by request
-    fmt = str(row.get("format", "essay")).strip().lower() or "essay"
-    return (
-        "\n".join(chunks) if chunks else "No reference answers found.",
-        link,
-        fmt,
-        answers_map,
-    )
 
 
 def list_json_assignments(ans_dict: Dict[str, Any]) -> List[str]:
@@ -617,8 +561,6 @@ with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
 st.subheader("2) Reference source")
 
 # Session holder for the *chosen* reference
-if "ref_source" not in st.session_state:
-    st.session_state.ref_source = ANSWER_SOURCE or None
 if "ref_assignment" not in st.session_state:
     st.session_state.ref_assignment = ""
 if "ref_text" not in st.session_state:
@@ -630,11 +572,7 @@ if "ref_format" not in st.session_state:
 if "ref_answers" not in st.session_state:
     st.session_state.ref_answers = {}
 
-tab_titles = ["📦 JSON dictionary", "🔗 Google Sheet"]
-if st.session_state.ref_source == "sheet":
-    tab_sheet, tab_json = st.tabs(tab_titles[::-1])
-else:
-    tab_json, tab_sheet = st.tabs(tab_titles)
+tab_json, = st.tabs(["📦 JSON dictionary"])
 
 # ---- JSON tab
 with tab_json:
@@ -644,9 +582,9 @@ with tab_json:
     else:
         all_assignments_json = list_json_assignments(ans_dict)
         st.caption(f"{len(all_assignments_json)} assignments in JSON")
-        qj = st.text_input("Search assignment (JSON)", key="search_json")
+        qj = st.text_input("Search assignment", key="search_json")
         pool_json = [a for a in all_assignments_json if qj.lower() in a.lower()] if qj else all_assignments_json
-        pick_json = st.selectbox("Select assignment (JSON)", pool_json, key="pick_json")
+        pick_json = st.selectbox("Select assignment", pool_json, key="pick_json")
         ref_text_json, link_json, fmt_json, ans_map_json = build_reference_text_from_json(
             ans_dict.get(pick_json, {})
         )
@@ -656,7 +594,6 @@ with tab_json:
         if link_json:
             st.caption(f"Reference link: {link_json}")
         if st.button("✅ Use this JSON reference"):
-            st.session_state.ref_source = "json"
             st.session_state.ref_assignment = pick_json
             st.session_state.ref_text = ref_text_json
             st.session_state.ref_link = link_json
@@ -664,60 +601,8 @@ with tab_json:
             st.session_state.ref_answers = ans_map_json
             st.success("Using JSON reference")
 
-# ---- Sheet tab
-with tab_sheet:
-    ref_df = load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB)
-    try:
-        assign_col = find_col(ref_df, ["assignment"])
-    except KeyError:
-        st.error("The reference sheet must have an 'assignment' column.")
-        assign_col = None
-    if assign_col:
-        all_assignments_sheet = list_sheet_assignments(ref_df, assign_col)
-        st.caption(f"{len(all_assignments_sheet)} assignments in sheet tab “{REF_ANSWERS_TAB}”")
-        qs = st.text_input("Search assignment (Sheet)", key="search_sheet")
-        pool_sheet = [a for a in all_assignments_sheet if qs.lower() in a.lower()] if qs else all_assignments_sheet
-        pick_sheet = st.selectbox("Select assignment (Sheet)", pool_sheet, key="pick_sheet")
-        (
-            ref_text_sheet,
-            link_sheet,
-            fmt_sheet,
-            ans_map_sheet,
-        ) = build_reference_text_from_sheet(ref_df, assign_col, pick_sheet)
-        st.markdown("**Reference preview (Sheet):**")
-        st.code(ref_text_sheet or "(none)", language="markdown")
-        st.caption(f"Format: {fmt_sheet}")
-        if link_sheet:
-            st.caption(f"Reference link: {link_sheet}")
-        if st.button("✅ Use this SHEET reference"):
-            st.session_state.ref_source = "sheet"
-            st.session_state.ref_assignment = pick_sheet
-            st.session_state.ref_text = ref_text_sheet
-            st.session_state.ref_link = link_sheet
-            st.session_state.ref_format = fmt_sheet
-            st.session_state.ref_answers = ans_map_sheet
-            st.success("Using Sheet reference")
-
-# Ensure default reference choice based on config/availability
-if st.session_state.ref_source == "json" and not load_answers_dictionary():
-    st.session_state.ref_source = None
-if st.session_state.ref_source == "sheet":
-    try:
-        find_col(load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB), ["assignment"])
-    except Exception:
-        st.session_state.ref_source = None
-
-if not st.session_state.ref_source:
-    if load_answers_dictionary():
-        st.session_state.ref_source = "json"
-    else:
-        try:
-            find_col(load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB), ["assignment"])
-            st.session_state.ref_source = "sheet"
-        except Exception:
-            pass
-
-if st.session_state.ref_source == "json" and not st.session_state.ref_assignment:
+# Ensure a default reference is selected
+if not st.session_state.ref_assignment:
     ans = load_answers_dictionary()
     if ans:
         first = list_json_assignments(ans)[0]
@@ -727,23 +612,11 @@ if st.session_state.ref_source == "json" and not st.session_state.ref_assignment
         st.session_state.ref_link = ln
         st.session_state.ref_format = fmt
         st.session_state.ref_answers = ans_map
-elif st.session_state.ref_source == "sheet" and not st.session_state.ref_assignment:
-    ref_df_tmp = load_sheet_csv(REF_ANSWERS_SHEET_ID, REF_ANSWERS_TAB)
-    try:
-        ac = find_col(ref_df_tmp, ["assignment"])
-        first = list_sheet_assignments(ref_df_tmp, ac)[0]
-        txt, ln, fmt, ans_map = build_reference_text_from_sheet(ref_df_tmp, ac, first)
-        st.session_state.ref_assignment = first
-        st.session_state.ref_text = txt
-        st.session_state.ref_link = ln
-        st.session_state.ref_format = fmt
-        st.session_state.ref_answers = ans_map
-    except Exception:
-        pass
 
 st.info(
-    f"Currently using **{st.session_state.ref_source or '—'}** reference → **{st.session_state.ref_assignment or '—'}** (format: {st.session_state.ref_format})"
+    f"Currently selected reference → **{st.session_state.ref_assignment or '—'}** (format: {st.session_state.ref_format})"
 )
+
 
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
@@ -821,7 +694,7 @@ if st.button("💾 Save", type="primary", use_container_width=True):
     if not studentcode:
         st.error("Pick a student first.")
     elif not st.session_state.ref_assignment:
-        st.error("Pick a reference (JSON or Sheet) and click its 'Use this … reference' button.")
+        st.error("Pick a JSON reference and click its 'Use this JSON reference' button.")
     elif not feedback.strip():
         st.error("Feedback is required.")
     else:
