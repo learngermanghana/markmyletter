@@ -216,11 +216,18 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
     st.session_state["last_seen_ts"] = max(last_seen, newest)
 
 # ----------------- quick debug -----------------
-def quick_debug_student(student_code: str):
+def quick_debug_student(level: str, student_code: str):
     try:
-        col = db.collection("drafts_v2").document(student_code).collection("lessons")
+        col = (
+            db.collection("submission")
+            .document(level)
+            .collection(student_code)
+            .collection("post")
+        )
         snaps = list(col.limit(5).stream())
-        st.success(f"Read {len(snaps)} docs under drafts_v2/{student_code}/lessons")
+        st.success(
+            f"Read {len(snaps)} docs under submission/{level}/{student_code}/post"
+        )
         for s in snaps:
             st.write("•", s.reference.path)
         if snaps:
@@ -267,11 +274,12 @@ st_autorefresh(interval=5000, key="new_drafts_refresh")
 with st.expander("Quick debug"):
     default_code = "akentenga1"
     code = st.text_input("Student code", value=default_code)
+    level = st.selectbox("Level", options=LEVELS, index=0)
     if st.button("Test read"):
         if not db:
             st.error("Firestore is not initialized. Check your `st.secrets['firebase']` JSON.")
         else:
-            quick_debug_student(code)
+            quick_debug_student(level, code)
 
 if not db:
     st.error("Firestore is not initialized. Check your `st.secrets['firebase']` JSON.")
