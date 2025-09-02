@@ -205,7 +205,7 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
         d["id"] = doc_id
         d["level"] = d.get("level") or level
         d["_ts_ms"] = _ts_ms(d)
-        d["_path"] = f"submission/{level}/{student_code}/post/{doc_id}"
+        d["_path"] = f"submission/{level}/post/posts/{doc_id}"
         return d
 
     try:
@@ -213,8 +213,8 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
         for lvl_snap in db.collection("submission").stream():
             level = lvl_snap.id
             try:
-                posts_ref = db.collection("submission").document(level).collection(f"{student_code}/post")
-                for snap in posts_ref.stream():
+                posts_ref = db.collection("submission").document(level).collection("post/posts")
+                for snap in posts_ref.where("student_code", "==", student_code).stream():
                     d = snap.to_dict() or {}
                     items.append(_normalize_row(d, level, snap.id))
             except Exception:
@@ -628,7 +628,7 @@ student_text = ""
 subs = fetch_submissions(studentcode)
 if not subs:
     st.warning(
-        "No submissions found under drafts_v2/{code}/lessons (or lessens)."
+        "No submissions found under submission/<level>/post/posts/."
     )
 else:
     def label_for(d: Dict[str, Any]) -> str:
