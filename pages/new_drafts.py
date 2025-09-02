@@ -1,7 +1,8 @@
+import re
 import streamlit as st
 from streamlit.components.v1 import html as st_html
 from datetime import datetime, date
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # ---- Page setup ----
 st.set_page_config(page_title="New Drafts", page_icon="🛎️", layout="wide")
@@ -23,15 +24,11 @@ if not firebase_admin._apps:
         firebase_admin.initialize_app(cred)
 
 db = firestore.client() if firebase_admin._apps else None
-
-# Show which Firestore project we’re connected to
 if db:
     st.caption(f"Firestore project: {getattr(db, 'project', '?')}")
 
-
-# ---- Helpers ----
+# ----------------- helpers -----------------
 def extract_text_from_doc(doc: Dict[str, Any]) -> str:
-    """Best-effort extraction of text content from heterogeneous docs."""
     preferred = ["content", "text", "answer", "body", "draft", "message"]
     for k in preferred:
         v = doc.get(k)
@@ -56,7 +53,6 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
     strings = [str(v).strip() for v in doc.values() if isinstance(v, str) and str(v).strip()]
     return "\n".join(strings).strip()
 
-
 def _coerce_dt_to_ms(dt: Any) -> int:
     try:
         if isinstance(dt, datetime):
@@ -71,13 +67,10 @@ def _coerce_dt_to_ms(dt: Any) -> int:
         pass
     return 0
 
-
 def _coerce_any_ts_to_ms(ts: Any) -> int:
-    """Coerce many timestamp shapes to ms. Accepts ints(s/ms), datetime, dict, ISO strings."""
     try:
         if isinstance(ts, (int, float)):
-            # If seconds-ish, scale to ms
-            return int(ts if ts > 10_000_000_000 else ts * 1000)
+            return int(ts if ts > 10_000_000_000 else ts * 1000)  # s→ms
         if isinstance(ts, datetime):
             return int(ts.timestamp() * 1000)
         if isinstance(ts, dict):
@@ -101,14 +94,11 @@ def _coerce_any_ts_to_ms(ts: Any) -> int:
         pass
     return 0
 
-
 def _best_ts_ms(doc: Dict[str, Any]) -> int:
-    """Choose the best submission time: submitted_at > timestamp > meta(update/create)."""
     candidates: List[int] = []
     for key in ("submitted_at", "timestamp", "created_at", "updated_at"):
         if key in doc:
             candidates.append(_coerce_any_ts_to_ms(doc.get(key)))
-    # meta times precomputed during fetch
     if "_meta_update_ms" in doc:
         candidates.append(int(doc["_meta_update_ms"]))
     if "_meta_create_ms" in doc:
@@ -116,52 +106,72 @@ def _best_ts_ms(doc: Dict[str, Any]) -> int:
     candidates = [c for c in candidates if c and c > 0]
     return max(candidates) if candidates else 0
 
+LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
-def fetch_all_submissions() -> List[Dict[str, Any]]:
-    """Collect all docs from ANY student's `lessons` via collection_group.
+def parse_level_from(lesson_like: str | None) -> str | None:
+    """Infer level from lesson/doc id only (never from student code)."""
+    if not lesson_like:
+        return None
+    s = str(lesson_like)
+    m = re.search(r"^(A1|A2|B1|B2|C1|C2)(?=_|-|\.|$)", s, re.IGNORECASE)
+    if m:
+        return m.group(1).upper()
+    m = re.search(r"(?:^|[^A-Za-z0-9])(A1|A2|B1|B2|C1|C2)(?=[^A-Za-z0-9]|$)", s, re.IGNORECASE)
+    return m.group(1).upper() if m else None
 
-    Adds metadata times and a precomputed '_best_ts_ms' for reliable sorting.
-    """
-    if not db:
-        return []
+def _normalize_row(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Compute normalized lesson/level + best timestamp + display path."""
+    d = dict(d)
+    d["_lesson"] = d.get("lesson") or d.get("assignment") or d.get("lesson_key") or d.get("id")
+    d["_level"]  = d.get("level") or parse_level_from(d.get("_lesson"))
+    d["_best_ts_ms"] = _best_ts_ms(d)
+    # optional nice path (if we captured it in fetch)
+    if "_path" not in d and d.get("student_code") and d.get("id"):
+        d["_path"] = f"drafts_v2/{d['student_code']}/lessons/{d['id']}"
+    return d
 
+# ----------------- data fetch -----------------
+def _collect_group(name: str) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
-    try:
-        for snap in db.collection_group("lessons").stream():
-            d = snap.to_dict() or {}
-            d["id"] = snap.id
-
-            # Parent of 'lessons' is the student document
-            try:
-                parent_doc = snap.reference.parent.parent
-                if parent_doc:
-                    d["student_code"] = parent_doc.id
-            except Exception:
-                pass
-
-            # Metadata times
-            upd = getattr(snap, "update_time", None)
-            crt = getattr(snap, "create_time", None)
-            d["_meta_update_ms"] = _coerce_dt_to_ms(upd)
-            d["_meta_create_ms"] = _coerce_dt_to_ms(crt)
-
-            # Precompute best timestamp for consistent sorting/notifications
-            d["_best_ts_ms"] = _best_ts_ms(d)
-            items.append(d)
-    except Exception as e:
-        st.error(f"collection_group('lessons') failed: {e}")
+    for snap in db.collection_group(name).stream():
+        d = snap.to_dict() or {}
+        d["id"] = snap.id
+        try:
+            parent_doc = snap.reference.parent.parent
+            if parent_doc:
+                d["student_code"] = parent_doc.id
+                d["_path"] = f"{parent_doc.path}/{name}/{snap.id}"
+        except Exception:
+            pass
+        upd = getattr(snap, "update_time", None)
+        crt = getattr(snap, "create_time", None)
+        d["_meta_update_ms"] = _coerce_dt_to_ms(upd)
+        d["_meta_create_ms"] = _coerce_dt_to_ms(crt)
+        items.append(_normalize_row(d))
     return items
 
+def fetch_all_submissions() -> List[Dict[str, Any]]:
+    if not db:
+        return []
+    items: List[Dict[str, Any]] = []
+    try:
+        items.extend(_collect_group("lessons"))
+    except Exception as e:
+        st.error(f"collection_group('lessons') failed: {e}")
+    # also read the misspelled subcollection if some students still use it
+    try:
+        items.extend(_collect_group("lessens"))
+    except Exception:
+        pass
+    return items
 
+# ----------------- notifications -----------------
 def notify_on_new(subs: List[Dict[str, Any]]) -> None:
-    """Toast + desktop notification + short beep if newer drafts arrived (always show)."""
     if not subs:
         return
-
     times = [int(d.get("_best_ts_ms", 0)) for d in subs if int(d.get("_best_ts_ms", 0)) > 0]
     newest = max(times) if times else 0
 
-    # Initialize on first render so old backlog doesn't trigger a burst
     if "last_seen_ts" not in st.session_state:
         st.session_state["last_seen_ts"] = newest
         return
@@ -171,8 +181,6 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
 
     if new_count > 0:
         st.toast(f"🔔 {new_count} new draft{'s' if new_count > 1 else ''}")
-
-        # Desktop notification (always attempt)
         st_html(f"""
         <script>
         (async function () {{
@@ -184,16 +192,13 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
             if (Notification.permission === "granted") {{
               new Notification("{new_count} new draft{'s' if new_count>1 else ''}", {{
                 body: "Open the New Drafts page to review.",
-                tag: "drafts_v2",
-                renotify: true
+                tag: "drafts_v2", renotify: true
               }});
             }}
           }} catch (e) {{}}
         }})();
         </script>
         """, height=0)
-
-        # Short beep (may need a prior user interaction on some browsers)
         st_html("""
         <script>
           try {
@@ -210,10 +215,8 @@ def notify_on_new(subs: List[Dict[str, Any]]) -> None:
 
     st.session_state["last_seen_ts"] = max(last_seen, newest)
 
-
-# ---- Direct path quick test ----
+# ----------------- quick debug -----------------
 def quick_debug_student(student_code: str):
-    """Directly read drafts_v2/{student_code}/lessons to verify access and fields."""
     try:
         col = db.collection("drafts_v2").document(student_code).collection("lessons")
         snaps = list(col.limit(5).stream())
@@ -226,10 +229,8 @@ def quick_debug_student(student_code: str):
     except Exception as e:
         st.error(f"Direct read error: {e}")
 
-
-# ---- UI ----
+# ----------------- UI -----------------
 st.title("New Drafts")
-
 top = st.columns([1.2, 1.2, 1.2, 6.4])
 with top[0]:
     if st.button("Reload now", use_container_width=True):
@@ -239,7 +240,6 @@ with top[1]:
         st.session_state.pop("last_seen_ts", None)
         st.toast("Last-seen timestamp reset.")
 with top[2]:
-    # Test notification button so you can grant permission & verify
     if st.button("Test notification", use_container_width=True):
         st_html("""
         <script>
@@ -252,24 +252,20 @@ with top[2]:
             if (Notification.permission === "granted") {
               new Notification("Test: New drafts", {
                 body: "Notifications are working.",
-                tag: "drafts_v2_test",
-                renotify: true
+                tag: "drafts_v2_test", renotify: true
               });
             }
           } catch (e) {}
         })();
         </script>
         """, height=0)
-
 with top[3]:
     st.caption(datetime.now().strftime("Last refresh: %Y-%m-%d %H:%M:%S"))
 
-# Auto-refresh every 5 seconds
 st_autorefresh(interval=5000, key="new_drafts_refresh")
 
-# Quick debug box
 with st.expander("Quick debug"):
-    default_code = "akentenga1"  # change if you like
+    default_code = "akentenga1"
     code = st.text_input("Student code", value=default_code)
     if st.button("Test read"):
         if not db:
@@ -277,64 +273,45 @@ with st.expander("Quick debug"):
         else:
             quick_debug_student(code)
 
-# Pull data
 if not db:
     st.error("Firestore is not initialized. Check your `st.secrets['firebase']` JSON.")
     st.stop()
 
 subs = fetch_all_submissions()
 
-# --- Filters & view controls ---
+# ----- Filters & view -----
 with st.expander("Filters & view", expanded=True):
-    # Build choices
     all_students = sorted({d.get("student_code", "") for d in subs if d.get("student_code")})
+    all_levels   = sorted({d.get("_level") for d in subs if d.get("_level")})
     colA, colB, colC = st.columns([2, 2, 2])
     selected_students = colA.multiselect("Students", options=all_students, default=[])
-    text_query = colB.text_input("Search (lesson/content)", value="")
-    date_input_val = colC.date_input("Date range (optional)", value=None)
+    selected_levels   = colB.multiselect("Levels", options=all_levels or LEVELS, default=all_levels or LEVELS)
+    text_query = colC.text_input("Search (lesson/content)", value="")
 
     colD, colE, colF = st.columns([2, 2, 2])
-    group_by = colD.radio("Group by", options=["None", "Student", "Date"], horizontal=True, index=0)
+    group_by = colD.radio("Group by", options=["None", "Student", "Date", "Level"], horizontal=True, index=0)
     sort_choice = colE.selectbox("Sort", options=["Newest first", "Oldest first"], index=0)
     limit_n = int(colF.number_input("Show latest N", min_value=10, max_value=1000, value=200, step=10))
 
-
 def _passes_filters(d: Dict[str, Any]) -> bool:
-    # student filter
     if selected_students and d.get("student_code", "") not in selected_students:
         return False
-    # search over lesson + content
+    if selected_levels and (d.get("_level") or "UNKNOWN") not in set(selected_levels):
+        return False
     if text_query:
         hay = " ".join([
-            str(d.get("lesson") or d.get("assignment") or ""),
+            str(d.get("_lesson") or ""),
             extract_text_from_doc(d)
         ]).lower()
         if text_query.lower() not in hay:
             return False
-    # date filter
-    if date_input_val:
-        ts = int(d.get("_best_ts_ms", 0))
-        if ts <= 0:
-            return False
-        ddate = datetime.fromtimestamp(ts / 1000).date()
-        if isinstance(date_input_val, (list, tuple)):
-            if len(date_input_val) == 2 and all(isinstance(x, date) for x in date_input_val):
-                start, end = date_input_val
-                if not (start <= ddate <= end):
-                    return False
-        elif isinstance(date_input_val, date):
-            if ddate != date_input_val:
-                return False
     return True
 
-
-# Apply filters, sort, limit
 filtered = [d for d in subs if _passes_filters(d)]
 reverse = (sort_choice == "Newest first")
 filtered.sort(key=lambda d: int(d.get("_best_ts_ms", 0)), reverse=reverse)
 filtered = filtered[:limit_n]
 
-# --- Debug info (optional) ---
 with st.expander("Debug info"):
     st.write({
         "documents_found_total": len(subs),
@@ -343,15 +320,12 @@ with st.expander("Debug info"):
     })
 
 if not filtered:
-    # Still trigger notifications against ALL docs so you don't miss anything
     if subs:
         notify_on_new(sorted(subs, key=lambda d: int(d.get("_best_ts_ms", 0)), reverse=True))
     st.info("No drafts match your filters.")
 else:
-    # Fire notifications for fresh arrivals against the FULL set (not just filtered)
     notify_on_new(sorted(subs, key=lambda d: int(d.get("_best_ts_ms", 0)), reverse=True))
 
-    # Table or cards
     show_table = st.checkbox("Show as table", value=False)
     if show_table:
         import pandas as pd
@@ -362,25 +336,28 @@ else:
             rows.append({
                 "Time": ts_str,
                 "Student": d.get("student_code", ""),
-                "Lesson": d.get("lesson") or d.get("assignment") or "",
+                "Level": d.get("_level", ""),
+                "Lesson": d.get("_lesson", ""),
+                "Doc ID": d.get("id", ""),
+                "Path": d.get("_path", ""),
                 "Preview": (extract_text_from_doc(d) or "(empty)")[:200],
             })
         df = pd.DataFrame(rows)
         st.dataframe(df, use_container_width=True)
     else:
-        # Grouped card view
         def _group_key(d):
             if group_by == "Student":
                 return d.get("student_code", "(unknown)")
             if group_by == "Date":
                 ts = int(d.get("_best_ts_ms", 0))
                 return datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d") if ts else "(no-date)"
+            if group_by == "Level":
+                return d.get("_level", "(no-level)")
             return "All"
 
         grouped: Dict[str, List[Dict[str, Any]]] = {}
         for d in filtered:
-            k = _group_key(d)
-            grouped.setdefault(k, []).append(d)
+            grouped.setdefault(_group_key(d), []).append(d)
 
         for gkey, items in grouped.items():
             if group_by != "None":
@@ -388,9 +365,10 @@ else:
             for doc in items:
                 ts_ms = int(doc.get("_best_ts_ms", 0))
                 ts_str = datetime.fromtimestamp(ts_ms / 1000).strftime("%Y-%m-%d %H:%M:%S") if ts_ms else "(no time)"
-                lesson = doc.get("lesson") or doc.get("assignment") or ""
-                student_code = doc.get("student_code", "")
+                header = f"{ts_str} — {doc.get('_lesson','')} {(f'({doc.get('_level')})' if doc.get('_level') else '')} — {doc.get('student_code','')}"
                 content = extract_text_from_doc(doc) or "(empty)"
                 with st.container(border=True):
-                    st.markdown(f"**{ts_str} — {lesson} — {student_code}**")
+                    st.markdown(f"**{header}**")
+                    if doc.get("_path"):
+                        st.caption(doc["_path"])
                     st.markdown(content)
