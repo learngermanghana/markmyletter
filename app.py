@@ -199,19 +199,28 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
             pass
         return 0
 
-    def pull(coll: str):
-        try:
-            for snap in db.collection("drafts_v2").document(student_code).collection(coll).stream():
-                d = snap.to_dict() or {}
-                d["id"] = snap.id
-                d["_ts_ms"] = _ts_ms(d)
-                items.append(d)
-        except Exception:
-            pass
+    def _normalize_row(d: Dict[str, Any], level: str, doc_id: str) -> Dict[str, Any]:
+        """Attach common metadata like path, level and timestamp."""
+        d = dict(d)
+        d["id"] = doc_id
+        d["level"] = d.get("level") or level
+        d["_ts_ms"] = _ts_ms(d)
+        d["_path"] = f"submission/{level}/{student_code}/post/{doc_id}"
+        return d
 
-    pull("lessons")
-    if not items:
-        pull("lessens")
+    try:
+        # Iterate through all level documents and gather posts for the student
+        for lvl_snap in db.collection("submission").stream():
+            level = lvl_snap.id
+            try:
+                posts_ref = db.collection("submission").document(level).collection(f"{student_code}/post")
+                for snap in posts_ref.stream():
+                    d = snap.to_dict() or {}
+                    items.append(_normalize_row(d, level, snap.id))
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     items.sort(key=lambda d: d.get("_ts_ms", 0), reverse=True)
     return items

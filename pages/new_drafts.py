@@ -123,24 +123,28 @@ def _normalize_row(d: Dict[str, Any]) -> Dict[str, Any]:
     """Compute normalized lesson/level + best timestamp + display path."""
     d = dict(d)
     d["_lesson"] = d.get("lesson") or d.get("assignment") or d.get("lesson_key") or d.get("id")
-    d["_level"]  = d.get("level") or parse_level_from(d.get("_lesson"))
+    d["_level"]  = d.get("level") or d.get("_level") or parse_level_from(d.get("_lesson"))
     d["_best_ts_ms"] = _best_ts_ms(d)
     # optional nice path (if we captured it in fetch)
-    if "_path" not in d and d.get("student_code") and d.get("id"):
-        d["_path"] = f"drafts_v2/{d['student_code']}/lessons/{d['id']}"
+    if "_path" not in d and d.get("student_code") and d.get("id") and d.get("_level"):
+        d["_path"] = f"submission/{d['_level']}/{d['student_code']}/post/{d['id']}"
     return d
 
 # ----------------- data fetch -----------------
-def _collect_group(name: str) -> List[Dict[str, Any]]:
+def _collect_posts() -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
-    for snap in db.collection_group(name).stream():
+    for snap in db.collection_group("post").stream():
         d = snap.to_dict() or {}
         d["id"] = snap.id
         try:
-            parent_doc = snap.reference.parent.parent
+            # snapshot path: submission/{level}/{student_code}/post/{id}
+            parent_doc = snap.reference.parent.parent  # document {student_code}
             if parent_doc:
                 d["student_code"] = parent_doc.id
-                d["_path"] = f"{parent_doc.path}/{name}/{snap.id}"
+                level_ref = parent_doc.parent.parent
+                if level_ref:
+                    d["_level"] = level_ref.id
+                    d["_path"] = f"submission/{level_ref.id}/{parent_doc.id}/post/{snap.id}"
         except Exception:
             pass
         upd = getattr(snap, "update_time", None)
@@ -155,14 +159,9 @@ def fetch_all_submissions() -> List[Dict[str, Any]]:
         return []
     items: List[Dict[str, Any]] = []
     try:
-        items.extend(_collect_group("lessons"))
+        items.extend(_collect_posts())
     except Exception as e:
-        st.error(f"collection_group('lessons') failed: {e}")
-    # also read the misspelled subcollection if some students still use it
-    try:
-        items.extend(_collect_group("lessens"))
-    except Exception:
-        pass
+        st.error(f"collection_group('post') failed: {e}")
     return items
 
 # ----------------- notifications -----------------
