@@ -160,8 +160,8 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
     return "\n".join(strings).strip()
 
 
-def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
-    if not db or not student_code:
+def fetch_submissions(level: str) -> List[Dict[str, Any]]:
+    if not db or not level:
         return []
     items: List[Dict[str, Any]] = []
 
@@ -203,15 +203,13 @@ def fetch_submissions(student_code: str) -> List[Dict[str, Any]]:
         """Attach common metadata like path, level and timestamp."""
         d = dict(d)
         d["id"] = doc_id
-        d["level"] = d.get("level", "")
+        d["level"] = d.get("level", level)
         d["_ts_ms"] = _ts_ms(d)
-        d["_path"] = f"drafts_v2/{student_code}/lessons/{doc_id}"
+        d["_path"] = f"submissions/{level}/posts/{doc_id}"
         return d
 
     try:
-        lessons_ref = (
-            db.collection("drafts_v2").document(student_code).collection("lessons")
-        )
+        lessons_ref = db.collection("submissions").document(level).collection("posts")
         for snap in lessons_ref.stream():
             d = snap.to_dict() or {}
             items.append(_normalize_row(d, snap.id))
@@ -621,10 +619,10 @@ st.info(
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
 student_text = ""
-subs = fetch_submissions(studentcode)
+subs = fetch_submissions(student_level)
 if not subs:
     st.warning(
-        f"No submissions found under drafts_v2/{studentcode}/lessons/."
+        f"No submissions found under submissions/{student_level}/posts/."
     )
 else:
     def label_for(d: Dict[str, Any]) -> str:
