@@ -160,8 +160,8 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
     return "\n".join(strings).strip()
 
 
-def fetch_submissions(level: str) -> List[Dict[str, Any]]:
-    if not db or not level:
+def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
+    if not db or not level or not student_code:
         return []
     items: List[Dict[str, Any]] = []
 
@@ -211,6 +211,7 @@ def fetch_submissions(level: str) -> List[Dict[str, Any]]:
 
         d["id"] = doc_id
         d["student_name"] = pick(["student_name", "name", "student", "studentName"])
+        d["student_code"] = pick(["student_code", "code", "studentcode"])
         d["chapter"] = pick(["chapter", "chapter_name", "unit"])
         d["assignment"] = pick(["assignment", "assignment_name", "task", "topic"])
         d["level"] = pick(["level", "student_level"], level)
@@ -220,6 +221,7 @@ def fetch_submissions(level: str) -> List[Dict[str, Any]]:
 
     try:
         lessons_ref = db.collection("submissions").document(level).collection("posts")
+        lessons_ref = lessons_ref.where("student_code", "==", student_code)
         for snap in lessons_ref.stream():
             d = snap.to_dict() or {}
             items.append(_normalize_row(d, snap.id))
@@ -629,7 +631,7 @@ st.info(
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
 student_text = ""
-subs = fetch_submissions(student_level)
+subs = fetch_submissions(student_level, studentcode)
 if not subs:
     st.warning(
         f"No submissions found under submissions/{student_level}/posts/."
@@ -640,8 +642,9 @@ else:
         preview = (txt[:80] + "…") if len(txt) > 80 else txt
         ts = datetime.fromtimestamp(d.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
         return (
-            f"{ts} • {d.get('student_name','')} • {d.get('level','')} "
-            f"• {d.get('chapter','')} • {d.get('assignment','')} • {preview}"
+            f"{ts} • {d.get('student_name','')} • {d.get('student_code','')} "
+            f"• {d.get('level','')} • {d.get('chapter','')} "
+            f"• {d.get('assignment','')} • {preview}"
         )
 
     labels_sub = [label_for(d) for d in subs]
