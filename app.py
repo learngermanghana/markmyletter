@@ -522,14 +522,15 @@ def save_row_to_scores(row: dict) -> dict:
                         "raw": raw,
                     }
 
-                # Ensure raw message is included for debugging
+                # Ensure raw message is included for debugging and default to success
                 data.setdefault("raw", raw)
+                data.setdefault("ok", True)
                 return data
 
         # ---------------- Fallback: plain text ----------------
         if "violates the data validation rules" in raw:
             return {"ok": False, "why": "validation", "raw": raw}
-        return {"ok": False, "raw": raw}
+        return {"ok": True, "raw": raw}
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -556,6 +557,8 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
         first failure returned.
     """
 
+    result: Dict[str, Any] = {"ok": True}
+
     if to_sheet:
         result = save_row_to_scores(row)
         if not result.get("ok"):
@@ -566,7 +569,7 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
         if not result.get("ok"):
             return result
 
-    return {"ok": True}
+    return result
 
 
 
