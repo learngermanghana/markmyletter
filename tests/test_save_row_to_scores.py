@@ -35,3 +35,17 @@ def test_save_row_to_scores_non_2xx(monkeypatch):
 
     result = save_row_to_scores({"foo": "bar"})
     assert result == {"ok": False, "status": 400, "raw": "Bad request"}
+
+
+def test_save_row_to_scores_success_default(monkeypatch):
+    save_row_to_scores = _load_save_row_to_scores()
+
+    class DummyResponse:
+        status_code = 200
+        text = "All good"
+        headers = {}
+
+    monkeypatch.setattr(requests, "post", lambda *a, **k: DummyResponse())
+
+    result = save_row_to_scores({"foo": "bar"})
+    assert result == {"ok": True, "raw": "All good"}
