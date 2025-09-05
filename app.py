@@ -758,6 +758,8 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         result = save_row(row, to_firestore=save_to_firestore)
         if result.get("ok"):
             st.success("✅ Saved to Scores sheet" + (" and Firestore." if save_to_firestore else "."))
+            load_sheet_csv.clear()
+            st.rerun()
         elif result.get("why") == "validation":
             field = result.get("field")
             if field:
