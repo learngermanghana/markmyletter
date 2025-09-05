@@ -552,21 +552,29 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
     Returns
     -------
     dict
-        ``{"ok": True}`` if all requested operations succeed, otherwise the
-        first failure returned.
+        Structured result with individual outcomes for each save target, e.g.
+        ``{"ok": True, "sheet_ok": True, "fire_ok": True}``.
     """
 
+    sheet_result = {"ok": True}
+    fire_result = {"ok": True}
+
     if to_sheet:
-        result = save_row_to_scores(row)
-        if not result.get("ok"):
-            return result
+        sheet_result = save_row_to_scores(row)
 
     if to_firestore:
-        result = save_row_to_firestore(row)
-        if not result.get("ok"):
-            return result
+        fire_result = save_row_to_firestore(row)
 
-    return {"ok": True}
+    sheet_ok = sheet_result.get("ok", False)
+    fire_ok = fire_result.get("ok", False)
+
+    return {
+        "ok": sheet_ok and fire_ok,
+        "sheet_ok": sheet_ok,
+        "fire_ok": fire_ok,
+        "sheet_result": sheet_result,
+        "fire_result": fire_result,
+    }
 
 
 
@@ -756,17 +764,32 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         }
 
         result = save_row(row, to_firestore=save_to_firestore)
+
+        sheet_res = result.get("sheet_result") or {}
+        fire_res = result.get("fire_result") or {}
+
+        if result.get("sheet_ok"):
+            st.success("✅ Saved to Scores sheet.")
+        else:
+            if sheet_res.get("why") == "validation":
+                field = sheet_res.get("field")
+                if field:
+                    st.error(f"❌ Sheet blocked the write due to data validation ({field}).")
+                else:
+                    st.error("❌ Sheet blocked the write due to data validation.")
+                    if sheet_res.get("raw"):
+                        st.caption(sheet_res["raw"])
+            else:
+                st.error(f"❌ Failed to save to Scores sheet: {sheet_res}")
+
+        if save_to_firestore:
+            if result.get("fire_ok"):
+                st.success("✅ Saved to Firestore.")
+            else:
+                st.error(f"❌ Failed to save to Firestore: {fire_res}")
+
         if result.get("ok"):
-            st.success("✅ Saved to Scores sheet" + (" and Firestore." if save_to_firestore else "."))
+            if save_to_firestore:
+                st.success("✅ Saved to both Scores sheet and Firestore.")
             load_sheet_csv.clear()
             st.rerun()
-        elif result.get("why") == "validation":
-            field = result.get("field")
-            if field:
-                st.error(f"❌ Sheet blocked the write due to data validation ({field}).")
-            else:
-                st.error("❌ Sheet blocked the write due to data validation.")
-                if result.get("raw"):
-                    st.caption(result["raw"])
-        else:
-            st.error(f"❌ Failed to save: {result}")
