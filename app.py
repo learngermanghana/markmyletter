@@ -10,7 +10,7 @@ import requests
 import streamlit as st
 
 # ---------------- Firebase ----------------
-from firebase_utils import get_firestore_client
+from firebase_utils import get_firestore_client, save_row_to_firestore
 
 db = get_firestore_client()
 
@@ -531,6 +531,40 @@ def save_row_to_scores(row: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> dict:
+    """Save a row to the score sheet and/or Firestore.
+
+    Parameters
+    ----------
+    row: dict
+        The row of data to save.
+    to_sheet: bool
+        When ``True`` (default) the row is sent to the Google Sheet via
+        :func:`save_row_to_scores`.
+    to_firestore: bool
+        When ``True`` the row is written to Firestore using
+        :func:`save_row_to_firestore`.
+
+    Returns
+    -------
+    dict
+        ``{"ok": True}`` if all requested operations succeed, otherwise the
+        first failure returned.
+    """
+
+    if to_sheet:
+        result = save_row_to_scores(row)
+        if not result.get("ok"):
+            return result
+
+    if to_firestore:
+        result = save_row_to_firestore(row)
+        if not result.get("ok"):
+            return result
+
+    return {"ok": True}
+
+
 
 # =========================================================
 # UI
@@ -692,6 +726,7 @@ feedback = st.text_area("Feedback", key="feedback", height=80)
 
 # Save to Scores
 st.subheader("5) Save to Scores sheet")
+save_to_firestore = st.checkbox("also save to Firestore")
 if st.button("💾 Save", type="primary", use_container_width=True):
     if not studentcode:
         st.error("Pick a student first.")
@@ -716,9 +751,9 @@ if st.button("💾 Save", type="primary", use_container_width=True):
             "link":        st.session_state.ref_link,  # uses answer_url only
         }
 
-        result = save_row_to_scores(row)
+        result = save_row(row, to_firestore=save_to_firestore)
         if result.get("ok"):
-            st.success("✅ Saved to Scores sheet.")
+            st.success("✅ Saved to Scores sheet" + (" and Firestore." if save_to_firestore else "."))
         elif result.get("why") == "validation":
             field = result.get("field")
             if field:

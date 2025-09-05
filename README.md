@@ -29,3 +29,22 @@ Run the app with:
 streamlit run app.py
 ```
 
+## Firestore support
+
+The app can optionally store each saved row in a Firestore collection. To
+enable this feature provide Firebase service account credentials in
+`secrets.toml` under the `firebase` key:
+
+```toml
+[firebase]
+type = "service_account"
+project_id = "your-project-id"
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "firebase-adminsdk@example.iam.gserviceaccount.com"
+token_uri = "https://oauth2.googleapis.com/token"
+```
+
+When the credentials are available, the UI shows a checkbox labelled
+“also save to Firestore” next to the save button. Checking it writes the data to
+the `scores` collection in addition to the Google Sheet.
+
