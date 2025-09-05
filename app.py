@@ -499,6 +499,10 @@ def save_row_to_scores(row: dict) -> dict:
 
         raw = r.text  # keep a copy for troubleshooting
 
+        # Bail out early if the request failed
+        if not (200 <= r.status_code < 300):
+            return {"ok": False, "status": r.status_code, "raw": raw}
+
         # ---------------- Structured JSON ----------------
         if r.headers.get("content-type", "").startswith("application/json"):
             data: Dict[str, Any]
