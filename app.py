@@ -200,10 +200,20 @@ def fetch_submissions(level: str) -> List[Dict[str, Any]]:
         return 0
 
     def _normalize_row(d: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
-        """Attach common metadata like path, level and timestamp."""
+        """Attach common metadata like path, level, timestamp and details."""
         d = dict(d)
+
+        def pick(keys: List[str], default: str = "") -> Any:
+            for k in keys:
+                if k in d and d[k] not in (None, ""):
+                    return d[k]
+            return default
+
         d["id"] = doc_id
-        d["level"] = d.get("level", level)
+        d["student_name"] = pick(["student_name", "name", "student", "studentName"])
+        d["chapter"] = pick(["chapter", "chapter_name", "unit"])
+        d["assignment"] = pick(["assignment", "assignment_name", "task", "topic"])
+        d["level"] = pick(["level", "student_level"], level)
         d["_ts_ms"] = _ts_ms(d)
         d["_path"] = f"submissions/{level}/posts/{doc_id}"
         return d
@@ -629,11 +639,19 @@ else:
         txt = extract_text_from_doc(d)
         preview = (txt[:80] + "…") if len(txt) > 80 else txt
         ts = datetime.fromtimestamp(d.get("_ts_ms", 0) / 1000).strftime("%Y-%m-%d %H:%M")
-        return f"{ts} • {d.get('id','(no-id)')} • {preview}"
+        return (
+            f"{ts} • {d.get('student_name','')} • {d.get('level','')} "
+            f"• {d.get('chapter','')} • {d.get('assignment','')} • {preview}"
+        )
 
     labels_sub = [label_for(d) for d in subs]
     pick = st.selectbox("Pick submission", labels_sub)
-    student_text = extract_text_from_doc(subs[labels_sub.index(pick)])
+    chosen = subs[labels_sub.index(pick)]
+    student_text = extract_text_from_doc(chosen)
+    st.markdown(f"**Student:** {chosen.get('student_name','')}")
+    st.markdown(f"**Level:** {chosen.get('level','')}")
+    st.markdown(f"**Chapter:** {chosen.get('chapter','')}")
+    st.markdown(f"**Assignment:** {chosen.get('assignment','')}")
 
 st.markdown("**Student Submission**")
 st.code(student_text or "(empty)", language="markdown")
