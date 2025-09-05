@@ -31,3 +31,31 @@ def get_firestore_client():
     except ValueError:
         return None
 
+
+def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
+    """Save a row to a Firestore collection.
+
+    Parameters
+    ----------
+    row:
+        The data to be written to Firestore.
+    collection:
+        Name of the Firestore collection. Defaults to ``"scores"``.
+
+    Returns
+    -------
+    dict
+        ``{"ok": True}`` on success or ``{"ok": False, "error": str}`` on
+        failure.
+    """
+
+    db = get_firestore_client()
+    if not db:
+        return {"ok": False, "error": "no_client"}
+
+    try:
+        db.collection(collection).add(row)
+        return {"ok": True}
+    except Exception as e:  # pragma: no cover - broad to capture Firestore errors
+        return {"ok": False, "error": str(e)}
+
