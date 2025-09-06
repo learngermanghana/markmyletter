@@ -48,4 +48,4 @@ def test_save_row_to_scores_success_default(monkeypatch):
     monkeypatch.setattr(requests, "post", lambda *a, **k: DummyResponse())
 
     result = save_row_to_scores({"foo": "bar"})
-    assert result == {"ok": True, "raw": "All good"}
+    assert result == {"ok": True, "raw": "All good", "message": "Saved to Scores sheet"}

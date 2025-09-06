@@ -23,6 +23,6 @@ def test_save_row_to_firestore_success(monkeypatch):
     monkeypatch.setattr(firebase_utils, 'get_firestore_client', lambda: FakeClient())
 
     result = firebase_utils.save_row_to_firestore({'foo': 'bar'})
-    assert result == {'ok': True}
+    assert result == {'ok': True, 'message': 'Saved to Firestore'}
     assert added['collection'] == 'scores'
     assert added['row'] == {'foo': 'bar'}
