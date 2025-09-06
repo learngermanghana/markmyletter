@@ -584,6 +584,9 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
 # UI
 # =========================================================
 st.set_page_config(page_title="📘 Marking Dashboard", page_icon="📘", layout="wide")
+message = st.session_state.pop("last_save_success", None)
+if message:
+    st.success("✅ " + message)
 st.title("📘 Marking Dashboard")
 
 if st.button("🔄 Refresh caches"):
@@ -767,7 +770,9 @@ if st.button("💾 Save", type="primary", use_container_width=True):
 
         result = save_row(row, to_firestore=save_to_firestore)
         if result.get("ok"):
-            st.success("✅ " + result.get("message", "Saved"))
+            message = result.get("message", "Saved")
+            st.session_state["last_save_success"] = message
+            st.success("✅ " + message)
             load_sheet_csv.clear()
             st.rerun()
         elif result.get("why") == "validation":
