@@ -525,12 +525,13 @@ def save_row_to_scores(row: dict) -> dict:
                 # Ensure raw message is included for debugging and default to success
                 data.setdefault("raw", raw)
                 data.setdefault("ok", True)
+                data.setdefault("message", "Saved to Scores sheet")
                 return data
 
         # ---------------- Fallback: plain text ----------------
         if "violates the data validation rules" in raw:
             return {"ok": False, "why": "validation", "raw": raw}
-        return {"ok": True, "raw": raw}
+        return {"ok": True, "raw": raw, "message": "Saved to Scores sheet"}
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -558,17 +559,23 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
     """
 
     result: Dict[str, Any] = {"ok": True}
+    messages: List[str] = []
 
     if to_sheet:
-        result = save_row_to_scores(row)
-        if not result.get("ok"):
-            return result
+        sheet_res = save_row_to_scores(row)
+        if not sheet_res.get("ok"):
+            return sheet_res
+        result.update(sheet_res)
+        messages.append(sheet_res.get("message", "Scores sheet").replace("Saved to ", ""))
 
     if to_firestore:
-        result = save_row_to_firestore(row)
-        if not result.get("ok"):
-            return result
+        fs_res = save_row_to_firestore(row)
+        if not fs_res.get("ok"):
+            return fs_res
+        result.update(fs_res)
+        messages.append(fs_res.get("message", "Firestore").replace("Saved to ", ""))
 
+    result["message"] = "Saved to " + " and ".join(messages) if messages else "Saved"
     return result
 
 
@@ -760,7 +767,7 @@ if st.button("💾 Save", type="primary", use_container_width=True):
 
         result = save_row(row, to_firestore=save_to_firestore)
         if result.get("ok"):
-            st.success("✅ Saved to Scores sheet" + (" and Firestore." if save_to_firestore else "."))
+            st.success("✅ " + result.get("message", "Saved"))
             load_sheet_csv.clear()
             st.rerun()
         elif result.get("why") == "validation":

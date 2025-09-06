@@ -45,8 +45,8 @@ def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
     Returns
     -------
     dict
-        ``{"ok": True}`` on success or ``{"ok": False, "error": str}`` on
-        failure.
+        ``{"ok": True, "message": "Saved to Firestore"}`` on success or
+        ``{"ok": False, "error": str}`` on failure.
     """
 
     db = get_firestore_client()
@@ -55,7 +55,7 @@ def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
 
     try:
         db.collection(collection).add(row)
-        return {"ok": True}
+        return {"ok": True, "message": "Saved to Firestore"}
     except Exception as e:  # pragma: no cover - broad to capture Firestore errors
         return {"ok": False, "error": str(e)}
 
