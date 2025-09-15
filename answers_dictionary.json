@@ -1535,5 +1535,25 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1ZmpTcbi4zR5gxGt80Khu3E2M-1sneiJM0qCOCwa8UKo/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1ZmpTcbi4zR5gxGt80Khu3E2M-1sneiJM0qCOCwa8UKo/edit",
     "format": "objective"
+  },
+  "Lesen und Horen 3": {
+    "answers": {
+      "teil1": {
+        "Answer1": "Es kostet 20 Euro.",
+        "Answer2": "Sie kostet 15 Euro.",
+        "Answer3": "Es kostet 25.000 Euro.",
+        "Answer4": "Er kostet 50 Euro."
+      },
+      "teil3": {
+        "Answer1": "Ich spiele gern Fußball. / Ich spiele nicht gern Fußball.",
+        "Answer2": "Ich mag Schwimmen. / Ich mag nicht Schwimmen.",
+        "Answer3": "Ich mag Lesen. / Ich mag nicht Lesen.",
+        "Answer4": "Ich mag Malen. / Ich mag nicht Malen.",
+        "Answer5": "Ich mag Musik. / Ich mag nicht Musik.",
+        "Answer6": "Ich mag Kochen. / Ich mag nicht Kochen.",
+        "Answer7": "Ich mag Reisen. / Ich mag nicht Reisen.",
+        "Answer8": "Ich mag Gartenarbeit. / Ich mag nicht Gartenarbeit."
+      }
+    }
   }
 }
