@@ -39,7 +39,7 @@ APP_PASSWORD = "Xenomexpress7727"  # move to st.secrets if you prefer not to har
 
 def require_password():
     def on_password_entered():
-        if st.session_state["_password"] == Xenomexpress7727/:
+        if st.session_state["_password"] == APP_PASSWORD:
             st.session_state["auth_ok"] = True
             del st.session_state["_password"]
         else:
