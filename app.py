@@ -33,6 +33,26 @@ ANSWERS_JSON_PATHS = [
     "assets/answers_dictionary.json",
 ]
 
+import streamlit as st
+
+APP_PASSWORD = "Xenomexpress7727"  # move to st.secrets if you prefer not to hard-code
+
+def require_password():
+    def on_password_entered():
+        if st.session_state["_password"] == Xenomexpress7727/:
+            st.session_state["auth_ok"] = True
+            del st.session_state["_password"]
+        else:
+            st.session_state["auth_ok"] = False
+
+    if not st.session_state.get("auth_ok", False):
+        st.text_input("Enter password", type="password", key="_password", on_change=on_password_entered)
+        if st.session_state.get("auth_ok") is False:
+            st.error("Incorrect password")
+        st.stop()
+
+require_password()  # place this before the rest of the page logic
+
 
 # =========================================================
 # Helpers
