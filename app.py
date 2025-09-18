@@ -580,6 +580,19 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
         first failure returned.
     """
 
+    row = dict(row)
+
+    score_val = row.get("score")
+    try:
+        score_int = int(score_val)
+    except (TypeError, ValueError):
+        score_int = None
+
+    if score_int is not None:
+        row["score"] = score_int
+        if score_int < 60:
+            row["link"] = ""
+
     result: Dict[str, Any] = {"ok": True}
     messages: List[str] = []
 
@@ -779,15 +792,18 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         except ValueError:
             studentcode_val = studentcode
 
+        score_int = int(score)
+        link_value = st.session_state.ref_link if score_int >= 60 else ""
+
         row = {
             "studentcode": studentcode_val,
             "name":        student_name,
             "assignment":  st.session_state.ref_assignment,
-            "score":       int(score),
+            "score":       score_int,
             "comments":    feedback.strip(),
             "date":        datetime.now().strftime("%Y-%m-%d"),
             "level":       student_level,
-            "link":        st.session_state.ref_link,  # uses answer_url only
+            "link":        link_value,  # uses answer_url only when allowed
         }
 
         result = save_row(row, to_firestore=save_to_firestore)
