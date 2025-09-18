@@ -18,6 +18,8 @@ db = get_firestore_client()
 # Students Google Sheet (tab now "Sheet1" unless you override in secrets)
 STUDENTS_SHEET_ID   = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
 STUDENTS_SHEET_TAB  = st.secrets.get("STUDENTS_SHEET_TAB", "Sheet1")
+SCORES_SHEET_ID     = st.secrets.get("SCORES_SHEET_ID")
+SCORES_SHEET_TAB    = st.secrets.get("SCORES_SHEET_TAB", "Scores")
 
 # Apps Script webhook (fallbacks included)
 WEBHOOK_URL   = st.secrets.get(
@@ -805,3 +807,97 @@ if st.button("💾 Save", type="primary", use_container_width=True):
                     st.caption(result["raw"])
         else:
             st.error(f"❌ Failed to save: {result}")
+
+
+# ---------------- Scores Leaderboard ----------------
+st.subheader("6) Scores leaderboard")
+
+if not SCORES_SHEET_ID:
+    st.info("Set `SCORES_SHEET_ID` (and optionally `SCORES_SHEET_TAB`) in Streamlit secrets to view the leaderboard.")
+else:
+    try:
+        scores_df = load_sheet_csv(SCORES_SHEET_ID, SCORES_SHEET_TAB)
+    except Exception as exc:
+        st.error(f"Unable to load Scores sheet: {exc}")
+    else:
+        if scores_df.empty:
+            st.info("No scores found yet.")
+        else:
+            missing_cols = {"studentcode", "assignment", "score"} - set(scores_df.columns)
+            if missing_cols:
+                st.error(
+                    "Scores sheet is missing required columns: "
+                    + ", ".join(sorted(missing_cols))
+                )
+            else:
+                working = scores_df.copy()
+                working["studentcode"] = (
+                    working["studentcode"].fillna("").astype(str).str.strip()
+                )
+                working["assignment"] = (
+                    working["assignment"].fillna("").astype(str).str.strip()
+                )
+                working["score"] = pd.to_numeric(working["score"], errors="coerce")
+
+                working = working[
+                    (working["studentcode"] != "")
+                    & (working["assignment"] != "")
+                    & (~working["score"].isna())
+                ].copy()
+
+                if working.empty:
+                    st.info("No valid score rows to display yet.")
+                else:
+                    deduped = (
+                        working.sort_values(
+                            ["studentcode", "assignment", "score"],
+                            ascending=[True, True, False],
+                        )
+                        .drop_duplicates(subset=["studentcode", "assignment"], keep="first")
+                        .reset_index(drop=True)
+                    )
+
+                    deduped["score"] = deduped["score"].round(0).astype(int)
+
+                    if "name" not in deduped.columns:
+                        deduped["name"] = ""
+                    deduped["name"] = deduped["name"].fillna("")
+
+                    leaderboard = (
+                        deduped.groupby(["studentcode", "name"], as_index=False)
+                        .agg(
+                            assignments_completed=("assignment", "count"),
+                            average_score=("score", "mean"),
+                            best_score=("score", "max"),
+                            total_score=("score", "sum"),
+                        )
+                    )
+
+                    leaderboard["average_score"] = leaderboard["average_score"].round(1)
+                    leaderboard["total_score"] = leaderboard["total_score"].astype(int)
+                    leaderboard["best_score"] = leaderboard["best_score"].astype(int)
+
+                    leaderboard = leaderboard.sort_values(
+                        ["total_score", "average_score", "best_score", "studentcode"],
+                        ascending=[False, False, False, True],
+                    )
+
+                    display_cols = [
+                        col
+                        for col in [
+                            "studentcode",
+                            "name",
+                            "assignment",
+                            "score",
+                            "comments",
+                            "date",
+                            "level",
+                        ]
+                        if col in deduped.columns
+                    ]
+
+                    st.markdown("**Highest scores per assignment**")
+                    st.dataframe(deduped[display_cols], use_container_width=True)
+
+                    st.markdown("**Leaderboard (sum of highest scores)**")
+                    st.table(leaderboard)
