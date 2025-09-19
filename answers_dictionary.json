@@ -874,13 +874,13 @@
         "Answer3": "b) Hausaufgaben",
         "Answer4": "a) am Nachmittag",
         "Answer5": "b) Freunde treffen",
-        "Answer6": "c) die Schweiz",
-        "Answer7": "d) mit dem Zug"
       },
       "teil4": {
-        "Answer1": "a) an einem kleinen Bahnhof",
-        "Answer2": "d) einen Zimmerschlüssel",
-        "Answer3": "b) das Zimmer ist zu klein"
+        "Answer1": "c) die Schweiz",
+        "Answer2": "d) mit dem Zug"
+        "Answer3": "a) an einem kleinen Bahnhof",
+        "Answer4": "d) einen Zimmerschlüssel",
+        "Answer5": "b) das Zimmer ist zu klein"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/gviz/tq?tqx=out:html&sheet=Key",
