@@ -717,6 +717,7 @@ st.info(
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (Firestore)")
 student_text = ""
+student_note = ""
 subs = fetch_submissions(student_level, studentcode)
 if not subs:
     st.warning(
@@ -742,6 +743,28 @@ else:
     st.markdown(f"**Chapter:** {chosen.get('chapter','')}")
     st.markdown(f"**Assignment:** {chosen.get('assignment','')}")
 
+    note_keys = [
+        "student_note",
+        "studentnote",
+        "student_notes",
+        "note",
+        "notes",
+    ]
+    for key in note_keys:
+        raw_note = chosen.get(key)
+        if isinstance(raw_note, str):
+            candidate = raw_note.strip()
+        elif raw_note is not None:
+            candidate = str(raw_note).strip()
+        else:
+            candidate = ""
+        if candidate:
+            student_note = candidate
+            break
+
+    if student_note:
+        st.caption(f"📝 Student note: {student_note}")
+
 st.markdown("**Student Submission**")
 st.code(student_text or "(empty)", language="markdown")
 
@@ -753,12 +776,11 @@ if st.session_state.ref_link:
 
 # Combined copy block
 st.subheader("4) Combined (copyable)")
-combined = f"""# Student Submission
-{student_text}
-
-# Reference Answer
-{st.session_state.ref_text}
-"""
+combined_sections = ["# Student Submission", student_text]
+if student_note:
+    combined_sections.extend(["", "# Student Note", student_note])
+combined_sections.extend(["", "# Reference Answer", st.session_state.ref_text])
+combined = "\n".join(combined_sections)
 st.text_area("Combined", value=combined, height=200)
 
 # Manual scoring
