@@ -118,6 +118,7 @@ payload: Dict[str, Any] = {
     "chapter": chapter,
     "assignment": assignment,
     "content": content,
+    "text": content,
     "notes": notes,
     "status": "draft",
     "updated_at_local": datetime.utcnow().isoformat() + "Z",

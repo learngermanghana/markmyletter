@@ -97,6 +97,21 @@ def save_student_draft(level: str, student_code: str, payload: dict) -> dict:
     data["student_code"] = code_id
     data.setdefault("updated_at", firestore.SERVER_TIMESTAMP)
 
+    def _has_content(value: object) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return bool(value.strip())
+        return True
+
+    content_present = _has_content(data.get("content"))
+    text_present = _has_content(data.get("text"))
+
+    if content_present and not text_present:
+        data["text"] = data.get("content")
+    elif text_present and not content_present:
+        data["content"] = data.get("text")
+
     try:
         (
             db.collection("submissions")
