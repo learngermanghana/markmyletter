@@ -59,3 +59,95 @@ def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
     except Exception as e:  # pragma: no cover - broad to capture Firestore errors
         return {"ok": False, "error": str(e)}
 
+
+def save_student_draft(level: str, student_code: str, payload: dict) -> dict:
+    """Persist a student's draft entry under ``submissions/{level}/draftv2``.
+
+    Parameters
+    ----------
+    level:
+        Course level used as the Firestore document id (e.g. ``"A1"``).
+    student_code:
+        Unique student identifier that becomes the draft document id.
+    payload:
+        Arbitrary dictionary containing draft data (text plus metadata).
+
+    Returns
+    -------
+    dict
+        ``{"ok": True, "message": "Draft saved"}`` on success. When saving
+        fails the response contains ``{"ok": False, "error": str}`` with a
+        short error code/message.
+    """
+
+    level_id = str(level or "").strip()
+    code_id = str(student_code or "").strip()
+    if not level_id or not code_id:
+        return {"ok": False, "error": "invalid_args"}
+    if not isinstance(payload, dict):
+        return {"ok": False, "error": "invalid_payload"}
+
+    db = get_firestore_client()
+    if not db:
+        return {"ok": False, "error": "no_client"}
+
+    data = dict(payload)
+    data.setdefault("status", "draft")
+    data["level"] = level_id
+    data["student_code"] = code_id
+    data.setdefault("updated_at", firestore.SERVER_TIMESTAMP)
+
+    try:
+        (
+            db.collection("submissions")
+            .document(level_id)
+            .collection("draftv2")
+            .document(code_id)
+            .set(data, merge=True)
+        )
+        return {"ok": True, "message": "Draft saved"}
+    except Exception as e:  # pragma: no cover - Firestore failures
+        return {"ok": False, "error": str(e)}
+
+
+def load_student_draft(level: str, student_code: str) -> dict | None:
+    """Load a draft for ``student_code`` if one exists.
+
+    Parameters
+    ----------
+    level:
+        Course level document id.
+    student_code:
+        Student identifier / draft document id.
+
+    Returns
+    -------
+    dict | None
+        Draft dictionary when present, otherwise ``None``. ``None`` is also
+        returned if Firestore is unavailable.
+    """
+
+    level_id = str(level or "").strip()
+    code_id = str(student_code or "").strip()
+    if not level_id or not code_id:
+        return None
+
+    db = get_firestore_client()
+    if not db:
+        return None
+
+    try:
+        snap = (
+            db.collection("submissions")
+            .document(level_id)
+            .collection("draftv2")
+            .document(code_id)
+            .get()
+        )
+    except Exception:  # pragma: no cover - Firestore client errors
+        return None
+
+    if getattr(snap, "exists", False):
+        return snap.to_dict() or {}
+    return None
+
