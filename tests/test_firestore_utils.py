@@ -68,6 +68,7 @@ def test_save_student_draft_success(monkeypatch):
     assert calls['student_code'] == 'S123'
     assert calls['merge'] is True
     assert calls['payload']['content'] == 'hello'
+    assert calls['payload']['text'] == 'hello'
     assert calls['payload']['notes'] == 'abc'
     assert calls['payload']['student_code'] == 'S123'
     assert calls['payload']['level'] == 'A1'
@@ -79,6 +80,42 @@ def test_save_student_draft_no_client(monkeypatch):
     monkeypatch.setattr(firebase_utils, 'get_firestore_client', lambda: None)
     result = firebase_utils.save_student_draft('A1', 'S123', {})
     assert result == {'ok': False, 'error': 'no_client'}
+
+
+def test_save_student_draft_copies_text_to_content(monkeypatch):
+    calls = {}
+
+    class FakeDoc:
+        def set(self, payload, merge=False):
+            calls['payload'] = payload
+
+    class FakeDrafts:
+        def document(self, student_code):
+            assert student_code == 'S456'
+            return FakeDoc()
+
+    class FakeLevelDoc:
+        def collection(self, name):
+            assert name == 'draftv2'
+            return FakeDrafts()
+
+    class FakeSubmissions:
+        def document(self, level):
+            assert level == 'B2'
+            return FakeLevelDoc()
+
+    class FakeClient:
+        def collection(self, name):
+            assert name == 'submissions'
+            return FakeSubmissions()
+
+    monkeypatch.setattr(firebase_utils, 'get_firestore_client', lambda: FakeClient())
+
+    payload = {'text': 'hola'}
+    firebase_utils.save_student_draft('B2', 'S456', payload)
+
+    assert calls['payload']['content'] == 'hola'
+    assert calls['payload']['text'] == 'hola'
 
 
 def test_load_student_draft(monkeypatch):
