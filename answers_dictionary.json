@@ -264,11 +264,13 @@
       "Answer3": "B) Auf der rechten Seite, direkt neben dem großen Supermarkt",
       "Answer4": "B) Wie komme ich zur nächsten Apotheke?",
       "Answer5": "C) Gute Reise und einen schönen Tag noch",
-      "Answer6": "C) Wie komme ich zur nächsten Apotheke?",
-      "Answer7": "C) Rechts abbiegen",
-      "Answer8": "B) Auf der linken Seite, direkt neben der Bäckerei",
-      "Answer9": "A) Gehen Sie geradeaus bis zur Kreuzung, dann links",
-      "Answer10": "C) Einen schönen Tag noch",
+      
+      "Answer1": "C) Wie komme ich zur nächsten Apotheke?",
+      "Answer2": "C) Rechts abbiegen",
+      "Answer3": "B) Auf der linken Seite, direkt neben der Bäckerei",
+      "Answer4": "A) Gehen Sie geradeaus bis zur Kreuzung, dann links",
+      "Answer5": "C) Einen schönen Tag noch",
+      
       "Answer11": "Fragen nach dem Weg: 'Entschuldigung, wie komme ich zum Bahnhof'",
       "Answer12": "Die Straße überqueren: 'Überqueren Sie die Straße'",
       "Answer13": "Geradeaus gehen: 'Gehen Sie geradeaus'",
@@ -286,16 +288,18 @@
       "Answer3": "B) Um 8 Uhr",
       "Answer4": "C) Viele verschiedene Fächer",
       "Answer5": "C) Einen Sprachkurs besuchen",
-      "Answer6": "Der Supermarkt ist nur am Wochenende geöffnet. Antwort: B) Falsch (Der Supermarkt hat jeden Tag von 8 Uhr bis 20 Uhr geöffnet.)",
-      "Answer7": "Die Theoriestunden sind jeden Tag. Antwort: B) Falsch (Die Theoriestunden finden dienstags und donnerstags statt.)",
-      "Answer8": "Das Büro ist auch am Wochenende geöffnet. Antwort: B) Falsch (Das Büro ist von Montag bis Freitag geöffnet.)",
-      "Answer9": "Der Englischkurs ist zweimal pro Woche. Antwort: B) Falsch (Der Englischkurs findet dreimal pro Woche statt.)",
-      "Answer10": "Das Fitnessstudio ist nur vormittags geöffnet. Antwort: B) Falsch (Das Fitnessstudio ist jeden Tag von 6 Uhr bis 22 Uhr geöffnet.)",
-      "Answer11": "A) Richtig",
-      "Answer12": "A) Richtig",
-      "Answer13": "A) Richtig",
-      "Answer14": "A) Richtig",
-      "Answer15": "A) Richtig"
+      
+      "Answer1": "Der Supermarkt ist nur am Wochenende geöffnet. Antwort: B) Falsch (Der Supermarkt hat jeden Tag von 8 Uhr bis 20 Uhr geöffnet.)",
+      "Answer2": "Die Theoriestunden sind jeden Tag. Antwort: B) Falsch (Die Theoriestunden finden dienstags und donnerstags statt.)",
+      "Answer3": "Das Büro ist auch am Wochenende geöffnet. Antwort: B) Falsch (Das Büro ist von Montag bis Freitag geöffnet.)",
+      "Answer4": "Der Englischkurs ist zweimal pro Woche. Antwort: B) Falsch (Der Englischkurs findet dreimal pro Woche statt.)",
+      "Answer15": "Das Fitnessstudio ist nur vormittags geöffnet. Antwort: B) Falsch (Das Fitnessstudio ist jeden Tag von 6 Uhr bis 22 Uhr geöffnet.)",
+      
+      "Answer1": "A) Richtig",
+      "Answer2": "A) Richtig",
+      "Answer3": "A) Richtig",
+      "Answer4": "A) Richtig",
+      "Answer55": "A) Richtig"
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1vgjfS9u_dS8ypgMOkCkVp3j_04dM8hwGvQiJdCKT74c/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
@@ -307,16 +311,17 @@
       "Answer3": "Mit seinem Auto",
       "Answer4": "Um 7:30 Uhr",
       "Answer5": "a) Barzahlung (cash)",
-      "Answer6": "B) Um 9:00 Uhr",
-      "Answer7": "B) Um 12:00 Uhr",
-      "Answer8": "B) Um 18:00 Uhr",
-      "Answer9": "B) Um 21:00 Uhr",
-      "Answer10": "D) Alles Genannte",
-      "Answer11": "B) Um 9 Uhr",
-      "Answer12": "B) Um 12 Uhr",
-      "Answer13": "A) ein Computer und ein Drucker",
-      "Answer14": "C) in einer Bar",
-      "Answer15": "C) bar"
+      
+      "Answer1": "B) Um 9:00 Uhr",
+      "Answer2": "B) Um 12:00 Uhr",
+      "Answer3": "B) Um 18:00 Uhr",
+      "Answer4": "B) Um 21:00 Uhr",
+      "Answer5": "D) Alles Genannte",
+      "Answer1": "B) Um 9 Uhr",
+      "Answer2": "B) Um 12 Uhr",
+      "Answer3": "A) ein Computer und ein Drucker",
+      "Answer4": "C) in einer Bar",
+      "Answer5": "C) bar"
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1DiO7gh0xrt-SyWWhpxVNtMs9lFjEGuzqJww9OMmTjDY/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
@@ -790,16 +795,17 @@
         "Answer3": "A) Die Bezahlung, weil man finanziell abgesichert sein möchte; B) Die Arbeitszeiten, weil man eine gute Work-Life-Balance haben möchte",
         "Answer4": "A) Frauen haben oft geringere Aufstiegschancen. Eine Lösung wäre eine Frauenquote.; B) Frauen verdienen häufig weniger als Männer. Transparente Gehaltsstrukturen könnten helfen.; C) Frauen müssen oft Beruf und Familie vereinbaren. Flexible Arbeitszeiten könnten eine Lösung sein.",
         "Answer5": "A) Es gab weniger technische Geräte im Haushalt; B) Die Menschen waren weniger mobil und reisten seltener.; D) Die Arbeitszeiten waren länger und härter",
-        "Answer6": "B) Die Berufliche",
-        "Answer7": "B) Man informiert sich"
+
       },
       "teil4": {
-        "Answer1": "A) Die Bezahlung",
-        "Answer2": "A) Man sammelt",
-        "Answer3": "A) Geringere",
-        "Answer4": "A) Flexible Arbeitszeiten",
-        "Answer5": "A) Es gab weniger",
-        "Answer6": "B) Sie arbeiteten mehr und hatten weniger Freizeit"
+        "Answer1": "B) Die Berufliche",
+        "Answer2": "B) Man informiert sich"
+        "Answer3": "A) Die Bezahlung",
+        "Answer4": "A) Man sammelt",
+        "Answer5": "A) Geringere",
+        "Answer6": "A) Flexible Arbeitszeiten",
+        "Answer7": "A) Es gab weniger",
+        "Answer8": "B) Sie arbeiteten mehr und hatten weniger Freizeit"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1C-utAPIEGi9Rsp_gI3qsfHddX9IXvazP27sxRrobI40/gviz/tq?tqx=out:html&sheet=Key",
