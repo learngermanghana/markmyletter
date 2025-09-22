@@ -175,7 +175,7 @@ def test_load_student_draft(monkeypatch):
     )
 
     data = firebase_utils.load_student_draft('A1', 'S123')
-    assert data == {'content': 'draft body'}
+    assert data == {'content': 'draft body', 'text': 'draft body'}
 
     monkeypatch.setattr(
         firebase_utils,
@@ -183,3 +183,42 @@ def test_load_student_draft(monkeypatch):
         lambda: FakeClient(FakeSnapshot({}, exists=False))
     )
     assert firebase_utils.load_student_draft('A1', 'S123') is None
+
+
+def test_load_student_draft_copies_text_to_content(monkeypatch):
+    class FakeSnapshot:
+        def to_dict(self):
+            return {'text': 'only text'}
+
+        @property
+        def exists(self):
+            return True
+
+    class FakeDocRef:
+        def get(self):
+            return FakeSnapshot()
+
+    class FakeDrafts:
+        def document(self, student_code):
+            assert student_code == 'S123'
+            return FakeDocRef()
+
+    class FakeLevelDoc:
+        def collection(self, name):
+            assert name == 'draftv2'
+            return FakeDrafts()
+
+    class FakeSubmissions:
+        def document(self, level):
+            assert level == 'A1'
+            return FakeLevelDoc()
+
+    class FakeClient:
+        def collection(self, name):
+            assert name == 'submissions'
+            return FakeSubmissions()
+
+    monkeypatch.setattr(firebase_utils, 'get_firestore_client', lambda: FakeClient())
+
+    data = firebase_utils.load_student_draft('A1', 'S123')
+    assert data == {'text': 'only text', 'content': 'only text'}
