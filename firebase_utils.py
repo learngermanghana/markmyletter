@@ -163,6 +163,26 @@ def load_student_draft(level: str, student_code: str) -> dict | None:
         return None
 
     if getattr(snap, "exists", False):
-        return snap.to_dict() or {}
+        data = snap.to_dict() or {}
+        if isinstance(data, dict):
+            normalized = dict(data)
+
+            def _has_content(value: object) -> bool:
+                if value is None:
+                    return False
+                if isinstance(value, str):
+                    return bool(value.strip())
+                return True
+
+            content_present = _has_content(normalized.get("content"))
+            text_present = _has_content(normalized.get("text"))
+
+            if content_present and not text_present:
+                normalized["text"] = normalized.get("content")
+            elif text_present and not content_present:
+                normalized["content"] = normalized.get("text")
+
+            return normalized
+        return {}
     return None
 
