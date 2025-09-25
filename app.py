@@ -11,6 +11,9 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
+# Configure page immediately after importing Streamlit to avoid API exceptions.
+st.set_page_config(page_title="📘 Marking Dashboard", page_icon="📘", layout="wide")
+
 # ---------------- Firebase ----------------
 from firebase_utils import get_firestore_client, save_row_to_firestore
 
@@ -776,7 +779,6 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
 # =========================================================
 # UI
 # =========================================================
-st.set_page_config(page_title="📘 Marking Dashboard", page_icon="📘", layout="wide")
 message = st.session_state.pop("last_save_success", None)
 if message:
     st.success("✅ " + message)
