@@ -43,6 +43,22 @@ COOKIE_SALT = st.secrets.get("COOKIE_SALT", "markmyletter")
 LOGIN_TOKEN = hashlib.sha256(f"{COOKIE_SALT}:{APP_PASSWORD}".encode("utf-8")).hexdigest()
 LOCAL_STORAGE_KEY = "markmyletter_auth_token"
 QUERY_PARAM_KEY = "auth_token"
+AUTH_COOKIE_NAME = st.secrets.get("AUTH_COOKIE_NAME", "markmyletter_auth")
+AUTH_COOKIE_SAMESITE = st.secrets.get("AUTH_COOKIE_SAMESITE", "Lax")
+AUTH_COOKIE_SECURE = str(st.secrets.get("AUTH_COOKIE_SECURE", "false")).lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+try:
+    _cookie_days = float(st.secrets.get("AUTH_COOKIE_MAX_AGE_DAYS", 30))
+except (TypeError, ValueError):
+    _cookie_days = 30.0
+AUTH_COOKIE_MAX_AGE_SECONDS = max(int(_cookie_days * 24 * 60 * 60), 60)
+AUTH_COOKIE_ATTRS = f"; Path=/; SameSite={AUTH_COOKIE_SAMESITE}" + (
+    "; Secure" if AUTH_COOKIE_SECURE else ""
+)
 
 
 def _initialize_persistent_login_bridge():
@@ -53,8 +69,29 @@ def _initialize_persistent_login_bridge():
         <script>
         (function() {{
             const storageKey = "{LOCAL_STORAGE_KEY}";
+            const cookieName = "{AUTH_COOKIE_NAME}";
             const paramKey = "{QUERY_PARAM_KEY}";
             const expected = "{LOGIN_TOKEN}";
+            const maxAge = {AUTH_COOKIE_MAX_AGE_SECONDS};
+            const cookieAttrs = "{AUTH_COOKIE_ATTRS}";
+            function readCookie(name) {{
+                const prefix = name + '=';
+                const parts = document.cookie ? document.cookie.split(';') : [];
+                for (let i = 0; i < parts.length; i += 1) {{
+                    const part = parts[i].trim();
+                    if (part.startsWith(prefix)) {{
+                        return decodeURIComponent(part.substring(prefix.length));
+                    }}
+                }}
+                return null;
+            }}
+            function writeCookie(value) {{
+                if (value) {{
+                    document.cookie = cookieName + "=" + value + "; Max-Age=" + maxAge + cookieAttrs;
+                }} else {{
+                    document.cookie = cookieName + "=; Expires=Thu, 01 Jan 1970 00:00:00 GMT" + cookieAttrs;
+                }}
+            }}
             try {{
                 const params = new URLSearchParams(window.location.search);
                 let stored = window.localStorage.getItem(storageKey);
@@ -62,15 +99,30 @@ def _initialize_persistent_login_bridge():
                     window.localStorage.removeItem(storageKey);
                     stored = null;
                 }}
+                let cookie = readCookie(cookieName);
+                if (cookie && cookie !== expected) {{
+                    writeCookie('');
+                    cookie = null;
+                }}
+                if (!stored && cookie === expected) {{
+                    window.localStorage.setItem(storageKey, expected);
+                    stored = expected;
+                }}
                 const current = params.get(paramKey);
-                if (stored && stored !== current) {{
+                if (stored === expected && cookie !== expected) {{
+                    writeCookie(expected);
+                    cookie = expected;
+                }}
+                if (stored === expected && current !== expected) {{
                     params.set(paramKey, stored);
                     const newUrl = window.location.pathname + '?' + params.toString();
                     window.history.replaceState(null, '', newUrl);
                     window.location.reload();
                     return;
                 }}
-                if (!stored && current) {{
+                if (!stored && current === expected) {{
+                    window.localStorage.setItem(storageKey, expected);
+                    writeCookie(expected);
                     params.delete(paramKey);
                     const query = params.toString();
                     const newUrl = window.location.pathname + (query ? '?' + query : '');
@@ -100,12 +152,31 @@ def _set_persistent_login(enabled: bool) -> None:
             needs_update = True
     if needs_update:
         st.experimental_set_query_params(**params)
-    script = (
-        f"window.localStorage.setItem('{LOCAL_STORAGE_KEY}', '{LOGIN_TOKEN}');"
-        if enabled
-        else f"window.localStorage.removeItem('{LOCAL_STORAGE_KEY}');"
+    if enabled:
+        storage_script = f"window.localStorage.setItem('{LOCAL_STORAGE_KEY}', '{LOGIN_TOKEN}');"
+        cookie_script = (
+            "document.cookie = \"{name}={token}; Max-Age={max_age}{attrs}\";".format(
+                name=AUTH_COOKIE_NAME,
+                token=LOGIN_TOKEN,
+                max_age=AUTH_COOKIE_MAX_AGE_SECONDS,
+                attrs=AUTH_COOKIE_ATTRS,
+            )
+        )
+    else:
+        storage_script = f"window.localStorage.removeItem('{LOCAL_STORAGE_KEY}');"
+        cookie_script = (
+            "document.cookie = \"{name}=; Expires=Thu, 01 Jan 1970 00:00:00 GMT{attrs}\";".format(
+                name=AUTH_COOKIE_NAME,
+                attrs=AUTH_COOKIE_ATTRS,
+            )
+        )
+    components.html(
+        f"<script>{{storage}}{{cookie}}</script>".format(
+            storage=storage_script,
+            cookie=cookie_script,
+        ),
+        height=0,
     )
-    components.html(f"<script>{script}</script>", height=0)
 
 
 _initialize_persistent_login_bridge()
