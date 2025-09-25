@@ -2,12 +2,14 @@
 import os
 import re
 import json
+import hashlib
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 
 import pandas as pd
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 # ---------------- Firebase ----------------
 from firebase_utils import get_firestore_client, save_row_to_firestore
@@ -35,15 +37,90 @@ ANSWERS_JSON_PATHS = [
     "assets/answers_dictionary.json",
 ]
 
-import streamlit as st
-
 APP_PASSWORD = "Xenomexpress7727"  # move to st.secrets if you prefer not to hard-code
 
+COOKIE_SALT = st.secrets.get("COOKIE_SALT", "markmyletter")
+LOGIN_TOKEN = hashlib.sha256(f"{COOKIE_SALT}:{APP_PASSWORD}".encode("utf-8")).hexdigest()
+LOCAL_STORAGE_KEY = "markmyletter_auth_token"
+QUERY_PARAM_KEY = "auth_token"
+
+
+def _initialize_persistent_login_bridge():
+    """Ensure the browser keeps query params in sync with local storage token."""
+
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            const storageKey = "{LOCAL_STORAGE_KEY}";
+            const paramKey = "{QUERY_PARAM_KEY}";
+            const expected = "{LOGIN_TOKEN}";
+            try {{
+                const params = new URLSearchParams(window.location.search);
+                let stored = window.localStorage.getItem(storageKey);
+                if (stored && stored !== expected) {{
+                    window.localStorage.removeItem(storageKey);
+                    stored = null;
+                }}
+                const current = params.get(paramKey);
+                if (stored && stored !== current) {{
+                    params.set(paramKey, stored);
+                    const newUrl = window.location.pathname + '?' + params.toString();
+                    window.history.replaceState(null, '', newUrl);
+                    window.location.reload();
+                    return;
+                }}
+                if (!stored && current) {{
+                    params.delete(paramKey);
+                    const query = params.toString();
+                    const newUrl = window.location.pathname + (query ? '?' + query : '');
+                    window.history.replaceState(null, '', newUrl);
+                }}
+            }} catch (err) {{
+                console.warn('Persistent login sync failed', err);
+            }}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+def _set_persistent_login(enabled: bool) -> None:
+    params = st.experimental_get_query_params()
+    current = params.get(QUERY_PARAM_KEY)
+    needs_update = False
+    if enabled:
+        if current != [LOGIN_TOKEN]:
+            params[QUERY_PARAM_KEY] = [LOGIN_TOKEN]
+            needs_update = True
+    else:
+        if current is not None:
+            params.pop(QUERY_PARAM_KEY, None)
+            needs_update = True
+    if needs_update:
+        st.experimental_set_query_params(**params)
+    script = (
+        f"window.localStorage.setItem('{LOCAL_STORAGE_KEY}', '{LOGIN_TOKEN}');"
+        if enabled
+        else f"window.localStorage.removeItem('{LOCAL_STORAGE_KEY}');"
+    )
+    components.html(f"<script>{script}</script>", height=0)
+
+
+_initialize_persistent_login_bridge()
+
+
 def require_password():
+    params = st.experimental_get_query_params()
+    if params.get(QUERY_PARAM_KEY, [""])[0] == LOGIN_TOKEN:
+        st.session_state["auth_ok"] = True
+
     def on_password_entered():
         if st.session_state["_password"] == APP_PASSWORD:
             st.session_state["auth_ok"] = True
             del st.session_state["_password"]
+            _set_persistent_login(True)
         else:
             st.session_state["auth_ok"] = False
 
@@ -53,7 +130,17 @@ def require_password():
             st.error("Incorrect password")
         st.stop()
 
+
+def render_logout_button():
+    if st.session_state.get("auth_ok", False):
+        if st.sidebar.button("Log out"):
+            st.session_state["auth_ok"] = False
+            _set_persistent_login(False)
+            st.experimental_rerun()
+
+
 require_password()  # place this before the rest of the page logic
+render_logout_button()
 
 
 # =========================================================
