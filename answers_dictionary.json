@@ -227,11 +227,11 @@
       "Answer8": "C) Kuchen",
       "Answer9": "C) Schokolade",
       "Answer10": "B) Der Bruder des Autors",
-      "Answer11": "A) Apfel, Bananen und Karotten",
-      "Answer12": "A) Müsli mit Joghurt",
-      "Answer13": "D) Karotten",
-      "Answer14": "A) Käse",
-      "Answer15": "C) Schokoladenkuchen"
+      "Answer1": "A) Apfel, Bananen und Karotten",
+      "Answer2": "A) Müsli mit Joghurt",
+      "Answer3": "D) Karotten",
+      "Answer4": "A) Käse",
+      "Answer5": "C) Schokoladenkuchen"
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1paS9hx9oc7iB2VnxGSUg5Y9-hMf8l08nCNGNSU4__SA/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
@@ -248,11 +248,11 @@
       "Answer8": "Falsch",
       "Answer9": "Falsch",
       "Answer10": "Falsch",
-      "Answer11": "B) Einmal pro Woche",
-      "Answer12": "C) Apfel und Bananen",
-      "Answer13": "A) Ein halbes Kilo",
-      "Answer14": "B) 10 Euro",
-      "Answer15": "B) Einen schönen Tag"
+      "Answer1": "B) Einmal pro Woche",
+      "Answer2": "C) Apfel und Bananen",
+      "Answer3": "A) Ein halbes Kilo",
+      "Answer4": "B) 10 Euro",
+      "Answer5": "B) Einen schönen Tag"
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1OOxtH3ZuP6Vd8wfZScnV_Ht1ywke1C3OmFm5_kFrVGs/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
