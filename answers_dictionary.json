@@ -283,42 +283,54 @@
   },
   "A1 Assignment 12.1": {
     "answers": {
-      "Answer1": "B) Ärztin",
-      "Answer2": "A) Weil sie keine Zeit hat",
-      "Answer3": "B) Um 8 Uhr",
-      "Answer4": "C) Viele verschiedene Fächer",
-      "Answer5": "C) Einen Sprachkurs besuchen",     
-      "Answer1": " B) Falsch (Der Supermarkt hat jeden Tag von 8 Uhr bis 20 Uhr geöffnet.)",
-      "Answer2": " B) Falsch (Die Theoriestunden finden dienstags und donnerstags statt.)",
-      "Answer3": "Antwort: B) Falsch (Das Büro ist von Montag bis Freitag geöffnet.)",
-      "Answer4": " B) Falsch (Der Englischkurs findet dreimal pro Woche statt.)",
-      "Answer5": "B) Falsch (Das Fitnessstudio ist jeden Tag von 6 Uhr bis 22 Uhr geöffnet.)",
-      "Answer1": "A) Richtig",
-      "Answer2": "A) Richtig",
-      "Answer3": "A) Richtig",
-      "Answer4": "A) Richtig",
-      "Answer5": "A) Richtig"
+      "Teil 1": {
+        "Answer1": "B) Ärztin",
+        "Answer2": "A) Weil sie keine Zeit hat",
+        "Answer3": "B) Um 8 Uhr",
+        "Answer4": "C) Viele verschiedene Fächer",
+        "Answer5": "C) Einen Sprachkurs besuchen"
+      },
+      "Teil 2": {
+        "Answer1": "B) Falsch (Der Supermarkt hat jeden Tag von 8 Uhr bis 20 Uhr geöffnet.)",
+        "Answer2": "B) Falsch (Die Theoriestunden finden dienstags und donnerstags statt.)",
+        "Answer3": "B) Falsch (Das Büro ist von Montag bis Freitag geöffnet.)",
+        "Answer4": "B) Falsch (Der Englischkurs findet dreimal pro Woche statt.)",
+        "Answer5": "B) Falsch (Das Fitnessstudio ist jeden Tag von 6 Uhr bis 22 Uhr geöffnet.)"
+      },
+      "Teil 3": {
+        "Answer1": "A) Richtig",
+        "Answer2": "A) Richtig",
+        "Answer3": "A) Richtig",
+        "Answer4": "A) Richtig",
+        "Answer5": "A) Richtig"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1vgjfS9u_dS8ypgMOkCkVp3j_04dM8hwGvQiJdCKT74c/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
   "A1 Assignment 12.2": {
     "answers": {
-      "Answer1": "In Berlin",
-      "Answer2": "Mit seiner Frau und seinen drei Kindern",
-      "Answer3": "Mit seinem Auto",
-      "Answer4": "Um 7:30 Uhr",
-      "Answer5": "a) Barzahlung (cash)",      
-      "Answer1": "B) Um 9:00 Uhr",
-      "Answer2": "B) Um 12:00 Uhr",
-      "Answer3": "B) Um 18:00 Uhr",
-      "Answer4": "B) Um 21:00 Uhr",
-      "Answer5": "D) Alles Genannte",
-      "Answer1": "B) Um 9 Uhr",
-      "Answer2": "B) Um 12 Uhr",
-      "Answer3": "A) ein Computer und ein Drucker",
-      "Answer4": "C) in einer Bar",
-      "Answer5": "C) bar"
+      "Teil 1": {
+        "Answer1": "In Berlin",
+        "Answer2": "Mit seiner Frau und seinen drei Kindern",
+        "Answer3": "Mit seinem Auto",
+        "Answer4": "Um 7:30 Uhr",
+        "Answer5": "a) Barzahlung (cash)"
+      },
+      "Teil 2": {
+        "Answer1": "B) Um 9:00 Uhr",
+        "Answer2": "B) Um 12:00 Uhr",
+        "Answer3": "B) Um 18:00 Uhr",
+        "Answer4": "B) Um 21:00 Uhr",
+        "Answer5": "D) Alles Genannte"
+      },
+      "Teil 3": {
+        "Answer1": "B) Um 9 Uhr",
+        "Answer2": "B) Um 12 Uhr",
+        "Answer3": "A) ein Computer und ein Drucker",
+        "Answer4": "C) in einer Bar",
+        "Answer5": "C) bar"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1DiO7gh0xrt-SyWWhpxVNtMs9lFjEGuzqJww9OMmTjDY/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
