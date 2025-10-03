@@ -494,9 +494,11 @@
         "Answer7": "A"
       },
       "teil4": {
-        "Answer1": "B",
-        "Answer2": "B",
-        "Answer3": "B"
+        "Answer1": "A",
+        "Answer2": "A",
+        "Answer3": "B",
+        "Answer4": "B",
+        "Answer5": "B"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1eMuNXnkWU_AQr422gKKkm8v6-MQTY7B7pzIEXjt5q3s/gviz/tq?tqx=out:html&sheet=Key",
