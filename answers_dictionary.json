@@ -93,11 +93,11 @@
       "Answer5": "C) Paris",
       "Answer6": "B) Amsterdam",
       "Answer7": "C) In der Schweiz",
-      "Answer1": "C) In Italien und Frankreich",
-      "Answer2": "C) Rom",
-      "Answer3": "B) Das Essen",
-      "Answer4": "B) Paris",
-      "Answer5": "A) Nach Spanien"
+      "Answer8": "C) In Italien und Frankreich",
+      "Answer9": "C) Rom",
+      "Answer10": "B) Das Essen",
+      "Answer11": "B) Paris",
+      "Answer12": "A) Nach Spanien"
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1SiYvtaw-LwoeCff7yxlpWsfENMlIbQRqfuh3MPobPOE/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
