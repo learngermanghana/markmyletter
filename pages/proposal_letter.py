@@ -11,15 +11,31 @@ logo_path = base_path / "ChatGPT Image Dec 9, 2025, 10_21_14 AM.png"
 font_path = base_path / "font" / "DejaVuSans.ttf"
 
 
+class ProposalPDF(FPDF):
+    def __init__(self, font_family: str):
+        super().__init__()
+        self.font_family = font_family
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font(self.font_family, size=9)
+        self.set_text_color(90, 90, 90)
+        self.cell(0, 10, f"Prepared for: Xenom IT Systems · Page {self.page_no()} of {{nb}}", align="C")
+
+
 @st.cache_data
 def build_proposal_pdf() -> bytes:
-    pdf = FPDF()
-    pdf.add_page()
     if font_path.exists():
-        pdf.add_font("DejaVu", fname=str(font_path), uni=True)
+        ProposalPDF.add_font("DejaVu", fname=str(font_path), uni=True)
         font_family = "DejaVu"
     else:
         font_family = "Arial"
+
+    pdf = ProposalPDF(font_family=font_family)
+    pdf.alias_nb_pages()
+    pdf.set_title("Xenom IT Systems Proposal")
+    pdf.set_author("Xenom IT Solutions")
+    pdf.add_page()
 
     pdf.set_font(font_family, size=16)
     pdf.cell(0, 10, "Proposal Letter for Xenom IT Systems", ln=True)
@@ -49,6 +65,21 @@ def build_proposal_pdf() -> bytes:
 
     pdf.set_font(font_family, size=14)
     pdf.cell(0, 10, "Our Solutions", ln=True)
+    pdf.set_font(font_family, size=12)
+    pdf.multi_cell(
+        0,
+        8,
+        textwrap.dedent(
+            """
+            Quick feature highlights:
+            • Apzla: member records, attendance tracking
+            • Sedifex: POS + CRM
+            • Falowen: exam prep support
+            """
+        ).strip(),
+    )
+    pdf.ln(2)
+
     pdf.set_font(font_family, size=12)
     pdf.cell(0, 8, "1. Apzla - For Churches", ln=True)
     pdf.set_font(font_family, size=12)
@@ -82,8 +113,7 @@ def build_proposal_pdf() -> bytes:
             - Record sales and transactions
             - Manage customers and contacts (basic CRM)
             - See simple reports to guide decisions
-            For shops, pharmacies, small supermarkets, service businesses, and any organisation that needs clear stock and
-            customer records.
+            For shops, pharmacies, small supermarkets, service businesses, and any organisation that needs clear stock and customer records.
             """
         ).strip(),
     )
@@ -97,8 +127,8 @@ def build_proposal_pdf() -> bytes:
         8,
         textwrap.dedent(
             """
-            A digital platform for German learning and exam preparation, designed to work with schools, training centres, and
-            private tutors. Falowen helps you:
+            A digital platform for German learning and exam preparation, designed to work with schools, training centres, and private tutors.
+            Falowen helps you:
             - Support students preparing for Goethe and other exams
             - Provide structured practice for vocabulary, grammar, and speaking
             - Offer a digital extension of your classroom teaching
@@ -172,6 +202,14 @@ st.write(
 st.divider()
 
 st.header("Our Solutions")
+st.markdown(
+    """
+    **Quick feature highlights**
+    - **Apzla:** Member records, attendance tracking
+    - **Sedifex:** POS + CRM
+    - **Falowen:** Exam prep support
+    """
+)
 
 col1, col2 = st.columns(2, gap="large")
 with col1:
