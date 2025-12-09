@@ -210,7 +210,7 @@ def render_logout_button():
         if st.sidebar.button("Log out"):
             st.session_state["auth_ok"] = False
             _set_persistent_login(False)
-            st.experimental_rerun()
+            st.rerun()
 
 
 require_password()  # place this before the rest of the page logic
