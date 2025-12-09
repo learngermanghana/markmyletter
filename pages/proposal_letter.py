@@ -132,7 +132,14 @@ def build_proposal_pdf() -> bytes:
         "Websites: www.falowen.app | www.learngermanghana.com",
     )
 
-    return pdf.output(dest="S").encode("latin1")
+    # fpdf may return either ``str`` (pyfpdf) or ``bytearray`` (fpdf2) when
+    # ``dest="S"`` is used. Streamlit's ``download_button`` expects a ``bytes``
+    # payload, so normalise the output to bytes and only encode if the library
+    # returned text.
+    pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, str):
+        return pdf_bytes.encode("latin1")
+    return bytes(pdf_bytes)
 
 
 st.title("🖋️ Proposal Letter for Xenom IT Systems")
