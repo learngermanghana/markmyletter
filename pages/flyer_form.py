@@ -16,7 +16,11 @@ font_path = base_path / "font" / "DejaVuSans.ttf"
 def _load_font_family(pdf: FPDF) -> str:
     """Return the preferred font family available to the PDF."""
     if font_path.exists():
-        pdf.add_font("DejaVu", fname=str(font_path), uni=True)
+        # Register the same TrueType font for all styles so calls to set_font
+        # with bold/italic variants do not error when the font file is present
+        # but style-specific files are not available.
+        for style in ("", "B", "I", "BI"):
+            pdf.add_font("DejaVu", style=style, fname=str(font_path), uni=True)
         return "DejaVu"
     return "Arial"
 
