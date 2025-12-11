@@ -148,7 +148,7 @@ def build_proposal_pdf() -> bytes:
         8,
         "Email: sedifexbiz@gmail.com\n"
         "Phone / WhatsApp: +233 59 505 4266\n"
-        "Website: www.sedifex.com",
+        "Websites: www.apzla.com | www.sedifex.com",
     )
     pdf.ln(1)
     pdf.set_font(font_family, size=12)
@@ -272,7 +272,8 @@ with contact_col1:
         """
         Email: sedifexbiz@gmail.com
         Phone / WhatsApp: +233 59 505 4266
-        Website: [www.sedifex.com](https://www.sedifex.com)
+        Websites: [www.apzla.com](https://www.apzla.com)
+        [www.sedifex.com](https://www.sedifex.com)
         """
     )
 
