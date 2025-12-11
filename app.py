@@ -1,4 +1,5 @@
 # app.py
+import io
 import os
 import re
 import json
@@ -227,13 +228,32 @@ def natural_key(s: str):
 
 @st.cache_data(show_spinner=False, ttl=300)
 def load_sheet_csv(sheet_id: str, tab: str) -> pd.DataFrame:
-    """Load a specific Google Sheet tab as CSV (no auth)."""
+    """Load a specific Google Sheet tab as CSV (no auth) with fallbacks."""
+
     url = (
         f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq"
         f"?tqx=out:csv&sheet={requests.utils.quote(tab)}"
         "&tq=select%20*%20limit%20100000"
     )
-    df = pd.read_csv(url, dtype=str)
+
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        source = io.StringIO(response.text)
+    except Exception as err:
+        fallback_path = st.secrets.get("STUDENTS_FALLBACK_CSV", "students.csv")
+        if os.path.exists(fallback_path):
+            st.warning(
+                "Google Sheet unreachable, using local fallback CSV instead."  # pragma: no cover - UI text
+            )
+            source = fallback_path
+        else:
+            st.error(
+                f"Could not load Google Sheet and no fallback CSV found ({err})."  # pragma: no cover - UI text
+            )
+            return pd.DataFrame()
+
+    df = pd.read_csv(source, dtype=str)
     df.columns = df.columns.str.strip().str.lower()
     return df
 
@@ -790,6 +810,10 @@ if st.button("🔄 Refresh caches"):
 
 # --- Load students
 students_df = load_sheet_csv(STUDENTS_SHEET_ID, STUDENTS_SHEET_TAB)
+if students_df.empty:
+    st.error("Unable to load student roster. Please try again later.")
+    st.stop()
+
 code_col  = find_col(students_df, ["studentcode", "student_code", "code"], default="studentcode")
 name_col  = find_col(students_df, ["name", "fullname"], default="name")
 level_col = find_col(students_df, ["level"], default="level")
