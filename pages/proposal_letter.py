@@ -25,13 +25,14 @@ class ProposalPDF(FPDF):
 
 @st.cache_data
 def build_proposal_pdf() -> bytes:
+    pdf = ProposalPDF(font_family="Arial")
+
     if font_path.exists():
-        ProposalPDF.add_font("DejaVu", fname=str(font_path), uni=True)
+        pdf.add_font("DejaVu", fname=str(font_path), uni=True)
         font_family = "DejaVu"
+        pdf.font_family = font_family
     else:
         font_family = "Arial"
-
-    pdf = ProposalPDF(font_family=font_family)
     pdf.alias_nb_pages()
     pdf.set_title("Xenom IT Systems Proposal")
     pdf.set_author("Xenom IT Solutions")
