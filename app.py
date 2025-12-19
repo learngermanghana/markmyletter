@@ -223,7 +223,16 @@ render_logout_button()
 # =========================================================
 
 def natural_key(s: str):
-    return [int(t) if t.isdigit() else t.lower() for t in re.findall(r"\d+|\D+", str(s))]
+    """Return a sortable key that safely mixes numeric and text fragments."""
+
+    parts = re.findall(r"\d+|\D+", str(s))
+    normalized = []
+    for part in parts:
+        if part.isdigit():
+            normalized.append((0, int(part)))
+        else:
+            normalized.append((1, part.lower()))
+    return tuple(normalized)
 
 
 @st.cache_data(show_spinner=False, ttl=300)
