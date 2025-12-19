@@ -1,5 +1,5 @@
 {
-  "A1 Assignment 0.1": {
+  "Greetings 0.1": {
     "answers": {
       "Answer1": "C) Guten Morgen",
       "Answer2": "D) Guten Tag",
@@ -15,7 +15,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1AgS3Kb78KcvbJnZvZijM4-cBJ1PitCVnUwe19T4TMPQ/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 0.2": {
+  "Alphabets 0.2 and 1.1": {
     "answers": {
       "Answer1": "C) 26",
       "Answer2": "A) A, O, U, B",
@@ -33,7 +33,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1XJcdMuaivOh2JCnXi1b9E4l5qN4KldyDSRNHJgiHnBs/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 1.1": {
+  "Personal Pronouns 1.2": {
     "answers": {
       "Answer1": "C Anna",
       "Answer2": "C München",
@@ -43,7 +43,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1KCNaM0_sgbrPhYMm89iC8WRzSfQgz80qUO9EAoCpXuo/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 2": {
+  "Numbers 2": {
     "answers": {
       "Answer1": "A) sieben",
       "Answer2": "B) Drei",
@@ -64,7 +64,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1OVDkJimsz7wZwNa4s4QccST3TFvLkqzt720P_CWPdD8/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 1.2": {
+  "Pronouns": {
     "answers": {
       "Answer1": "Ich heiße Anna",
       "Answer2": "Du heißt Max",
@@ -84,7 +84,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1NuId_slE2LVNXvhfwQvdjYaqtBGa78aBNVETEw2RMmY/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 4": {
+  "Countries and Languages": {
     "answers": {
       "Answer1": "C) Neun",
       "Answer2": "B) Polnisch",
@@ -102,7 +102,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1SiYvtaw-LwoeCff7yxlpWsfENMlIbQRqfuh3MPobPOE/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 6": {
+  "Objects and Colors": {
     "answers": {
       "Answer1": "Das Wohnzimmer – the living room",
       "Answer2": "Die Küche – the kitchen",
@@ -132,7 +132,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1yXUzZdoz-wKnorDUbg-7e_SGMklgUXNxGakDlw5chgA/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 5": {
+  "German Cases": {
     "answers": {
       "Answer1": "Der Tisch – the table",
       "Answer2": "Die Lampe – the lamp",
@@ -168,7 +168,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1d0dvYURPHf69KlJhToqOxn39V8GCcAsdrhrEAQ78phw/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 7": {
+  "12 Hour Clock": {
     "answers": {
       "Answer1": "B) Um sieben Uhr",
       "Answer2": "B) Um acht Uhr",
