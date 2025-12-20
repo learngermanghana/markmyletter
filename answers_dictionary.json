@@ -64,7 +64,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1OVDkJimsz7wZwNa4s4QccST3TFvLkqzt720P_CWPdD8/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "Pronouns": {
+  "Pronouns 1.2": {
     "answers": {
       "Answer1": "Ich heiße Anna",
       "Answer2": "Du heißt Max",
@@ -84,7 +84,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1NuId_slE2LVNXvhfwQvdjYaqtBGa78aBNVETEw2RMmY/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "Countries and Languages": {
+  "Countries and Languages 4": {
     "answers": {
       "Answer1": "C) Neun",
       "Answer2": "B) Polnisch",
@@ -102,7 +102,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1SiYvtaw-LwoeCff7yxlpWsfENMlIbQRqfuh3MPobPOE/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "Objects and Colors": {
+  "Objects and Colors 4": {
     "answers": {
       "Answer1": "Das Wohnzimmer – the living room",
       "Answer2": "Die Küche – the kitchen",
@@ -132,7 +132,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1yXUzZdoz-wKnorDUbg-7e_SGMklgUXNxGakDlw5chgA/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "German Cases": {
+  "German Cases 5": {
     "answers": {
       "Answer1": "Der Tisch – the table",
       "Answer2": "Die Lampe – the lamp",
@@ -168,7 +168,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1d0dvYURPHf69KlJhToqOxn39V8GCcAsdrhrEAQ78phw/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "12 Hour Clock": {
+  "12 Hour Clock 7": {
     "answers": {
       "Answer1": "B) Um sieben Uhr",
       "Answer2": "B) Um acht Uhr",
@@ -194,7 +194,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1dCI5BbOvfvI4RekolDshv19jyNFPmzenDSrgBMGL9Uk/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 8": {
+  "24 Hour Clock 8": {
     "answers": {
       "Answer1": "B) Zwei Uhr nachmittags",
       "Answer2": "B) 29 Tage",
@@ -215,7 +215,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1Y8Zk4BvzbE2MhD2Wh0VIDbxwPib9biQ2zR60gaIQDYQ/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 9": {
+  "Negation 9": {
     "answers": {
       "Answer1": "B) Apfel und Karotten",
       "Answer2": "C) Karotten",
@@ -236,7 +236,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1paS9hx9oc7iB2VnxGSUg5Y9-hMf8l08nCNGNSU4__SA/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 10": {
+  "Food 10": {
     "answers": {
       "Answer1": "Falsch",
       "Answer2": "Wahr",
@@ -257,7 +257,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1OOxtH3ZuP6Vd8wfZScnV_Ht1ywke1C3OmFm5_kFrVGs/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 11": {
+  "Instructions 11": {
     "answers": {
       "Answer1": "B) Entschuldigung, wo ist der Bahnhof?",
       "Answer2": "B) Links abbiegen",
@@ -281,7 +281,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1kGGQZ89YZV-xGUdFKIHUFOVYG7wB7PnCBF8DqBd4Zok/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 12.1": {
+  "Two Case Preposition 12.1": {
     "answers": {
       "Teil 1": {
         "Answer1": "B) Ärztin",
@@ -308,7 +308,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1vgjfS9u_dS8ypgMOkCkVp3j_04dM8hwGvQiJdCKT74c/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 12.2": {
+  "Two Case Preposition 12.2": {
     "answers": {
       "Teil 1": {
         "Answer1": "In Berlin",
@@ -335,12 +335,12 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1DiO7gh0xrt-SyWWhpxVNtMs9lFjEGuzqJww9OMmTjDY/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 12.3": {
+  "Introduction to Letter Writing  12.3": {
      "answers": {
        "Answer1": "Read comment for answers"
         }
      },
-  "A1 Assignment 13": {
+  "Weather 13": {
     "answers": {
       "Answer1": "A",
       "Answer2": "B",
@@ -355,7 +355,7 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1VOz1kZqSXitbHO6ciV4GbGSZJkwXiZM1ifSxPVlvNNA/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
   },
-  "A1 Assignment 14.1": {
+  "Health 14.1": {
     "answers": {
       "Answer1": "Frage 1: Anzeige A",
       "Answer2": "Frage 2: Anzeige B",
