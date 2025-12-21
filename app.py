@@ -428,17 +428,30 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
         d["assignment"] = pick(["assignment", "assignment_name", "task", "topic"])
         d["level"] = pick(["level", "student_level"], level)
         d["_ts_ms"] = _ts_ms(d)
-        d["_path"] = f"submissions/{level}/posts/{doc_id}"
+        d["_path"] = f"submissions/{level}/{student_code}/{doc_id}"
         return d
 
     try:
-        lessons_ref = db.collection("submissions").document(level).collection("posts")
-        lessons_ref = lessons_ref.where("student_code", "==", student_code)
+        lessons_ref = db.collection("submissions").document(level).collection(student_code)
         for snap in lessons_ref.stream():
             d = snap.to_dict() or {}
             items.append(_normalize_row(d, snap.id))
     except Exception:
         pass
+
+    # Backward compatibility with the old ``submissions/{level}/posts`` layout.
+    if not items:
+        try:
+            legacy_ref = db.collection("submissions").document(level).collection("posts")
+            legacy_ref = legacy_ref.where("student_code", "==", student_code)
+            for snap in legacy_ref.stream():
+                d = snap.to_dict() or {}
+                normalized = _normalize_row(d, snap.id)
+                # Keep the legacy path for clarity when showing results.
+                normalized["_path"] = f"submissions/{level}/posts/{snap.id}"
+                items.append(normalized)
+        except Exception:
+            pass
 
     items.sort(key=lambda d: d.get("_ts_ms", 0), reverse=True)
     return items
@@ -914,7 +927,7 @@ student_note = ""
 subs = fetch_submissions(student_level, studentcode)
 if not subs:
     st.warning(
-        f"No submissions found under submissions/{student_level}/posts/."
+        f"No submissions found under submissions/{student_level}/{studentcode}."
     )
 else:
     def label_for(d: Dict[str, Any]) -> str:
