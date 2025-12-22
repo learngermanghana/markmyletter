@@ -22,13 +22,13 @@ db = get_firestore_client()
 
 # ---------------- IDs / Config ----------------
 # Students Google Sheet (tab now "Sheet1" unless you override in secrets)
-STUDENTS_SHEET_ID   = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
-STUDENTS_SHEET_TAB  = st.secrets.get("STUDENTS_SHEET_TAB", "Sheet1")
-SCORES_SHEET_ID     = st.secrets.get("SCORES_SHEET_ID")
-SCORES_SHEET_TAB    = st.secrets.get("SCORES_SHEET_TAB", "Scores")
+STUDENTS_SHEET_ID = "12NXf5FeVHr7JJT47mRHh7Jp-TC1yhPS7ZG6nzZVTt1U"
+STUDENTS_SHEET_TAB = st.secrets.get("STUDENTS_SHEET_TAB", "Sheet1")
+SCORES_SHEET_ID = st.secrets.get("SCORES_SHEET_ID")
+SCORES_SHEET_TAB = st.secrets.get("SCORES_SHEET_TAB", "Scores")
 
 # Apps Script webhook (fallbacks included)
-WEBHOOK_URL   = st.secrets.get(
+WEBHOOK_URL = st.secrets.get(
     "G_SHEETS_WEBHOOK_URL",
     "https://script.google.com/macros/s/AKfycbzKWo9IblWZEgD_d7sku6cGzKofis_XQj3NXGMYpf_uRqu9rGe4AvOcB15E3bb2e6O4/exec",
 )
@@ -67,7 +67,6 @@ AUTH_COOKIE_ATTRS = f"; Path=/; SameSite={AUTH_COOKIE_SAMESITE}" + (
 
 def _initialize_persistent_login_bridge():
     """Ensure the browser keeps query params in sync with local storage token."""
-
     components.html(
         f"""
         <script>
@@ -156,6 +155,7 @@ def _set_persistent_login(enabled: bool) -> None:
             needs_update = True
     if needs_update:
         st.experimental_set_query_params(**params)
+
     if enabled:
         storage_script = f"window.localStorage.setItem('{LOCAL_STORAGE_KEY}', '{LOGIN_TOKEN}');"
         cookie_script = (
@@ -174,6 +174,7 @@ def _set_persistent_login(enabled: bool) -> None:
                 attrs=AUTH_COOKIE_ATTRS,
             )
         )
+
     components.html(
         f"<script>{{storage}}{{cookie}}</script>".format(
             storage=storage_script,
@@ -214,7 +215,7 @@ def render_logout_button():
             st.rerun()
 
 
-require_password()  # place this before the rest of the page logic
+require_password()
 render_logout_button()
 
 
@@ -224,7 +225,6 @@ render_logout_button()
 
 def natural_key(s: str):
     """Return a sortable key that safely mixes numeric and text fragments."""
-
     parts = re.findall(r"\d+|\D+", str(s))
     normalized = []
     for part in parts:
@@ -238,7 +238,6 @@ def natural_key(s: str):
 @st.cache_data(show_spinner=False, ttl=300)
 def load_sheet_csv(sheet_id: str, tab: str) -> pd.DataFrame:
     """Load a specific Google Sheet tab as CSV (no auth) with fallbacks."""
-
     url = (
         f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq"
         f"?tqx=out:csv&sheet={requests.utils.quote(tab)}"
@@ -252,14 +251,10 @@ def load_sheet_csv(sheet_id: str, tab: str) -> pd.DataFrame:
     except Exception as err:
         fallback_path = st.secrets.get("STUDENTS_FALLBACK_CSV", "students.csv")
         if os.path.exists(fallback_path):
-            st.warning(
-                "Google Sheet unreachable, using local fallback CSV instead."  # pragma: no cover - UI text
-            )
+            st.warning("Google Sheet unreachable, using local fallback CSV instead.")
             source = fallback_path
         else:
-            st.error(
-                f"Could not load Google Sheet and no fallback CSV found ({err})."  # pragma: no cover - UI text
-            )
+            st.error(f"Could not load Google Sheet and no fallback CSV found ({err}).")
             return pd.DataFrame()
 
     df = pd.read_csv(source, dtype=str)
@@ -330,6 +325,7 @@ def build_reference_text_from_json(
                     idx = n_from(k)
                     chunks.append(f"{idx}. {v}")
                     answers_map[idx] = v
+
     fmt = str(row_obj.get("format", "essay")).strip().lower() or "essay"
     return (
         "\n".join(chunks) if chunks else "No reference answers found.",
@@ -347,7 +343,15 @@ def filter_any(df: pd.DataFrame, q: str) -> pd.DataFrame:
 
 
 def extract_text_from_doc(doc: Dict[str, Any]) -> str:
-    preferred = ["content", "text", "answer", "body", "draft", "message"]
+    preferred = [
+        "content",
+        "text",
+        "answer",
+        "body",
+        "draft",
+        "message",
+        "submissionText",  # ✅ NEW: matches your Firestore screenshot
+    ]
     for k in preferred:
         v = doc.get(k)
         if isinstance(v, str) and v.strip():
@@ -368,9 +372,14 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
                 vv = v.get(kk)
                 if isinstance(vv, str) and vv.strip():
                     return vv.strip()
+
     strings = [str(v).strip() for v in doc.values() if isinstance(v, str) and str(v).strip()]
     return "\n".join(strings).strip()
 
+
+# =========================================================
+# Firestore submissions fetch (UPDATED for your schema)
+# =========================================================
 
 def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
     if not db or not level or not student_code:
@@ -379,7 +388,15 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
 
     def _ts_ms(doc: Dict[str, Any]) -> int:
         """Best-effort extraction of timestamp in milliseconds."""
-        ts: Optional[Any] = doc.get("timestamp")
+        # ✅ UPDATED: your docs use createdAt, not timestamp
+        ts: Optional[Any] = (
+            doc.get("timestamp")
+            or doc.get("createdAt")
+            or doc.get("created_at")
+            or doc.get("submittedAt")
+            or doc.get("updatedAt")
+        )
+
         try:
             if isinstance(ts, (int, float)):
                 return int(ts if ts > 10_000_000_000 else ts * 1000)
@@ -404,7 +421,7 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
                             pass
             if isinstance(ts, str):
                 try:
-                    return int(datetime.fromisoformat(ts).timestamp() * 1000)
+                    return int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000)
                 except Exception:
                     pass
         except Exception:
@@ -422,20 +439,25 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
             return default
 
         d["id"] = doc_id
+
+        # ✅ UPDATED: support camelCase keys from your Firestore docs
         d["student_name"] = pick(["student_name", "name", "student", "studentName"])
-        d["student_code"] = pick(["student_code", "code", "studentcode"])
+        d["student_code"] = pick(["student_code", "studentCode", "code", "studentcode"])
         d["chapter"] = pick(["chapter", "chapter_name", "unit"])
-        d["assignment"] = pick(["assignment", "assignment_name", "task", "topic"])
+        d["assignment"] = pick(["assignment", "assignmentTitle", "assignment_name", "task", "topic"])
         d["level"] = pick(["level", "student_level", "level_key"], level)
+
         d["_ts_ms"] = _ts_ms(d)
 
         path_from_doc = d.get("_path") or d.get("path")
         if isinstance(path_from_doc, str) and path_from_doc.strip():
             d["_path"] = path_from_doc.strip()
         else:
-            d["_path"] = f"submissions/{d['level']}/{d['student_code'] or student_code}"
+            d["_path"] = d.get("_path") or d.get("path") or f"submissions/{doc_id}"
+
         return d
 
+    # 1) Try your OLD nested layout (keep for backwards compatibility)
     try:
         lessons_ref = db.collection("submissions").document(level).collection(student_code)
         for snap in lessons_ref.stream():
@@ -444,14 +466,12 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
     except Exception:
         pass
 
-    # Some deployments store submissions directly under the root "submissions" collection
-    # with auto-generated document IDs that contain the student metadata (level, student_code,
-    # etc.) instead of nesting them by student code. In that layout the path looks like
-    # ``submissions/{autoId}`` and the student code is only present inside the document body.
+    # 2) ✅ UPDATED: your CURRENT layout is flat collection: submissions/{autoId}
     if not items:
+        # Try camelCase schema first
         try:
-            root_query = db.collection("submissions").where("student_code", "==", student_code)
-            root_query = root_query.where("level", "==", level)
+            root_query = db.collection("submissions").where("studentCode", "==", student_code)
+            root_query = root_query.where("level", "==", str(level).strip())
             for snap in root_query.stream():
                 d = snap.to_dict() or {}
                 normalized = _normalize_row(d, snap.id)
@@ -460,15 +480,27 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-    # Backward compatibility with the old ``submissions/{level}/posts`` layout.
+    # 2b) Fallback snake_case if any legacy docs exist
+    if not items:
+        try:
+            root_query = db.collection("submissions").where("student_code", "==", student_code)
+            root_query = root_query.where("level", "==", str(level).strip())
+            for snap in root_query.stream():
+                d = snap.to_dict() or {}
+                normalized = _normalize_row(d, snap.id)
+                normalized["_path"] = d.get("_path") or d.get("path") or f"submissions/{snap.id}"
+                items.append(normalized)
+        except Exception:
+            pass
+
+    # 3) Backward compatibility with old posts layout
     if not items:
         try:
             legacy_ref = db.collection("submissions").document(level).collection("posts")
-            legacy_ref = legacy_ref.where("student_code", "==", student_code)
+            legacy_ref = legacy_ref.where("studentCode", "==", student_code)
             for snap in legacy_ref.stream():
                 d = snap.to_dict() or {}
                 normalized = _normalize_row(d, snap.id)
-                # Keep the legacy path for clarity when showing results.
                 normalized["_path"] = f"submissions/{level}/posts/{snap.id}"
                 items.append(normalized)
         except Exception:
@@ -496,13 +528,10 @@ def globalize_objective_numbers(student_text: str) -> str:
         for raw_line in text.splitlines():
             line = raw_line.strip()
 
-            # Detect new section headings like "Teil 3", "TEIL 4", etc.
             if re.search(r"^\s*teil\s*\d+\s*$", line, flags=re.I):
-                # When a new Teil starts, bump the offset to the max global index seen so far
                 offset = max(res.keys() or [0])
                 continue
 
-            # First, try standard "n. token" per-line formats
             m = re.match(r"\s*(?:q\s*)?(\d+)\s*[\\.\):=\-]?\s*(.+?)\s*$", line, flags=re.I)
             if m:
                 local_n = int(m.group(1))
@@ -511,7 +540,6 @@ def globalize_objective_numbers(student_text: str) -> str:
                 res.setdefault(gnum, token)
                 continue
 
-            # Also handle multiple Qs on one line: "... 1) B ... 2. A ..."
             anchors = list(re.finditer(r"(?i)(?:q\s*)?(\d+)\s*[\\.\):=\-]*\s*", line))
             for i, am in enumerate(anchors):
                 local_n = int(am.group(1))
@@ -531,14 +559,11 @@ def globalize_objective_numbers(student_text: str) -> str:
     if not pairs:
         return ""
 
-    # Emit clean, sorted global lines
     lines = [f"{k}. {v}" for k, v in sorted(pairs.items())]
     return "\n".join(lines)
 
 
 # ===================== AI MARKING (OBJECTIVES ONLY, WITH GLOBALIZATION) =====================
-
-# --- Feedback + scoring utilities to guarantee 40–60 words and correct diffs ---
 
 def _count_words(s: str) -> int:
     return len(re.findall(r"\b[\wÄÖÜäöüß]+(?:'[A-Za-z]+)?\b", s or ""))
@@ -576,7 +601,6 @@ def _parse_ref_map(ref_text: str) -> Dict[int, str]:
 
 
 def _parse_student_global_map(student_text: str) -> Dict[int, str]:
-    """Uses the globalizer, then parses 'n. token' lines."""
     g = globalize_objective_numbers(student_text or "")
     out: Dict[int, str] = {}
     for line in g.splitlines():
@@ -587,7 +611,6 @@ def _parse_student_global_map(student_text: str) -> Dict[int, str]:
 
 
 def _compute_objective_diffs(student_text: str, ref_text: str) -> Tuple[int, int, List[Tuple[int, str, str]]]:
-    """Returns (correct, total, wrong_list) where wrong_list items are (n, correct_token, student_token_raw)."""
     ref_map = _parse_ref_map(ref_text)
     stu_map = _parse_student_global_map(student_text)
     total = len(ref_map) or 1
@@ -643,11 +666,9 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
         s = (s or "").strip()
         if not s:
             return ""
-        # Letter option? Keep A-D uppercase
         if re.fullmatch(r"[a-dA-D]", s):
             return s.upper()
 
-        # Lowercase words, normalize umlauts to ASCII
         s = s.lower()
         s = (
             s.replace("ä", "ae")
@@ -655,32 +676,24 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
             .replace("ü", "ue")
             .replace("ß", "ss")
         )
-        # Common boolean/YN synonyms
         if s in {"t", "true", "ja", "j", "y", "yes"}:
             return "true"
         if s in {"f", "false", "nein", "n", "no"}:
             return "false"
 
-        # Remove non-word characters
         s = re.sub(r"[^\w]+", "", s)
         return s
 
     def parse_pairs_freeform_with_teil_offsets(text: str) -> Dict[int, str]:
-        """
-        Parse "1 A", "1: B", "1)C", "Q1=B", "1. Uhr", and also compact streams.
-        Apply offsets whenever a new 'Teil <n>' heading is encountered.
-        """
         res: Dict[int, str] = {}
         offset = 0
         lines = text.splitlines()
 
         for line in lines:
-            # Detect new section headings like "Teil 3" (case-insensitive)
             if re.search(r"^\s*teil\s*\d+\s*$", line, flags=re.I):
                 offset = max(res.keys() or [0])
                 continue
 
-            # Standard per-line "n .... token"
             m = re.match(r"\s*(?:q\s*)?(\d+)\s*[\\.\):=\-]?\s*(.+?)\s*$", line, flags=re.I)
             if m:
                 local_n = int(m.group(1))
@@ -689,7 +702,6 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
                 res.setdefault(gnum, token)
                 continue
 
-            # Fallback: scan inline anchors
             for m in re.finditer(r"(?i)(?:q\s*)?(\d+)\s*[\\.\):=\-]*\s*", line):
                 local_n = int(m.group(1))
                 tail = line[m.end():].strip()
@@ -700,10 +712,8 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
                     break
         return res
 
-    # Build canonical reference map
     ref_canon: Dict[int, str] = {int(idx): canonical_word(str(ans)) for idx, ans in (ref_answers or {}).items()}
 
-    # Parse student's freeform text WITH section offsets
     stu_raw = parse_pairs_freeform_with_teil_offsets(student_answer or "")
     stu_canon: Dict[int, str] = {qn: canonical_word(tok) for qn, tok in stu_raw.items()}
 
@@ -734,7 +744,6 @@ def objective_mark(student_answer: str, ref_answers: Dict[int, str]) -> Tuple[in
     return score, feedback
 
 
-
 def save_row_to_scores(row: dict) -> dict:
     try:
         r = requests.post(
@@ -743,13 +752,11 @@ def save_row_to_scores(row: dict) -> dict:
             timeout=15,
         )
 
-        raw = r.text  # keep a copy for troubleshooting
+        raw = r.text
 
-        # Bail out early if the request failed
         if not (200 <= r.status_code < 300):
             return {"ok": False, "status": r.status_code, "raw": raw}
 
-        # ---------------- Structured JSON ----------------
         if r.headers.get("content-type", "").startswith("application/json"):
             data: Dict[str, Any]
             try:
@@ -758,23 +765,15 @@ def save_row_to_scores(row: dict) -> dict:
                 data = {}
 
             if isinstance(data, dict):
-                # Apps Script may return structured error information
                 field = data.get("field")
                 if not data.get("ok") and field:
-                    return {
-                        "ok": False,
-                        "why": "validation",
-                        "field": field,
-                        "raw": raw,
-                    }
+                    return {"ok": False, "why": "validation", "field": field, "raw": raw}
 
-                # Ensure raw message is included for debugging and default to success
                 data.setdefault("raw", raw)
                 data.setdefault("ok", True)
                 data.setdefault("message", "Saved to Scores sheet")
                 return data
 
-        # ---------------- Fallback: plain text ----------------
         if "violates the data validation rules" in raw:
             return {"ok": False, "why": "validation", "raw": raw}
         return {"ok": True, "raw": raw, "message": "Saved to Scores sheet"}
@@ -784,26 +783,6 @@ def save_row_to_scores(row: dict) -> dict:
 
 
 def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> dict:
-    """Save a row to the score sheet and/or Firestore.
-
-    Parameters
-    ----------
-    row: dict
-        The row of data to save.
-    to_sheet: bool
-        When ``True`` (default) the row is sent to the Google Sheet via
-        :func:`save_row_to_scores`.
-    to_firestore: bool
-        When ``True`` the row is written to Firestore using
-        :func:`save_row_to_firestore`.
-
-    Returns
-    -------
-    dict
-        ``{"ok": True}`` if all requested operations succeed, otherwise the
-        first failure returned.
-    """
-
     row = dict(row)
 
     score_val = row.get("score")
@@ -838,13 +817,14 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
     return result
 
 
-
 # =========================================================
 # UI
 # =========================================================
+
 message = st.session_state.pop("last_save_success", None)
 if message:
     st.success("✅ " + message)
+
 st.title("📘 Marking Dashboard")
 
 if st.button("🔄 Refresh caches"):
@@ -857,8 +837,8 @@ if students_df.empty:
     st.error("Unable to load student roster. Please try again later.")
     st.stop()
 
-code_col  = find_col(students_df, ["studentcode", "student_code", "code"], default="studentcode")
-name_col  = find_col(students_df, ["name", "fullname"], default="name")
+code_col = find_col(students_df, ["studentcode", "student_code", "code"], default="studentcode")
+name_col = find_col(students_df, ["name", "fullname"], default="name")
 level_col = find_col(students_df, ["level"], default="level")
 
 # Pick student
@@ -872,18 +852,19 @@ if df_filtered.empty:
 labels = [f"{r.get(code_col,'')} — {r.get(name_col,'')} ({r.get(level_col,'')})" for _, r in df_filtered.iterrows()]
 choice = st.selectbox("Select student", labels)
 srow = df_filtered.iloc[labels.index(choice)]
-studentcode = str(srow.get(code_col,"")).strip()
-student_name = str(srow.get(name_col,"")).strip()
-student_level = str(srow.get(level_col,"")).strip()
+studentcode = str(srow.get(code_col, "")).strip()
+student_name = str(srow.get(name_col, "")).strip()
+student_level = str(srow.get(level_col, "")).strip()
 
 c1, c2 = st.columns(2)
-with c1: st.text_input("Name (auto)",  value=student_name,  disabled=True)
-with c2: st.text_input("Level (auto)", value=student_level, disabled=True)
+with c1:
+    st.text_input("Name (auto)", value=student_name, disabled=True)
+with c2:
+    st.text_input("Level (auto)", value=student_level, disabled=True)
 
 # ---------------- Reference chooser (Tabs) ----------------
 st.subheader("2) Reference source")
 
-# Session holder for the *chosen* reference
 if "ref_assignment" not in st.session_state:
     st.session_state.ref_assignment = ""
 if "ref_text" not in st.session_state:
@@ -895,9 +876,8 @@ if "ref_format" not in st.session_state:
 if "ref_answers" not in st.session_state:
     st.session_state.ref_answers = {}
 
-tab_json, = st.tabs(["📦 JSON dictionary"])
+(tab_json,) = st.tabs(["📦 JSON dictionary"])
 
-# ---- JSON tab
 with tab_json:
     ans_dict = load_answers_dictionary()
     if not ans_dict:
@@ -908,9 +888,7 @@ with tab_json:
         qj = st.text_input("Search assignment", key="search_json")
         pool_json = [a for a in all_assignments_json if qj.lower() in a.lower()] if qj else all_assignments_json
         pick_json = st.selectbox("Select assignment", pool_json, key="pick_json")
-        ref_text_json, link_json, fmt_json, ans_map_json = build_reference_text_from_json(
-            ans_dict.get(pick_json, {})
-        )
+        ref_text_json, link_json, fmt_json, ans_map_json = build_reference_text_from_json(ans_dict.get(pick_json, {}))
         st.markdown("**Reference preview (JSON):**")
         st.code(ref_text_json or "(none)", language="markdown")
         st.caption(f"Format: {fmt_json}")
@@ -924,7 +902,6 @@ with tab_json:
             st.session_state.ref_answers = ans_map_json
             st.success("Using JSON reference")
 
-# Ensure a default reference is selected
 if not st.session_state.ref_assignment:
     ans = load_answers_dictionary()
     if ans:
@@ -940,18 +917,17 @@ st.info(
     f"Currently selected reference → **{st.session_state.ref_assignment or '—'}** (format: {st.session_state.ref_format})"
 )
 
-
 # ---------------- Submissions & Marking ----------------
 st.subheader("3) Student submission (local storage)")
 student_text = ""
 student_note = ""
 subs = fetch_submissions(student_level, studentcode)
+
 if not subs:
     st.warning(
-        (
-            "No submissions found under the local path "
-            f"submissions/{student_level}/{studentcode} or in the matching lock."
-        )
+        "No submissions found. I checked:\n"
+        f"- submissions/{student_level}/{studentcode} (old nested layout)\n"
+        f"- submissions collection where studentCode={studentcode} and level={student_level} (current layout)"
     )
 else:
     def label_for(d: Dict[str, Any]) -> str:
@@ -973,13 +949,7 @@ else:
     st.markdown(f"**Chapter:** {chosen.get('chapter','')}")
     st.markdown(f"**Assignment:** {chosen.get('assignment','')}")
 
-    note_keys = [
-        "student_note",
-        "studentnote",
-        "student_notes",
-        "note",
-        "notes",
-    ]
+    note_keys = ["student_note", "studentnote", "student_notes", "note", "notes"]
     for key in note_keys:
         raw_note = chosen.get(key)
         if isinstance(raw_note, str):
@@ -1049,13 +1019,13 @@ if st.button("💾 Save", type="primary", use_container_width=True):
 
         row = {
             "studentcode": studentcode_val,
-            "name":        student_name,
-            "assignment":  st.session_state.ref_assignment,
-            "score":       score_int,
-            "comments":    feedback.strip(),
-            "date":        datetime.now().strftime("%Y-%m-%d"),
-            "level":       student_level,
-            "link":        link_value,  # uses answer_url only when allowed
+            "name": student_name,
+            "assignment": st.session_state.ref_assignment,
+            "score": score_int,
+            "comments": feedback.strip(),
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "level": student_level,
+            "link": link_value,
         }
 
         result = save_row(row, to_firestore=save_to_firestore)
@@ -1075,5 +1045,3 @@ if st.button("💾 Save", type="primary", use_container_width=True):
                     st.caption(result["raw"])
         else:
             st.error(f"❌ Failed to save: {result}")
-
-
