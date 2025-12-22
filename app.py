@@ -375,102 +375,93 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
 def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
     if not db or not level or not student_code:
         return []
+
     items: List[Dict[str, Any]] = []
 
     def _ts_ms(doc: Dict[str, Any]) -> int:
         """Best-effort extraction of timestamp in milliseconds."""
-        ts: Optional[Any] = doc.get("timestamp")
-        try:
-            if isinstance(ts, (int, float)):
-                return int(ts if ts > 10_000_000_000 else ts * 1000)
-            if isinstance(ts, datetime):
-                return int(ts.timestamp() * 1000)
-            if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
-                return int(ts.to_datetime().timestamp() * 1000)
-            if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
-                return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
-            if hasattr(ts, "timestamp") and callable(ts.timestamp):
-                return int(ts.timestamp() * 1000)
-            if isinstance(ts, dict):
-                if "_seconds" in ts:
-                    seconds = int(ts.get("_seconds", 0))
-                    nanos = int(ts.get("_nanoseconds", 0))
-                    return int(seconds * 1000 + nanos / 1_000_000)
-                for key in ("iso", "time", "date", "datetime"):
-                    if key in ts and isinstance(ts[key], str):
-                        try:
-                            return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
-                        except Exception:
-                            pass
-            if isinstance(ts, str):
-                try:
-                    return int(datetime.fromisoformat(ts).timestamp() * 1000)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        for key in ("timestamp", "createdAt", "created_at", "submittedAt", "updatedAt"):
+            ts = doc.get(key)
+            try:
+                if isinstance(ts, (int, float)):
+                    return int(ts if ts > 10_000_000_000 else ts * 1000)
+                if isinstance(ts, datetime):
+                    return int(ts.timestamp() * 1000)
+                # Firestore Timestamp object
+                if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
+                    return int(ts.to_datetime().timestamp() * 1000)
+                if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
+                    return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
+                if isinstance(ts, str):
+                    # Handles "2025-12-22T11:14:42..." style
+                    return int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000)
+            except Exception:
+                pass
         return 0
 
-    def _normalize_row(d: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
-        """Attach common metadata like path, level, timestamp and details."""
+    def pick(d: Dict[str, Any], keys: List[str], default: str = "") -> Any:
+        for k in keys:
+            if k in d and d[k] not in (None, ""):
+                return d[k]
+        return default
+
+    def _normalize_row(d: Dict[str, Any], doc_id: str, default_level: str) -> Dict[str, Any]:
         d = dict(d)
 
-        def pick(keys: List[str], default: str = "") -> Any:
-            for k in keys:
-                if k in d and d[k] not in (None, ""):
-                    return d[k]
-            return default
+        norm = {
+            "id": doc_id,
+            "student_name": pick(d, ["student_name", "studentName", "name", "student"]),
+            "student_code": pick(d, ["student_code", "studentCode", "code", "studentcode"]),
+            "chapter": pick(d, ["chapter", "chapter_name", "unit"]),
+            "assignment": pick(d, ["assignment", "assignmentTitle", "assignment_name", "task", "topic"]),
+            "level": pick(d, ["level", "student_level", "level_key"], default_level),
+        }
 
-        d["id"] = doc_id
-        d["student_name"] = pick(["student_name", "name", "student", "studentName"])
-        d["student_code"] = pick(["student_code", "code", "studentcode"])
-        d["chapter"] = pick(["chapter", "chapter_name", "unit"])
-        d["assignment"] = pick(["assignment", "assignment_name", "task", "topic"])
-        d["level"] = pick(["level", "student_level", "level_key"], level)
-        d["_ts_ms"] = _ts_ms(d)
+        norm["_ts_ms"] = _ts_ms(d)
 
-        path_from_doc = d.get("_path") or d.get("path")
-        if isinstance(path_from_doc, str) and path_from_doc.strip():
-            d["_path"] = path_from_doc.strip()
-        else:
-            d["_path"] = f"submissions/{d['level']}/{d['student_code'] or student_code}"
-        return d
+        # Attach original fields too (optional but useful for debugging)
+        norm.update(d)
 
+        # Show correct doc path in UI
+        norm["_path"] = d.get("_path") or d.get("path") or f"submissions/{doc_id}"
+        return norm
+
+    # 1) Try the FLAT collection layout (your screenshot)
     try:
-        lessons_ref = db.collection("submissions").document(level).collection(student_code)
-        for snap in lessons_ref.stream():
-            d = snap.to_dict() or {}
-            items.append(_normalize_row(d, snap.id))
+        # Works on many firestore libs:
+        q = db.collection("submissions").where("studentCode", "==", student_code).where("level", "==", level)
+        for snap in q.stream():
+            items.append(_normalize_row(snap.to_dict() or {}, snap.id, level))
     except Exception:
         pass
 
-    # Some deployments store submissions directly under the root "submissions" collection
-    # with auto-generated document IDs that contain the student metadata (level, student_code,
-    # etc.) instead of nesting them by student code. In that layout the path looks like
-    # ``submissions/{autoId}`` and the student code is only present inside the document body.
+    # 1b) Try snake_case variant (just in case some docs use it)
     if not items:
         try:
-            root_query = db.collection("submissions").where("student_code", "==", student_code)
-            root_query = root_query.where("level", "==", level)
-            for snap in root_query.stream():
-                d = snap.to_dict() or {}
-                normalized = _normalize_row(d, snap.id)
-                normalized["_path"] = d.get("_path") or d.get("path") or f"submissions/{snap.id}"
-                items.append(normalized)
+            q = db.collection("submissions").where("student_code", "==", student_code).where("level", "==", level)
+            for snap in q.stream():
+                items.append(_normalize_row(snap.to_dict() or {}, snap.id, level))
         except Exception:
             pass
 
-    # Backward compatibility with the old ``submissions/{level}/posts`` layout.
+    # 2) Try your OLD nested layout (keep for backwards compatibility)
+    if not items:
+        try:
+            nested_ref = db.collection("submissions").document(level).collection(student_code)
+            for snap in nested_ref.stream():
+                items.append(_normalize_row(snap.to_dict() or {}, snap.id, level))
+        except Exception:
+            pass
+
+    # 3) Legacy posts layout (optional)
     if not items:
         try:
             legacy_ref = db.collection("submissions").document(level).collection("posts")
-            legacy_ref = legacy_ref.where("student_code", "==", student_code)
+            legacy_ref = legacy_ref.where("studentCode", "==", student_code)
             for snap in legacy_ref.stream():
-                d = snap.to_dict() or {}
-                normalized = _normalize_row(d, snap.id)
-                # Keep the legacy path for clarity when showing results.
-                normalized["_path"] = f"submissions/{level}/posts/{snap.id}"
-                items.append(normalized)
+                row = _normalize_row(snap.to_dict() or {}, snap.id, level)
+                row["_path"] = f"submissions/{level}/posts/{snap.id}"
+                items.append(row)
         except Exception:
             pass
 
