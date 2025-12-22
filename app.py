@@ -444,6 +444,22 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
     except Exception:
         pass
 
+    # Some deployments store submissions directly under the root "submissions" collection
+    # with auto-generated document IDs that contain the student metadata (level, student_code,
+    # etc.) instead of nesting them by student code. In that layout the path looks like
+    # ``submissions/{autoId}`` and the student code is only present inside the document body.
+    if not items:
+        try:
+            root_query = db.collection("submissions").where("student_code", "==", student_code)
+            root_query = root_query.where("level", "==", level)
+            for snap in root_query.stream():
+                d = snap.to_dict() or {}
+                normalized = _normalize_row(d, snap.id)
+                normalized["_path"] = d.get("_path") or d.get("path") or f"submissions/{snap.id}"
+                items.append(normalized)
+        except Exception:
+            pass
+
     # Backward compatibility with the old ``submissions/{level}/posts`` layout.
     if not items:
         try:
