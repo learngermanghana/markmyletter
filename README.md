@@ -48,3 +48,16 @@ When the credentials are available, the UI shows a checkbox labelled
 “also save to Firestore” next to the save button. Checking it writes the data to
 the `scores` collection in addition to the Google Sheet.
 
+## Submission storage paths
+
+Student submissions are kept in the client’s local storage beneath a
+level- and student-specific path. When `submitFinalWork` runs, it saves the
+entry into `store.submissions` and returns a path like
+`submissions/{levelKey}/{studentKey}` (the level key is normalized and the
+student key is built from the email plus student code). A lock record is also
+created under `submission_locks/{studentKey}` to avoid duplicate submissions.
+
+If `submitWorkToSpecificPath` is used, the submission is appended to
+`store.submissions[levelKey].posts` using the explicit path provided, but the
+data still lives under the `submissions/{levelKey}` branch in local storage.
+

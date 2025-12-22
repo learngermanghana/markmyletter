@@ -426,9 +426,14 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
         d["student_code"] = pick(["student_code", "code", "studentcode"])
         d["chapter"] = pick(["chapter", "chapter_name", "unit"])
         d["assignment"] = pick(["assignment", "assignment_name", "task", "topic"])
-        d["level"] = pick(["level", "student_level"], level)
+        d["level"] = pick(["level", "student_level", "level_key"], level)
         d["_ts_ms"] = _ts_ms(d)
-        d["_path"] = f"submissions/{level}/{student_code}/{doc_id}"
+
+        path_from_doc = d.get("_path") or d.get("path")
+        if isinstance(path_from_doc, str) and path_from_doc.strip():
+            d["_path"] = path_from_doc.strip()
+        else:
+            d["_path"] = f"submissions/{d['level']}/{d['student_code'] or student_code}"
         return d
 
     try:
@@ -921,13 +926,16 @@ st.info(
 
 
 # ---------------- Submissions & Marking ----------------
-st.subheader("3) Student submission (Firestore)")
+st.subheader("3) Student submission (local storage)")
 student_text = ""
 student_note = ""
 subs = fetch_submissions(student_level, studentcode)
 if not subs:
     st.warning(
-        f"No submissions found under submissions/{student_level}/{studentcode}."
+        (
+            "No submissions found under the local path "
+            f"submissions/{student_level}/{studentcode} or in the matching lock."
+        )
     )
 else:
     def label_for(d: Dict[str, Any]) -> str:
