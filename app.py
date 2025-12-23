@@ -381,88 +381,89 @@ def extract_text_from_doc(doc: Dict[str, Any]) -> str:
 # Firestore submissions fetch (UPDATED for your schema)
 # =========================================================
 
+def _ts_ms_from_doc(doc: Dict[str, Any]) -> int:
+    """Best-effort extraction of timestamp in milliseconds."""
+    ts: Optional[Any] = (
+        doc.get("timestamp")
+        or doc.get("createdAt")
+        or doc.get("created_at")
+        or doc.get("submittedAt")
+        or doc.get("updatedAt")
+    )
+
+    try:
+        if isinstance(ts, (int, float)):
+            return int(ts if ts > 10_000_000_000 else ts * 1000)
+        if isinstance(ts, datetime):
+            return int(ts.timestamp() * 1000)
+        if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
+            return int(ts.to_datetime().timestamp() * 1000)
+        if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
+            return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
+        if hasattr(ts, "timestamp") and callable(ts.timestamp):
+            return int(ts.timestamp() * 1000)
+        if isinstance(ts, dict):
+            if "_seconds" in ts:
+                seconds = int(ts.get("_seconds", 0))
+                nanos = int(ts.get("_nanoseconds", 0))
+                return int(seconds * 1000 + nanos / 1_000_000)
+            for key in ("iso", "time", "date", "datetime"):
+                if key in ts and isinstance(ts[key], str):
+                    try:
+                        return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
+                    except Exception:
+                        pass
+        if isinstance(ts, str):
+            try:
+                return int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return 0
+
+
+def _normalize_submission(d: Dict[str, Any], doc_id: str, fallback_level: str = "") -> Dict[str, Any]:
+    """Attach common metadata like path, level, timestamp and details."""
+    d = dict(d)
+
+    def pick(keys: List[str], default: str = "") -> Any:
+        for k in keys:
+            if k in d and d[k] not in (None, ""):
+                return d[k]
+        return default
+
+    d["id"] = doc_id
+
+    # ✅ UPDATED: support camelCase keys from your Firestore docs
+    d["student_name"] = pick(["student_name", "name", "student", "studentName"])
+    d["student_code"] = pick(["student_code", "studentCode", "code", "studentcode"])
+    d["chapter"] = pick(["chapter", "chapter_name", "unit"])
+    d["assignment"] = pick(["assignment", "assignmentTitle", "assignment_name", "task", "topic"])
+    d["level"] = pick(["level", "student_level", "level_key"], fallback_level)
+
+    d["_ts_ms"] = _ts_ms_from_doc(d)
+
+    path_from_doc = d.get("_path") or d.get("path")
+    if isinstance(path_from_doc, str) and path_from_doc.strip():
+        d["_path"] = path_from_doc.strip()
+    else:
+        d["_path"] = d.get("_path") or d.get("path") or f"submissions/{doc_id}"
+
+    return d
+
+
 def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
     if not db or not level or not student_code:
         return []
     items: List[Dict[str, Any]] = []
-
-    def _ts_ms(doc: Dict[str, Any]) -> int:
-        """Best-effort extraction of timestamp in milliseconds."""
-        # ✅ UPDATED: your docs use createdAt, not timestamp
-        ts: Optional[Any] = (
-            doc.get("timestamp")
-            or doc.get("createdAt")
-            or doc.get("created_at")
-            or doc.get("submittedAt")
-            or doc.get("updatedAt")
-        )
-
-        try:
-            if isinstance(ts, (int, float)):
-                return int(ts if ts > 10_000_000_000 else ts * 1000)
-            if isinstance(ts, datetime):
-                return int(ts.timestamp() * 1000)
-            if hasattr(ts, "to_datetime") and callable(ts.to_datetime):
-                return int(ts.to_datetime().timestamp() * 1000)
-            if hasattr(ts, "seconds") and hasattr(ts, "nanoseconds"):
-                return int(int(ts.seconds) * 1000 + int(ts.nanoseconds) / 1_000_000)
-            if hasattr(ts, "timestamp") and callable(ts.timestamp):
-                return int(ts.timestamp() * 1000)
-            if isinstance(ts, dict):
-                if "_seconds" in ts:
-                    seconds = int(ts.get("_seconds", 0))
-                    nanos = int(ts.get("_nanoseconds", 0))
-                    return int(seconds * 1000 + nanos / 1_000_000)
-                for key in ("iso", "time", "date", "datetime"):
-                    if key in ts and isinstance(ts[key], str):
-                        try:
-                            return int(datetime.fromisoformat(ts[key]).timestamp() * 1000)
-                        except Exception:
-                            pass
-            if isinstance(ts, str):
-                try:
-                    return int(datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp() * 1000)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        return 0
-
-    def _normalize_row(d: Dict[str, Any], doc_id: str) -> Dict[str, Any]:
-        """Attach common metadata like path, level, timestamp and details."""
-        d = dict(d)
-
-        def pick(keys: List[str], default: str = "") -> Any:
-            for k in keys:
-                if k in d and d[k] not in (None, ""):
-                    return d[k]
-            return default
-
-        d["id"] = doc_id
-
-        # ✅ UPDATED: support camelCase keys from your Firestore docs
-        d["student_name"] = pick(["student_name", "name", "student", "studentName"])
-        d["student_code"] = pick(["student_code", "studentCode", "code", "studentcode"])
-        d["chapter"] = pick(["chapter", "chapter_name", "unit"])
-        d["assignment"] = pick(["assignment", "assignmentTitle", "assignment_name", "task", "topic"])
-        d["level"] = pick(["level", "student_level", "level_key"], level)
-
-        d["_ts_ms"] = _ts_ms(d)
-
-        path_from_doc = d.get("_path") or d.get("path")
-        if isinstance(path_from_doc, str) and path_from_doc.strip():
-            d["_path"] = path_from_doc.strip()
-        else:
-            d["_path"] = d.get("_path") or d.get("path") or f"submissions/{doc_id}"
-
-        return d
 
     # 1) Try your OLD nested layout (keep for backwards compatibility)
     try:
         lessons_ref = db.collection("submissions").document(level).collection(student_code)
         for snap in lessons_ref.stream():
             d = snap.to_dict() or {}
-            items.append(_normalize_row(d, snap.id))
+            items.append(_normalize_submission(d, snap.id, fallback_level=level))
     except Exception:
         pass
 
@@ -474,7 +475,7 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
             root_query = root_query.where("level", "==", str(level).strip())
             for snap in root_query.stream():
                 d = snap.to_dict() or {}
-                normalized = _normalize_row(d, snap.id)
+                normalized = _normalize_submission(d, snap.id, fallback_level=level)
                 normalized["_path"] = d.get("_path") or d.get("path") or f"submissions/{snap.id}"
                 items.append(normalized)
         except Exception:
@@ -487,7 +488,7 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
             root_query = root_query.where("level", "==", str(level).strip())
             for snap in root_query.stream():
                 d = snap.to_dict() or {}
-                normalized = _normalize_row(d, snap.id)
+                normalized = _normalize_submission(d, snap.id, fallback_level=level)
                 normalized["_path"] = d.get("_path") or d.get("path") or f"submissions/{snap.id}"
                 items.append(normalized)
         except Exception:
@@ -500,7 +501,7 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
             legacy_ref = legacy_ref.where("studentCode", "==", student_code)
             for snap in legacy_ref.stream():
                 d = snap.to_dict() or {}
-                normalized = _normalize_row(d, snap.id)
+                normalized = _normalize_submission(d, snap.id, fallback_level=level)
                 normalized["_path"] = f"submissions/{level}/posts/{snap.id}"
                 items.append(normalized)
         except Exception:
@@ -508,6 +509,55 @@ def fetch_submissions(level: str, student_code: str) -> List[Dict[str, Any]]:
 
     items.sort(key=lambda d: d.get("_ts_ms", 0), reverse=True)
     return items
+
+
+def fetch_recent_submissions(limit: int = 50, level: str = "", assignment_query: str = "") -> List[Dict[str, Any]]:
+    """Return the most recent submissions across all students."""
+
+    if not db:
+        return []
+
+    try:
+        from firebase_admin import firestore as fb_firestore  # type: ignore  # noqa: WPS433
+    except Exception:
+        fb_firestore = None  # type: ignore
+
+    items: List[Dict[str, Any]] = []
+    base_query = db.collection("submissions")
+    if level:
+        base_query = base_query.where("level", "==", str(level).strip())
+
+    snapshots: List[Any] = []
+
+    if fb_firestore:
+        for order_field in ["createdAt", "timestamp", "submittedAt", "updatedAt"]:
+            try:
+                snapshots = list(
+                    base_query.order_by(order_field, direction=fb_firestore.Query.DESCENDING)
+                    .limit(limit)
+                    .stream()
+                )
+                break
+            except Exception:
+                snapshots = []
+
+    if not snapshots:
+        try:
+            snapshots = list(base_query.limit(limit * 2).stream())
+        except Exception:
+            return []
+
+    for snap in snapshots:
+        d = snap.to_dict() or {}
+        normalized = _normalize_submission(d, snap.id, fallback_level=level)
+        items.append(normalized)
+
+    if assignment_query:
+        term = assignment_query.lower().strip()
+        items = [i for i in items if term in str(i.get("assignment", "")).lower()]
+
+    items.sort(key=lambda d: d.get("_ts_ms", 0), reverse=True)
+    return items[:limit]
 
 
 # ---------- PRE-NORMALIZER: turn "Teil 3/4" local numbers into global 1..N ----------
@@ -876,7 +926,7 @@ if "ref_format" not in st.session_state:
 if "ref_answers" not in st.session_state:
     st.session_state.ref_answers = {}
 
-(tab_json,) = st.tabs(["📦 JSON dictionary"])
+(tab_json, tab_recent) = st.tabs(["📦 JSON dictionary", "🆕 New submissions"])
 
 with tab_json:
     ans_dict = load_answers_dictionary()
@@ -901,6 +951,45 @@ with tab_json:
             st.session_state.ref_format = fmt_json
             st.session_state.ref_answers = ans_map_json
             st.success("Using JSON reference")
+
+with tab_recent:
+    st.caption("Track the latest submitted assignments across all students.")
+
+    level_choices = ["All"] + sorted(
+        {str(v).strip() for v in students_df[level_col].dropna().unique() if str(v).strip()}
+    )
+    level_choice = st.selectbox("Filter by level", level_choices, key="recent_level")
+    assignment_filter = st.text_input("Filter by assignment (optional)", key="recent_assignment")
+    limit_recent = st.slider("How many submissions to show", 10, 100, 30, step=5, key="recent_limit")
+
+    level_filter = "" if level_choice == "All" else level_choice
+    recent_items = fetch_recent_submissions(
+        limit=limit_recent, level=level_filter, assignment_query=assignment_filter
+    )
+
+    if not recent_items:
+        st.info("No recent submissions found with these filters.")
+    else:
+        records = []
+        for item in recent_items:
+            ts = item.get("_ts_ms", 0)
+            when = datetime.fromtimestamp(ts / 1000).strftime("%Y-%m-%d %H:%M") if ts else "—"
+            preview = extract_text_from_doc(item)
+            if len(preview) > 160:
+                preview = preview[:160] + "…"
+            records.append(
+                {
+                    "When": when,
+                    "Student": item.get("student_name", ""),
+                    "Code": item.get("student_code", ""),
+                    "Level": item.get("level", ""),
+                    "Assignment": item.get("assignment", ""),
+                    "Path": item.get("_path", ""),
+                    "Preview": preview,
+                }
+            )
+
+        st.dataframe(pd.DataFrame.from_records(records), use_container_width=True)
 
 if not st.session_state.ref_assignment:
     ans = load_answers_dictionary()
