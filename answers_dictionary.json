@@ -259,24 +259,21 @@
   },
   "A1 Instructions 11": {
     "answers": {
-      "Answer1": "B) Entschuldigung, wo ist der Bahnhof?",
-      "Answer2": "B) Links abbiegen",
-      "Answer3": "B) Auf der rechten Seite, direkt neben dem großen Supermarkt",
-      "Answer4": "B) Wie komme ich zur nächsten Apotheke?",
-      "Answer5": "C) Gute Reise und einen schönen Tag noch",
-      
-      "Answer1": "C) Wie komme ich zur nächsten Apotheke?",
-      "Answer2": "C) Rechts abbiegen",
-      "Answer3": "B) Auf der linken Seite, direkt neben der Bäckerei",
-      "Answer4": "A) Gehen Sie geradeaus bis zur Kreuzung, dann links",
-      "Answer5": "C) Einen schönen Tag noch",
-      
-      "Answer11": "Fragen nach dem Weg: 'Entschuldigung, wie komme ich zum Bahnhof'",
-      "Answer12": "Die Straße überqueren: 'Überqueren Sie die Straße'",
-      "Answer13": "Geradeaus gehen: 'Gehen Sie geradeaus'",
-      "Answer14": "Links abbiegen: 'Biegen Sie links ab'",
-      "Answer15": "Rechts abbiegen: 'Biegen Sie rechts ab'",
-      "Answer16": "On the left side: 'Das Kino ist auf der linken Seite'"
+      "teil1": {
+        "Answer1": "C) Wie komme ich zur nächsten Apotheke?",
+        "Answer2": "C) Rechts abbiegen",
+        "Answer3": "B) Auf der linken Seite, direkt neben der Bäckerei",
+        "Answer4": "A) Gehen Sie geradeaus bis zur Kreuzung, dann links",
+        "Answer5": "C) Einen schönen Tag noch"
+      },
+      "teil2": {
+        "Answer1": "Fragen nach dem Weg: 'Entschuldigung, wie komme ich zum Bahnhof'",
+        "Answer2": "Die Straße überqueren: 'Überqueren Sie die Straße'",
+        "Answer3": "Geradeaus gehen: 'Gehen Sie geradeaus'",
+        "Answer4": "Links abbiegen: 'Biegen Sie links ab'",
+        "Answer5": "Rechts abbiegen: 'Biegen Sie rechts ab'",
+        "Answer6": "On the left side: 'Das Kino ist auf der linken Seite'"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1kGGQZ89YZV-xGUdFKIHUFOVYG7wB7PnCBF8DqBd4Zok/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective"
@@ -336,10 +333,10 @@
     "format": "objective"
   },
   "Introduction to Letter Writing  12.3": {
-     "answers": {
-       "Answer1": "Read comment for answers"
-        }
-     },
+    "answers": {
+      "Answer1": "Read comment for answers"
+    }
+  },
   "A1 Weather 13": {
     "answers": {
       "Answer1": "A",
@@ -457,9 +454,8 @@
       "teil4": {
         "Answer1": "B) Um 10 Uhr",
         "Answer2": "B) Eine Rucksack",
-        "Answer3": "B) Ein Piknik",
-        "Answer4": "C) in einem Restaurant",
-        "Answer3": "A) Spielen und Spazieren gehen"
+        "Answer3": "A) Spielen und Spazieren gehen",
+        "Answer4": "C) in einem Restaurant"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1Fy36SwyPWJOPXpAPJjIck6JLTdhIlrk11l6KYw1umvk/gviz/tq?tqx=out:html&sheet=Key",
@@ -813,7 +809,6 @@
         "Answer3": "A) Die Bezahlung, weil man finanziell abgesichert sein möchte; B) Die Arbeitszeiten, weil man eine gute Work-Life-Balance haben möchte",
         "Answer4": "A) Frauen haben oft geringere Aufstiegschancen. Eine Lösung wäre eine Frauenquote.; B) Frauen verdienen häufig weniger als Männer. Transparente Gehaltsstrukturen könnten helfen.; C) Frauen müssen oft Beruf und Familie vereinbaren. Flexible Arbeitszeiten könnten eine Lösung sein.",
         "Answer5": "A) Es gab weniger technische Geräte im Haushalt; B) Die Menschen waren weniger mobil und reisten seltener.; D) Die Arbeitszeiten waren länger und härter"
-
       },
       "teil4": {
         "Answer1": "B) Die Berufliche",
