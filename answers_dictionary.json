@@ -260,13 +260,20 @@
   "A1 Instructions 11": {
     "answers": {
       "teil1": {
+        "Answer1": "B) Entschuldigung, wo ist der Bahnhof?",
+        "Answer2": "B) Links abbiegen",
+        "Answer3": "B) Auf der rechten Seite, direkt neben dem großen Supermarkt",
+        "Answer4": "B) Wie komme ich zur nächsten Apotheke?",
+        "Answer5": "C) Gute Reise und einen schönen Tag noch"
+      },
+      "teil2": {
         "Answer1": "C) Wie komme ich zur nächsten Apotheke?",
         "Answer2": "C) Rechts abbiegen",
         "Answer3": "B) Auf der linken Seite, direkt neben der Bäckerei",
         "Answer4": "A) Gehen Sie geradeaus bis zur Kreuzung, dann links",
         "Answer5": "C) Einen schönen Tag noch"
       },
-      "teil2": {
+      "teil3": {
         "Answer1": "Fragen nach dem Weg: 'Entschuldigung, wie komme ich zum Bahnhof'",
         "Answer2": "Die Straße überqueren: 'Überqueren Sie die Straße'",
         "Answer3": "Geradeaus gehen: 'Gehen Sie geradeaus'",
