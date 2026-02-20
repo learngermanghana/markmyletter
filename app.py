@@ -872,8 +872,12 @@ def save_row(row: dict, to_sheet: bool = True, to_firestore: bool = False) -> di
 # =========================================================
 
 message = st.session_state.pop("last_save_success", None)
+receipt = st.session_state.pop("last_save_receipt", None)
 if message:
     st.success("✅ " + message)
+if receipt:
+    st.info("🧾 Firestore receipt")
+    st.json(receipt)
 
 st.title("📘 Marking Dashboard")
 
@@ -1121,7 +1125,13 @@ if st.button("💾 Save", type="primary", use_container_width=True):
         if result.get("ok"):
             message = result.get("message", "Saved")
             st.session_state["last_save_success"] = message
+            receipt = result.get("receipt")
+            if receipt:
+                st.session_state["last_save_receipt"] = receipt
             st.success("✅ " + message)
+            if receipt:
+                st.info("🧾 Firestore receipt")
+                st.json(receipt)
             load_sheet_csv.clear()
             st.rerun()
         elif result.get("why") == "validation":
