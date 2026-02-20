@@ -45,8 +45,10 @@ def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
     Returns
     -------
     dict
-        ``{"ok": True, "message": "Saved to Firestore"}`` on success or
-        ``{"ok": False, "error": str}`` on failure.
+        On success returns ``{"ok": True, "message": "Saved to Firestore",
+        "receipt": {...}}`` where ``receipt`` includes the collection,
+        document id/path, and key marked data. On failure returns
+        ``{"ok": False, "error": str}``.
     """
 
     db = get_firestore_client()
@@ -54,8 +56,21 @@ def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
         return {"ok": False, "error": "no_client"}
 
     try:
-        db.collection(collection).add(row)
-        return {"ok": True, "message": "Saved to Firestore"}
+        _, doc_ref = db.collection(collection).add(row)
+        receipt = {
+            "collection": collection,
+            "document_id": doc_ref.id,
+            "document_path": doc_ref.path,
+            "saved_data": {
+                "studentcode": row.get("studentcode"),
+                "assignment": row.get("assignment"),
+                "score": row.get("score"),
+                "comments": row.get("comments"),
+                "date": row.get("date"),
+                "level": row.get("level"),
+            },
+        }
+        return {"ok": True, "message": "Saved to Firestore", "receipt": receipt}
     except Exception as e:  # pragma: no cover - broad to capture Firestore errors
         return {"ok": False, "error": str(e)}
 
@@ -185,4 +200,3 @@ def load_student_draft(level: str, student_code: str) -> dict | None:
             return normalized
         return {}
     return None
-
