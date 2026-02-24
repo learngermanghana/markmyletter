@@ -921,6 +921,8 @@ if "ref_format" not in st.session_state:
     st.session_state.ref_format = "essay"
 if "ref_answers" not in st.session_state:
     st.session_state.ref_answers = {}
+if "ref_assignment_id" not in st.session_state:
+    st.session_state.ref_assignment_id = ""
 
 (tab_json, tab_recent) = st.tabs(["📦 JSON dictionary", "🆕 New submissions"])
 
@@ -946,6 +948,7 @@ with tab_json:
             st.session_state.ref_link = link_json
             st.session_state.ref_format = fmt_json
             st.session_state.ref_answers = ans_map_json
+            st.session_state.ref_assignment_id = str((ans_dict.get(pick_json, {}) or {}).get("assignment_id", "")).strip()
             st.success("Using JSON reference")
 
 with tab_recent:
@@ -997,9 +1000,10 @@ if not st.session_state.ref_assignment:
         st.session_state.ref_link = ln
         st.session_state.ref_format = fmt
         st.session_state.ref_answers = ans_map
+        st.session_state.ref_assignment_id = str((ans[first] or {}).get("assignment_id", "")).strip()
 
 st.info(
-    f"Currently selected reference → **{st.session_state.ref_assignment or '—'}** (format: {st.session_state.ref_format})"
+    f"Currently selected reference → **{st.session_state.ref_assignment or '—'}** (format: {st.session_state.ref_format}, id: {st.session_state.ref_assignment_id or '—'})"
 )
 
 # ---------------- Submissions & Marking ----------------
@@ -1111,6 +1115,7 @@ if st.button("💾 Save", type="primary", use_container_width=True):
             "date": datetime.now().strftime("%Y-%m-%d"),
             "level": student_level,
             "link": link_value,
+            "assgnment_id": st.session_state.ref_assignment_id,
         }
 
         result = save_row(row, to_firestore=save_to_firestore)
