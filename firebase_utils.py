@@ -68,6 +68,7 @@ def save_row_to_firestore(row: dict, collection: str = "scores") -> dict:
                 "comments": row.get("comments"),
                 "date": row.get("date"),
                 "level": row.get("level"),
+                "assgnment_id": row.get("assgnment_id"),
             },
         }
         return {"ok": True, "message": "Saved to Firestore", "receipt": receipt}
