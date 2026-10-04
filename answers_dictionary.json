@@ -524,11 +524,11 @@
         "Answer7": "A"
       },
       "teil4": {
-        "Answer1": "A",
-        "Answer2": "A",
-        "Answer3": "B",
-        "Answer4": "B",
-        "Answer5": "B"
+        "Answer1": "B) Drei Zimmer",
+        "Answer2": "A) Ein Bücherregal",
+        "Answer3": "B) Er ist ein bisschen zu klein.",
+        "Answer4": "A) Einen Schreibtisch, einen Stuhl und einen Computer",
+        "Answer5": "B) Eine Pflanze"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1eMuNXnkWU_AQr422gKKkm8v6-MQTY7B7pzIEXjt5q3s/gviz/tq?tqx=out:html&sheet=Key",
