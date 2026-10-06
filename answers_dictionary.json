@@ -936,18 +936,31 @@
   "A2 9.23 Wie kommst du zur Schule / zur Arbeit?": {
     "answers": {
       "teil3": {
-        "Answer1": "C) An die Nordsee",
-        "Answer2": "B) Auf einer Insel",
-        "Answer3": "A) Aus der Schweiz",
-        "Answer4": "A) Mit der U-Bahn",
-        "Answer5": "D) Die Berge und die Natur"
-      },
-      "teil4": {}
+        "Answer1": "B) Zu Fuß",
+        "Answer2": "B) 25 Minuten",
+        "Answer3": "A) Weil es ihm zu kalt ist.",
+        "Answer4": "B) Er findet schwer einen Parkplatz.",
+        "Answer5": "C) 65 Euro"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1u7kFhf4yTXKlRhxVNsr7nmDfaR1XBnkzwG6ZnIwvAmo/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1u7kFhf4yTXKlRhxVNsr7nmDfaR1XBnkzwG6ZnIwvAmo/edit",
     "format": "objective",
-    "assignment_id": "A2-9.23"
+    "assignment_id": "A2-9.23",
+    "expectedParts": ["teil3"],
+    "excludedParts": ["teil4"],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": ["teil3"],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 9.24 Einen Urlaub planen": {
     "answers": {
