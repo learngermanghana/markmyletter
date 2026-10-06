@@ -888,18 +888,50 @@
   "A2 8.22 Die Woche Plannung": {
     "answers": {
       "teil3": {
-        "Answer1": "C) Im Moment ist vieles neu für sie.",
-        "Answer2": "B) Für neue Studenten eine Stadtführung gemacht.",
-        "Answer3": "C) Kocht jeder einmal für die anderen.",
-        "Answer4": "B) Deutsch zu sprechen.",
-        "Answer5": "C) Übernachtet Sonja in Marios Zimmer."
-      },
-      "teil4": {}
+        "Answer1": "B) Zwei Tage",
+        "Answer2": "B) 20 €",
+        "Answer3": "C) An den Landungsbrücken",
+        "Answer4": "A) Freie Fahrt mit Bus und Bahn für zwei Tage",
+        "Answer5": "C) Um 20 Uhr",
+        "Answer6": "B) Seeblick",
+        "Answer7": "A) Ungefähr zwei Stunden"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1IltGaPYHb_jPazZNClHdjzTu-Tgs94zfHNzixrizvCs/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1IltGaPYHb_jPazZNClHdjzTu-Tgs94zfHNzixrizvCs/edit",
     "format": "objective",
-    "assignment_id": "A2-8.22"
+    "assignment_id": "A2-8.22",
+    "expectedParts": [
+      "teil2",
+      "teil3"
+    ],
+    "excludedParts": [
+      "teil4"
+    ],
+    "writingParts": [
+      "teil2"
+    ],
+    "aiGradedParts": [
+      "teil2"
+    ],
+    "referenceAnswerParts": [
+      "teil3"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil2": {
+        "label": "Teil 2 Schreiben",
+        "hasReferenceAnswers": false,
+        "gradingMode": "ai_written_response",
+        "instruction": "Teil 2 is a Schreiben/writing part. There is no fixed reference answer in the answer key. Do not mark the student wrong or give 0 because reference answers are missing. Grade with AI using the writing prompt, CEFR level, task completion, grammar, vocabulary, structure, and clarity."
+      },
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 9.23 Wie kommst du zur Schule / zur Arbeit?": {
     "answers": {
