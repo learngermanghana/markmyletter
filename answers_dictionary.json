@@ -1010,13 +1010,11 @@
   "A2 10.26 Gefühle in verschiedenen Situationen beschr": {
     "answers": {
       "teil3": {
-        "Answer1": "b) Er beantwortet Fragen und kontrolliert die Gesundheit des Kindes.",
-        "Answer2": "c) 14 Wochen",
-        "Answer3": "c) 14 Monate",
-        "Answer4": "a) Man muss einen festen Arbeitsvertrag haben.",
-        "Answer5": "a) Impfungen und Vorsorgeuntersuchungen",
-        "Answer6": "c) Ab 3 Jahren",
-        "Answer7": "b) An speziellen Freizeitangeboten in der Stadt teilnehmen"
+        "Answer1": "B) Er findet die Idee sehr gut („Das klingt toll“).",
+        "Answer2": "A) „Ich interessiere mich auch für Musik.“",
+        "Answer3": "B) Er ist gelassen und nimmt die Karten trotzdem („Das ist nicht schlimm“).",
+        "Answer4": "A) Er freut sich über den guten Rat („Super Tipp. Danke“).",
+        "Answer5": "A) Der Tourist ist mit dem Plan für Museum und Stadtpark zufrieden."
       },
       "teil4": {}
     },
