@@ -1776,24 +1776,51 @@
   "B1 7.22 Was ist dir in einer Beziehung wichtig?": {
     "answers": {
       "teil3": {
-        "Answer1": "D) 500 Jahre",
-        "Answer2": "B) Alexanderplatz",
-        "Answer3": "D) Eine Einkaufsstraße",
-        "Answer4": "D) in einem Hotel",
-        "Answer5": "C) Stadtrundfahrten",
-        "Answer6": "D) im Supermarkt",
-        "Answer7": "B) Name, Alter, Wohnort"
+        "Answer1": "B) Vertrauen und Ehrlichkeit",
+        "Answer2": "B) Weil sie das Vertrauen und die Basis der Beziehung zerstört.",
+        "Answer3": "B) Sie sollten Probleme direkt und offen ansprechen.",
+        "Answer4": "B) Dass man den Partner bei seinen Zielen ermutigt und in schweren Zeiten beisteht.",
+        "Answer5": "A) Damit jeder eigene Hobbys und persönliche Kontakte pflegen kann.",
+        "Answer6": "B) Es kann auf Dauer zu Spannungen führen.",
+        "Answer7": "A) Ein gewisses Maß an Eigenständigkeit neben gemeinsamen Interessen."
       },
       "teil4": {
-        "Answer1": "D) Zeugnisse und Anschreiben",
-        "Answer2": "A) Man lernt den Arbeitgeber kennen.",
-        "Answer3": "C) Man kann sich bei der nächsten offenen Stelle bewerben."
+        "Answer1": "D) im Supermarkt",
+        "Answer2": "B) Name, Alter, Wohnort",
+        "Answer3": "D) Zeugnisse und Anschreiben",
+        "Answer4": "A) Man lernt den Arbeitgeber kennen.",
+        "Answer5": "C) Man kann sich bei der nächsten offenen Stelle bewerben."
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1b4CY4c1YK-QrIKmmq6NX60cdmWJ6u0X6C-qcyoFjbBU/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1b4CY4c1YK-QrIKmmq6NX60cdmWJ6u0X6C-qcyoFjbBU/edit",
     "format": "objective",
-    "assignment_id": "B1-7.22"
+    "assignment_id": "B1-7.22",
+    "expectedParts": [
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "B1 7.23 Erstes Date ? Typische Situationen": {
     "answers": {
