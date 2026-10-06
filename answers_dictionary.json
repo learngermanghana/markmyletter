@@ -611,13 +611,11 @@
   "A2 4.10 Tourismus und Traditionelle Feste": {
     "answers": {
       "teil3": {
-        "Answer1": "b) Die wichtigsten rechtlichen und politischen Regeln",
-        "Answer2": "c) Man muss Steuern zahlen",
-        "Answer3": "b) EU-Bürger dürfen bei Kommunalwahlen wählen",
-        "Answer4": "b) Er vertritt die Interessen von Migranten",
-        "Answer5": "a) Christlich-orthodox, jüdisch, islamisch, evangelisch, katholisch",
-        "Answer6": "b) Seit 1. Oktober 2017",
-        "Answer7": "c) Jeder darf seine Religion frei wählen und ausüben"
+        "Answer1": "A) In der Touristeninformation",
+        "Answer2": "B) An den Landungsbrücken",
+        "Answer3": "C) Ein Orchesterkonzert in der Elbphilharmonie",
+        "Answer4": "A) Im Restaurant Seeblick",
+        "Answer5": "A) Im Stadtpark spazieren gehen"
       },
       "teil4": {
         "Answer1": "A) Eine Hafenrundfahrt",
@@ -630,7 +628,43 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1fhMpgMdfNWuZcoRnXMvKhGxXBJLYF-cGV4hyPHmcFu4/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1fhMpgMdfNWuZcoRnXMvKhGxXBJLYF-cGV4hyPHmcFu4/edit",
     "format": "objective",
-    "assignment_id": "A2-4.10"
+    "assignment_id": "A2-4.10",
+    "expectedParts": [
+      "teil2",
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [
+      "teil2"
+    ],
+    "aiGradedParts": [
+      "teil2"
+    ],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil2": {
+        "label": "Teil 2 Schreiben",
+        "hasReferenceAnswers": false,
+        "gradingMode": "ai_written_response",
+        "instruction": "Teil 2 is a Schreiben/writing part. The learner writes a friendly email to a friend about exploring a city or new neighbourhood together: say which place and why, suggest two activities or places, then give a concrete day/meeting point and ask what the friend prefers. There is no fixed reference answer. Grade with AI using A2 task completion, register, grammar, vocabulary, structure and clarity."
+      },
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 4.11 Unterwegs: Verkehrsmittel vergleichen": {
     "answers": {
