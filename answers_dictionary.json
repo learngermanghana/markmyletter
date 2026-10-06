@@ -1010,10 +1010,10 @@
   "A2 10.26 Gefühle in verschiedenen Situationen beschr": {
     "answers": {
       "teil3": {
-        "Answer1": "B) Er findet die Idee sehr gut („Das klingt toll“)."
-        "Answer2": "A) „Ich interessiere mich auch für Musik.“"
-        "Answer3": "B) Er ist gelassen und nimmt die Karten trotzdem („Das ist nicht schlimm“)."
-        "Answer4": "A) Er freut sich über den guten Rat („Super Tipp. Danke“)."
+        "Answer1": "B) Er findet die Idee sehr gut („Das klingt toll“).",
+        "Answer2": "A) „Ich interessiere mich auch für Musik.“",
+        "Answer3": "B) Er ist gelassen und nimmt die Karten trotzdem („Das ist nicht schlimm“).",
+        "Answer4": "A) Er freut sich über den guten Rat („Super Tipp. Danke“).",
         "Answer5": "A) Der Tourist ist mit dem Plan für Museum und Stadtpark zufrieden."
       },
       "teil4": {
@@ -1069,10 +1069,10 @@
   "A2 10.27 Digitale Kommunikation": {
     "answers": {
       "teil3": {
-        "Answer1": "B) Freie Fahrt mit Bus und Bahn für zwei Tage sowie Rabatte"
-        "Answer2": "C) Die gebuchten Plätze befinden sich auf den hinteren Rängen."
-        "Answer3": "A) Auf der Website des Restaurants Seeblick"
-        "Answer4": "B) Ungefähr zwei Stunden"
+        "Answer1": "B) Freie Fahrt mit Bus und Bahn für zwei Tage sowie Rabatte",
+        "Answer2": "C) Die gebuchten Plätze befinden sich auf den hinteren Rängen.",
+        "Answer3": "A) Auf der Website des Restaurants Seeblick",
+        "Answer4": "B) Ungefähr zwei Stunden",
         "Answer5": "B) Einen digitalen Stadtplan mit Markierungen für Sehenswürdigkeiten"
       },
       "teil4": {
@@ -1116,20 +1116,60 @@
   "A2 10.28 Über die Zukunft sprechen": {
     "answers": {
       "teil3": {
-        "Answer1": "c) Einen gültigen Reisepass",
-        "Answer2": "b) Bei der Deutschen Botschaft im Heimatland",
-        "Answer3": "c) Einen Aufenthaltstitel",
-        "Answer4": "b) Ein Kurs für Deutsch und Leben in Deutschland",
-        "Answer5": "c) Man muss sie übersetzen und anerkennen lassen",
-        "Answer6": "c) Die Arbeitsagentur",
-        "Answer7": "c) Kranken-, Renten- und Pflegeversicherung"
+        "Answer1": "B) Er wird im Restaurant Seeblick Fisch essen.",
+        "Answer2": "A) Heute Abend um 20:00 Uhr",
+        "Answer3": "B) Er möchte das Hafenmuseum besuchen.",
+        "Answer4": "B) Er wird im Stadtpark spazieren gehen.",
+        "Answer5": "C) Zwei Tage lang für Bus und Bahn"
       },
-      "teil4": {}
+      "teil4": {
+        "Answer1": "B) Weil sie später mehr Verantwortung übernehmen möchte",
+        "Answer2": "C) Hotelmanagerin werden",
+        "Answer3": "A) Weil er seinen Beruf wechseln möchte und sich für Computer interessiert",
+        "Answer4": "C) Für eine größere Wohnung, die er in zwei oder drei Jahren mieten möchte",
+        "Answer5": "A) Eine zweiwöchige Reise nach Spanien und ihr Spanisch zu verbessern"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1fAP60NXAKiJ8wdugvjQtZxDX-3ap88vKya7yZWo9mEs/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1fAP60NXAKiJ8wdugvjQtZxDX-3ap88vKya7yZWo9mEs/edit",
     "format": "objective",
-    "assignment_id": "A2-10.28"
+    "assignment_id": "A2-10.28",
+    "expectedParts": [
+      "teil2",
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [
+      "teil2"
+    ],
+    "aiGradedParts": [
+      "teil2"
+    ],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil2": {
+        "label": "Teil 2 Schreiben",
+        "hasReferenceAnswers": false,
+        "gradingMode": "ai_written_response",
+        "instruction": "Teil 2 is a Schreiben/writing part. There is no fixed reference answer in the answer key. Do not mark the student wrong or give 0 because reference answers are missing. Grade with AI using the writing prompt, CEFR level, task completion, grammar, vocabulary, structure, and clarity."
+      },
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "B1 1.1 Traumwelten": {
     "answers": {
