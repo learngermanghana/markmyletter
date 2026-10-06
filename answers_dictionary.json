@@ -176,32 +176,55 @@
     "format": "objective",
     "assignment_id": "A1-5"
   },
-  "A1 12 Hour Clock 7": {
+  "A1 Understanding Time 7": {
     "answers": {
-      "Answer1": "B) Um sieben Uhr",
-      "Answer2": "B) Um acht Uhr",
-      "Answer3": "B) Um sechs Uhr",
-      "Answer4": "B) Um zehn Uhr",
-      "Answer5": "B) Um neun Uhr",
-      "Answer6": "C) Nachmittags",
-      "Answer7": "B) Um sieben Uhr",
-      "Answer8": "A) Montag",
-      "Answer9": "B) Am Dienstag und Donnerstag",
-      "Answer10": "B) Er ruht sich aus",
-      "Answer11": "B) Um Siehen Uhr",
-      "Answer12": "B) Um acht Uhr",
-      "Answer13": "B) Um Sechs Uhr",
-      "Answer14": "B) Um zehn Uhr",
-      "Answer15": "A) Sie geht zur Arbeit",
-      "Answer16": "B) Um neun Uhr",
-      "Answer17": "B) Er geht in die Bibliothek",
-      "Answer18": "B) Bis zwei Uhr nachmittags",
-      "Answer19": "B) Um drei Uhr nachmittags",
-      "Answer20": "B) Um sieben Uhr"
+      "Teil 1": {
+        "Answer1": "B) Zwei Tage",
+        "Answer2": "A) 10 Minuten",
+        "Answer3": "B) Eine Stunde",
+        "Answer4": "C) Um 20 Uhr",
+        "Answer5": "B) Zwei Stunden"
+      },
+      "Teil 2": {
+        "Answer1": "A) Richtig",
+        "Answer2": "B) Falsch",
+        "Answer3": "A) Richtig",
+        "Answer4": "B) Um sechs Uhr",
+        "Answer5": "A) Um Viertel vor sechs, er holt Anna ab."
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1dCI5BbOvfvI4RekolDshv19jyNFPmzenDSrgBMGL9Uk/gviz/tq?tqx=out:html&sheet=Key",
     "format": "objective",
-    "assignment_id": "A1-12"
+    "assignment_id": "A1-7",
+    "expectedParts": [
+      "teil1",
+      "teil2"
+    ],
+    "answerLayout": "multipart",
+    "referenceAnswerParts": [
+      "teil1",
+      "teil2"
+    ],
+    "partAliases": {
+      "teil1": "Teil 1",
+      "teil2": "Teil 2",
+      "Teil 1": "teil1",
+      "Teil 2": "teil2"
+    },
+    "partGrading": {
+      "teil1": {
+        "label": "Lesen",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade Lesen only against the reference answers in Teil 1."
+      },
+      "teil2": {
+        "label": "Hören",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade Hören only against the reference answers in Teil 2."
+      }
+    }
   },
   "A1 24 Hour Clock 8": {
     "answers": {
