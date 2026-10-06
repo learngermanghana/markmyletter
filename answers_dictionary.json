@@ -1760,18 +1760,51 @@
   "B1 7.21 Lebensformen heute ? Familie, Wohnge": {
     "answers": {
       "teil3": {
-        "Answer1": "B) Sie wollte Auslandserfahrung sammeln",
-        "Answer2": "B) Sie wollte Auslandserfahrung sammeln",
-        "Answer3": "D) Ja, zwei Söhne.",
-        "Answer4": "D) Ja, fünf Geschwister",
-        "Answer5": "C) Weil ihre Eltern dort wohnen"
+        "Answer1": "B) Es ist nicht mehr die einzige Art, wie Menschen zusammenleben.",
+        "Answer2": "A) Der Wunsch nach beruflicher Flexibilität und Unabhängigkeit.",
+        "Answer3": "B) Sie pflegen soziale Kontakte über Freundschaften und Vereine.",
+        "Answer4": "B) Neue Partner bringen Kinder aus früheren Beziehungen mit.",
+        "Answer5": "B) Geduld, Toleranz und gegenseitige Rücksichtnahme.",
+        "Answer6": "A) Weil sie nicht alleine wohnen oder ins Seniorenheim ziehen möchten.",
+        "Answer7": "B) Jung und Alt unterstützen sich gegenseitig im Alltag."
       },
       "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1Cr7l9lPtiR5KvB7twzyc3FM12OiTTfLow9fu7JfnEU8/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1Cr7l9lPtiR5KvB7twzyc3FM12OiTTfLow9fu7JfnEU8/edit",
     "format": "objective",
-    "assignment_id": "B1-7.21"
+    "assignment_id": "B1-7.21",
+    "expectedParts": [
+      "teil2",
+      "teil3"
+    ],
+    "excludedParts": [
+      "teil4"
+    ],
+    "writingParts": [
+      "teil2"
+    ],
+    "aiGradedParts": [
+      "teil2"
+    ],
+    "referenceAnswerParts": [
+      "teil3"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil2": {
+        "label": "Teil 2 Schreiben",
+        "hasReferenceAnswers": false,
+        "gradingMode": "ai_written_response",
+        "instruction": "Teil 2 is a Schreiben/writing part. There is no fixed reference answer in the answer key. Do not mark the student wrong or give 0 because reference answers are missing. Grade with AI using the writing prompt, CEFR level, task completion, grammar, vocabulary, structure, and clarity."
+      },
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "B1 7.22 Was ist dir in einer Beziehung wichtig?": {
     "answers": {
