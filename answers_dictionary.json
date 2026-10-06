@@ -834,13 +834,14 @@
   "A2 6.17 In die Apotheke gehen": {
     "answers": {
       "teil3": {
-        "Answer1": "B) Weil sie sich krank fühlte",
-        "Answer2": "B) Hustensaft",
-        "Answer3": "C) Hilfsbereit",
-        "Answer4": "B) Broschüren mit Tipps",
-        "Answer5": "C) Besser",
-        "Answer6": "B) Nach einigen Stunden",
-        "Answer7": "A) Sie kann sich auf den Rat der Apotheker verlassen"
+        "Answer1": "B) Eine Stunde",
+        "Answer2": "B) 20 Euro",
+        "Answer3": "C) Um 20 Uhr",
+        "Answer4": "A) Richtig",
+        "Answer5": "B) Falsch",
+        "Answer6": "A) Richtig",
+        "Answer7": "B) Falsch",
+        "Answer8": "A) Richtig"
       },
       "teil4": {
         "Answer1": "B) Wegen Kopfschmerzen",
@@ -853,7 +854,32 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1X-H0rjHjyJeTbm_bVNh_Bp8VMT-ZwZBQdhadUS1Coqs/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1X-H0rjHjyJeTbm_bVNh_Bp8VMT-ZwZBQdhadUS1Coqs/edit",
     "format": "objective",
-    "assignment_id": "A2-6.17"
+    "assignment_id": "A2-6.17",
+    "expectedParts": [
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 7.18 Die Bank Anrufen": {
     "answers": {
