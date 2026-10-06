@@ -1694,19 +1694,51 @@
   "B1 6.19 Das Vorstellungsgespräch": {
     "answers": {
       "teil3": {
-        "Answer1": "B) die umweltfreundliche Stromproduktion in Feldheim",
-        "Answer2": "a) ein ganzes Dorf von modernen Energien leben kann",
-        "Answer3": "C) muss die Bevölkerung dafür sein",
-        "Answer4": "B) es ein neues Tourismus-Angebot gibt",
-        "Answer5": "B) muss man nicht sportlich sein",
-        "Answer6": "C) mehr Velo-Touristen in die Region kommen"
+        "Answer1": "B) Weil ihm die Stelle bei der Agentur sehr wichtig ist.",
+        "Answer2": "B) Seinen bisherigen Werdegang und seine Erfahrungen beschreiben.",
+        "Answer3": "A) Frau Weber stellte ihm plötzlich Fragen auf Englisch.",
+        "Answer4": "B) Über seinen Umgang mit Stress und Zeitdruck.",
+        "Answer5": "B) Nach Arbeitszeiten und Fortbildungsangeboten.",
+        "Answer6": "B) Bis Ende nächster Woche.",
+        "Answer7": "B) Drei andere Kandidaten."
       },
-      "teil4": {}
+      "teil4": {
+        "Answer1": "B) Krankenschwester",
+        "Answer2": "C) Seit drei Jahren",
+        "Answer3": "A) Die Klinik hat einen guten Ruf, und sie arbeitet gern im Team",
+        "Answer4": "C) Sie ist manchmal zu perfektionistisch",
+        "Answer5": "C) Vier Wochen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1jIci1aX6N68DhttbtTg1yLF2ighuNIyYNTtSLz_OEjc/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1jIci1aX6N68DhttbtTg1yLF2ighuNIyYNTtSLz_OEjc/edit",
     "format": "objective",
-    "assignment_id": "B1-6.19"
+    "assignment_id": "B1-6.19",
+    "expectedParts": [
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "Teil 4 Hören",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Teil 4 is the graded Hören task for this lesson. Grade it against the reference answers in answers."
+      }
+    }
   },
   "B1 6.20 Wie wird man ?? (Ausbildung und Qu)": {
     "answers": {
