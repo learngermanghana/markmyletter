@@ -1069,20 +1069,49 @@
   "A2 10.27 Digitale Kommunikation": {
     "answers": {
       "teil3": {
-        "Answer1": "b) Sie sind oft sehr teuer oder funktionieren nicht.",
-        "Answer2": "c) Ein deutsches Bankkonto und einen Ausweis.",
-        "Answer3": "C) 1 bis 2 Jahre",
-        "Answer4": "c) Drei Monate vor Vertragsende",
-        "Answer5": "c) In Supermärkten, Tankstellen oder Kiosken",
-        "Answer6": "b) Name, Adresse, Geburtsdatum und ein Ausweisdokument",
-        "Answer7": "d) Mit öffentlichem WLAN"
+        "Answer1": "B) Freie Fahrt mit Bus und Bahn für zwei Tage sowie Rabatte"
+        "Answer2": "C) Die gebuchten Plätze befinden sich auf den hinteren Rängen."
+        "Answer3": "A) Auf der Website des Restaurants Seeblick"
+        "Answer4": "B) Ungefähr zwei Stunden"
+        "Answer5": "B) Einen digitalen Stadtplan mit Markierungen für Sehenswürdigkeiten"
       },
-      "teil4": {}
+      "teil4": {
+        "Answer1": "A) Weil ihre Schwester in Österreich lebt",
+        "Answer2": "B) Sie machen eine Videokonferenz",
+        "Answer3": "B) Weil er am Abend nicht ständig auf sein Handy schauen möchte",
+        "Answer4": "B) Weil ihr Datenschutz wichtiger geworden ist",
+        "Answer5": "C) Missverständnisse können leichter entstehen"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1CDLU1BEBm-xCS0BEdXunjSN8CHol1UMuxlF_QDSGNc8/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1CDLU1BEBm-xCS0BEdXunjSN8CHol1UMuxlF_QDSGNc8/edit",
     "format": "objective",
-    "assignment_id": "A2-10.27"
+    "assignment_id": "A2-10.27",
+    "expectedParts": [
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 10.28 Über die Zukunft sprechen": {
     "answers": {
