@@ -563,13 +563,11 @@
   "A2 3.8 Rezepte und Essen": {
     "answers": {
       "teil3": {
-        "Answer1": "B) Brot, Brotchen, Aufschnitt, Kase und Marmelade",
-        "Answer2": "B) Ein Kaltes Abendessen",
-        "Answer3": "A) Fischgerichte",
-        "Answer4": "B) Oktoberfest",
-        "Answer5": "B) Gerichte aus aller Welt",
-        "Answer6": "C) Sauerkraut und Bratwurst",
-        "Answer7": "A) Eine zentrale Rolle"
+        "Answer1": "B) Nein, er kommt ohne Reservierung ins Restaurant.",
+        "Answer2": "B) Gebratenes Fischfilet mit Kartoffeln und Salat",
+        "Answer3": "C) Ein Mineralwasser ohne Kohlensäure",
+        "Answer4": "A) Er findet das Essen ausgezeichnet und lobt es.",
+        "Answer5": "B) Er gibt 2.00 € Trinkgeld (er rundet von 21.00 € auf 23.00 € auf)."
       },
       "teil4": {
         "Answer1": "B) Am Fenster",
@@ -582,7 +580,32 @@
     "answer_url": "https://docs.google.com/spreadsheets/d/1Qdiqusfbg9sqkrkspHljsD3vJPKb0bghFGskL8tCPp0/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1Qdiqusfbg9sqkrkspHljsD3vJPKb0bghFGskL8tCPp0/edit",
     "format": "objective",
-    "assignment_id": "A2-3.8"
+    "assignment_id": "A2-3.8",
+    "expectedParts": [
+      "teil3",
+      "teil4"
+    ],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 4.9 Urlaub": {
     "answers": {
