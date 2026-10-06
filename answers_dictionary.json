@@ -981,24 +981,31 @@
   "A2 9.25 Tagesablauf": {
     "answers": {
       "teil3": {
-        "Answer1": "a) kurz vor 7 Uhr",
-        "Answer2": "d) Müsli oder Toast mit Marmelade",
-        "Answer3": "b) Hausaufgaben",
-        "Answer4": "a) am Nachmittag",
-        "Answer5": "b) Freunde treffen"
-      },
-      "teil4": {
-        "Answer1": "c) die Schweiz",
-        "Answer2": "d) mit dem Zug",
-        "Answer3": "a) an einem kleinen Bahnhof",
-        "Answer4": "d) einen Zimmerschlüssel",
-        "Answer5": "b) das Zimmer ist zu klein"
+        "Answer1": "B) Er macht eine Hafenrundfahrt an den Landungsbrücken.",
+        "Answer2": "B) 20 € (statt 25 €)",
+        "Answer3": "B) Im Restaurant Seeblick",
+        "Answer4": "C) Um 20 Uhr",
+        "Answer5": "B) Ein Besuch im Hafenmuseum und ein Spaziergang im Stadtpark"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/edit",
     "format": "objective",
-    "assignment_id": "A2-9.25"
+    "assignment_id": "A2-9.25",
+    "expectedParts": ["teil3"],
+    "excludedParts": ["teil2", "teil4"],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": ["teil3"],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 10.26 Gefühle in verschiedenen Situationen beschr": {
     "answers": {
