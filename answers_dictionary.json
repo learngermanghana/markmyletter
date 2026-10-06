@@ -981,42 +981,90 @@
   "A2 9.25 Tagesablauf": {
     "answers": {
       "teil3": {
-        "Answer1": "a) kurz vor 7 Uhr",
-        "Answer2": "d) Müsli oder Toast mit Marmelade",
-        "Answer3": "b) Hausaufgaben",
-        "Answer4": "a) am Nachmittag",
-        "Answer5": "b) Freunde treffen"
-      },
-      "teil4": {
-        "Answer1": "c) die Schweiz",
-        "Answer2": "d) mit dem Zug",
-        "Answer3": "a) an einem kleinen Bahnhof",
-        "Answer4": "d) einen Zimmerschlüssel",
-        "Answer5": "b) das Zimmer ist zu klein"
+        "Answer1": "B) Er macht eine Hafenrundfahrt an den Landungsbrücken.",
+        "Answer2": "B) 20 € (statt 25 €)",
+        "Answer3": "B) Im Restaurant Seeblick",
+        "Answer4": "C) Um 20 Uhr",
+        "Answer5": "B) Ein Besuch im Hafenmuseum und ein Spaziergang im Stadtpark"
       }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1nOtlOXVblDt1RQ8JOLpBBLQfjmnxJ9YF6ylhZo4u6kY/edit",
     "format": "objective",
-    "assignment_id": "A2-9.25"
+    "assignment_id": "A2-9.25",
+    "expectedParts": ["teil3"],
+    "excludedParts": ["teil2", "teil4"],
+    "writingParts": [],
+    "aiGradedParts": [],
+    "referenceAnswerParts": ["teil3"],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 10.26 Gefühle in verschiedenen Situationen beschr": {
     "answers": {
       "teil3": {
-        "Answer1": "b) Er beantwortet Fragen und kontrolliert die Gesundheit des Kindes.",
-        "Answer2": "c) 14 Wochen",
-        "Answer3": "c) 14 Monate",
-        "Answer4": "a) Man muss einen festen Arbeitsvertrag haben.",
-        "Answer5": "a) Impfungen und Vorsorgeuntersuchungen",
-        "Answer6": "c) Ab 3 Jahren",
-        "Answer7": "b) An speziellen Freizeitangeboten in der Stadt teilnehmen"
+        "Answer1": "B) Er findet die Idee sehr gut („Das klingt toll“)."
+        "Answer2": "A) „Ich interessiere mich auch für Musik.“"
+        "Answer3": "B) Er ist gelassen und nimmt die Karten trotzdem („Das ist nicht schlimm“)."
+        "Answer4": "A) Er freut sich über den guten Rat („Super Tipp. Danke“)."
+        "Answer5": "A) Der Tourist ist mit dem Plan für Museum und Stadtpark zufrieden."
       },
-      "teil4": {}
+      "teil4": {
+        "Answer1": "B) Weil sie immer wieder an die Aufgaben denkt",
+        "Answer2": "C) Glücklich und erleichtert",
+        "Answer3": "A) Weil er die neue Stelle nicht bekommen hat",
+        "Answer4": "C) Seine Freundin",
+        "Answer5": "B) Eine Überraschungsparty"
+      }
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1SQsUUW6_A3X-SGbOsyMZuOgm6Qo7gGsnqY9pbNxYgmY/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1SQsUUW6_A3X-SGbOsyMZuOgm6Qo7gGsnqY9pbNxYgmY/edit",
     "format": "objective",
-    "assignment_id": "A2-10.26"
+    "assignment_id": "A2-10.26",
+    "expectedParts": [
+      "teil2",
+      "teil3",
+      "teil4"
+    ],
+    "excludedParts": [],
+    "writingParts": [
+      "teil2"
+    ],
+    "aiGradedParts": [
+      "teil2"
+    ],
+    "referenceAnswerParts": [
+      "teil3",
+      "teil4"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil2": {
+        "label": "Teil 2 Schreiben",
+        "hasReferenceAnswers": false,
+        "gradingMode": "ai_written_response",
+        "instruction": "Teil 2 is a Schreiben/writing part. There is no fixed reference answer in the answer key. Do not mark the student wrong or give 0 because reference answers are missing. Grade with AI using the writing prompt, CEFR level, task completion, grammar, vocabulary, structure, and clarity."
+      },
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      },
+      "teil4": {
+        "label": "teil4",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "A2 10.27 Digitale Kommunikation": {
     "answers": {
