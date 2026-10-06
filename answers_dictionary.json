@@ -1901,20 +1901,49 @@
   "B1 7.23 Erstes Date ? Typische Situationen": {
     "answers": {
       "teil3": {
-        "Answer1": "C) Elizabeth Magie Phillips",
-        "Answer2": "B) The Landlord’s Game",
-        "Answer3": "B) Wie unfair Monopole sind",
-        "Answer4": "C) Er gab es als seine eigene Idee aus",
-        "Answer5": "D) So gut wie nichts",
-        "Answer6": "B) Weil Parker Brothers es verkaufte",
-        "Answer7": "B) Mary Pilon"
+        "Answer1": "B) Anzeige B",
+        "Answer2": "A) Anzeige A",
+        "Answer3": "D) Anzeige D",
+        "Answer4": "C) Anzeige C",
+        "Answer5": "E) Anzeige E"
       },
       "teil4": {}
     },
     "answer_url": "https://docs.google.com/spreadsheets/d/1gHdQ_M00rJyQkHvK30p-mI_ZY3tk7gMGCTjTpL1drOk/gviz/tq?tqx=out:html&sheet=Key",
     "sheet_url": "https://docs.google.com/spreadsheets/d/1gHdQ_M00rJyQkHvK30p-mI_ZY3tk7gMGCTjTpL1drOk/edit",
     "format": "objective",
-    "assignment_id": "B1-7.23"
+    "assignment_id": "B1-7.23",
+    "expectedParts": [
+      "teil2",
+      "teil3"
+    ],
+    "excludedParts": [
+      "teil4"
+    ],
+    "writingParts": [
+      "teil2"
+    ],
+    "aiGradedParts": [
+      "teil2"
+    ],
+    "referenceAnswerParts": [
+      "teil3"
+    ],
+    "answerLayout": "multipart",
+    "partGrading": {
+      "teil2": {
+        "label": "Teil 2 Schreiben",
+        "hasReferenceAnswers": false,
+        "gradingMode": "ai_written_response",
+        "instruction": "Teil 2 is a Schreiben/writing part. There is no fixed reference answer in the answer key. Do not mark the student wrong or give 0 because reference answers are missing. Grade with AI using the writing prompt, CEFR level, task completion, grammar, vocabulary, structure, and clarity."
+      },
+      "teil3": {
+        "label": "teil3",
+        "hasReferenceAnswers": true,
+        "gradingMode": "answer_key",
+        "instruction": "Grade this part against the reference answers in answers."
+      }
+    }
   },
   "B1 8.24 Konsum und Nachhaltigkeit": {
     "answers": {
